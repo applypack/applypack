@@ -300,6 +300,11 @@ export async function sendBudgetAlert(text: string): Promise<Delivery> {
   return broadcast({ telegram: [escapeMarkdownV2(text)], discord: [escapeDiscord(text)] }, null);
 }
 
+/** The grouped "packs ready" message (ADR 0063), as plain lines (pack/view.ts:packNoticeLines). */
+export async function sendPackNotice(lines: readonly string[]): Promise<Delivery> {
+  return broadcast({ telegram: [lines.map(escapeMarkdownV2).join('\n')], discord: [lines.map(escapeDiscord).join('\n')] }, null);
+}
+
 export function escapeMarkdownV2(text: string): string {
   return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }

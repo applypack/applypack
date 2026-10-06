@@ -37,6 +37,7 @@ import { CoverLetterCard, type CoverLetterCardProps } from './cover-letter-card'
 import { notEnglishNotice } from '../../text-language';
 import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
 import { VerificationCard, type VerificationCardProps } from './verification-card';
+import { ApplicationPackCard, type ApplicationPackProps } from './application-pack-card';
 import { LIVENESS_CODE_LABEL, type LivenessCode } from '../../verification/liveness';
 
 interface JobDetail {
@@ -144,11 +145,15 @@ export interface JobDetailProps {
   mute: MuteState | null;
   resumeMatch: ResumeMatchCardProps;
   coverLetters: CoverLetterCardProps;
+  applicationPack: ApplicationPackProps;
   /** The tab this request means (job-tabs.ts), and the four labels with what exists behind each. */
   tab: JobTab;
   tabs: { tab: JobTab; label: string }[];
   flash?: FlashMessage | null;
 }
+
+/** How often the pack tab reloads while a pack is being prepared; a step takes from a second to a few minutes. */
+const PACK_REFRESH_SECONDS = 8;
 
 /** The id the out-of-form select and the in-row button both post through. */
 const MARK_APPLIED_FORM = 'mark-applied';
@@ -175,11 +180,17 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   mute,
   resumeMatch,
   coverLetters,
+  applicationPack,
   tab,
   tabs,
   flash,
 }) => (
-  <Layout title={job.title} active="jobs">
+  // A pack in the queue or in flight is the one thing on this page that changes by itself.
+  <Layout
+    title={job.title}
+    active="jobs"
+    refresh={tab === 'pack' && (applicationPack.pack?.status === 'queued' || applicationPack.pack?.status === 'running') ? PACK_REFRESH_SECONDS : undefined}
+  >
     {/* One solid button a tab: the comparison and the letter bring their own
         ("Tailor resume", "Copy letter"), so the header's steps back on those. */}
     <PageHeaderBlock job={job} primary={tab === 'posting' || tab === 'verify'} />
@@ -336,6 +347,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         {tab === 'match' && <ResumeMatchCard {...resumeMatch} />}
 
         {tab === 'letter' && <CoverLetterCard {...coverLetters} />}
+
+        {tab === 'pack' && <ApplicationPackCard {...applicationPack} />}
 
         {tab === 'posting' && (
         <Card flush class="divide-y divide-line">

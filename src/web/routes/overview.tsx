@@ -16,6 +16,7 @@ import { loadOverviewStats } from '../overview-stats';
 import { preferredPlaces } from '../place-line';
 import { DEFAULT_RANGE, isRangeKey } from '../stats-series';
 import { nextThings, type NextThing } from '../next-things';
+import { listReadyPacks } from '../../pack/store';
 import { spendHint } from '../cost-hint';
 
 /** ★ How many companies the user watches, and what they put up today (ADR 0036). */
@@ -117,6 +118,7 @@ overviewRoute.get('/', async (c) => {
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
       next={await loadNextThings(unmuted)}
+      readyPacks={await listReadyPacks(READY_PACKS_SHOWN)}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -129,6 +131,9 @@ overviewRoute.get('/', async (c) => {
  * The steady state — any comparison stored — costs one count; the page
  * refreshes every 30 seconds.
  */
+/** The packs the Overview lists; the rest are a click away on the Jobs page. */
+const READY_PACKS_SHOWN = 8;
+
 async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[] | null> {
   const comparisons = await prisma.resumeMatch.count();
   if (comparisons > 0) return null;

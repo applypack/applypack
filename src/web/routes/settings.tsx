@@ -28,6 +28,7 @@ import {
   setLocalAiUrl,
   setLocalContextTokens,
   setOpenAiBaseUrl,
+  setPackSettings,
   setReapplyDays,
   setUpdateCheck,
   setTelegramEnabled,
@@ -136,6 +137,7 @@ import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
+import { packSettingsFromForm, parsePackSettings } from '../../pack/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField } from '../flash';
 import { describeDestination } from '../../notify/targets';
@@ -353,6 +355,7 @@ async function loadSettingsProps() {
     })),
     staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
     reapplyDays: settings.reapplyDays,
+    pack: parsePackSettings(settings.pack),
     loginItem: loginItemState(),
     updates: {
       enabled: settings.updateCheck,
@@ -988,6 +991,20 @@ settingsRoute.post('/settings/update-check-toggle', async (c) => {
       : isNewer(APP_VERSION, latest)
         ? `Checking weekly. v${latest} is out — you run v${APP_VERSION}.`
         : `Checking weekly. You run the latest release, v${APP_VERSION}.`,
+  );
+});
+
+/** ADR 0063: application packs — the whole form at once, as the schedule is saved. */
+settingsRoute.post('/settings/pack', async (c) => {
+  const pack = packSettingsFromForm(await c.req.parseBody({ all: true }));
+  await setPackSettings(pack);
+  return flashRedirect(
+    '/settings?tab=general#packs',
+    'ok',
+    pack.enabled
+      ? `Application packs on: a new posting with fit ${pack.minFit} or more, published in the last ${pack.maxAgeDays} days, gets one — ` +
+          `${pack.dailyLimit === 0 ? 'with no daily limit' : `${pack.dailyLimit} a day at most`}. Jobs already stored are not touched.`
+      : 'Application packs off: none is prepared on its own. A single job can still be prepared on its Application pack tab.',
   );
 });
 

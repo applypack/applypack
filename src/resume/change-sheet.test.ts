@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { proposalOf, suggestionSheet } from './change-sheet';
+import { proposalOf, suggestionKey, suggestionSheet } from './change-sheet';
 import type { MatchAction, MatchRemoval } from './prompts';
 
 const action = (what: string, over: Partial<MatchAction> = {}): MatchAction => ({
@@ -198,4 +198,13 @@ test('suggestionSheet says so when there is nothing to carry out', () => {
   const sheet = suggestionSheet({ jobTitle: 'X', companyName: 'Y', resumeName: 'Z' }, [], []);
   assert.match(sheet, /No edits suggested\./);
   assert.equal(sheet.includes('## What to change'), false);
+});
+
+test('suggestionKey names a card by its section, place and quote, and nothing else', () => {
+  const card = { section: 'experience', where: 'Acme · bullet 1', quote: 'Built a billing service.' };
+  assert.equal(suggestionKey(card), suggestionKey({ ...card, what: 'reworded since', replacement: 'Another wording.' } as typeof card));
+  assert.notEqual(suggestionKey(card), suggestionKey({ ...card, quote: 'Led code reviews.' }));
+  assert.notEqual(suggestionKey(card), suggestionKey({ ...card, section: 'summary' }));
+  // Two additions to one place have no quote to tell them apart: one key, one edit.
+  assert.equal(suggestionKey({ section: 'skills', where: 'Skills', quote: null }), suggestionKey({ section: 'skills', where: 'Skills' }));
 });

@@ -15,6 +15,7 @@ import { logger } from '../logger';
 import { originGuard } from './origin-guard';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
+import { packRoute } from './routes/pack';
 import { jobsImportRoute } from './routes/jobs-import';
 import { companiesRoute } from './routes/companies';
 import { foldersRoute } from './routes/folders';
@@ -161,6 +162,7 @@ app.route('/', countriesRoute);
 // Before jobsRoute: `/jobs/import` must not be read as `/jobs/:id`.
 app.route('/', jobsImportRoute);
 app.route('/', jobsRoute);
+app.route('/', packRoute);
 app.route('/', applicationsRoute);
 app.route('/', resumesRoute);
 app.route('/', resumeRenderRoute);

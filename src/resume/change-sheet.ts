@@ -11,7 +11,17 @@
  * 209 stored actions — see the branch's pre-work note.
  */
 
+import { hashShortId } from '../text-utils';
 import type { MatchAction, MatchRemoval } from './prompts';
+
+/**
+ * One suggestion's name: what its card keeps its applied / skipped mark under,
+ * and what a batch of edits reports it by. Stable across re-runs of the same
+ * comparison; two additions to the same place share it on purpose.
+ */
+export function suggestionKey(item: { section: string; where: string; quote?: string | null }): string {
+  return hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
+}
 
 /**
  * Shorter quoted runs are term mentions, not wordings: the corpus quotes

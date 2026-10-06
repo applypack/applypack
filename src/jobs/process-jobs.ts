@@ -16,8 +16,10 @@ import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
+import { autoPacksToday, queuePack } from '../pack/store';
+import { autoPack } from '../pack/trigger';
 import { attributionLine } from '../web/pages/attribution';
-import type { ClassifierMode } from '../settings';
+import { getPackSettings, type ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
 import { alertsEveryPosting, starred, type WatchRules } from '../watchlist/interval';
 import {
@@ -62,6 +64,8 @@ export interface ProcessStats {
   dismissed: number;
   alerted: number;
   alertFailed: number;
+  /** Matches an application pack was queued for (ADR 0063); 0 on every install that never switched packs on. */
+  packsQueued: number;
   priorityBoosted: number;
   crossListed: number;
   /** 1 when the run stopped early because fetching was paused mid-run. */
@@ -107,6 +111,7 @@ export function emptyProcessStats(): ProcessStats {
     dismissed: 0,
     alerted: 0,
     alertFailed: 0,
+    packsQueued: 0,
     priorityBoosted: 0,
     crossListed: 0,
     abortedMidRun: 0,
@@ -269,6 +274,10 @@ export async function processNormalizedJobs(
   // Read once, like the schedule: Alerts off with a chat to send to means a
   // match waits for them; no chat at all means there is nothing to wait for.
   const channel = await alertChannel();
+  // Read once as well: whether a strong new match gets an application pack
+  // (ADR 0063), and how many today's limit has left.
+  const packs = await getPackSettings();
+  let packsToday = packs.enabled ? await autoPacksToday(new Date()) : 0;
 
   // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
   // original order, so persisting and alerting stay sequential and ordered.
@@ -386,6 +395,22 @@ export async function processNormalizedJobs(
     if (!stored) continue;
     stats.matched++;
     const { created, crossListing } = stored;
+    // Asked here and nowhere else — about a posting this tick has just
+    // stored — so the backlog is never walked and a re-classify queues
+    // nothing (pack/trigger.ts). The runner picks the row up (pack-job.ts).
+    if (
+      !skipsAlert &&
+      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, now: new Date(), queuedToday: packsToday }) === 'queue'
+    ) {
+      // A pack is an extra: failing to queue one must never cost the match its alert.
+      try {
+        await queuePack(created.id, 'auto');
+        packsToday++;
+        stats.packsQueued++;
+      } catch (err) {
+        logger.warn({ err, jobId: created.id }, 'process-jobs: could not queue an application pack');
+      }
+    }
     // Counted where every other counter is: after the row exists. A posting
     // the unique key rejected was not kept by anything.
     if (keptByPolicy) stats.watchedKept++;

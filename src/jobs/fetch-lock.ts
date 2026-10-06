@@ -21,12 +21,17 @@ export interface FetchLock {
 }
 
 /** The lock, or null when another fetch holds it. */
-export async function tryFetchLock(): Promise<FetchLock | null> {
+export function tryFetchLock(): Promise<FetchLock | null> {
+  return tryAdvisoryLock(FETCH_LOCK_KEY);
+}
+
+/** The same kind of lock under another key, for a job with a queue of its own to guard (jobs/pack-job.ts). */
+export async function tryAdvisoryLock(key: number): Promise<FetchLock | null> {
   const client = new PrismaClient({ datasourceUrl: singleConnectionUrl(config.DATABASE_URL) });
   let taken = false;
   try {
     const [row] = await client.$queryRaw<{ taken: boolean }[]>(
-      Prisma.sql`SELECT pg_try_advisory_lock(${FETCH_LOCK_KEY}::bigint) AS taken`,
+      Prisma.sql`SELECT pg_try_advisory_lock(${key}::bigint) AS taken`,
     );
     taken = row?.taken === true;
   } finally {
@@ -36,7 +41,7 @@ export async function tryFetchLock(): Promise<FetchLock | null> {
   return {
     async release() {
       try {
-        await client.$queryRaw(Prisma.sql`SELECT pg_advisory_unlock(${FETCH_LOCK_KEY}::bigint)`);
+        await client.$queryRaw(Prisma.sql`SELECT pg_advisory_unlock(${key}::bigint)`);
       } finally {
         await client.$disconnect();
       }

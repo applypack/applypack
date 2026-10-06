@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.48.0] — 2026-10-06
+
+### Added
+- **Application packs.** For a strong new match the worker can do the
+  evening's work by itself: check that the posting is still open, compare it
+  with your resume, research the company on the web, tailor the resume
+  lightly and keep the file. In the morning one message says which packs are
+  ready and which postings are not worth your time; the job's new
+  **Application pack** tab shows the company in a few sentences, what was
+  changed line by line, what was left for you, and **Download .docx / .pdf**.
+  **Off by default**: Settings → General → Application packs.
+- You decide when a pack is prepared: the fit a posting needs (90), how many
+  a day the worker starts on its own (5; 0 = no limit) and how recently the
+  posting must have been published (7 days). Only postings found after you
+  switch it on are prepared — the jobs already stored are never walked, and
+  a re-classify prepares nothing. Any single job can be prepared by hand on
+  its tab, whatever the settings say.
+- A pack stops early and says why: the posting is closed, it requires
+  something your resume does not show, no edit could bring the resume close
+  enough, or the company check says fake or not worth applying. Measured on
+  44 real postings with fit 90 or more: 17 reached the end, 17 failed a
+  requirement, 7 could not get close, 2 were closed, 1 was not worth it.
+- You decide what an automatic edit may touch: the title line, the summary,
+  the skills, how many experience bullets (2), whether anything may be
+  removed (no). Whatever you choose, only wording the fact check let through
+  is applied, a keyword nothing in your resume backs is never written, a
+  rewrite that would lose a number the line had is left for you, and your
+  contact details are never touched. Your stored resume is not changed.
+- **The file you sent stays.** "I sent this file — mark applied" marks the
+  job applied and keeps the pack's file exactly as it was; it can be
+  downloaded from the job for as long as the job is there.
+- A cover letter with the pack when you ask for one: never (the default),
+  when the posting's own text mentions one, or always.
+- Overview → **Ready to send**: the packs prepared and not yet sent.
+- `npm run pack:dry` measures what packs would do to the postings you
+  already have, on a copy of the database; `pack-once.js` runs the queue now.
+
+### Changed
+- The worker now calls the resume module for packs (ADR 0063 amends ADR 0008)
+  and has a seventh schedule, `pack`, that beats every minute and does
+  nothing while no pack is queued.
+
 ## [2.47.1] — 2026-10-06
 
 ### Fixed
@@ -4809,6 +4851,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.48.0]: https://github.com/applypack/applypack/compare/v2.47.1...v2.48.0
 [2.47.1]: https://github.com/applypack/applypack/compare/v2.47.0...v2.47.1
 [2.47.0]: https://github.com/applypack/applypack/compare/v2.46.0...v2.47.0
 [2.46.0]: https://github.com/applypack/applypack/compare/v2.44.0...v2.46.0

@@ -317,6 +317,7 @@ model Job {
   stageEvents   JobStageEvent[]
   scores        JobScore[]
   screenings    Screening[]
+  pack          ApplicationPack?
 
   @@unique([companyId, externalId])
   // Postgres does not index the referencing side of a foreign key: without
@@ -538,6 +539,11 @@ model AppSettings {
   // before the cleanup cron deletes them (ADR 0048).
   employerMode                   Boolean   @default(false)
   screeningRetentionDays         Int       @default(90)
+  // ADR 0063: application packs — whether the worker prepares them, for which
+  // postings, how many a day, and what an unattended edit may touch
+  // (src/pack/settings.ts). NULL = off, which is every install until its
+  // owner switches it on.
+  pack                           Json?
   updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")
@@ -860,6 +866,65 @@ model CoverLetter {
 // two web write sites only; the worker never writes stages). Never
 // updated; rows leave only via the job's cascade, and cleanup-job skips
 // jobs that have a pipelineStage.
+// ADR 0063: what the worker prepared for one posting with nobody watching —
+// where it stopped and why, or the tailored resume as a file. One row per
+// posting, and the row is the queue as well (status = queued): no second
+// table, no broker. A posting's row goes when the posting does.
+model ApplicationPack {
+  id              Int       @id @default(autoincrement())
+  jobId           Int       @unique
+  job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  // queued | running | ready | stopped | failed (src/pack/store.ts)
+  status          String    @default("queued")
+  // auto (the tick queued it) | manual (the person asked). Only auto counts
+  // toward the daily limit.
+  trigger         String
+  // The step a running pack is on (src/pack/gate.ts:PREPARE_STEPS) — what
+  // the page says while it waits.
+  step            String?
+  // Where it stopped (src/pack/gate.ts) and the sentence that says why; on a
+  // failed row `why` is what went wrong.
+  stop            String?
+  why             String?   @db.Text
+  // What it read. No foreign keys on purpose: the row keeps saying what it
+  // did after a comparison or a resume is deleted.
+  resumeId        Int?
+  resumeName      String?
+  // The comparison of the resume as it stood, and the one of the tailored
+  // text — the row the Tailor page opens to go on from here.
+  matchId         Int?
+  tailoredMatchId Int?
+  verificationId  Int?
+  coverLetterId   Int?
+  // The text before and after, what was applied, left out or could not be
+  // placed, and the checks that failed (src/pack/view.ts reads it).
+  baseText        String?   @db.Text
+  text            String?   @db.Text
+  edits           Json      @default("{}")
+  scoreBefore     Int?
+  scoreAfter      Int?
+  // The file as prepared: the person's own .docx with the edits written in,
+  // or the clean version with its PDF. Bytes, not a recipe: the resume's file
+  // can be replaced and the renderer changes between releases, and "what did
+  // I send them" has to have one answer a month later.
+  docx            Bytes?
+  pdf             Bytes?
+  // own | clean
+  document        String?
+  fileName        String?
+  // The person said this file went out. From then on the row never changes.
+  sentAt          DateTime?
+  // The grouped "packs ready" message carried it.
+  notifiedAt      DateTime?
+  queuedAt        DateTime  @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+
+  // The runner takes the oldest queued row; the limit counts today's auto rows.
+  @@index([status, queuedAt])
+  @@map("application_pack")
+}
+
 model JobStageEvent {
   id         Int      @id @default(autoincrement())
   jobId      Int

@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   CardLink,
   Code,
   ConfirmAction,
@@ -35,6 +36,7 @@ import {
 import { formatDate } from '../format';
 import { isNewer } from '../../versions';
 import { REAPPLY_CHOICES } from '../../employer';
+import { COVER_LETTER_MODES, PACK_LIMITS, POLICY_SECTIONS, type CoverLetterMode, type PackSettings } from '../../pack/settings';
 import type { FlashMessage } from '../flash';
 import type { LoginItemState } from '../login-item-io';
 import { describeCount, type SourceGroup } from '../source-groups';
@@ -203,6 +205,8 @@ export interface SettingsProps {
   staleApplicationsDigestEnabled: boolean;
   /** ADR 0056: turn postings away at a company applied to in the last N days; null = off. */
   reapplyDays: number | null;
+  /** ADR 0063: application packs — off, and these defaults, until the person saves the form. */
+  pack: PackSettings;
   /** TASKS N9: the optional weekly look at GitHub's releases, and what it last saw. */
   updates: { enabled: boolean; current: string; latest: string | null; checkedAt: Date | null };
   /** TASKS S5: the system's login entry for `npm start`; unavailable in Docker and dev. */
@@ -253,6 +257,19 @@ export interface ScreeningSettings {
  * between sections (the One-Surface-Per-Region Rule) — so a section brings no
  * card of its own, and neither do its controls.
  */
+const COVER_LETTER_LABEL: Record<CoverLetterMode, string> = {
+  never: 'Never',
+  asked: 'When the posting asks',
+  always: 'Always',
+};
+
+const POLICY_SECTION_LABEL: Record<(typeof POLICY_SECTIONS)[number], string> = {
+  title: 'Title line',
+  summary: 'Summary',
+  skills: 'Skills',
+  experience: 'Experience bullets',
+};
+
 const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child; more?: Child; id?: string }>> = ({
   title,
   desc,
@@ -453,6 +470,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   pipelineStages,
   staleApplicationsDigestEnabled,
   reapplyDays,
+  pack,
   updates,
   loginItem,
   sourceHealthAlerts,
@@ -841,6 +859,78 @@ export const SettingsPage: FC<SettingsProps> = ({
             </More>
           </div>
         </div>
+      </Section>
+      )}
+
+      {activeTab === 'general' && (
+      <Section
+        id="packs"
+        title="Application packs"
+        desc="For a strong new match the worker can do the evening's work by itself: check the posting is still open, compare it with your resume, research the company, tailor the resume lightly and keep the file. Off until you switch it on."
+        more={
+          <>
+            Only postings found after you switch this on are prepared, and only ones published recently — the jobs already stored are never walked.
+            Any single job can be prepared by hand on its Application pack tab, whatever these say. A pack stops early, and says why, when the posting is
+            closed, when it requires something your resume does not show, when no edit could bring the resume close, or when the company does not check
+            out. Nothing is ever submitted for you.
+          </>
+        }
+      >
+        <form method="post" action="/settings/pack" class="space-y-5">
+          <Checkbox name="enabled" value="1" checked={pack.enabled}>
+            Prepare application packs on their own
+          </Checkbox>
+          <Hint>
+            Each pack is three to five AI calls, one of them web research — about three minutes. A posting that stops at the comparison costs two. What it
+            spent is under AI engine → Usage &amp; cost.
+          </Hint>
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Field label="Fit at least" hint="The classifier's fit a new posting needs.">
+              <Input type="number" name="minFit" min={PACK_LIMITS.minFit.min} max={PACK_LIMITS.minFit.max} value={String(pack.minFit)} />
+            </Field>
+            <Field label="At most a day" hint="Packs started on their own in one day (UTC). 0 = no limit.">
+              <Input type="number" name="dailyLimit" min={PACK_LIMITS.dailyLimit.min} max={PACK_LIMITS.dailyLimit.max} value={String(pack.dailyLimit)} />
+            </Field>
+            <Field label="Published within, days" hint="An older posting is not prepared on its own.">
+              <Input type="number" name="maxAgeDays" min={PACK_LIMITS.maxAgeDays.min} max={PACK_LIMITS.maxAgeDays.max} value={String(pack.maxAgeDays)} />
+            </Field>
+            <Field label="Cover letter" hint="Asked = the posting's own text mentions one; most ask only on the application form.">
+              <Select name="coverLetter">
+                {COVER_LETTER_MODES.map((mode) => (
+                  <option value={mode} selected={pack.coverLetter === mode}>
+                    {COVER_LETTER_LABEL[mode]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div class="border-t border-line pt-5">
+            <h3 class="text-label text-ink">What an automatic edit may touch</h3>
+            <Hint class="mt-1">
+              Only wording the fact check let through is ever applied, a rewrite that would lose a number is left for you, and contact details are never
+              touched. Education and layout are never edited.
+            </Hint>
+            <div class="mt-3 flex flex-wrap gap-2">
+              {POLICY_SECTIONS.map((section) => (
+                <PillCheckbox name="sections" value={section} checked={pack.policy.sections.includes(section)}>
+                  {POLICY_SECTION_LABEL[section]}
+                </PillCheckbox>
+              ))}
+            </div>
+            <div class="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3">
+              <Field label="Experience bullets, at most" hint="The highest-priority ones are kept.">
+                <Input type="number" name="maxBullets" min={PACK_LIMITS.maxBullets.min} max={PACK_LIMITS.maxBullets.max} value={String(pack.policy.maxBullets)} />
+              </Field>
+              <Checkbox name="keywords" value="1" checked={pack.policy.keywords}>
+                Write keywords my resume backs onto its skills lines
+              </Checkbox>
+              <Checkbox name="removals" value="1" checked={pack.policy.removals}>
+                Allow lines to be removed
+              </Checkbox>
+            </div>
+          </div>
+          <Button variant="secondary">Save</Button>
+        </form>
       </Section>
       )}
 
