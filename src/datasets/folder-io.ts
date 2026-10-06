@@ -34,18 +34,20 @@ export class FolderError extends Error {
 const MAX_RECORDED_BYTES = 2_147_483_647;
 
 const REFUSED_CODES = new Set(['EACCES', 'EPERM']);
-const MISSING_CODES = new Set(['ENOENT', 'ENOTDIR']);
+/** Nothing is there, or the path cannot name a place: too long, a loop of links, a name the system refuses. */
+const MISSING_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENAMETOOLONG', 'ELOOP', 'EINVAL']);
 
 function codeOf(err: unknown): string {
   const code = (err as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? code : '';
 }
 
+/** What the system said about a folder, as a fault with a sentence. An error with no code is not the system's and is thrown on. */
 function folderError(err: unknown, folder: string): FolderError {
   if (err instanceof FolderError) return err;
   const code = codeOf(err);
-  if (REFUSED_CODES.has(code)) return new FolderError('refused', `The system did not let ApplyPack read ${folder} (${code}).`);
   if (MISSING_CODES.has(code)) return new FolderError('missing', `There is no folder at ${folder}.`);
+  if (code.length > 0) return new FolderError('refused', `The system did not let ApplyPack read ${folder} (${code}).`);
   throw err;
 }
 
@@ -90,12 +92,14 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
   const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
     let children;
     try {
-      children = await fs.readdir(dir, { withFileTypes: true });
+      children = await fs.opendir(dir);
     } catch (err) {
-      if (depth > 1 && (REFUSED_CODES.has(codeOf(err)) || MISSING_CODES.has(codeOf(err)))) return;
+      // One corner the system will not open does not blind the look; the root itself does.
+      if (depth > 1 && codeOf(err).length > 0) return;
       throw folderError(err, root);
     }
-    for (const child of children) {
+    // Entry by entry, so a folder of millions of files is refused before it is held in memory.
+    for await (const child of children) {
       if (++entries > MAX_ENTRIES) {
         throw new FolderError('too-many', `${root} holds more than ${MAX_ENTRIES.toLocaleString('en-US')} entries, which is not a folder of job files. Point at the subfolder the files land in.`);
       }
@@ -123,21 +127,28 @@ export async function readFolderFile(root: string, relPath: string): Promise<Fil
   const file = path.join(root, ...relPath.split('/'));
   let handle: fs.FileHandle | undefined;
   try {
-    if (!insideFolder(root, await fs.realpath(file))) return { ok: false, why: 'outside' };
-    handle = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const real = await fs.realpath(file);
+    if (!insideFolder(root, real)) return { ok: false, why: 'outside' };
+    // Non-blocking, so a pipe put where a file was does not hold the tick; it is then not a file and goes no further.
+    handle = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
     const before = await handle.stat();
     if (!before.isFile()) return { ok: false, why: 'outside' };
+    // The file opened is the one the real path named a moment ago, not something swapped in between.
+    const named = await fs.lstat(real).catch(() => null);
+    if (!named || named.ino !== before.ino || named.dev !== before.dev) return { ok: false, why: 'outside' };
     if (before.size > MAX_FILE_BYTES) return { ok: false, why: 'too-large' };
-    const bytes = await handle.readFile();
+    // Exactly the bytes it had: a file still being appended to is not read to its moving end.
+    const bytes = Buffer.alloc(before.size);
+    const { bytesRead } = await handle.read(bytes, 0, before.size, 0);
     const after = await handle.stat();
-    if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || bytes.length !== after.size) return { ok: false, why: 'changing' };
+    if (bytesRead !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs) return { ok: false, why: 'changing' };
     return { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: after.size, mtimeMs: Math.round(after.mtimeMs) };
   } catch (err) {
     const code = codeOf(err);
     if (REFUSED_CODES.has(code)) return { ok: false, why: 'refused' };
-    if (MISSING_CODES.has(code)) return { ok: false, why: 'gone' };
-    // O_NOFOLLOW on a link.
-    if (code === 'ELOOP' || code === 'EMLINK') return { ok: false, why: 'outside' };
+    if (MISSING_CODES.has(code)) return { ok: false, why: code === 'ELOOP' ? 'outside' : 'gone' };
+    if (code === 'EMLINK') return { ok: false, why: 'outside' };
+    if (code.length > 0) return { ok: false, why: 'unreadable', code };
     throw err;
   } finally {
     await handle?.close();

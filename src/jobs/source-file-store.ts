@@ -1,4 +1,5 @@
 import { prisma } from '../db';
+import { logger } from '../logger';
 import type { FileStatus, LedgerEntry } from '../datasets/folder-scan';
 import type { FolderLook } from '../fetchers/folder-ledger';
 
@@ -24,38 +25,47 @@ export async function loadLedger(companyId: number): Promise<LedgerEntry[]> {
   return rows.map((r) => ({ relPath: r.relPath, size: r.size, mtimeMs: r.mtime.getTime(), sha256: r.sha256, status: r.status as FileStatus }));
 }
 
-/** What the looks of one tick learned, written once that tick's jobs are stored: one transaction a folder. */
+/**
+ * What the looks of one tick learned, written once that tick's jobs are
+ * stored: one transaction a folder, each on its own — a source deleted
+ * meanwhile loses its look and nobody else's. A look not kept costs one more
+ * read of the same files, which the stored jobs answer as duplicates.
+ */
 export async function keepFolderLooks(looks: readonly FolderLook[]): Promise<void> {
   for (const look of looks) {
-    await prisma.$transaction(async (tx) => {
-      for (const change of look.changes) {
-        const data = {
-          size: change.size,
-          mtime: new Date(change.mtimeMs),
-          sha256: change.sha256,
-          kind: change.kind,
-          status: change.status,
-          detail: change.detail,
-          jobCount: change.jobCount,
-          seenAt: look.at,
-          // A file whose bytes were read, whatever became of them.
-          ...(change.sha256 !== null && { readAt: look.at }),
-        };
-        await tx.sourceFile.upsert({
-          where: { companyId_relPath: { companyId: look.companyId, relPath: change.relPath } },
-          create: { companyId: look.companyId, relPath: change.relPath, ...data },
-          update: data,
-        });
-      }
-      // The files the look listed and the ledger already answers for were seen again.
-      for (let i = 0; i < look.seen.length; i += IN_CHUNK) {
-        await tx.sourceFile.updateMany({
-          where: { companyId: look.companyId, relPath: { in: look.seen.slice(i, i + IN_CHUNK) } },
-          data: { seenAt: look.at },
-        });
-      }
-    });
+    await keepLook(look).catch((err: unknown) => logger.warn({ err, companyId: look.companyId }, 'folder: look not kept in the ledger'));
   }
+}
+
+async function keepLook(look: FolderLook): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    for (const change of look.changes) {
+      const data = {
+        size: change.size,
+        mtime: new Date(change.mtimeMs),
+        sha256: change.sha256,
+        kind: change.kind,
+        status: change.status,
+        detail: change.detail,
+        jobCount: change.jobCount,
+        seenAt: look.at,
+        // A file whose bytes were read, whatever became of them.
+        ...(change.sha256 !== null && { readAt: look.at }),
+      };
+      await tx.sourceFile.upsert({
+        where: { companyId_relPath: { companyId: look.companyId, relPath: change.relPath } },
+        create: { companyId: look.companyId, relPath: change.relPath, ...data },
+        update: data,
+      });
+    }
+    // The files the look listed and the ledger already answers for were seen again.
+    for (let i = 0; i < look.seen.length; i += IN_CHUNK) {
+      await tx.sourceFile.updateMany({
+        where: { companyId: look.companyId, relPath: { in: look.seen.slice(i, i + IN_CHUNK) } },
+        data: { seenAt: look.at },
+      });
+    }
+  });
 }
 
 export interface FolderSummary {

@@ -69,6 +69,17 @@ describe('folderAllowed on a local install', () => {
   });
 });
 
+describe('folderAllowed with a home at the root of the disk', () => {
+  it('reads nothing under the launcher, since such a home bounds nothing', () => {
+    const rootHome: FolderRules = { ...local, home: '/', dataDir: '/data' };
+    assert.equal(allowed('/etc', rootHome), false);
+    assert.equal(allowed('/srv/jobs', rootHome), false);
+    assert.equal(allowed('C:\\jobs', { ...local, home: 'C:\\', dataDir: 'C:\\data' }, win), false);
+    // A root named in the setting is still read.
+    assert.equal(allowed('/inbox/run', { ...rootHome, roots: ['/inbox'] }), true);
+  });
+});
+
 describe('folderAllowed on a server', () => {
   it('reads only a named root and what lies beneath it', () => {
     assert.equal(allowed('/inbox', server), true);
@@ -114,6 +125,8 @@ describe('folderPathFrom', () => {
     assert.equal(folderPathFrom('   ', '/Users/sam', posix), null);
     // Another user's home is not spelled out for anyone.
     assert.equal(folderPathFrom('~alex/jobs', '/Users/sam', posix), null);
+    // A NUL names no path, and the system's answer to one is not a folder's.
+    assert.equal(folderPathFrom('/Users/sam/jobs\0/etc', '/Users/sam', posix), null);
   });
 });
 

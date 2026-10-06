@@ -195,7 +195,16 @@ foldersRoute.post('/companies/folder/inbox', async (c) => {
   if (!underLauncher()) {
     return flashRedirect(BACK, 'err', 'Nothing was created: on a server the folder is one you mount and name in APPLYPACK_INBOX_ROOTS.');
   }
-  const inbox = await createInbox(os.homedir());
+  let inbox: string;
+  try {
+    inbox = await createInbox(os.homedir());
+  } catch (err) {
+    // A file where the folder would go, a home the system will not write in: said, never a 500.
+    const code = (err as { code?: unknown } | null)?.code;
+    if (typeof code !== 'string') throw err;
+    logger.warn({ code }, 'web: inbox folder not created');
+    return flashRedirect(BACK, 'err', `Nothing was created: the system refused to make ~/ApplyPack/inbox (${code}). Make the folder yourself and type its path below.`);
+  }
   const folder = await resolveFolder(inbox);
   if ('error' in folder) return flashRedirect(BACK, 'err', `The folder ${inbox} is there, but it cannot be a source. ${folder.error}`);
   const preview = await previewFolder(folder.root, { name: 'Inbox' });

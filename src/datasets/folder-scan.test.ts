@@ -8,6 +8,7 @@ import {
   SETTLE_MS,
   includeMatcher,
   judgeFile,
+  newestIsMisfit,
   planScan,
   rowFileKind,
   unreadChange,
@@ -62,6 +63,22 @@ describe('includeMatcher', () => {
     assert.equal(either('export final.csv'), false);
     assert.equal(includeMatcher('a.json')('axjson'), false);
     assert.equal(includeMatcher('[a-z]+.json')('abc.json'), false);
+  });
+
+  it('matches a run of stars, a star at either end, and a pattern longer than the name', () => {
+    assert.equal(includeMatcher('**.json')('a.json'), true);
+    assert.equal(includeMatcher('*')('anything.csv'), true);
+    assert.equal(includeMatcher('*-final.csv')('run-final.csv'), true);
+    assert.equal(includeMatcher('jobs*')('jobs.json'), true);
+    assert.equal(includeMatcher('jobs-*-x.json')('jobs-.json'), false);
+    assert.equal(includeMatcher('a*b*c.json')('a-b-b-c.json'), true);
+  });
+
+  it('stays quick on a pattern built to make a regular expression backtrack', () => {
+    const hostile = includeMatcher(`${'*a'.repeat(30)}*b`);
+    const started = performance.now();
+    assert.equal(hostile(`${'a'.repeat(5_000)}.json`), false);
+    assert.ok(performance.now() - started < 1_000);
   });
 });
 
@@ -120,6 +137,19 @@ describe('planScan', () => {
     assert.equal(plan.read.length, MAX_FILES_PER_LOOK);
     assert.deepEqual(names(plan.later), ['run-20.json', 'run-21.json', 'run-22.json']);
     assert.equal(plan.read[0]!.relPath, 'run-00.json');
+  });
+
+  it('reads new and changed files before the ones it looks at again, so a heap of those cannot starve them', () => {
+    const retried = Array.from({ length: MAX_FILES_PER_LOOK }, (_, i) => file(`stuck-${String(i).padStart(2, '0')}.json`, (500 - i) * MINUTE));
+    const fresh = file('new.json', MINUTE);
+    const plan = planScan([...retried, fresh], retried.map((f) => seen(f, 'waiting')), NOW);
+    assert.equal(plan.read[0]!.relPath, 'new.json');
+    assert.equal(plan.read.length, MAX_FILES_PER_LOOK);
+    assert.deepEqual(names(plan.later), ['stuck-19.json']);
+  });
+
+  it('reads a file dated in the future instead of waiting for it forever', () => {
+    assert.deepEqual(names(planScan([file('ahead.json', -10 * MINUTE)], [], NOW).read), ['ahead.json']);
   });
 
   it('is not troubled by a file that disappeared: the ledger keeps its row and the plan says nothing', () => {
@@ -203,6 +233,36 @@ describe('judgeFile', () => {
     assert.equal(judge({ ok: false, why: 'too-large' }).change?.detail, FILE_NOTES.tooLarge);
     assert.equal(judge({ ok: false, why: 'outside' }).change?.detail, FILE_NOTES.outside);
     assert.equal(judge({ ok: false, why: 'outside' }).change?.status, 'skipped');
+    const odd = judge({ ok: false, why: 'unreadable', code: 'EIO' }).change;
+    assert.equal(odd?.status, 'failed');
+    assert.match(odd?.detail ?? '', /\(EIO\)/);
+    // No hash: tried again at the next look, as a refused one is.
+    assert.equal(odd?.sha256, null);
+  });
+});
+
+describe('newestIsMisfit', () => {
+  const all = (): boolean => true;
+  const misfit = (f: ListedFile): LedgerEntry => seen(f, 'failed');
+
+  it('holds while the newest file judged did not fit, though it is not read again', () => {
+    const older = file('old.json', 30 * MINUTE);
+    const newer = file('new.json', 10 * MINUTE);
+    assert.equal(newestIsMisfit([older, newer], [seen(older), misfit(newer)], all), true);
+  });
+
+  it('lets go once a newer file fits, or the misfit is gone, changed, or left out by the name filter', () => {
+    const bad = file('bad.json', 30 * MINUTE);
+    const good = file('good.json', 10 * MINUTE);
+    assert.equal(newestIsMisfit([bad, good], [misfit(bad), seen(good)], all), false);
+    assert.equal(newestIsMisfit([], [misfit(bad)], all), false);
+    assert.equal(newestIsMisfit([{ ...bad, size: bad.size + 1 }], [misfit(bad)], all), false);
+    assert.equal(newestIsMisfit([bad], [misfit(bad)], includeMatcher('good*')), false);
+  });
+
+  it('is not a misfit when the system refused a file: that one has no hash and is tried again', () => {
+    const f = file('a.json');
+    assert.equal(newestIsMisfit([f], [{ ...misfit(f), sha256: null }], all), false);
   });
 });
 

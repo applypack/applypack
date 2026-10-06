@@ -1,5 +1,6 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs, readFileSync } from 'node:fs';
 import os from 'node:os';
@@ -101,6 +102,20 @@ describe('readFolderFile', () => {
   });
 });
 
+describe('readFolderFile on what is not a file', () => {
+  it('does not hang on a pipe put where a file was, and does not read it', { skip: process.platform === 'win32' }, async () => {
+    const pipe = path.join(root, 'pipe.json');
+    execFileSync('mkfifo', [pipe]);
+    try {
+      assert.deepEqual(await listFolder(root).then((files) => files.some((f) => f.relPath === 'pipe.json')), false);
+      const got = await readFolderFile(root, 'pipe.json');
+      assert.equal(got.ok, false);
+    } finally {
+      await fs.rm(pipe, { force: true });
+    }
+  });
+});
+
 describe('the module only reads', () => {
   const source = readFileSync(path.join(__dirname, 'folder-io.ts'), 'utf8');
 
@@ -109,8 +124,10 @@ describe('the module only reads', () => {
     assert.deepEqual(writes, null);
   });
 
-  it('opens a file for reading only, without following a link', () => {
-    const opens = [...source.matchAll(/fs\.open\(([^)]*)\)/g)].map((m) => m[1]);
-    assert.deepEqual(opens, ['file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0']);
+  it('opens a file for reading only, without following a link and without waiting on a pipe', () => {
+    const opens = source.split('\n').filter((line) => line.includes('fs.open('));
+    assert.equal(opens.length, 1);
+    for (const flag of ['O_RDONLY', 'O_NOFOLLOW', 'O_NONBLOCK']) assert.ok(opens[0]!.includes(flag), flag);
+    assert.doesNotMatch(opens[0]!, /O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND/);
   });
 });

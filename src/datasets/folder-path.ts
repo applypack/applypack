@@ -9,7 +9,7 @@
 
 import path from 'node:path';
 
-type PathApi = Pick<path.PlatformPath, 'relative' | 'isAbsolute' | 'resolve' | 'sep' | 'join' | 'delimiter'>;
+type PathApi = Pick<path.PlatformPath, 'relative' | 'isAbsolute' | 'resolve' | 'sep' | 'join' | 'delimiter' | 'dirname'>;
 
 export interface FolderRules {
   /** Started by `npm start` on the user's own machine: one user, loopback (local/child.ts:underLauncher). */
@@ -48,7 +48,8 @@ export function insideFolder(folder: string, file: string, p: PathApi = path): b
  */
 export function folderPathFrom(input: string, home: string, p: PathApi = path): string | null {
   const typed = input.trim().replace(/^(["'])(.*)\1$/, '$2').trim();
-  if (typed.length === 0) return null;
+  // A NUL cannot be in a path, and the system answers it with an error that is not a file's.
+  if (typed.length === 0 || typed.includes('\0')) return null;
   const expanded = typed === '~' ? home : typed.startsWith('~/') || typed.startsWith('~\\') ? p.join(home, typed.slice(2)) : typed;
   return p.isAbsolute(expanded) ? p.resolve(expanded) : null;
 }
@@ -78,7 +79,8 @@ export function folderAllowed(folder: string, rules: FolderRules, p: PathApi = p
           : `This folder is not inside a folder named in ${INBOX_ROOTS_ENV}.`,
     };
   }
-  if (!insideFolder(rules.home, folder, p)) {
+  // A home that is the root of the disk (a container's, a service account's) bounds nothing.
+  if (p.dirname(rules.home) === rules.home || !insideFolder(rules.home, folder, p)) {
     return { ok: false, reason: `Choose a folder inside your home folder, or name another place in ${INBOX_ROOTS_ENV}.` };
   }
   const parts = p.relative(rules.home, folder).split(p.sep);

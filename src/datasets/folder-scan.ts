@@ -40,8 +40,9 @@ export interface FileChange extends ListedFile {
 /** A file as the reader found it (folder-io.ts): its bytes, or why there are none. */
 export type FileRead =
   | { ok: true; bytes: Uint8Array; sha256: string; size: number; mtimeMs: number }
-  /** `changing`: its size or time moved while it was read — still being written. */
-  | { ok: false; why: 'refused' | 'gone' | 'outside' | 'too-large' | 'changing' };
+  /** `changing`: its size or time moved while it was read — still being written. `unreadable`: the system said `code`. */
+  | { ok: false; why: 'refused' | 'gone' | 'outside' | 'too-large' | 'changing' }
+  | { ok: false; why: 'unreadable'; code: string };
 
 /** How deep under the folder a file is looked for. */
 export const MAX_DEPTH = 3;
@@ -77,20 +78,47 @@ export function rowFileKind(relPath: string): RowFormat | null {
 }
 
 /**
+ * One glob against one name, both lower-cased: `*` is any run of characters
+ * and `?` is one. A walk with one point of return per star, never a regular
+ * expression — `*a*a*a*a*b` as a regex took a minute on a long name, and the
+ * pattern is the user's to type.
+ */
+function globMatches(glob: string, name: string): boolean {
+  let g = 0;
+  let n = 0;
+  let star = -1;
+  let after = 0;
+  while (n < name.length) {
+    if (g < glob.length && (glob[g] === '?' || glob[g] === name[n])) {
+      g++;
+      n++;
+    } else if (g < glob.length && glob[g] === '*') {
+      star = g++;
+      after = n;
+    } else if (star !== -1) {
+      g = star + 1;
+      n = ++after;
+    } else return false;
+  }
+  while (g < glob.length && glob[g] === '*') g++;
+  return g === glob.length;
+}
+
+/**
  * The name filter of a folder that also holds other things: `jobs-*.json`,
- * several separated by commas. `*` is any run of characters and `?` is one,
- * matched against the file's name whatever its case. Nothing = every file.
+ * several separated by commas, matched against the file's name whatever its
+ * case. Nothing = every file.
  */
 export function includeMatcher(pattern: string | null | undefined): (relPath: string) => boolean {
   const globs = (pattern ?? '')
+    .toLowerCase()
     .split(',')
-    .map((glob) => glob.trim())
-    .filter((glob) => glob.length > 0)
-    .map((glob) => new RegExp(`^${glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i'));
+    .map((glob) => glob.trim().replace(/\*{2,}/g, '*'))
+    .filter((glob) => glob.length > 0);
   if (globs.length === 0) return () => true;
   return (relPath) => {
-    const name = relPath.slice(relPath.lastIndexOf('/') + 1);
-    return globs.some((glob) => glob.test(name));
+    const name = relPath.slice(relPath.lastIndexOf('/') + 1).toLowerCase();
+    return globs.some((glob) => globMatches(glob, name));
   };
 }
 
@@ -126,6 +154,13 @@ function sameFile(a: ListedFile, b: ListedFile): boolean {
   return a.size === b.size && a.mtimeMs === b.mtimeMs;
 }
 
+/**
+ * The files to read now, the oldest change first — new and changed files
+ * before the ones looked at again (a file that waited, one the system would
+ * not open), so a heap of the latter cannot keep what is new from being read.
+ * A file dated in the future (a clock, a synced drive) counts as settled: the
+ * read itself measures it twice.
+ */
 export function planScan(
   listing: readonly ListedFile[],
   ledger: readonly LedgerEntry[],
@@ -134,19 +169,22 @@ export function planScan(
 ): ScanPlan {
   const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const plan: ScanPlan = { read: [], waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 };
-  const due: ListedFile[] = [];
+  const fresh: ListedFile[] = [];
+  const again: ListedFile[] = [];
   for (const file of listing) {
     if (rowFileKind(file.relPath) === null || !include(file.relPath)) {
       plan.other++;
       continue;
     }
     const entry = known.get(file.relPath);
+    const age = now - file.mtimeMs;
     if (entry && sameFile(entry, file) && settled(entry)) plan.unchanged++;
     else if (file.size > MAX_FILE_BYTES) plan.tooLarge.push(file);
-    else if (now - file.mtimeMs < SETTLE_MS) plan.waiting.push(file);
-    else due.push(file);
+    else if (age >= 0 && age < SETTLE_MS) plan.waiting.push(file);
+    else (entry && sameFile(entry, file) ? again : fresh).push(file);
   }
-  due.sort((a, b) => a.mtimeMs - b.mtimeMs || a.relPath.localeCompare(b.relPath));
+  const oldestFirst = (a: ListedFile, b: ListedFile): number => a.mtimeMs - b.mtimeMs || a.relPath.localeCompare(b.relPath);
+  const due = [...fresh.sort(oldestFirst), ...again.sort(oldestFirst)];
   plan.read = due.slice(0, MAX_FILES_PER_LOOK);
   plan.later = due.slice(MAX_FILES_PER_LOOK);
   return plan;
@@ -155,6 +193,24 @@ export function planScan(
 /** A file the plan could not read now, as the ledger row that says why. */
 export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge'): FileChange {
   return { ...file, kind: rowFileKind(file.relPath)!, sha256: null, status: why === 'fresh' ? 'waiting' : 'skipped', detail: FILE_NOTES[why], jobCount: 0 };
+}
+
+/**
+ * Whether the newest row file the ledger has judged, as it still sits in the
+ * folder, did not fit the mapping. A misfit is settled and not read again, so
+ * without this the look after it would read nothing and call the source
+ * healthy while the tool's latest output is still being thrown away.
+ */
+export function newestIsMisfit(listing: readonly ListedFile[], ledger: readonly LedgerEntry[], include: (relPath: string) => boolean): boolean {
+  const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
+  let newest: LedgerEntry | null = null;
+  for (const file of listing) {
+    if (rowFileKind(file.relPath) === null || !include(file.relPath)) continue;
+    const entry = known.get(file.relPath);
+    if (!entry || !sameFile(entry, file) || entry.sha256 === null || (entry.status !== 'done' && entry.status !== 'failed')) continue;
+    if (newest === null || entry.mtimeMs > newest.mtimeMs) newest = entry;
+  }
+  return newest?.status === 'failed';
 }
 
 export interface FileVerdict {
@@ -179,6 +235,7 @@ export function judgeFile(file: ListedFile, got: FileRead, mapping: Mapping, com
     if (got.why === 'gone') return { change: null, jobs: [], rows: 'none' };
     if (got.why === 'changing') return { change: note('waiting', FILE_NOTES.changing), jobs: [], rows: 'none' };
     if (got.why === 'refused') return { change: note('failed', FILE_NOTES.refused), jobs: [], rows: 'none' };
+    if (got.why === 'unreadable') return { change: note('failed', `The system could not read this file (${got.code}). It is tried again at the next check.`), jobs: [], rows: 'none' };
     return { change: note('skipped', got.why === 'too-large' ? FILE_NOTES.tooLarge : FILE_NOTES.outside), jobs: [], rows: 'none' };
   }
   const measured = { size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256 };

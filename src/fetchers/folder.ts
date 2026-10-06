@@ -1,6 +1,6 @@
 import { FolderError, listFolder, readFolderFile, realFolder } from '../datasets/folder-io';
 import { folderAllowed, type FolderRules } from '../datasets/folder-path';
-import { MAX_ROWS_PER_LOOK, includeMatcher, judgeFile, planScan, rowFileKind, unreadChange, type FileChange, type LedgerEntry } from '../datasets/folder-scan';
+import { MAX_ROWS_PER_LOOK, includeMatcher, judgeFile, newestIsMisfit, planScan, rowFileKind, unreadChange, type FileChange, type LedgerEntry } from '../datasets/folder-scan';
 import { readSourceConfig } from '../datasets/map';
 import type { NormalizedJob } from '../types';
 import { stageFolderLook } from './folder-ledger';
@@ -51,7 +51,9 @@ export async function fetchFolder(company: FolderCompany, ledger: readonly Ledge
   }
 
   stageFolderLook({ companyId: company.id, at: now, seen: listing.filter((f) => rowFileKind(f.relPath) !== null && include(f.relPath)).map((f) => f.relPath), changes });
-  // Every file read this look misfits: the tool changed what it writes, and the source says so until it is mapped again.
-  if (misfits > 0 && misfits === read) throw new FolderError('unmapped', `The files in this folder no longer fit its column mapping. ${MAP_AGAIN}`);
+  // Every file read this look misfits, or nothing was read and the newest judged file is one: the tool changed what it
+  // writes, and the source says so on every look until the mapping is saved again.
+  const stillMisfit = read === 0 && newestIsMisfit(listing, ledger, include);
+  if ((misfits > 0 && misfits === read) || stillMisfit) throw new FolderError('unmapped', `The files in this folder no longer fit its column mapping. ${MAP_AGAIN}`);
   return jobs;
 }

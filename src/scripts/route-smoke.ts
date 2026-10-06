@@ -16,7 +16,7 @@
  * 145 handlers had zero automated requests before this (audit 2026-09-10,
  * TEST-1); the unit tests cover the pure modules, this covers the wiring.
  */
-import './route-smoke-env';
+import { SMOKE_INBOX } from './route-smoke-env';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { app } from '../web/app';
@@ -734,8 +734,7 @@ async function folderChecks(): Promise<Check[]> {
   const check = (route: string, url: string, res: Response, ok: boolean): void => {
     out.push({ route, url, status: res.status, ok });
   };
-  const inbox = (process.env.APPLYPACK_INBOX_ROOTS ?? '').split(path.delimiter)[0] ?? '';
-  await fs.mkdir(inbox, { recursive: true });
+  const inbox = SMOKE_INBOX;
   const file = path.join(inbox, 'run-1.json');
   await fs.writeFile(
     file,
