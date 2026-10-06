@@ -61,6 +61,17 @@ describe('gazetteer integrity', () => {
 });
 
 describe('findCountry', () => {
+  it('reads a country named in any language the interface speaks', () => {
+    assert.equal(findCountry('Polonia')?.code, 'PL');
+    assert.equal(findCountry('Pologne')?.code, 'PL');
+    assert.equal(findCountry('Alemania')?.code, 'DE');
+    assert.equal(findCountry('Allemagne')?.code, 'DE');
+    assert.equal(findCountry('Países Bajos')?.code, 'NL');
+    assert.equal(findCountry('Pays-Bas')?.code, 'NL');
+    assert.equal(findCountry('Німеччина')?.code, 'DE');
+    assert.equal(findCountry('Atlantis'), null);
+  });
+
   it('resolves by code, any name, flag, city and demonym', () => {
     assert.equal(findCountry('pl')?.code, 'PL');
     assert.equal(findCountry('Poland')?.code, 'PL');
