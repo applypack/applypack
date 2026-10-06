@@ -7,11 +7,14 @@
  * of borrowing the latest file's name.
  */
 
+import { t } from '../i18n/t';
+
+/** The English of `match.earlierOneOff`, for the test that names it; a page reads the catalog. */
 export const EARLIER_ONE_OFF = 'An earlier one-off file';
 
 export function comparedResumeName(snapshot: string, resume: { name: string; hidden: boolean }): string {
   if (!resume.hidden) return resume.name;
-  return snapshot || EARLIER_ONE_OFF;
+  return snapshot || t('match.earlierOneOff');
 }
 
 interface ComparedRow {
@@ -39,9 +42,19 @@ export function previousFor<T extends ComparedRow>(selected: T, matches: T[]): T
   );
 }
 
-/** How a delta names the comparison it is measured against: a version of a real resume, or the earlier check of a one-off file, whose version counts uploads. */
+/**
+ * How a delta names the comparison it is measured against: a version of a real
+ * resume, or the earlier check of a one-off file, whose version counts uploads.
+ * A sentence that names it takes these as its arguments and words the name
+ * itself ("vs v4", "vs the last check of this file"): a language declines it.
+ */
+export function earlierParams(previous: ComparedRow): { kind: 'file' | 'version'; version: number } {
+  return { kind: previous.resume.hidden ? 'file' : 'version', version: previous.resumeVersion };
+}
+
+/** The name on its own. */
 export function earlierLabel(previous: ComparedRow): string {
-  return previous.resume.hidden ? 'the last check of this file' : `v${previous.resumeVersion}`;
+  return t('match.earlier.label', earlierParams(previous));
 }
 
 /**

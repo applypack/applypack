@@ -1,5 +1,6 @@
 import { clipWords } from '../text-utils';
 import type { PostingBrief } from './prompts';
+import { t } from '../i18n/t';
 
 /*
  * What this posting IS, in three short lines — the sector it sits in, what the
@@ -47,18 +48,18 @@ export function postingOrientation(brief: OrientationBrief | null | undefined): 
   // industry line does not already carry the word.
   const repeated = stage !== '' && industry.toLowerCase().includes(stage.toLowerCase());
   const sector = [industry, repeated ? '' : stage].filter(Boolean).join(' · ');
-  if (sector !== '') rows.push({ label: 'Sector', text: clipWords(sector, MAX_ROW_CHARS) });
+  if (sector !== '') rows.push({ label: t('target.orientation.sector'), text: clipWords(sector, MAX_ROW_CHARS) });
 
   // The product is what the employer sells; the role's focus is what this
   // person would do about it. They overlap enough that showing both is one
   // line of repetition, and the product is the one a stack cannot tell you.
   const product = tidy(brief.company.product);
   const focus = tidy(brief.role.focus);
-  if (product !== '') rows.push({ label: 'The product', text: clipWords(product, MAX_ROW_CHARS) });
-  else if (focus !== '') rows.push({ label: 'The work', text: clipWords(focus, MAX_ROW_CHARS) });
+  if (product !== '') rows.push({ label: t('target.orientation.product'), text: clipWords(product, MAX_ROW_CHARS) });
+  else if (focus !== '') rows.push({ label: t('target.orientation.work'), text: clipWords(focus, MAX_ROW_CHARS) });
 
   const reader = tidy(brief.screening.reader);
-  if (reader !== '') rows.push({ label: 'Read first by', text: clipWords(reader, MAX_ROW_CHARS) });
+  if (reader !== '') rows.push({ label: t('target.orientation.reader'), text: clipWords(reader, MAX_ROW_CHARS) });
 
   return rows;
 }

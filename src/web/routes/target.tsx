@@ -18,6 +18,7 @@ import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
+import { t } from '../../i18n/t';
 
 /* zod strips unknown keys, so the multipart `file` field is read from the raw form.
  * Two job sources: one of the stored jobs (`jobId`), or a pasted posting whose
@@ -76,10 +77,10 @@ targetRoute.get('/target/runs/:id/state', (c) => {
 targetRoute.get('/target/runs/:id', async (c) => {
   const run = getRun(c.req.param('id'));
   if (!run) {
-    return flashRedirect('/target', 'err', 'That comparison run is gone (runs live ~30 min). Start again.');
+    return flashRedirect('/target', 'err', t('target.flash.runGone'));
   }
   if (run.stage === 'done' && run.resultUrl) {
-    return flashRedirect(run.resultUrl, run.flashKind ?? (run.reused ? 'warn' : 'ok'), run.flash ?? 'Done.', {
+    return flashRedirect(run.resultUrl, run.flashKind ?? (run.reused ? 'warn' : 'ok'), run.flash ?? t('target.flash.done'), {
       rerun: run.reused,
       tailor: run.tailorUrl,
       download: run.downloadUrl,
@@ -101,17 +102,17 @@ async function resumeLanes(): Promise<RunLanes> {
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = TargetFormSchema.safeParse(form);
-  if (!parsed.success) return flashRedirect('/target', 'err', 'Pick a job source and a resume.');
+  if (!parsed.success) return flashRedirect('/target', 'err', t('target.flash.pickBoth'));
   const f = parsed.data;
 
   // One of the stored jobs: nothing to detect and nothing to create, so this is
   // the job page's own Compare — the same memo, the same run, the same result
   // page — with the resume chosen here, a file or a paste included.
   if (f.jobMode === 'existing') {
-    if (!f.jobId) return flashRedirect('/target', 'err', 'Pick a job from the list.');
+    if (!f.jobId) return flashRedirect('/target', 'err', t('target.flash.pickJob'));
     const back = `/target?job=${f.jobId}`;
     const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true } } } });
-    if (!job) return flashRedirect('/target', 'err', 'That job no longer exists.');
+    if (!job) return flashRedirect('/target', 'err', t('target.flash.jobGone'));
     const resume = await resolveResumeSource(form, f);
     if ('error' in resume) return flashRedirect(back, 'err', resume.error);
     return startComparison(c, {
@@ -129,10 +130,10 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   }
 
   if (f.description.length < MIN_DESCRIPTION_CHARS) {
-    return flashRedirect('/target', 'err', `A description of at least ${MIN_DESCRIPTION_CHARS} characters is required.`);
+    return flashRedirect('/target', 'err', t('target.flash.descriptionShort', { n: MIN_DESCRIPTION_CHARS }));
   }
   if (f.description.length > MAX_POSTING_CHARS) {
-    return flashRedirect('/target', 'err', `The posting is too long — at most ${MAX_POSTING_CHARS} characters.`);
+    return flashRedirect('/target', 'err', t('target.flash.postingLong', { n: MAX_POSTING_CHARS }));
   }
 
   // Empty company / title / location are detected from the description INSIDE
@@ -154,7 +155,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   // POST of the same pair joins the run instead of paying twice (issue #76).
   const { run, joined } = claimRun(
     `target:${resume.id}:${f.mode}:${hashShortId(f.description)}`,
-    { steps, jobTitle: title || 'Detecting the role…', resumeName: resume.name },
+    { steps, jobTitle: title || t('target.run.detectingRole'), resumeName: resume.name },
   );
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
@@ -214,8 +215,8 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         force: false,
         resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
         label: `"${resume.name}"`,
-        doneNote: result.kind === 'created' ? 'The fit score is still being scored; it lands on the job page in about a minute.' : undefined,
-        failure: 'The posting was saved, but the AI comparison failed',
+        doneNote: result.kind === 'created' ? t('target.run.fitPending') : undefined,
+        failure: t('target.run.savedButFailed'),
       },
       needExtract ? ['extract'] : [],
     );

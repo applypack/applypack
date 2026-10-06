@@ -42,12 +42,15 @@ import { effectiveRequirement, isIgnored, confirmable } from '../../resume/keywo
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
-import { readyToApply, scoreLines, type ScoreLine } from '../score-lines';
+import { readyToApply, scoreLines, type Advice, type ScoreLine } from '../score-lines';
 import { diffMatches } from '../../resume/diff';
-import { earlierLabel, previousFor } from '../../resume/match-name';
+import { earlierParams, previousFor } from '../../resume/match-name';
 import { jobHref } from '../job-tabs';
 import type { SummaryGuide } from '../../resume/summary-guide';
 import { SummaryGuideBlock } from './summary-guide';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 export interface ResumeMatchCardProps {
   jobId: number;
@@ -85,15 +88,21 @@ const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
  * first; the difference is the whole point of the pair, so it is spelled out.
  * The requirement level sits in the next column and the panes colour by it.
  */
-const STATUS_VIEW: Record<MatchKeyword['status'], { label: string; tone: Tone }> = {
-  present: { label: 'in your resume', tone: 'ok' },
-  add: { label: 'add the word', tone: 'warn' },
+const STATUS_VIEW = {
+  present: { label: 'keyword.status.present', tone: 'ok' },
+  add: { label: 'keyword.status.add', tone: 'warn' },
   // Unknown until the candidate answers: neutral, the tone DESIGN.md gives "unknown".
-  ask_user: { label: 'do you have it?', tone: 'neutral' },
-  cannot_claim: { label: 'no evidence in your resume', tone: 'danger' },
-};
+  ask_user: { label: 'keyword.status.askUser', tone: 'neutral' },
+  cannot_claim: { label: 'keyword.status.cannotClaim', tone: 'danger' },
+} as const satisfies Record<MatchKeyword['status'], { label: MessageKey; tone: Tone }>;
 
-const KEYWORD_COLUMNS = ['Keyword', 'Wants it', 'Status', 'Where', 'Note'];
+const keywordColumns = (): string[] => [
+  t('keyword.column.keyword'),
+  t('keyword.column.wants'),
+  t('keyword.column.status'),
+  t('keyword.column.where'),
+  t('keyword.column.note'),
+];
 
 /** Where a keyword edit posts and where it comes back to (§5). */
 export interface KeywordEditTarget {
@@ -118,11 +127,11 @@ export interface RebuildTarget {
   formId?: string;
 }
 
-const HARD_VIEW: Record<MatchHardRequirement['status'], { label: string; tone: Tone }> = {
-  pass: { label: 'pass', tone: 'ok' },
-  unknown: { label: 'unknown', tone: 'warn' },
-  fail: { label: 'fail', tone: 'danger' },
-};
+const HARD_VIEW = {
+  pass: { label: 'match.hard.pass', tone: 'ok' },
+  unknown: { label: 'match.hard.unknown', tone: 'warn' },
+  fail: { label: 'match.hard.fail', tone: 'danger' },
+} as const satisfies Record<MatchHardRequirement['status'], { label: MessageKey; tone: Tone }>;
 
 const SUBHEAD = 'mb-2 text-note font-medium text-ink-muted';
 /**
@@ -147,19 +156,22 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
 }) => (
   <div id="resume-match">
     <Card>
-      <SectionTitle>Resume match</SectionTitle>
+      <SectionTitle>{t('match.title')}</SectionTitle>
       <VerificationLine verification={verification} href={jobHref(jobId, 'verify', {}, 'verification')} />
       {resumes.length === 0 ? (
         <Hint>
-          No resumes uploaded.{' '}
-          <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
-            Upload one
-          </a>{' '}
-          to see what to change before applying here, or{' '}
-          <a href={`/target?job=${jobId}`} class="font-medium text-accent-strong hover:text-accent-deep">
-            compare a file once
-          </a>{' '}
-          without keeping it.
+          {tRich('match.noResumes', {}, {
+            upload: (words) => (
+              <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
+                {words}
+              </a>
+            ),
+            once: (words) => (
+              <a href={`/target?job=${jobId}`} class="font-medium text-accent-strong hover:text-accent-deep">
+                {words}
+              </a>
+            ),
+          })}
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
@@ -169,7 +181,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               was choosing between two tooltips. */}
           <input type="hidden" name="mode" value="full" />
           <label class="block min-w-0 max-w-full">
-            <span class="block text-label text-ink">Resume</span>
+            <span class="block text-label text-ink">{t('match.resume')}</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
               {resumes.map((r) => (
                 <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
@@ -178,8 +190,8 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               ))}
             </Select>
           </label>
-          <Button variant="violet" title="Judges this resume against the posting and writes what to change">
-            Compare
+          <Button variant="violet" title={t('match.compareTitle')}>
+            {t('match.compare')}
           </Button>
           {/* Only the Resumes rows are listed here; a file that is not one of
               them, or pasted text, is compared from the Tailor resume page with this
@@ -188,14 +200,11 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
             href={`/target?job=${jobId}`}
             class="py-2 text-sm font-medium text-accent-strong hover:text-accent-deep"
           >
-            Compare a file or pasted text →
+            {t('match.compareFile')}
           </a>
           {!selected && (
             <Hint class="basis-full">
-              One call to the resume model — keywords, hard requirements, the score and what to
-              change — about one to two minutes. The posting itself is read once and kept, so
-              comparing a second resume against it is quicker. The score is computed
-              deterministically from the reply: same facts, same number, every time.
+              {t('match.compareHint')}
             </Hint>
           )}
           {costHint && <Hint class="basis-full">{costHint}</Hint>}
@@ -216,16 +225,16 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
 
       {matches.length > 1 && (
         <div class="mt-5 border-t border-line pt-4">
-          <div class={SUBHEAD}>All comparisons</div>
+          <div class={SUBHEAD}>{t('match.allComparisons')}</div>
           <ul class="flex flex-wrap gap-2">
             {matches.map((m) => (
               <li>
                 <HistoryChip href={`/jobs/${jobId}?match=${m.id}#resume-match`} current={selected?.id === m.id}>
-                  <FitBadge score={m.matchScore} label="match" />
-                  {m.resume.name}
+                  <FitBadge score={m.matchScore} label={t('match.scoreLabel')} />
+                  <span translate="no">{m.resume.name}</span>
                   <span class="font-mono font-normal text-ink-faint">
                     {m.resume.hidden ? '' : `v${m.resumeVersion}`}
-                    {m.draft ? ' draft' : ''}
+                    {m.draft ? ` ${t('match.draft')}` : ''}
                   </span>
                   <span class="font-normal text-ink-faint"><When at={m.createdAt} /></span>
                 </HistoryChip>
@@ -254,26 +263,27 @@ const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; ha
   const lines = scoreLines({ breakdown: bd, keywords, hard });
   return (
     <div class="space-y-1.5 text-meta">
-      <LineGroup heading="what made the number" lines={lines.scored} />
+      <LineGroup heading={t('score.heading.counted')} lines={lines.scored} />
       {/* The split is stated, not implied: a reader who sees "2 of 3 in a
           bullet" under a 100 asks why the 100 is a 100, and the heading
           answers before they ask. */}
-      <LineGroup heading="what it does not count" lines={lines.diagnostic} />
+      <LineGroup heading={t('score.heading.notCounted')} lines={lines.diagnostic} />
       <ScoreCeilingLine bd={bd} class="border-t border-line pt-1.5" />
     </div>
   );
 };
 
 /*
- * The advice ladder's one sentence (score-lines.ts:mainAdvice), in the same
+ * The advice ladder's one sentence (score-lines.ts:adviceLine), in the same
  * place on both cards: under the model's summary, above the arithmetic. Null
  * renders nothing — a report with nothing open has the "Ready to apply" line
  * instead, and both at once would be two sentences saying one thing.
  */
-export const MainAdviceLine: FC<{ advice: string | null }> = ({ advice }) =>
+export const MainAdviceLine: FC<{ advice: Advice | null }> = ({ advice }) =>
   advice === null ? null : (
     <p class="text-note leading-6 text-ink">
-      <span class="font-medium text-accent-strong">Do this first.</span> {advice}
+      <span class="font-medium text-accent-strong">{t('score.advice.lead')}</span>{' '}
+      <span lang={advice.modelWritten ? 'en' : undefined}>{advice.text}</span>
     </p>
   );
 
@@ -289,14 +299,14 @@ export const ScoreCeilingLine: FC<{ bd: ScoreBreakdown; class?: string }> = ({ b
   bd.ceiling === undefined ? null : (
     <p
       class={`text-meta text-ink-muted ${className}`}
-      title="The match score if the resume said everything it honestly could: every claimable keyword written in, alignment perfect. Going above the ceiling would need experience this resume does not have."
+      title={t('score.ceiling.title')}
     >
       {bd.ceiling > bd.score ? (
-        <>
-          editing can reach a match of <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span>
-        </>
+        tRich('score.ceiling.reach', { ceiling: bd.ceiling }, {
+          n: (words) => <span class="font-medium tabular-nums text-ink">{words}</span>,
+        })
       ) : (
-        <span class="font-medium text-ok">the resume already shows everything it can</span>
+        <span class="font-medium text-ok">{t('score.ceiling.reached')}</span>
       )}
     </p>
   );
@@ -336,14 +346,15 @@ export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ h
   const issues = hard.filter((h) => h.status !== 'pass');
   return (
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span class="text-note font-medium text-ink-muted">Hard requirements</span>
+      <span class="text-note font-medium text-ink-muted">{t('match.hard.title')}</span>
       <Badge tone={issues.length === 0 ? 'ok' : issues.some((h) => h.status === 'fail') ? 'danger' : 'warn'}>
-        {pass}/{hard.length} pass
+        {t('match.hard.passCount', { pass, total: hard.length })}
       </Badge>
       {issues.map((h) => (
         <span class="inline-flex items-center gap-1.5 text-note text-ink" title={h.note ?? undefined}>
-          <Badge tone={HARD_VIEW[h.status].tone}>{HARD_VIEW[h.status].label}</Badge>
-          {h.requirement}
+          <Badge tone={HARD_VIEW[h.status].tone}>{t(HARD_VIEW[h.status].label)}</Badge>
+          {/* The gate as the model read it off the posting. */}
+          <span lang="en">{h.requirement}</span>
         </span>
       ))}
     </div>
@@ -354,11 +365,17 @@ export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ h
 const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, matchId, back }) => (
   <li class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
     <div class="min-w-0 flex-1 text-sm">
-      <span class="font-medium text-ink">{k.term}</span>
-      {k.note && <span class="ml-2 text-meta text-ink-faint">{k.note}</span>}
+      <span class="font-medium text-ink" translate="no">
+        {k.term}
+      </span>
+      {k.note && (
+        <span class="ml-2 text-meta text-ink-faint" lang="en">
+          {k.note}
+        </span>
+      )}
       {k.elsewhere && (
         <Badge tone="neutral" class="ml-2">
-          in "{k.elsewhere}"
+          {t('keyword.elsewhere', { name: k.elsewhere })}
         </Badge>
       )}
     </div>
@@ -371,24 +388,24 @@ const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, ma
         <Input
           name="note"
           maxlength="300"
-          placeholder="where / when? (optional)"
-          aria-label={`Where or when did you use ${k.term}?`}
+          placeholder={t('facts.notePlaceholder')}
+          aria-label={t('facts.noteAria', { term: k.term })}
           class="!w-44 !px-2 !py-1 !text-meta"
         />
         {/* Saved as a fact and re-scored in code — no AI call, so not violet. */}
         <Button variant="secondary">
-          I have it
+          {t('facts.have')}
         </Button>
       </form>
       <ActionForm action="/facts" hidden={{ term: k.term, decision: 'denied', matchId, back }}>
         <Button size="sm" variant="ghost">
-          I don't
+          {t('facts.dont')}
         </Button>
       </ActionForm>
       {/* Stops the question without a claim either way (facts.ts:UNSURE_NOTE). */}
       <ActionForm action="/facts" hidden={{ term: k.term, decision: 'unknown', matchId, back }}>
         <Button size="sm" variant="ghost">
-          Not sure
+          {t('facts.notSure')}
         </Button>
       </ActionForm>
     </div>
@@ -409,7 +426,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
 }) =>
   asks.length === 0 && unproven.length === 0 ? null : (
     <div>
-      <div class={SUBHEAD}>Confirm your experience — the posting wants these</div>
+      <div class={SUBHEAD}>{t('facts.heading')}</div>
       {asks.length > 0 && (
         <ul class="divide-y divide-line rounded-md border border-line">
           {asks.map((k) => (
@@ -420,8 +437,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
       {unproven.length > 0 && (
         <details id="confirm-unproven" class={`${asks.length > 0 ? 'mt-2 ' : ''}rounded-md border border-line`}>
           <summary class="cursor-pointer px-3 py-2 text-note text-ink-muted transition-colors duration-150 hover:text-ink">
-            <span class="font-medium text-ink">{unproven.length} more</span> the AI found no evidence for —
-            write the word into your resume where it is true, or say so here, and it counts
+            {tRich('facts.unproven', { n: unproven.length }, { b: (words) => <span class="font-medium text-ink">{words}</span> })}
           </summary>
           <ul class="divide-y divide-line border-t border-line">
             {unproven.map((k) => (
@@ -431,8 +447,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
         </details>
       )}
       <Hint class="mt-1.5">
-        Answers are stored once and reused in every future comparison. Confirming updates this
-        score instantly — no AI call.
+        {t('facts.stored')}
       </Hint>
     </div>
   );
@@ -457,36 +472,44 @@ const MatchReport: FC<{
   return (
     <div class="mt-5 space-y-5 border-t border-line pt-4">
       <div class="flex flex-wrap items-center gap-3">
-        <FitBadge score={match.matchScore} label="match" />
-        {scoreDelta !== null && (
+        <FitBadge score={match.matchScore} label={t('match.scoreLabel')} />
+        {scoreDelta !== null && previous && (
           <Badge tone={scoreDelta > 0 ? 'ok' : scoreDelta < 0 ? 'danger' : 'neutral'}>
-            {scoreDelta > 0 ? '▲' : scoreDelta < 0 ? '▼' : '='} {scoreDelta > 0 ? '+' : ''}
-            {scoreDelta} vs {previous && earlierLabel(previous)}
+            {t('match.delta.badge', {
+              arrow: scoreDelta > 0 ? '▲' : scoreDelta < 0 ? '▼' : '=',
+              delta: fmtDelta(scoreDelta),
+              ...earlierParams(previous),
+            })}
           </Badge>
         )}
         <span class="text-sm text-ink">
           {match.resume.hidden ? (
-            match.resume.name
+            <span translate="no">{match.resume.name}</span>
           ) : (
             // TASKS R20: how strong the resume is on its own is one click away from how it fits.
-            <a href={`/resumes/${match.resume.id}#resume-strength`} class="hover:underline" title="This resume on its own: the strength review">
+            <a href={`/resumes/${match.resume.id}#resume-strength`} class="hover:underline" title={t('match.strengthTitle')} translate="no">
               {match.resume.name}
             </a>
           )}{' '}
           {!match.resume.hidden && <span class="font-mono text-meta text-ink-faint">v{match.resumeVersion}</span>}
         </span>
         <span class="text-meta text-ink-faint">
-          <When at={match.createdAt} /> · <span class="font-mono">{match.model}</span>
-          {match.draft ? ' · draft' : ''}
+          <When at={match.createdAt} /> ·{' '}
+          <span class="font-mono" translate="no">
+            {match.model}
+          </span>
+          {match.draft ? ` · ${t('match.draft')}` : ''}
         </span>
         {/* The card's primary once a result exists: free, and the step the verdict leads to (#164). Full-width under the score row on a phone. */}
         <Button href={`/jobs/${match.jobId}/target?match=${match.id}`} size="sm" class="ml-auto max-sm:basis-full">
-          Tailor resume →
+          {t('match.tailorResume')}
         </Button>
       </div>
-      <p class="text-sm leading-6 text-ink">{match.summary}</p>
+      <p class="text-sm leading-6 text-ink" lang="en">
+        {match.summary}
+      </p>
       {readMatchEvidence(match.breakdown) === 'text' && (
-        <Hint>Judged on this file's text alone: your confirmed facts and your other resumes were left out, since it may not be yours.</Hint>
+        <Hint>{t('match.judgedOnText')}</Hint>
       )}
       {/* The advice line is the tailoring page's, not this card's: the five
           lines below already carry the facts it would rank, and saying the
@@ -512,7 +535,7 @@ const MatchReport: FC<{
               actions={readActions(match.actions)}
               removals={readRemovals(match.removals)}
             />
-            <Hint class="!mt-0">as Markdown, for the document your resume really lives in</Hint>
+            <Hint class="!mt-0">{t('match.sheetHint')}</Hint>
           </div>
           <ActionsBlock actions={readActions(match.actions)} reach={reachOf(bd, match.matchScore)} summaryGuide={summaryGuide} />
           <RemovalsBlock removals={readRemovals(match.removals)} />
@@ -546,15 +569,13 @@ export const SuggestionsPrompt: FC<{ matchId: number; jobId: number; next?: 'tar
   next,
 }) => (
   <div class="rounded-md border border-line bg-surface-overlay/50 p-3">
-    <div class={SUBHEAD}>What to change — not written yet</div>
+    <div class={SUBHEAD}>{t('match.quick.heading')}</div>
     <p class="mb-2.5 text-sm leading-6 text-ink-muted">
-      This was a quick check: keywords, hard requirements and the score. Edit suggestions are a
-      second call to the resume model that reuses these verdicts — about a minute on Opus, and the
-      score stays exactly as it is.
+      {t('match.quick.body')}
     </p>
     <ActionForm action={`/jobs/${jobId}/matches/${matchId}/suggestions`} hidden={next ? { next } : undefined}>
       <Button size="sm" variant="violet">
-        Get suggestions
+        {t('match.quick.get')}
       </Button>
     </ActionForm>
   </div>
@@ -570,7 +591,7 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   if (fresh) {
     return (
       <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-meta leading-5 text-ink-muted">
-        <span class="font-medium text-ink">Not comparable with {earlierLabel(previous)}: </span>
+        <span class="font-medium text-ink">{t('match.delta.notComparable', earlierParams(previous))} </span>
         {freshFrameNotice(fresh)}
       </div>
     );
@@ -582,45 +603,66 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   if (delta.gained.length === 0 && delta.lost.length === 0 && !delta.components) return null;
   return (
     <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-meta leading-5 text-ink-muted">
-      <span class="font-medium text-ink">vs {earlierLabel(previous)}: </span>
+      <span class="font-medium text-ink">{t('match.delta.heading', earlierParams(previous))} </span>
       {delta.gained.length > 0 && (
         <span>
-          gained <span class="text-ok">{delta.gained.join(', ')}</span>
+          {tRich('match.delta.gained', { terms: delta.gained.join(', ') }, {
+            list: (words) => (
+              <span class="text-ok" translate="no">
+                {words}
+              </span>
+            ),
+          })}
           {' · '}
         </span>
       )}
       {delta.lost.length > 0 && (
         <span>
-          lost <span class="text-danger">{delta.lost.join(', ')}</span>
+          {tRich('match.delta.lost', { terms: delta.lost.join(', ') }, {
+            list: (words) => (
+              <span class="text-danger" translate="no">
+                {words}
+              </span>
+            ),
+          })}
           {' · '}
         </span>
       )}
-      {delta.components ? (
-        <span>
-          keywords {fmtDelta(delta.components.keywordPts)} · alignment{' '}
-          {fmtDelta(delta.components.alignmentPts)}
-          {delta.components.penalty !== 0 && ` · flags ${fmtDelta(-delta.components.penalty)}`}
-          {delta.components.capBefore !== delta.components.capAfter &&
-            ` · cap ${delta.components.capBefore ?? 'none'} → ${delta.components.capAfter ?? 'none'}`}
-        </span>
-      ) : (
-        <span>score {fmtDelta(match.matchScore - previous.matchScore)}</span>
-      )}
+      <span>{delta.components ? componentMoves(delta.components) : t('match.delta.score', { delta: fmtDelta(match.matchScore - previous.matchScore) })}</span>
     </div>
   );
 };
+
+/** What each part of the formula moved by, the parts that did not move left out: "keywords +3 · alignment +2 · cap none → 70". */
+function componentMoves(c: NonNullable<ReturnType<typeof diffMatches>['components']>): string {
+  const cap = (value: number | null) => value ?? t('match.delta.capNone');
+  return [
+    t('match.delta.keywords', { delta: fmtDelta(c.keywordPts) }),
+    t('match.delta.alignment', { delta: fmtDelta(c.alignmentPts) }),
+    c.penalty !== 0 ? t('match.delta.flags', { delta: fmtDelta(-c.penalty) }) : null,
+    c.capBefore !== c.capAfter ? t('match.delta.cap', { before: cap(c.capBefore), after: cap(c.capAfter) }) : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' · ');
+}
 
 /** Full hard-requirement list with notes — the score card shows only the digest. */
 const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) =>
   hard.length === 0 ? null : (
     <div>
-      <div class={SUBHEAD}>Hard requirements — gates outside the score</div>
+      <div class={SUBHEAD}>{t('match.hard.heading')}</div>
       <ul class="space-y-1.5 text-sm">
         {hard.map((h) => (
           <li class="flex flex-wrap items-center gap-2">
-            <Badge tone={HARD_VIEW[h.status].tone}>{HARD_VIEW[h.status].label}</Badge>
-            <span class="text-ink">{h.requirement}</span>
-            {h.note && <span class="text-meta text-ink-faint">— {h.note}</span>}
+            <Badge tone={HARD_VIEW[h.status].tone}>{t(HARD_VIEW[h.status].label)}</Badge>
+            <span class="text-ink" lang="en">
+              {h.requirement}
+            </span>
+            {h.note && (
+              <span class="text-meta text-ink-faint" lang="en">
+                — {h.note}
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -638,22 +680,18 @@ export const VerificationLine: FC<{ verification: VerificationForHint | null; cl
   class: className = 'mb-3',
   href,
 }) => {
-  const link = (
+  const link = (words: Child[]) => (
     <a href={href} class="font-medium text-accent-strong hover:text-accent-deep">
-      {verification ? 'see the verification' : 'Verify first'}
+      {words}
     </a>
   );
   if (!verification) {
-    return (
-      <Hint class={className}>
-        Not checked for ghost-job signals yet — {link} if you want that answered before you tailor.
-      </Hint>
-    );
+    return <Hint class={className}>{tRich('match.verification.notChecked', {}, { link })}</Hint>;
   }
   const hint = verificationHint(verification);
   return (
     <p class={`${className} text-note leading-5 ${VERIFICATION_TONE[hint.tone]}`}>
-      {hint.text} {link}.
+      {tRich('match.verification.line', { text: hint.text }, { link })}
     </p>
   );
 };
@@ -671,26 +709,30 @@ export const MatchSignals: FC<{ match: MatchWithResume; verification?: Verificat
 }) => {
   // The verifier's findings ride along the model's cautions, labelled — a
   // finding about the posting is not a finding about the resume (#162 stage 1).
-  const cautions = [...match.cautions, ...(verification ? verificationCautions(verification) : [])];
+  // The model's cautions are its own English; the verifier's lines open with our label.
+  const cautions = [
+    ...match.cautions.map((text) => ({ text, modelWritten: true })),
+    ...(verification ? verificationCautions(verification) : []).map((text) => ({ text, modelWritten: false })),
+  ];
   return (
     <>
-      <MarkedList label="Red flags" items={match.redFlags} kind="x" tone="text-danger" />
+      <MarkedList label={t('match.redFlags')} items={match.redFlags} kind="x" tone="text-danger" />
       {cautions.length > 0 && (
         <div>
-          <div class={SUBHEAD}>Worth knowing — not scored</div>
+          <div class={SUBHEAD}>{t('match.cautions')}</div>
           <ul class="space-y-1 text-sm text-ink-muted">
-            {cautions.map((s) => (
+            {cautions.map((c) => (
               <li class="flex gap-2">
                 <span class="mt-[3px] h-3.5 w-3.5 shrink-0 text-center text-meta leading-none text-ink-faint" aria-hidden="true">
                   ·
                 </span>
-                <span>{s}</span>
+                <span lang={c.modelWritten ? 'en' : undefined}>{c.text}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
-      <MarkedList label="Already working for you" items={match.strengths} kind="check" tone="text-ok" />
+      <MarkedList label={t('match.strengths')} items={match.strengths} kind="check" tone="text-ok" />
     </>
   );
 };
@@ -739,12 +781,18 @@ const SuggestionCard: FC<{
     <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3" data-card={interactive ? key : undefined}>
       <div class={`${badgeWidth} shrink-0`}>{badge}</div>
       <div class="min-w-0 flex-1 text-sm">
-        <div class="font-medium text-ink">{item.where}</div>
-        <div class="mt-0.5 leading-6 text-ink">{item.what}</div>
+        {/* Where, what and why are the model's sentences; the quote is the resume's own line. */}
+        <div class="font-medium text-ink" lang="en">
+          {item.where}
+        </div>
+        <div class="mt-0.5 leading-6 text-ink" lang="en">
+          {item.what}
+        </div>
         {item.quote && (
           <div class="mt-2">
-            <div class={LABEL}>Now</div>
+            <div class={LABEL}>{t('match.card.now')}</div>
             <p
+              translate="no"
               class={`mt-0.5 whitespace-pre-wrap break-words border-l-2 border-line-strong pl-2 leading-6 text-ink-muted ${
                 removal ? 'line-through decoration-danger/60' : ''
               }`}
@@ -755,33 +803,35 @@ const SuggestionCard: FC<{
         )}
         {proposal && (
           <div class="mt-2">
-            <div class={LABEL}>{proposal.verb ?? 'Proposed'}</div>
-            <p class="mt-0.5 whitespace-pre-wrap break-words border-l-2 border-accent/50 pl-2 leading-6 text-ink">
+            <ProposalCaption verb={proposal.verb} />
+            <p class="mt-0.5 whitespace-pre-wrap break-words border-l-2 border-accent/50 pl-2 leading-6 text-ink" lang="en">
               {proposal.text}
             </p>
           </div>
         )}
-        <div class="mt-1 text-meta leading-5 text-ink-faint">why: {item.why}</div>
+        <div class="mt-1 text-meta leading-5 text-ink-faint">
+          {tRich('match.card.why', {}, { reason: () => <span lang="en">{item.why}</span> })}
+        </div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           {/* Outlined, not solid: five cards are one region, and the solid button in
               sight is the page's own (DESIGN.md, one primary per region). */}
           {canApply && (
             <Button type="button" variant="secondary" size="sm" data-apply={proposal?.text}>
-              Apply
+              {t('match.card.apply')}
             </Button>
           )}
           {canEdit && (
             <Button type="button" variant="ghost" size="sm" data-edit-apply>
-              Edit &amp; apply
+              {t('match.card.editApply')}
             </Button>
           )}
           {canRemove && (
             <Button type="button" variant="danger" size="sm" data-remove={item.quote}>
-              Remove
+              {t('common.remove')}
             </Button>
           )}
           <Button type="button" variant={canApply || canRemove ? 'ghost' : 'secondary'} size="sm" data-copy={copyable}>
-            Copy
+            {t('common.copy')}
           </Button>
           {rewrite && (
             <form method="post" action={`/jobs/${rewrite.jobId}/matches/${rewrite.matchId}/actions/${rewrite.index}/rewrite`} onsubmit={SUBMIT_ONCE}>
@@ -789,25 +839,25 @@ const SuggestionCard: FC<{
               <Button
                 variant="ghost"
                 size="sm"
-                title="Writes this one suggestion again — same target, a different sentence (~½ min)"
+                title={t('match.card.rewriteTitle')}
               >
-                Rewrite
+                {t('match.card.rewrite')}
               </Button>
             </form>
           )}
           {interactive && item.quote && (
             <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
-              Locate
+              {t('match.card.locate')}
             </Button>
           )}
           {(canEdit || canRemove) && (
             <Button type="button" variant="ghost" size="sm" data-skip>
-              Skip
+              {t('match.card.skip')}
             </Button>
           )}
           {interactive && (
             <Button type="button" variant="ghost" size="sm" data-undo hidden>
-              Undo
+              {t('match.card.undo')}
             </Button>
           )}
           {/* One status line per card: Locate's line number, and what an edit did. */}
@@ -816,7 +866,7 @@ const SuggestionCard: FC<{
         {canEdit && (
           <div class="mt-2" data-edit-box hidden {...target}>
             <label class="block">
-              <span class={LABEL}>Your wording</span>
+              <span class={LABEL}>{t('match.card.yourWording')}</span>
               <textarea
                 class="mt-1 block w-full rounded-md border border-line-strong bg-surface-raised p-2 text-sm leading-6 text-ink"
                 rows={3}
@@ -827,10 +877,10 @@ const SuggestionCard: FC<{
             </label>
             <div class="mt-1.5 flex flex-wrap gap-2">
               <Button type="button" variant="primary" size="sm" data-edit-save>
-                Apply this
+                {t('match.card.applyThis')}
               </Button>
               <Button type="button" variant="ghost" size="sm" data-edit-cancel>
-                Cancel
+                {t('ui.cancel')}
               </Button>
             </div>
           </div>
@@ -852,10 +902,27 @@ const NoEdits: FC<{ reach: Reach | null }> = ({ reach }) => {
   const line = noEditsLine(reach);
   return (
     <Hint>
-      {line.text}
-      {line.offerRewrite && <span class="font-medium text-ink"> Rewrite all</span>}
-      {line.offerRewrite && '.'}
+      {line.offerRewrite && reach
+        ? // The same sentence as `line.text`, with the button it ends on set in bold.
+          tRich('match.noEdits.room', { ceiling: reach.ceiling }, { button: (words) => <span class="font-medium text-ink">{words}</span> })
+        : line.text}
     </Hint>
+  );
+};
+
+/**
+ * The caption over a proposed wording. "Replace" and "Add" are the two words
+ * change-sheet.ts gives a row that carries its wording in a field of its own;
+ * any other lead is how the model itself introduced it, and stays as written.
+ */
+const ProposalCaption: FC<{ verb: string | null }> = ({ verb }) => {
+  if (verb === null) return <div class={LABEL}>{t('match.card.proposed')}</div>;
+  if (verb === 'Replace') return <div class={LABEL}>{t('match.card.replace')}</div>;
+  if (verb === 'Add') return <div class={LABEL}>{t('match.card.add')}</div>;
+  return (
+    <div class={LABEL} lang="en">
+      {verb}
+    </div>
   );
 };
 
@@ -877,13 +944,13 @@ export const ActionsBlock: FC<{
   );
   return (
     <div>
-      <div class={SUBHEAD}>What to change — {actions.length} edits</div>
+      <div class={SUBHEAD}>{t('match.actions.heading', { n: actions.length })}</div>
       {actions.length === 0 && <NoEdits reach={reach} />}
       {sections.length > 0 && (
         <div class={`space-y-4 ${actions.length === 0 ? 'mt-3' : ''}`}>
           {sections.map((section) => (
             <div>
-              <div class="mb-1.5 text-meta font-semibold text-ink">{section}</div>
+              <div class="mb-1.5 text-meta font-semibold text-ink">{t(`match.section.${section}`)}</div>
               {section === 'summary' && summaryGuide && <SummaryGuideBlock guide={summaryGuide} />}
               {actions.some((a) => a.section === section) && (
                 <ol class="divide-y divide-line rounded-md border border-line">
@@ -892,7 +959,7 @@ export const ActionsBlock: FC<{
                     .map(({ a, index }) => (
                       <SuggestionCard
                         item={a}
-                        badge={<Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>}
+                        badge={<Badge tone={PRIORITY_TONE[a.priority]}>{t(`match.priority.${a.priority}`)}</Badge>}
                         proposal={proposalOf(a)}
                         interactive={interactive}
                         rewrite={rewrite ? { ...rewrite, index } : undefined}
@@ -915,12 +982,12 @@ export const RemovalsBlock: FC<{
 }> = ({ removals, interactive = false }) =>
   removals.length === 0 ? null : (
     <div>
-      <div class={SUBHEAD}>What to remove — {removals.length} items</div>
+      <div class={SUBHEAD}>{t('match.removals.heading', { n: removals.length })}</div>
       <ul class="divide-y divide-line rounded-md border border-line">
         {removals.map((r) => (
           <SuggestionCard
             item={r}
-            badge={<Badge tone="neutral">{r.section}</Badge>}
+            badge={<Badge tone="neutral">{t(`match.section.${r.section}`)}</Badge>}
             proposal={null}
             interactive={interactive}
             removal
@@ -953,7 +1020,7 @@ export const ChangeSheetButton: FC<{
         removals,
       )}
     >
-      Copy all suggestions
+      {t('match.copyAll')}
     </Button>
   );
 
@@ -982,24 +1049,27 @@ export const KeywordTable: FC<{
     <div class="-mx-5 -mb-5 border-t border-line">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-note font-medium text-ink-muted">
         <span>
-          Keyword coverage — {matchedKeywords.length} of {counted.length} matched
-          {ignored.length > 0 ? ` · ${ignored.length} ignored` : ''}
+          {t(ignored.length > 0 ? 'keyword.coverageIgnored' : 'keyword.coverage', {
+            matched: matchedKeywords.length,
+            total: counted.length,
+            ignored: ignored.length,
+          })}
         </span>
         {rebuild && <RebuildKeywords target={rebuild} />}
       </div>
       {attention.length > 0 ? (
-        <Table columns={KEYWORD_COLUMNS}>
+        <Table columns={keywordColumns()}>
           {attention.map((k) => (
             <KeywordRow k={k} edit={edit} />
           ))}
         </Table>
       ) : (
-        <Hint class="px-5 pb-3">Every keyword the posting wants is matched.</Hint>
+        <Hint class="px-5 pb-3">{t('keyword.allMatched')}</Hint>
       )}
       {matchedKeywords.length > 0 && (
         <details>
-          <summary class={KEYWORD_SUMMARY}>Matched — {matchedKeywords.length} keywords</summary>
-          <Table columns={KEYWORD_COLUMNS}>
+          <summary class={KEYWORD_SUMMARY}>{t('keyword.matchedFold', { n: matchedKeywords.length })}</summary>
+          <Table columns={keywordColumns()}>
             {matchedKeywords.map((k) => (
               <KeywordRow k={k} edit={edit} />
             ))}
@@ -1008,10 +1078,8 @@ export const KeywordTable: FC<{
       )}
       {ignored.length > 0 && (
         <details>
-          <summary class={KEYWORD_SUMMARY}>
-            Ignored — {ignored.length} keyword{ignored.length === 1 ? '' : 's'} out of the score
-          </summary>
-          <Table columns={KEYWORD_COLUMNS}>
+          <summary class={KEYWORD_SUMMARY}>{t('keyword.ignoredFold', { n: ignored.length })}</summary>
+          <Table columns={keywordColumns()}>
             {ignored.map((k) => (
               <KeywordRow k={k} edit={edit} />
             ))}
@@ -1030,7 +1098,7 @@ export const KeywordTable: FC<{
  * the model's guess, not their decisions.
  */
 function rebuildTitle(mode: MatchMode): string {
-  return `Runs this ${mode === 'fast' ? 'check (~½ min on Opus)' : 'full analysis (~2 min on Opus)'} once without the stored keyword list, so the model reads the terms out of the posting again. Your own keyword edits are kept; the new score counts a different set of terms.`;
+  return t(mode === 'fast' ? 'keyword.rebuild.titleFast' : 'keyword.rebuild.titleFull');
 }
 
 const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
@@ -1042,7 +1110,7 @@ const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
       title={rebuildTitle(target.mode)}
       onclick={`this.form.elements.rebuild.value='1';this.form.elements.mode.value='${target.mode}'`}
     >
-      Rebuild keywords
+      {t('keyword.rebuild')}
     </button>
   ) : (
     <form method="post" action={`/jobs/${target.jobId}/match`} class="ml-auto" onsubmit={SUBMIT_ONCE}>
@@ -1054,7 +1122,7 @@ const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
           rebuild would quietly score the stored resume instead. */}
       {target.draftText !== undefined && <input type="hidden" name="draftText" value={target.draftText} />}
       <button type="submit" class={ROW_LINK} title={rebuildTitle(target.mode)}>
-        Rebuild keywords
+        {t('keyword.rebuild')}
       </button>
     </form>
   );
@@ -1070,76 +1138,79 @@ const KeywordRow: FC<{ k: CountedKeyword & { usage?: TermUsage }; edit?: Keyword
   <Tr class={isIgnored(k) ? 'opacity-60' : ''}>
     <Td class="text-meta font-medium text-ink">
       <span class="inline-flex flex-wrap items-center gap-1.5">
-        {k.term}
-        {k.primary && <Badge tone="info">primary</Badge>}
+        <span translate="no">{k.term}</span>
+        {k.primary && <Badge tone="info">{t('keyword.primary')}</Badge>}
         {k.count > 1 && (
-          <span class="font-mono text-ink-faint" title={`the posting says it ${k.count} times`}>
+          <span class="font-mono text-ink-faint" title={t('keyword.countTitle', { n: k.count })}>
             ×{k.count}
           </span>
         )}
-        {k.override?.added && <Badge tone="neutral">yours</Badge>}
+        {k.override?.added && <Badge tone="neutral">{t('keyword.yours')}</Badge>}
         {k.group && (
-          <span
-            title={`The posting offers this as one of several — "${k.group}". Any one of them satisfies it, so the score counts the group once, not each option.`}
-          >
-            <Badge>or {k.group}</Badge>
+          <span title={t('keyword.group.title', { group: k.group })}>
+            <Badge>{t('keyword.group.badge', { group: k.group })}</Badge>
           </span>
         )}
       </span>
     </Td>
     <Td class="text-meta text-ink-faint">
-      {edit ? <LevelControls k={k} edit={edit} /> : effectiveRequirement(k)}
+      {edit ? <LevelControls k={k} edit={edit} /> : t(`keyword.level.${effectiveRequirement(k)}`)}
     </Td>
     <Td>
       <span class="inline-flex flex-wrap items-center gap-1">
-        <Badge tone={STATUS_VIEW[k.status].tone}>{STATUS_VIEW[k.status].label}</Badge>
+        <Badge tone={STATUS_VIEW[k.status].tone}>{t(STATUS_VIEW[k.status].label)}</Badge>
         {/* Measured off the text, never judged (evidence.ts, §23): "listed" is a
             name on a skills line and nothing more, which is what a recruiter
             discounts fastest. */}
         {k.evidence === 'listed' && (
-          <span title="Named on a skills line and shown nowhere else. Put it inside a bullet that describes the work.">
-            <Badge tone="warn">skills line only</Badge>
+          <span title={t('keyword.listed.title')}>
+            <Badge tone="warn">{t('keyword.listed.badge')}</Badge>
           </span>
         )}
         {k.evidence === 'measured' && (
-          <span title="Shown inside a bullet that carries a number — the strongest form of evidence a resume has.">
-            <Badge tone="ok">with a number</Badge>
+          <span title={t('keyword.measured.title')}>
+            <Badge tone="ok">{t('keyword.measured.badge')}</Badge>
           </span>
         )}
-        {k.elsewhere && <Badge tone="neutral">in "{k.elsewhere}"</Badge>}
+        {k.elsewhere && <Badge tone="neutral">{t('keyword.elsewhere', { name: k.elsewhere })}</Badge>}
         {/* TASKS R8: the dated roles that name it — not scored, read by every screener. */}
         {k.usage && (
           <span
             class={`text-meta ${k.usage.monthsSince >= STALE_MONTHS ? 'text-warn' : 'text-ink-faint'}`}
             title={
               k.usage.monthsSince >= STALE_MONTHS
-                ? `The roles that mention ${k.term} ended over three years ago. If you have used it since, say where.`
-                : `The dated roles that mention ${k.term}, overlaps counted once.`
+                ? t('keyword.usage.staleTitle', { term: k.term })
+                : t('keyword.usage.title', { term: k.term })
             }
           >
             {usageLine(k.usage)}
           </span>
         )}
         {k.aliasOnly && (
-          <span title={`Written as "${k.aliasOnly}". An ATS that searches for "${k.term}" may not find it — write the posting's spelling once, in a bullet or on the skills line.`}>
-            <Badge tone="warn">as "{k.aliasOnly}"</Badge>
+          <span title={t('keyword.alias.title', { alias: k.aliasOnly, term: k.term })}>
+            <Badge tone="warn">{t('keyword.alias.badge', { alias: k.aliasOnly })}</Badge>
           </span>
         )}
         {k.unanchored && (
           <span
             title={
               k.override?.added
-                ? 'You added this word and the posting does not contain it, so the description pane cannot highlight it.'
-                : 'The AI worded this keyword differently from the posting, so the description pane cannot highlight it.'
+                ? t('keyword.unanchored.titleYours')
+                : t('keyword.unanchored.titleAi')
             }
           >
-            <Badge>not in posting</Badge>
+            <Badge>{t('keyword.unanchored.badge')}</Badge>
           </span>
         )}
       </span>
     </Td>
-    <Td class="text-meta text-ink-muted">{k.where ?? '—'}</Td>
-    <Td class="max-w-md text-meta text-ink-muted">{k.note ?? '—'}</Td>
+    {/* Where the resume shows it and the note beside it are the model's own words. */}
+    <Td class="text-meta text-ink-muted">
+      <span lang="en">{k.where ?? '—'}</span>
+    </Td>
+    <Td class="max-w-md text-meta text-ink-muted">
+      <span lang="en">{k.note ?? '—'}</span>
+    </Td>
   </Tr>
 );
 
@@ -1164,42 +1235,42 @@ const LevelControls: FC<{ k: CountedKeyword; edit: KeywordEditTarget }> = ({ k, 
         name="requirement"
         class="!w-auto py-1 text-meta"
         data-commit="submit"
-        aria-label={`How much the posting wants ${k.term}`}
+        aria-label={t('keyword.wants.aria', { term: k.term })}
         title={
           !overridden
-            ? 'how much the posting wants it'
+            ? t('keyword.wants.title')
             : level === k.requirement
-              ? 'you set this level — it stays yours on every re-run'
-              : `you set this — the AI said ${k.requirement}`
+              ? t('keyword.wants.titleYours')
+              : t('keyword.wants.titleOverridden', { level: t(`keyword.level.${k.requirement}`) })
         }
       >
         {REQUIREMENT_LEVELS.map((r) => (
           <option value={r} selected={r === level}>
-            {r}
+            {t(`keyword.level.${r}`)}
           </option>
         ))}
       </Select>
-      {overridden && <Badge tone="neutral">yours</Badge>}
+      {overridden && <Badge tone="neutral">{t('keyword.yours')}</Badge>}
       <button
         type="submit"
         class={ROW_LINK}
         onclick={`this.form.elements.op.value='${isIgnored(k) ? 'restore' : 'ignore'}'`}
         title={
           isIgnored(k)
-            ? 'Count this keyword again'
-            : 'Noise: drop it from the score and the highlights (you can bring it back)'
+            ? t('keyword.restoreTitle')
+            : t('keyword.ignoreTitle')
         }
       >
-        {isIgnored(k) ? 'restore' : 'ignore'}
+        {isIgnored(k) ? t('keyword.restore') : t('keyword.ignore')}
       </button>
       {(overridden || k.override?.added) && (
         <button
           type="submit"
           class={ROW_LINK}
           onclick="this.form.elements.op.value='reset'"
-          title={k.override?.added ? 'Remove the keyword you added' : "Back to the AI's own verdict"}
+          title={k.override?.added ? t('keyword.removeTitle') : t('keyword.resetTitle')}
         >
-          {k.override?.added ? 'remove' : 'reset'}
+          {k.override?.added ? t('keyword.remove') : t('keyword.reset')}
         </button>
       )}
     </form>
@@ -1219,28 +1290,27 @@ const AddKeywordForm: FC<{ edit: KeywordEditTarget }> = ({ edit }) => (
     <input type="hidden" name="op" value="add" />
     <input type="hidden" name="back" value={edit.back} />
     <label class="block">
-      <span class="block text-label text-ink">Add a keyword</span>
+      <span class="block text-label text-ink">{t('keyword.add.label')}</span>
       <Input
         name="term"
         required
         maxlength={60}
-        placeholder="a word this posting wants"
+        placeholder={t('keyword.add.placeholder')}
         class="mt-1.5 !w-56 py-1 text-meta"
       />
     </label>
-    <Select name="requirement" class="!w-auto py-1 text-meta" aria-label="How much the posting wants it">
+    <Select name="requirement" class="!w-auto py-1 text-meta" aria-label={t('keyword.add.levelAria')}>
       {REQUIREMENT_LEVELS.map((r) => (
         <option value={r} selected={r === 'preferred'}>
-          {r}
+          {t(`keyword.level.${r}`)}
         </option>
       ))}
     </Select>
     <Button variant="secondary">
-      Add
+      {t('keyword.add.button')}
     </Button>
     <Hint class="basis-full">
-      It counts in the score straight away — matched if your resume already says it, otherwise a
-      confirm question. No AI call.
+      {t('keyword.add.hint')}
     </Hint>
   </form>
 );
@@ -1258,7 +1328,8 @@ const MarkedList: FC<{ label: string; items: string[]; kind: 'check' | 'x'; tone
         {items.map((s) => (
           <li class="flex gap-2">
             <MarkIcon kind={kind} class={`mt-[3px] ${tone}`} />
-            <span>{s}</span>
+            {/* Red flags and strengths are the model's sentences. */}
+            <span lang="en">{s}</span>
           </li>
         ))}
       </ul>

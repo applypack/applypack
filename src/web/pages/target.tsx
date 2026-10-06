@@ -13,7 +13,7 @@ import { readActions, readHardRequirements, readRemovals } from '../../resume/pr
 import { readMatchEvidence, readMatchMode } from '../../resume/match-mode';
 import { notEnglishNotice } from '../../text-language';
 import { readBreakdown } from '../../resume/score';
-import { mainAdvice, readyToApply } from '../score-lines';
+import { adviceLine, readyToApply } from '../score-lines';
 import type { OrientationRow } from '../../resume/posting-orientation';
 import type { SummaryGuide } from '../../resume/summary-guide';
 import {
@@ -33,6 +33,9 @@ import {
 } from './resume-match-card';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { jobHref } from '../job-tabs';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 /*
  * Resume match (targeted resume): job description with keyword highlights on
@@ -82,10 +85,10 @@ export interface TargetPageProps {
  * advice-beside-the-editor layout as the second tab. "Your resume" as a
  * separate tab is gone — the editor already shows in the first two tabs. */
 const TABS = [
-  { key: 'both', label: 'Side by side' },
-  { key: 'changes', label: 'Suggestions' },
-  { key: 'job', label: 'Job description' },
-] as const;
+  { key: 'both', label: 'target.tab.both' },
+  { key: 'changes', label: 'target.tab.changes' },
+  { key: 'job', label: 'target.jobDescription' },
+] as const satisfies readonly { key: string; label: MessageKey }[];
 
 /** How many analysis runs stay visible in the header; the rest fold away. */
 const RECENT_RUNS = 2;
@@ -138,7 +141,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   const breakdown = readBreakdown(match.breakdown);
   // The one move worth making next, ranked in code from the verdicts this row
   // already carries (score-lines.ts) — the editor is where it gets made.
-  const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions }) : null;
+  const advice = breakdown ? adviceLine({ breakdown, keywords: scored, hard, actions }) : null;
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
     ? recent
@@ -167,23 +170,24 @@ export const TargetPage: FC<TargetPageProps> = ({
     documentName: resume.name,
   };
   return (
-    <Layout title={`Tailor resume · ${job.title}`} active="jobs">
+    <Layout title={t('target.pageTitle', { title: job.title })} active="jobs">
       <div class="w-full" id="target-root">
-      <nav aria-label="Breadcrumb" class="mb-1.5 flex items-center gap-1.5 text-note text-ink-faint">
+      <nav aria-label={t('target.breadcrumb')} class="mb-1.5 flex items-center gap-1.5 text-note text-ink-faint">
         <a href="/jobs" class="transition-colors duration-150 hover:text-ink">
-          Jobs
+          {t('nav.jobs')}
         </a>
         <span aria-hidden="true">/</span>
         <a
           href={jobHref(job.id, 'match', {}, 'resume-match')}
           class="max-w-[18rem] truncate transition-colors duration-150 hover:text-ink"
           title={job.title}
+          translate="no"
         >
           {job.title}
         </a>
         <span aria-hidden="true">/</span>
         <span aria-current="page" class="font-medium text-ink-muted">
-          Tailor resume
+          {t('nav.target')}
         </span>
       </nav>
       <Flash flash={flash}>
@@ -194,17 +198,18 @@ export const TargetPage: FC<TargetPageProps> = ({
             value="1"
             variant="secondary"
             size="sm"
-            title="Spend a fresh resume-model call on the text in the editor"
+            title={t('target.rerun.title')}
           >
-            Re-run anyway
+            {t('target.rerun.button')}
           </Button>
         )}
       </Flash>
 
       <div class="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0 lg:min-w-[15rem] lg:shrink-0">
-          <h1 class="text-title text-ink">Tailor resume</h1>
-          <div class="mt-1 text-sm text-ink-muted">
+          <h1 class="text-title text-ink">{t('nav.target')}</h1>
+          {/* The company, the title and the place as the posting gives them. */}
+          <div class="mt-1 text-sm text-ink-muted" translate="no">
             {job.companyName} · {job.title}
             {job.location ? ` · ${job.location}` : ''}
           </div>
@@ -220,7 +225,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               {/* list-none + own caret so the label can right-align and stay put when
                   the open box grows to the chips' width. */}
               <summary class="runs-toggle cursor-pointer list-none text-meta text-ink-faint transition-colors duration-150 hover:text-ink lg:text-right">
-                {olderRuns.length} older runs
+                {t('target.olderRuns', { n: olderRuns.length })}
               </summary>
               <ul class="mt-2 flex flex-wrap gap-2 lg:justify-end">
                 {olderRuns.map((m) => (
@@ -252,7 +257,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               type="button"
               id="score-ring"
               aria-describedby="score-help"
-              aria-label={`Match score ${match.matchScore} of 100 — what this number is`}
+              aria-label={t('target.score.aria', { score: match.matchScore })}
               class="relative block cursor-help rounded-full"
             >
               <svg viewBox="0 0 96 96" class="h-28 w-28 -rotate-90" aria-hidden="true">
@@ -296,15 +301,9 @@ export const TargetPage: FC<TargetPageProps> = ({
               role="tooltip"
               class="pointer-events-none absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-3rem)] space-y-1.5 rounded-lg border border-line bg-surface-raised p-3 text-meta leading-5 text-ink-muted opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
             >
-              <p>
-                <span class="font-medium text-ink">Match score, 0–100.</span> How well this resume answers
-                this posting: the words it asks for, whether you have its core stack, and how your title,
-                summary and most recent role read at a glance.
-              </p>
+              <p>{tRich('target.score.help', {}, { b: (words) => <span class="font-medium text-ink">{words}</span> })}</p>
               <p data-ui="hint" class="text-ink-faint">
-                It moves as you edit: every word is counted live, whatever the last analysis called it.
-                What a word search cannot read — how your title and summary read, the red flags — stays as
-                the last analysis judged it, so run “Analyse my resume again” once the text is settled.
+                {t('target.score.helpLive')}
               </p>
             </div>
           </div>
@@ -315,7 +314,9 @@ export const TargetPage: FC<TargetPageProps> = ({
               made the number, what it does not count — is off this page for
               now; it is still on the /jobs match card. */}
           <div class="min-w-0 space-y-1.5">
-            <p class="text-sm leading-6 text-ink">{match.summary}</p>
+            <p class="text-sm leading-6 text-ink" lang="en">
+              {match.summary}
+            </p>
             <MainAdviceLine advice={advice} />
             {breakdown && <ScoreCeilingLine bd={breakdown} />}
             {/* The number alone used to decide this, so "stop polishing" sat
@@ -331,7 +332,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 threshold: READY_TO_APPLY,
                 edits: actions.length + removals.length,
               }) && (
-                <p class="text-note font-medium text-ok">Ready to apply — stop polishing, send it.</p>
+                <p class="text-note font-medium text-ok">{t('target.readyToApply')}</p>
               )}
             {(fast || actions.length > 0 || removals.length > 0) && (
               <button
@@ -339,15 +340,16 @@ export const TargetPage: FC<TargetPageProps> = ({
                 data-goto-tab="changes"
                 class="cursor-pointer text-left text-note font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
               >
-                {fast ? (
-                  'Keywords only — get edit suggestions'
-                ) : (
-                  <>
-                    {actions.length} suggested edits
-                    {highActions > 0 ? ` (${highActions} high)` : ''}
-                    {removals.length > 0 ? ` · ${removals.length} removals` : ''}
-                  </>
-                )}
+                {fast
+                  ? t('target.edits.fast')
+                  : [
+                      highActions > 0
+                        ? t('target.edits.countHigh', { n: actions.length, high: highActions })
+                        : t('target.edits.count', { n: actions.length }),
+                      removals.length > 0 ? t('target.edits.removals', { n: removals.length }) : null,
+                    ]
+                      .filter((part) => part !== null)
+                      .join(' · ')}
                 {' →'}
               </button>
             )}
@@ -363,10 +365,10 @@ export const TargetPage: FC<TargetPageProps> = ({
                   data-apply-all
                   data-goto-tab="changes"
                   hidden
-                  title="Writes every suggestion the gate let through, the removals and the missing keywords your resume backs into the text — nothing is saved until you download or save"
+                  title={t('target.applyAll.title')}
                 >
                   {/* One span: the button is a flex row, and its gap would stand between the words and the count. */}
-                  <span>Apply all suggestions (<span data-apply-all-count>0</span>)</span>
+                  <span>{tRich('target.applyAll.header', {}, { count: () => <span data-apply-all-count>0</span> })}</span>
                 </Button>
               </div>
             )}
@@ -381,11 +383,11 @@ export const TargetPage: FC<TargetPageProps> = ({
                 data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
             <details class="relative" data-menu>
               <summary class={`${SUMMARY_BUTTON} border border-line-strong bg-surface-raised px-3 text-ink shadow-sm hover:bg-surface-overlay`}>
-                Re-upload resume
+                {t('target.reupload.button')}
               </summary>
               <div class={MENU_PANEL}>
                 <div class="text-label text-ink">
-                  {resume.ephemeral ? 'Upload another resume' : 'Upload new resume version'}
+                  {resume.ephemeral ? t('target.reupload.another') : t('target.reupload.newVersion')}
                 </div>
                 <form
                   method="post"
@@ -400,25 +402,22 @@ export const TargetPage: FC<TargetPageProps> = ({
                     type="file"
                     name="file"
                     required
-                    aria-label="Resume file"
+                    aria-label={t('target.resumeFile')}
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     class="block w-full text-meta text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-meta file:font-medium file:text-ink"
                   />
-                  <Button size="sm" class="w-full" title="Compares this file against the posting and opens the result here">
-                    Compare this file
+                  <Button size="sm" class="w-full" title={t('target.reupload.compareTitle')}>
+                    {t('target.reupload.compare')}
                   </Button>
                   <Hint>
-                    A new comparison against this posting, with fresh suggestions — the posting itself is already
-                    analysed, so only the resume is judged. The result opens here with its own score; this one stays
-                    under "older runs".
-                    {resume.ephemeral ? ' Nothing is added to your Resumes.' : ` Your resume is untouched until you Save as v${resume.version + 1}.`}
+                    {resume.ephemeral ? t('target.reupload.hintOneOff') : t('target.reupload.hintSaved', { version: resume.version + 1 })}
                   </Hint>
                 </form>
               </div>
             </details>
             <details class="relative" data-menu>
               <summary
-                aria-label="More actions"
+                aria-label={t('target.moreActions')}
                 class={`${SUMMARY_BUTTON} border border-line-strong bg-surface-raised px-2.5 shadow-sm hover:bg-surface-overlay`}
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4 text-ink" aria-hidden="true">
@@ -440,8 +439,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <input type="hidden" name="mode" value="full" />
                   {/* Set by the Rebuild button's click — a disabled submitter is left out of the form data. */}
                   <input type="hidden" name="rebuild" value="" />
-                  <Button variant="violet" class="w-full" title="Judges the text in the editor against this posting and rewrites the suggestions">
-                    Analyse my resume again
+                  <Button variant="violet" class="w-full" title={t('target.analyse.title')}>
+                    {t('target.analyse.button')}
                   </Button>
                 </form>
                 {/* One save, and only for a resume of the user's own: the next
@@ -466,9 +465,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                       class="w-full"
                       data-save-button
                       disabled
-                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} of this resume: your .docx with the edits written in, or the clean version the Document view shows (~1 min)`}
+                      title={t('target.save.title', { version: resume.version + 1 })}
                     >
-                      Save as v{resume.version + 1}
+                      {t('target.save.button', { version: resume.version + 1 })}
                     </Button>
                   </form>
                 )}
@@ -487,12 +486,15 @@ export const TargetPage: FC<TargetPageProps> = ({
               posting's own reading already wrote (ADR 0044). */}
           {orientation !== undefined && orientation.length > 0 && (
             <div class="border-t border-line pt-3 lg:col-span-3">
-              <div class="text-label text-ink-muted">About this posting</div>
+              <div class="text-label text-ink-muted">{t('target.orientation.heading')}</div>
               <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-note leading-6">
                 {orientation.map((row) => (
                   <>
                     <dt class="text-ink-faint">{row.label}</dt>
-                    <dd class="min-w-0 text-ink">{row.text}</dd>
+                    {/* A field of the posting's own reading, as the model wrote it. */}
+                    <dd class="min-w-0 text-ink" lang="en">
+                      {row.text}
+                    </dd>
                   </>
                 ))}
               </dl>
@@ -501,14 +503,14 @@ export const TargetPage: FC<TargetPageProps> = ({
           {postingNotice && (
             <div class="border-t border-line pt-3 lg:col-span-3">
               <p class="text-note leading-6 text-ink-muted">
-                <span class="font-medium text-warn">Thin posting.</span> {postingNotice}
+                <span class="font-medium text-warn">{t('target.thinPosting.lead')}</span> {postingNotice}
               </p>
             </div>
           )}
           {domainNotice && (
             <div class="border-t border-line pt-3 lg:col-span-3">
               <p class="text-note leading-6 text-ink-muted">
-                <span class="font-medium text-info">Another sector.</span> {domainNotice}
+                <span class="font-medium text-info">{t('target.domain.lead')}</span> {domainNotice}
               </p>
             </div>
           )}
@@ -535,33 +537,33 @@ export const TargetPage: FC<TargetPageProps> = ({
         <div
           class="inline-flex rounded-md border border-line bg-surface-overlay p-0.5"
           role="tablist"
-          aria-label="View"
+          aria-label={t('target.view')}
         >
-          {TABS.map((t) => (
+          {TABS.map((tab) => (
             <button
               type="button"
               role="tab"
-              id={`view-tab-${t.key}`}
-              data-tab={t.key}
+              id={`view-tab-${tab.key}`}
+              data-tab={tab.key}
               aria-controls="panes"
-              aria-selected={t.key === 'both'}
-              tabindex={t.key === 'both' ? 0 : -1}
+              aria-selected={tab.key === 'both'}
+              tabindex={tab.key === 'both' ? 0 : -1}
               class="tab cursor-pointer rounded-[5px] px-3 py-1 text-note text-ink-muted transition-colors duration-150 hover:text-ink aria-selected:bg-surface-raised aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-sm"
             >
-              {t.label}
+              {t(tab.label)}
             </button>
           ))}
         </div>
         <label class="ml-auto inline-flex min-h-[28px] cursor-pointer items-center gap-1.5 text-meta text-ink-faint">
           <input id="show-matched" type="checkbox" checked class="h-3.5 w-3.5 accent-accent" />
-          show matched highlights
+          {t('target.showMatched')}
         </label>
       </div>
 
       <div id="panes" class="show-matched grid gap-4 lg:grid-cols-2" data-view="both" role="tabpanel" aria-labelledby="view-tab-both">
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="text-label text-ink">Job description</div>
+            <div class="text-label text-ink">{t('target.jobDescription')}</div>
             <div class="flex flex-wrap items-center gap-2 text-meta text-ink-faint">
               {/* One axis, four colours: green is a word you already have, and
                   every other colour is a gap graded by how hard the posting
@@ -569,24 +571,23 @@ export const TargetPage: FC<TargetPageProps> = ({
                   graded a fifth key by weight in the same hue — "add the word"
                   and "missing" were the same news to a reader, and the grey
                   strikethrough on a required term read as "ignore this". */}
-              <mark class="kw-have rounded px-1">in your resume</mark>
-              <mark class="kw-gap kw-must rounded px-1">must add</mark>
-              <mark class="kw-gap kw-preferred rounded px-1">preferred</mark>
-              <mark class="kw-gap kw-nice rounded px-1">nice to have</mark>
-              <mark class="kw-gap kw-preferred kw-unproven rounded px-1">no evidence yet</mark>
+              <mark class="kw-have rounded px-1">{t('target.legend.have')}</mark>
+              <mark class="kw-gap kw-must rounded px-1">{t('target.legend.must')}</mark>
+              <mark class="kw-gap kw-preferred rounded px-1">{t('target.legend.preferred')}</mark>
+              <mark class="kw-gap kw-nice rounded px-1">{t('target.legend.nice')}</mark>
+              <mark class="kw-gap kw-preferred kw-unproven rounded px-1">{t('target.legend.unproven')}</mark>
             </div>
           </div>
           <div
             id="jd"
+            translate="no"
             class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
           ></div>
           <Hint class="mt-2">
-            A dashed underline means nothing in your resume backs the word yet — write it in where
-            it is true and it counts, or confirm it below.
+            {t('target.jd.hint')}
           </Hint>
           <More class="mt-1">
-            The number reads your text, not our guess about you. Benefits and equal-opportunity text
-            stay unmarked on purpose: nobody is screened on them.
+            {t('target.jd.more')}
           </More>
         </Card>
 
@@ -594,8 +595,11 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="flex flex-wrap items-center gap-3">
               <div class="text-label text-ink">
-                Your resume · {resume.name}
-                {resume.ephemeral ? '' : ` v${match.resumeVersion}`}
+                {t('target.pane.yourResume')} ·{' '}
+                <span translate="no">
+                  {resume.name}
+                  {resume.ephemeral ? '' : ` v${match.resumeVersion}`}
+                </span>
               </div>
               {/* The document is drawn by a script, so the switch appears with it. */}
               <div
@@ -603,7 +607,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 hidden
                 class="inline-flex rounded-md border border-line bg-surface-overlay p-0.5"
                 role="group"
-                aria-label="Show the resume as"
+                aria-label={t('target.pane.showAs')}
               >
                 {(['doc', 'text'] as const).map((v) => (
                   <button
@@ -612,30 +616,30 @@ export const TargetPage: FC<TargetPageProps> = ({
                     aria-pressed={v === 'doc' ? 'true' : 'false'}
                     class="cursor-pointer rounded-[5px] px-2.5 py-0.5 text-note text-ink-muted transition-colors duration-150 hover:text-ink aria-pressed:bg-surface-raised aria-pressed:font-medium aria-pressed:text-ink aria-pressed:shadow-sm"
                   >
-                    {v === 'doc' ? 'Document' : 'Plain text'}
+                    {v === 'doc' ? t('target.pane.document') : t('target.pane.plainText')}
                   </button>
                 ))}
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-3 text-meta text-ink-faint">
-              <span data-text-only><mark class="kw-present rounded px-1">matched</mark></span>
-              <span data-text-only><mark class="edit-change rounded px-1">change</mark></span>
-              <span data-text-only><mark class="edit-remove rounded px-1">remove</mark></span>
-              <span data-doc-only hidden><mark class="doc-changed-sample rounded px-1">changed</mark></span>
+              <span data-text-only><mark class="kw-present rounded px-1">{t('target.legend.matched')}</mark></span>
+              <span data-text-only><mark class="edit-change rounded px-1">{t('target.legend.change')}</mark></span>
+              <span data-text-only><mark class="edit-remove rounded px-1">{t('target.legend.remove')}</mark></span>
+              <span data-doc-only hidden><mark class="doc-changed-sample rounded px-1">{t('target.legend.changed')}</mark></span>
               <button
                 type="button"
                 id="expand-editor"
                 class="cursor-pointer text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline lg:hidden"
                 aria-expanded="false"
               >
-                expand editor
+                {t('target.pane.expand')}
               </button>
               <button
                 type="button"
                 id="reset-edits"
                 class="cursor-pointer text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline"
               >
-                reset edits
+                {t('target.pane.reset')}
               </button>
             </div>
           </div>
@@ -645,17 +649,15 @@ export const TargetPage: FC<TargetPageProps> = ({
               Filled by target-page.mjs, which hides it while nothing is missing. */}
           <details id="kw-bulk" hidden class="mb-3 rounded-md border border-line bg-surface-overlay/60 px-3 py-2">
             <summary class="cursor-pointer text-note font-medium text-ink">
-              Add missing keywords to your skills (<span data-kw-bulk-count>0</span>)
+              {tRich('target.bulk.summary', {}, { count: () => <span data-kw-bulk-count>0</span> })}
             </summary>
             <Hint class="mt-1">
-              Ticked are the ones your resume already backs. An unticked one has nothing behind it in your resume yet —
-              tick it only if it is true. Each goes on the skills line it belongs to; what no line can take gets a line of
-              its own.
+              {t('target.bulk.hint')}
             </Hint>
             <ul id="kw-bulk-list" class="mt-2 grid gap-1 sm:grid-cols-2"></ul>
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <Button type="button" variant="primary" size="sm" id="kw-bulk-add">
-                Add keywords
+                {t('target.bulk.add')}
               </Button>
               <span id="kw-bulk-status" class="text-meta text-ink-muted" role="status"></span>
             </div>
@@ -669,20 +671,19 @@ export const TargetPage: FC<TargetPageProps> = ({
               id="doc-pane"
               class="doc-pane editor h-[70vh] overflow-auto rounded-md border border-line-strong bg-surface-overlay"
               role="region"
-              aria-label="Your resume as a document — click a paragraph to edit it"
+              aria-label={t('target.doc.aria')}
             ></div>
             <div class="mt-2 flex flex-wrap items-center gap-2">
-              <Button type="button" variant="secondary" size="sm" data-download="docx" title="The document as drawn above — nothing is saved">
-                Download .docx
+              <Button type="button" variant="secondary" size="sm" data-download="docx" title={t('target.doc.downloadTitle')}>
+                {t('ui.downloadDocx')}
               </Button>
-              <Button type="button" variant="secondary" size="sm" data-download="pdf" title="The document as drawn above — nothing is saved">
-                Download .pdf
+              <Button type="button" variant="secondary" size="sm" data-download="pdf" title={t('target.doc.downloadTitle')}>
+                {t('target.doc.downloadPdf')}
               </Button>
               <span id="doc-status" class="text-meta text-ink-faint" role="status"></span>
             </div>
             <Hint class="mt-1">
-              Click a paragraph to change its words; Enter keeps the change, Escape puts it back. A formula is changed in
-              Plain text. The downloads are this document as it stands — nothing is saved until you save a version.
+              {t('target.doc.hint')}
             </Hint>
           </div>
           <div id="text-view">
@@ -692,7 +693,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               <>
                 {' '}
                 <a href={cleanHref} class="text-accent-strong underline underline-offset-2 hover:no-underline">
-                  Clean version in your typeface →
+                  {t('target.cleanVersion')}
                 </a>
               </>
             )}
@@ -703,15 +704,14 @@ export const TargetPage: FC<TargetPageProps> = ({
               id="editor"
               class="editor-layer"
               spellcheck={false}
-              aria-label="Resume text (editable, not saved)"
+              aria-label={t('target.editor.aria')}
             ></textarea>
           </div>
           <Hint class="mt-2">
             {resume.ephemeral
-              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check.'
-              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save.'}
-            {readMatchEvidence(match.breakdown) === 'text' &&
-              ' Judged on its own text: your confirmed facts and other resumes were left out, since it may not be yours.'}
+              ? t('target.editor.hintOneOff')
+              : t('target.editor.hintSaved')}
+            {readMatchEvidence(match.breakdown) === 'text' && ` ${t('target.editor.judgedOnText')}`}
           </Hint>
           </div>
           {notEnglishNotice(job.description) && <Hint class="mt-1">{notEnglishNotice(job.description)}</Hint>}
@@ -734,7 +734,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                         removals={removals}
                       />
                       <Button type="button" variant="secondary" size="sm" id="copy-edits" disabled>
-                        Copy my changes
+                        {t('target.copyMine')}
                       </Button>
                       {/* The same call that wrote them, over the same verdicts:
                           the advice changes, the score does not. */}
@@ -745,14 +745,13 @@ export const TargetPage: FC<TargetPageProps> = ({
                       >
                         <input type="hidden" name="next" value="target" />
                         <input type="hidden" name="rewrite" value="1" />
-                        <Button variant="ghost" size="sm" title="Writes the whole list again from the same verdicts — the score stays (~1 min)">
-                          Rewrite all
+                        <Button variant="ghost" size="sm" title={t('target.rewriteAll.title')}>
+                          {t('target.rewriteAll.button')}
                         </Button>
                       </form>
                     </div>
                     <Hint class="mt-1.5">
-                      Both are Markdown. The second is the diff of your own edits and turns on once
-                      you change the text.
+                      {t('target.copyHint')}
                     </Hint>
                   </div>
                   <ApplyAllBar removals={removals.filter((r) => r.quote).length} />
@@ -771,7 +770,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   it shut, because it is the longest block on the page by far. */}
               <details class="kw-fold">
                 <summary class="cursor-pointer text-note font-medium text-ink-muted">
-                  Keyword coverage — {keywords.length} terms
+                  {t('target.keywordFold', { n: keywords.length })}
                 </summary>
                 <div class="mt-3">
               <KeywordTable
@@ -795,28 +794,28 @@ export const TargetPage: FC<TargetPageProps> = ({
       <div id="dirty-bar" hidden class="sticky bottom-3 z-20 mt-4">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-warn/40 bg-surface-raised px-4 py-2.5 shadow-lg">
           <div class="min-w-0">
-            <span class="text-sm font-medium text-ink">Unsaved changes</span>
+            <span class="text-sm font-medium text-ink">{t('target.dirty.title')}</span>
             {/* A live region whose text never changed announced nothing; this one is written when the bar appears. */}
             <span id="dirty-live" class="sr-only" aria-live="polite"></span>
             <span class="ml-2 text-meta text-ink-faint">
-              kept in this browser tab{resume.ephemeral ? ' — copy them out before you leave' : ' until you save'}
+              {resume.ephemeral ? t('target.dirty.oneOff') : t('target.dirty.saved')}
             </span>
           </div>
           <div class="ml-auto flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" id="bar-discard">
-              Discard
+              {t('target.dirty.discard')}
             </Button>
-            <Button variant="violet" size="sm" form="reanalyze-form" title="Runs the whole analysis on the text as it stands now">
-              Analyse my resume again
+            <Button variant="violet" size="sm" form="reanalyze-form" title={t('target.analyse.barTitle')}>
+              {t('target.analyse.button')}
             </Button>
             {!resume.ephemeral && (
               <Button
                 variant="primary"
                 size="sm"
                 form="save-form"
-                title={`Saves the text as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
+                title={t('target.save.barTitle', { version: resume.version + 1 })}
               >
-                Save as v{resume.version + 1}
+                {t('target.save.button', { version: resume.version + 1 })}
               </Button>
             )}
           </div>
@@ -841,23 +840,21 @@ const ApplyAllBar: FC<{ removals: number }> = ({ removals }) => (
   <div class="rounded-md border border-line bg-surface-overlay/60 p-3">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
       <Button type="button" variant="primary" size="sm" data-apply-all hidden>
-        <span>Apply all (<span data-apply-all-count>0</span>)</span>
+        <span>{tRich('target.applyAll.bar', {}, { count: () => <span data-apply-all-count>0</span> })}</span>
       </Button>
       {removals > 0 && (
         <label class="inline-flex min-h-[28px] cursor-pointer items-center gap-1.5 text-note text-ink-muted">
           <input id="apply-all-removals" type="checkbox" checked class="h-3.5 w-3.5 accent-accent" />
-          include the {removals === 1 ? 'removal' : `${removals} removals`}
+          {t('target.applyAll.include', { n: removals })}
         </label>
       )}
       <Button type="button" variant="ghost" size="sm" id="undo-all" hidden>
-        Undo all
+        {t('target.applyAll.undo')}
       </Button>
       <span id="apply-all-status" class="text-note text-ink-muted" role="status"></span>
     </div>
     <Hint class="mt-1.5">
-      Every wording the check let through, the removals and the missing keywords your resume backs, written into
-      your resume below in one press. Nothing is saved until you download it or save a version; each card keeps
-      its own Undo.
+      {t('target.applyAll.hint')}
     </Hint>
   </div>
 );
@@ -869,10 +866,10 @@ const RunChip: FC<{ m: MatchWithResume; currentId: number; jobId: number }> = ({
 }) => (
   <li>
     <HistoryChip href={`/jobs/${jobId}/target?match=${m.id}`} current={m.id === currentId}>
-      <FitBadge score={m.matchScore} label="match" />
-      {m.resume.name}
+      <FitBadge score={m.matchScore} label={t('match.scoreLabel')} />
+      <span translate="no">{m.resume.name}</span>
       {!m.resume.hidden && <span class="font-mono font-normal text-ink-faint">v{m.resumeVersion}</span>}
-      {m.draft && <Badge tone="neutral">draft</Badge>}
+      {m.draft && <Badge tone="neutral">{t('match.draft')}</Badge>}
       <span class="font-normal text-ink-faint"><When at={m.createdAt} /></span>
     </HistoryChip>
   </li>

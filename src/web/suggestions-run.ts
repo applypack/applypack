@@ -3,6 +3,7 @@ import { SUGGESTIONS_FAILED, suggestionsFlash } from '../resume/match-reuse';
 import { readActions, readRemovals, type MatchJobInput } from '../resume/prompts';
 import { suggestForMatch } from '../resume/suggestions';
 import { claimRun, startRun, updateRun } from './target-runs';
+import { t } from '../i18n/t';
 
 /** The name the suggestions work for one comparison is claimed under (issue #76). */
 export function suggestionsKey(matchId: number): string {
@@ -29,7 +30,7 @@ export function startSuggestionsRun(input: {
     resumeName: input.resumeName,
     jobId: job.id,
     backUrl: input.resultUrl,
-    backLabel: 'Back to the comparison',
+    backLabel: t('target.run.backToComparison'),
   });
   if (joined) return `/target/runs/${run.id}`;
   startRun(run.id, () => finishSuggestions(run.id, { match, job, resultUrl: input.resultUrl }));

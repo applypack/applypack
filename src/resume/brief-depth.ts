@@ -1,4 +1,6 @@
 import type { PostingBrief } from './prompts';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 /*
  * How much this posting actually said, and the honesty rule behind it:
@@ -48,12 +50,13 @@ export function postingDepth(brief: PostingBrief | null | undefined): DepthRepor
     brief.screening.scan_for.length >= 3,
   ].filter(Boolean).length;
   const depth: PostingDepth = signals >= 5 ? 'high' : signals >= 3 ? 'medium' : 'low';
-  return { depth, signals, notice: NOTICE[depth] };
+  const notice = NOTICE[depth];
+  return { depth, signals, notice: notice ? t(notice) : null };
 }
 
-const NOTICE: Record<PostingDepth, string | null> = {
+/** The sentence per depth, as a catalog key; a posting that says plenty gets none. */
+const NOTICE: Record<PostingDepth, MessageKey | null> = {
   high: null,
-  medium:
-    'This posting names some of what it wants but not all of it. Where it is silent, the advice below follows what this kind of role usually asks for — treat those as worth having, not as things the employer demanded.',
-  low: 'This posting says very little: only a handful of explicit requirements were found. Most of the advice below comes from what this kind of role usually asks for, not from the employer — read it as a direction, not a checklist.',
+  medium: 'target.thinPosting.medium',
+  low: 'target.thinPosting.low',
 };

@@ -10,6 +10,8 @@
  * Pure. The delta here is arithmetic on stored scores, never a re-score.
  */
 
+import { t } from '../i18n/t';
+
 export interface MatchRun {
   id: number;
   matchScore: number;
@@ -76,5 +78,5 @@ export function progression<J>(history: JobHistory<J>): MatchRun[] {
 
 /** "5 runs" — the count that labels the progression. Null when there is one. */
 export function historyLabel<J>(history: JobHistory<J>): string | null {
-  return history.runs.length < 2 ? null : `${history.runs.length} runs`;
+  return history.runs.length < 2 ? null : t('match.history.runs', { n: history.runs.length });
 }

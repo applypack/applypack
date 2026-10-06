@@ -1,4 +1,5 @@
 import { readEvidence } from '../verification/prompts';
+import { t } from '../i18n/t';
 
 /*
  * What a comparison shows about the stored "Is this job real?" verdict — read,
@@ -34,21 +35,22 @@ function leadFlag(v: VerificationForHint): string | null {
 
 /** One line for the match card and the resume editor's header. */
 export function verificationHint(v: VerificationForHint): VerificationHint {
-  const pct = `${Math.round(v.confidence)} %`;
+  const percent = Math.round(v.confidence);
+  // The verifier's own words, when it held something against the posting, ride inside the sentence.
   const flag = leadFlag(v);
   switch (v.recommendation) {
     case 'skip':
       return {
         tone: 'danger',
-        text: `Verification says skip (${pct})${flag ? `: ${flag}` : ''}. A comparison may be wasted effort — the verifier is fallible, so Compare still works.`,
+        text: flag ? t('match.verification.skipFlag', { percent, flag }) : t('match.verification.skip', { percent }),
       };
     case 'caution':
       return {
         tone: 'warn',
-        text: `Verification says apply with caution (${pct})${flag ? `: ${flag}` : ''}. A quick check is enough here.`,
+        text: flag ? t('match.verification.cautionFlag', { percent, flag }) : t('match.verification.caution', { percent }),
       };
     default:
-      return { tone: 'ok', text: `Verification says worth applying (${pct}).` };
+      return { tone: 'ok', text: t('match.verification.apply', { percent }) };
   }
 }
 
@@ -59,11 +61,15 @@ export function verificationHint(v: VerificationForHint): VerificationHint {
  * score.ts (a finding about the posting is not a finding about the resume).
  */
 export function verificationCautions(v: VerificationForHint): string[] {
-  const lines = v.redFlags.map((f) => `From verification: ${f.trim()}`);
+  const lines = v.redFlags
+    .map((f) => f.trim())
+    // A flag with no words says nothing.
+    .filter(Boolean)
+    .map((text) => t('match.verification.from', { text }));
   for (const e of readEvidence(v.evidence)) {
     if (e.check === 'posting_quality' && (e.signal === 'ghost' || e.signal === 'scam')) {
-      lines.push(`From verification (posting quality): ${e.finding.trim()}`);
+      lines.push(t('match.verification.fromQuality', { text: e.finding.trim() }));
     }
   }
-  return [...new Set(lines.filter((l) => l.length > 'From verification: '.length))].slice(0, CAUTIONS_MAX);
+  return [...new Set(lines)].slice(0, CAUTIONS_MAX);
 }

@@ -1,7 +1,8 @@
 import { effectiveRequirement } from '../resume/keyword-overrides';
 import type { MatchAction, MatchHardRequirement, MatchKeyword } from '../resume/prompts';
 import { clipWords } from '../text-utils';
-import { SCORING, type MatchAlignment, type ScoreBreakdown } from '../resume/score';
+import { SCORING, type ScoreBreakdown } from '../resume/score';
+import { t } from '../i18n/t';
 
 /*
  * The five sentences behind the number (docs/score-lines-plan.md).
@@ -45,7 +46,8 @@ export interface LinesInput {
   hard: MatchHardRequirement[];
 }
 
-const GRADES = ['title', 'summary', 'recent role'] as const;
+/** The three places a first glance reads, in the order a sentence names them. */
+const GLANCE = ['title', 'summary', 'role'] as const;
 
 /** Score v6 counts a term shown only in a list at `listedCredit` (ADR 0058); an older row did not. */
 const EVIDENCE_SCORED_FROM = 6;
@@ -66,12 +68,17 @@ function requirementsLine({ breakdown, keywords }: LinesInput): ScoreLine | null
   if (counted.length === 0) return null;
   const met = counted.filter((k) => k.status === 'present' || k.status === 'add').length;
   return {
-    label: 'Requirements',
-    text: `${met} of ${counted.length} the posting asks for`,
+    label: t('score.label.requirements'),
+    text: t('score.requirements', { met, total: counted.length }),
     tone: met === counted.length ? 'ok' : undefined,
     // The weighted number is what the score actually reads; it belongs in the
     // tooltip rather than on a line a human is meant to skim.
-    title: `Weighted for how hard the posting asks: ${breakdown.keywordEarned} of ${breakdown.keywordTotal}, worth ${breakdown.keywordPts} of ${breakdown.keywordMax} points.`,
+    title: t('score.requirements.title', {
+      earned: breakdown.keywordEarned,
+      total: breakdown.keywordTotal,
+      points: breakdown.keywordPts,
+      max: breakdown.keywordMax,
+    }),
   };
 }
 
@@ -81,25 +88,27 @@ function requirementsLine({ breakdown, keywords }: LinesInput): ScoreLine | null
  * no way to see it coming.
  */
 function coreStackLine({ breakdown, keywords }: LinesInput): ScoreLine | null {
-  if (breakdown.primaryTotal === 0) return { label: 'Core stack', text: 'this posting names none' };
+  const label = t('score.label.coreStack');
+  if (breakdown.primaryTotal === 0) return { label, text: t('score.coreStack.none') };
   const primaries = keywords.filter((k) => k.primary);
   const have = primaries.filter((k) => k.status === 'present' || k.status === 'add');
   const missing = primaries.filter((k) => k.status !== 'present' && k.status !== 'add');
   const names = (list: MatchKeyword[]) => list.map((k) => k.term).join(' · ');
   if (breakdown.cap === null) {
     return {
-      label: 'Core stack',
-      text: primaries.length > 0 ? `${names(have)} — all present` : 'covered',
+      label,
+      text: primaries.length > 0 ? t('score.coreStack.allPresent', { names: names(have) }) : t('score.coreStack.covered'),
       tone: 'ok',
     };
   }
   return {
-    label: 'Core stack',
+    label,
     text:
-      (missing.length > 0 ? `${names(missing)} missing` : `${breakdown.primaryPresent} of ${breakdown.primaryTotal}`) +
-      ` — this alone caps the score at ${breakdown.cap}`,
+      missing.length > 0
+        ? t('score.coreStack.missing', { names: names(missing), cap: breakdown.cap })
+        : t('score.coreStack.partial', { present: breakdown.primaryPresent, total: breakdown.primaryTotal, cap: breakdown.cap }),
     tone: 'danger',
-    title: 'The languages and frameworks the role is written in. Nothing else lifts the score past this.',
+    title: t('score.coreStack.title'),
   };
 }
 
@@ -108,12 +117,13 @@ function firstGlanceLine({ breakdown }: LinesInput): ScoreLine | null {
   const a = breakdown.alignment;
   if (!a) return null;
   const grades = [a.title, a.summary, a.recent_role];
-  const weak = GRADES.filter((_, i) => grades[i] !== 'strong');
+  const weak = GLANCE.filter((_, i) => grades[i] !== 'strong');
   return {
-    label: 'First glance',
-    text: weak.length === 0 ? 'title, summary and recent role all strong' : `${weak.join(' and ')} could be sharper`,
+    label: t('score.label.firstGlance'),
+    // One sentence per set of weak places ("title and recent role could be sharper"): the message picks it by `which`.
+    text: weak.length === 0 ? t('score.firstGlance.allStrong') : t('score.firstGlance.weak', { which: weak.join('_') }),
     tone: weak.length === 0 ? 'ok' : 'warn',
-    title: `What a recruiter reads in six seconds: title ${a.title}, summary ${a.summary}, most recent role ${a.recent_role}.`,
+    title: t('score.firstGlance.title', { title: a.title, summary: a.summary, role: a.recent_role }),
   };
 }
 
@@ -129,17 +139,17 @@ function shownAtWorkLine({ breakdown, keywords }: LinesInput): ScoreLine | null 
   if (wanted.length === 0) return null;
   const listed = wanted.filter((k) => k.evidence === 'listed');
   if (listed.length === 0) {
-    return { label: 'Shown at work', text: `all ${wanted.length} appear inside your bullets`, tone: 'ok' };
+    return { label: t('score.label.shownAtWork'), text: t('score.shown.all', { n: wanted.length }), tone: 'ok' };
   }
+  const terms = listed.map((k) => k.term).join(', ');
   return {
-    label: 'Shown at work',
-    text: `${wanted.length - listed.length} of ${wanted.length} in a bullet · ${listed.length} named only in a list`,
+    label: t('score.label.shownAtWork'),
+    text: t('score.shown.some', { shown: wanted.length - listed.length, total: wanted.length, listed: listed.length }),
     tone: 'warn',
     title:
-      `Named and never shown: ${listed.map((k) => k.term).join(', ')}. A skills line proves nothing to a human reader.` +
-      (breakdown.v >= EVIDENCE_SCORED_FROM
-        ? ` Each earns ${Math.round(SCORING.listedCredit * 100)}% of its credit here; a bullet about the work you did with it earns the rest.`
-        : ''),
+      breakdown.v >= EVIDENCE_SCORED_FROM
+        ? t('score.shown.titleScored', { terms, percent: Math.round(SCORING.listedCredit * 100) })
+        : t('score.shown.title', { terms }),
   };
 }
 
@@ -148,15 +158,12 @@ function toConfirmLine({ hard }: LinesInput): ScoreLine | null {
   const failed = hard.filter((h) => h.status === 'fail');
   const unknown = hard.filter((h) => h.status === 'unknown');
   if (failed.length === 0 && unknown.length === 0) {
-    return hard.length === 0 ? null : { label: 'Hard requirements', text: `all ${hard.length} met`, tone: 'ok' };
+    return hard.length === 0 ? null : { label: t('score.label.hard'), text: t('score.hard.allMet', { n: hard.length }), tone: 'ok' };
   }
-  const parts = [
-    failed.length > 0 ? `${failed.length} not met` : null,
-    unknown.length > 0 ? `${unknown.length} the resume is silent on` : null,
-  ].filter(Boolean);
+  const counts = { failed: failed.length, unknown: unknown.length };
   return {
-    label: 'To confirm',
-    text: parts.join(' · '),
+    label: t('score.label.toConfirm'),
+    text: t(unknown.length === 0 ? 'score.confirm.failed' : failed.length === 0 ? 'score.confirm.unknown' : 'score.confirm.both', counts),
     tone: failed.length > 0 ? 'danger' : 'warn',
     title: [...failed, ...unknown].map((h) => h.requirement).join(' · '),
   };
@@ -228,13 +235,6 @@ const MAX_GATE_CHARS = 70;
 /** How many missing core-stack terms are worth naming before the sentence stops being one. */
 const MAX_NAMED_TERMS = 2;
 
-/** How a grade below `strong` reads as words. `strong` never reaches here — it is not a gap. */
-const ALIGNMENT_GAP: Record<MatchAlignment['title'], string> = {
-  strong: 'matches',
-  partial: 'only partly matches',
-  off: 'does not match',
-};
-
 /**
  * The model's own sentence, capitalised only where that cannot damage a name:
  * "iOS navigation" and "eBay checkout" open lowercase on purpose and a second
@@ -247,11 +247,32 @@ function openingCase(text: string): string {
   return /^\p{Ll}\p{Ll}/u.test(text) ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : text;
 }
 
-export function mainAdvice({ breakdown, keywords, hard, actions }: AdviceInput): string | null {
+/** The one sentence, and whose words it is: ours, in the reader's language, or the model's own. */
+export interface Advice {
+  text: string;
+  modelWritten: boolean;
+}
+
+export function mainAdvice(input: AdviceInput): string | null {
+  return adviceLine(input)?.text ?? null;
+}
+
+export function adviceLine(input: AdviceInput): Advice | null {
+  const ruled = ruledAdvice(input);
+  if (ruled !== null) return { text: ruled, modelWritten: false };
+  const { actions } = input;
+  const edit = actions.find((a) => a.priority === 'high') ?? actions[0];
+  if (!edit) return null;
+  const what = clipWords(edit.what, MAX_ADVICE_CHARS);
+  // Every other rung is a sentence; the model's clause becomes one here
+  // rather than sitting among them without a stop.
+  return what === '' ? null : { text: `${openingCase(what)}${/[.!?…]$/.test(what) ? '' : '.'}`, modelWritten: true };
+}
+
+/** Every rung but the last: the ones this file words itself, from verdicts already stored. */
+function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): string | null {
   const failed = hard.find((h) => h.status === 'fail');
-  if (failed) {
-    return `“${clipWords(failed.requirement, MAX_GATE_CHARS)}” is not met — a gate decides this before any wording does.`;
-  }
+  if (failed) return t('score.advice.gateFailed', { gate: clipWords(failed.requirement, MAX_GATE_CHARS) });
 
   // The cap is the biggest lever in the formula and the only one no edit
   // moves: without a word of the core stack, every other improvement is
@@ -260,22 +281,18 @@ export function mainAdvice({ breakdown, keywords, hard, actions }: AdviceInput):
     const missing = keywords
       .filter((k) => k.primary && k.status !== 'present' && k.status !== 'add')
       .map((k) => k.term);
-    const named = missing.slice(0, MAX_NAMED_TERMS).join(' and ');
-    if (named === '') {
-      return `Nothing you write lifts this past ${breakdown.cap} — the core stack this role is written in is missing.`;
-    }
+    const [first, second] = missing;
+    const cap = breakdown.cap;
+    if (first === undefined) return t('score.advice.coreMissing', { cap });
+    if (second === undefined) return t('score.advice.coreOne', { term: first, cap });
     // Naming two of five and calling those two "the core stack" would be a
     // false statement, so the ones that did not fit are counted, not dropped.
     const rest = missing.length - MAX_NAMED_TERMS;
-    const many = missing.length > 1;
-    const subject = rest > 0 ? `${named} and ${rest} more` : named;
-    return `${subject} ${many ? 'are' : 'is'} the core stack here — nothing you write lifts this past ${breakdown.cap} without ${many ? 'them' : 'it'}.`;
+    return rest > 0 ? t('score.advice.coreMore', { first, second, rest, cap }) : t('score.advice.coreTwo', { first, second, cap });
   }
 
   const unanswered = hard.find((h) => h.status === 'unknown');
-  if (unanswered) {
-    return `The resume is silent on “${clipWords(unanswered.requirement, MAX_GATE_CHARS)}” — a gate the reader checks before the words.`;
-  }
+  if (unanswered) return t('score.advice.gateUnknown', { gate: clipWords(unanswered.requirement, MAX_GATE_CHARS) });
 
   const musts = keywords.filter((k) => effectiveRequirement(k) === 'must');
 
@@ -283,41 +300,30 @@ export function mainAdvice({ breakdown, keywords, hard, actions }: AdviceInput):
   // itself is missing — the cheapest points on the page, and the only rung
   // that asks for nothing but typing.
   const unwritten = musts.find((k) => k.status === 'add' && !groupMet(keywords, k, written));
-  if (unwritten) {
-    return `Write ${unwritten.term} into the text — your own experience evidences it and the word is not there.`;
-  }
+  if (unwritten) return t('score.advice.unwritten', { term: unwritten.term });
 
   const unbacked = musts.find((k) => (k.status === 'ask_user' || k.status === 'cannot_claim') && !groupMet(keywords, k, claimable));
-  if (unbacked) return `${unbacked.term} is a must here and nothing backs it yet — confirm it where it is true.`;
+  if (unbacked) return t('score.advice.unbacked', { term: unbacked.term });
 
   // Named on a skills line and never shown at work: the score discounts it a
   // little (v6), a human reads it as a claim with nothing behind it (evidence.ts).
   const listed = musts.filter((k) => k.status === 'present' && k.evidence === 'listed' && !groupMet(keywords, k, shownAtWork));
   const first = listed[0];
   if (first) {
-    const tail =
-      listed.length === 1
-        ? 'a term in a list proves nothing to a reader.'
-        : `${listed.length} must-haves are named and never shown.`;
-    return `Show ${first.term} in a bullet, not only on the skills line — ${tail}`;
+    return listed.length === 1
+      ? t('score.advice.listedOne', { term: first.term })
+      : t('score.advice.listedMany', { term: first.term, n: listed.length });
   }
 
   const alignment = breakdown.alignment;
   if (alignment) {
+    // A grade below `strong` is the gap; `strong` never reaches the sentence.
     const weak = [
       { where: 'title', grade: alignment.title },
       { where: 'summary', grade: alignment.summary },
-      { where: 'most recent role', grade: alignment.recent_role },
+      { where: 'role', grade: alignment.recent_role },
     ].find((g) => g.grade !== 'strong');
-    if (weak) return `Sharpen the ${weak.where} — it ${ALIGNMENT_GAP[weak.grade]} this posting.`;
-  }
-
-  const edit = actions.find((a) => a.priority === 'high') ?? actions[0];
-  if (edit) {
-    const what = clipWords(edit.what, MAX_ADVICE_CHARS);
-    // Every other rung is a sentence; the model's clause becomes one here
-    // rather than sitting among them without a stop.
-    return what === '' ? null : `${openingCase(what)}${/[.!?…]$/.test(what) ? '' : '.'}`;
+    if (weak) return t('score.advice.sharpen', weak);
   }
 
   return null;

@@ -1,4 +1,5 @@
 import type { MatchAction, PostingBrief } from './prompts';
+import { t } from '../i18n/t';
 
 /*
  * The employer's domain, read off the brief (ADR 0044), and whether the
@@ -120,5 +121,5 @@ export function domainMismatch(industries: string[], brief: Pick<PostingBrief, '
 export function domainNotice(report: DomainReport): string | null {
   if (report.verdict !== 'different' || report.posting === null) return null;
   const shown = report.resume.slice(0, 3).join(', ');
-  return `This posting is in ${report.posting}; your resume shows ${shown}. The suggestions reframe transferable work in the employer's terms — they do not claim experience in ${report.posting}.`;
+  return t('target.domain.notice', { posting: report.posting, shown });
 }

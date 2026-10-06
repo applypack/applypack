@@ -22,6 +22,7 @@ import type { JobPickOption } from '../job-pick';
 import { JobPicker } from './job-picker';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { t } from '../../i18n/t';
 
 /*
  * The /target launcher: one of your jobs or a pasted posting, and a resume
@@ -46,10 +47,9 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
   const hasResumes = resumes.length > 0;
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
   return (
-    <Layout title="Tailor resume" active="target">
-      <PageHeader title="Tailor resume" meta="1–2 min">
-        A posting and a resume: one run scores the resume against the posting and opens the editor
-        beside it.
+    <Layout title={t('nav.target')} active="target">
+      <PageHeader title={t('nav.target')} meta={t('target.start.duration')}>
+        {t('target.start.intro')}
       </PageHeader>
       <Flash flash={flash} />
 
@@ -63,46 +63,46 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
       >
         <div class="grid items-start gap-4 lg:grid-cols-2">
           <Card>
-            <SectionTitle>Job posting</SectionTitle>
+            <SectionTitle>{t('target.start.jobPosting')}</SectionTitle>
             <div class="space-y-2">
               <ModeCard
                 name="jobMode"
                 value="existing"
-                label="One of your jobs"
+                label={t('target.start.oneOfYourJobs')}
                 checked={hasJobs}
                 disabled={!hasJobs}
               >
                 {hasJobs ? (
                   <JobPicker jobs={jobs} selectedId={selectedJobId}>
-                    newest jobs that clear your fit threshold, freshest first.
+                    {t('target.start.pickerTail')}
                   </JobPicker>
                 ) : (
-                  <Hint>No tracked jobs yet — paste the posting below.</Hint>
+                  <Hint>{t('target.start.noJobsYet')}</Hint>
                 )}
               </ModeCard>
 
-              <ModeCard name="jobMode" value="new" label="A new posting" checked={!hasJobs}>
+              <ModeCard name="jobMode" value="new" label={t('target.start.newPosting')} checked={!hasJobs}>
                 <div class="space-y-4">
                   <Field
-                    label="Job description"
-                    hint="Paste the posting as it is; page chrome is trimmed, and the fields below are detected from it when left empty."
+                    label={t('target.jobDescription')}
+                    hint={t('target.start.descriptionHint')}
                   >
-                    <Textarea name="description" rows={12} placeholder="About the role…" data-required />
+                    <Textarea name="description" rows={12} placeholder={t('target.sample.description')} data-required />
                   </Field>
                   <div class="grid gap-4 sm:grid-cols-2">
-                    <Field label="Company">
-                      <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" />
+                    <Field label={t('common.company')}>
+                      <Input type="text" name="companyName" maxlength="200" placeholder={t('target.sample.company')} />
                     </Field>
-                    <Field label="Job title">
-                      <Input type="text" name="title" maxlength="200" placeholder="Senior Software Engineer" />
+                    <Field label={t('target.start.jobTitle')}>
+                      <Input type="text" name="title" maxlength="200" placeholder={t('target.sample.title')} />
                     </Field>
                   </div>
                   <div class="grid gap-4 sm:grid-cols-2">
-                    <Field label="Posting URL" hint="Lets Verify find the original later.">
+                    <Field label={t('target.start.postingUrl')} hint={t('target.start.postingUrlHint')}>
                       <Input type="url" name="url" placeholder="https://…" />
                     </Field>
-                    <Field label="Location">
-                      <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" />
+                    <Field label={t('common.location')}>
+                      <Input type="text" name="location" maxlength="200" placeholder={t('target.sample.location')} />
                     </Field>
                   </div>
                 </div>
@@ -111,16 +111,16 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
           </Card>
 
           <Card>
-            <SectionTitle>Resume</SectionTitle>
+            <SectionTitle>{t('target.resume')}</SectionTitle>
             <div class="space-y-2">
               <ModeCard
                 value="existing"
-                label="One of your resumes"
+                label={t('target.start.oneOfYourResumes')}
                 checked={hasResumes}
                 disabled={!hasResumes}
               >
                 {hasResumes ? (
-                  <Select name="resumeId" aria-label="Resume">
+                  <Select name="resumeId" aria-label={t('target.resume')}>
                     {resumes.map((r) => (
                       <option value={r.id} selected={r.id === defaultResumeId}>
                         {r.label}
@@ -128,17 +128,17 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                     ))}
                   </Select>
                 ) : (
-                  <Hint>Nothing uploaded yet — use one of the options below.</Hint>
+                  <Hint>{t('target.start.noResumesYet')}</Hint>
                 )}
               </ModeCard>
 
-              <ModeCard value="upload" label="Upload a file" checked={!hasResumes}>
+              <ModeCard value="upload" label={t('target.start.uploadFile')} checked={!hasResumes}>
                 <div class="space-y-3">
                   <Input
                     type="file"
                     name="file"
                     accept={ACCEPTED_EXTENSIONS.join(',')}
-                    aria-label="Resume file"
+                    aria-label={t('target.resumeFile')}
                     class={FILE_INPUT_CLASS}
                     data-required
                   />
@@ -146,33 +146,30 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                     type="text"
                     name="uploadName"
                     maxlength="100"
-                    placeholder="Name (optional — taken from the file name)"
-                    aria-label="Resume name"
+                    placeholder={t('target.start.uploadNamePlaceholder')}
+                    aria-label={t('target.start.resumeName')}
                   />
-                  <Hint>
-                    {ACCEPTED_EXTENSIONS.join(', ')} · up to {MAX_UPLOAD_MB} MB. A one-off check:
-                    nothing is added to your Resumes.
-                  </Hint>
+                  <Hint>{t('target.start.uploadHint', { formats: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}</Hint>
                 </div>
               </ModeCard>
 
-              <ModeCard value="paste" label="Paste resume text">
+              <ModeCard value="paste" label={t('target.start.pasteText')}>
                 <div class="space-y-3">
                   <Input
                     type="text"
                     name="pasteName"
                     maxlength="100"
-                    placeholder="Name (optional)"
-                    aria-label="Resume name"
+                    placeholder={t('target.start.pasteNamePlaceholder')}
+                    aria-label={t('target.start.resumeName')}
                   />
                   <Textarea
                     name="resumeText"
                     rows={8}
-                    placeholder="Plain resume text, at least 200 characters…"
-                    aria-label="Resume text"
+                    placeholder={t('target.start.pastePlaceholder')}
+                    aria-label={t('target.start.resumeText')}
                     data-required
                   />
-                  <Hint>A one-off check, like a file: nothing is added to your Resumes.</Hint>
+                  <Hint>{t('target.start.pasteHint')}</Hint>
                 </div>
               </ModeCard>
             </div>
@@ -185,14 +182,12 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
               differed only in whether the advice was written now or on a second
               press, and the only way to tell was to read both tooltips. */}
           <input type="hidden" name="mode" value="full" />
-          <Button size="lg" variant="violet" title="Reads the posting, judges your resume against it and writes what to change">
-            Compare
+          <Button size="lg" variant="violet" title={t('target.start.compareTitle')}>
+            {t('target.start.compare')}
           </Button>
-          <Hint>One AI run, one to two minutes, with the steps on screen.</Hint>
+          <Hint>{t('target.start.oneRun')}</Hint>
           <More class="basis-full">
-            ApplyPack reads the posting once and keeps it, so comparing another resume against it is
-            quick. It detects a pasted posting's empty fields first, and pasting the same one again
-            reuses its job.
+            {t('target.start.more')}
           </More>
         </div>
       </form>
@@ -211,11 +206,10 @@ export const MineCheckbox: FC = () => (
   <div class="mt-3 border-t border-line pt-3">
     <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
       <input type="checkbox" name="mine" value="1" class="h-4 w-4 accent-accent" />
-      A file or pasted text here is my own resume
+      {t('target.start.mine')}
     </label>
     <Hint class="mt-1">
-      Checked, it is judged with the facts you confirmed and your other resumes. Unchecked, on its own text only —
-      right for a friend's resume or an old one.
+      {t('target.start.mineHint')}
     </Hint>
   </div>
 );

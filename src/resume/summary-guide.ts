@@ -2,6 +2,7 @@ import type { KeywordMatcher } from './keyword-matcher';
 import { effectiveKeywords } from './keyword-overrides';
 import { SUMMARY_FILLER, type MatchAction, type MatchKeyword, type PostingBrief } from './prompts';
 import { structureFromText } from './structure-from-text';
+import { t } from '../i18n/t';
 
 /*
  * What this posting's first reader looks for in a summary, held against the
@@ -111,7 +112,8 @@ function voiceSlips(text: string): string[] {
   return [...new Set([...pronouns, ...filler])];
 }
 
-const quoted = (s: string) => `“${s}”`;
+/** The resume's own words, in the reader's quotation marks. */
+const quoted = (text: string) => t('summary.quoted', { text });
 const has = (k: MatchKeyword) => k.status === 'present' || k.status === 'add';
 const sameTerm = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -155,8 +157,8 @@ function summaryChecks(summary: string | null, input: SummaryGuideInput): Summar
   checks.push({
     key: 'role',
     state: roleNamed ? 'ok' : 'todo',
-    label: 'The role, in their words',
-    detail: roleNamed ? `names ${quoted(role)}` : `${quoted(role)}, or the closest title you have held`,
+    label: t('summary.role.label'),
+    detail: t(roleNamed ? 'summary.role.named' : 'summary.role.missing', { role }),
   });
 
   const asked = input.brief?.role.years_min ?? null;
@@ -164,10 +166,14 @@ function summaryChecks(summary: string | null, input: SummaryGuideInput): Summar
   checks.push({
     key: 'years',
     state: !stated ? 'todo' : asked !== null && stated.years < asked ? 'warn' : 'ok',
-    label: 'Years of experience',
+    label: t('summary.years.label'),
     detail: !stated
-      ? `${asked !== null ? `the posting asks ${asked}+; ` : ''}state yours as the resume does`
-      : `states ${quoted(stated.text)}${asked !== null ? `; the posting asks ${asked}+` : ''}`,
+      ? asked !== null
+        ? t('summary.years.missingAsked', { asked })
+        : t('summary.years.missing')
+      : asked !== null
+        ? t('summary.years.statedAsked', { stated: stated.text, asked })
+        : t('summary.years.stated', { stated: stated.text }),
   });
 
   const stack = keywords.filter((k) => k.primary && has(k));
@@ -176,8 +182,8 @@ function summaryChecks(summary: string | null, input: SummaryGuideInput): Summar
     checks.push({
       key: 'stack',
       state: missing.length === 0 ? 'ok' : 'todo',
-      label: 'The core stack you have',
-      detail: missing.length === 0 ? 'all of it named' : `name ${missing.join(', ')}`,
+      label: t('summary.stack.label'),
+      detail: missing.length === 0 ? t('summary.stack.all') : t('summary.stack.name', { terms: missing.join(', ') }),
     });
   }
 
@@ -191,10 +197,8 @@ function summaryChecks(summary: string | null, input: SummaryGuideInput): Summar
     checks.push({
       key: 'musts',
       state: met ? 'ok' : 'todo',
-      label: 'Two of their must-haves',
-      detail: [hit.length === 0 ? 'none named yet' : `names ${hit.join(', ')}`, !met && offer.length > 0 ? `yours to name: ${offer.join(', ')}` : null]
-        .filter(Boolean)
-        .join('; '),
+      label: t('summary.musts.label'),
+      detail: mustsDetail(hit.join(', '), !met ? offer.join(', ') : ''),
     });
   }
 
@@ -202,28 +206,28 @@ function summaryChecks(summary: string | null, input: SummaryGuideInput): Summar
   checks.push({
     key: 'proof',
     state: metric ? 'ok' : 'todo',
-    label: 'One result with a number',
-    detail: metric ? quoted(metric) : 'add your strongest result for this job, with its real figure',
+    label: t('summary.proof.label'),
+    detail: metric ? quoted(metric) : t('summary.proof.missing'),
   });
 
   const sentences = countSentences(text);
   const words = countWords(text);
-  const size = `${sentences} sentence${sentences === 1 ? '' : 's'}, ${words} words`;
+  const size = { sentences, words };
   const length: Pick<SummaryCheck, 'state' | 'detail'> = !summary
-    ? { state: 'todo', detail: 'no summary found under a Summary or Profile heading; add one under the headline' }
+    ? { state: 'todo', detail: t('summary.length.none') }
     : sentences > SENTENCES.max || words > WORDS.max
-      ? { state: 'warn', detail: `${size}: a long block gets skipped, cut it to three` }
+      ? { state: 'warn', detail: t('summary.length.long', size) }
       : sentences < SENTENCES.min || words < WORDS.min
-        ? { state: 'todo', detail: `${size}: room for the proof and the fit` }
-        : { state: 'ok', detail: size };
-  checks.push({ key: 'length', label: `${SENTENCES.min}–${SENTENCES.max} sentences, under ${WORDS.max} words`, ...length });
+        ? { state: 'todo', detail: t('summary.length.short', size) }
+        : { state: 'ok', detail: t('summary.length.ok', size) };
+  checks.push({ key: 'length', label: t('summary.length.label', { min: SENTENCES.min, max: SENTENCES.max, words: WORDS.max }), ...length });
 
   const slips = voiceSlips(text);
   checks.push({
     key: 'voice',
     state: slips.length === 0 ? 'ok' : 'warn',
-    label: 'No “I”, no filler adjectives',
-    detail: slips.length === 0 ? 'plain' : `drop ${slips.map(quoted).join(', ')}`,
+    label: t('summary.voice.label'),
+    detail: slips.length === 0 ? t('summary.voice.plain') : t('summary.voice.drop', { words: slips.map(quoted).join(', ') }),
   });
 
   // What the resume cannot back: a must or primary term it lacks, and the other
@@ -240,15 +244,21 @@ function summaryChecks(summary: string | null, input: SummaryGuideInput): Summar
     checks.push({
       key: 'avoid',
       state: claimed.length > 0 ? 'warn' : 'ok',
-      label: 'Nothing the resume cannot back',
+      label: t('summary.avoid.label'),
       detail:
         claimed.length > 0
-          ? `names ${claimed.join(', ')}; your resume shows no evidence for it`
+          ? t('summary.avoid.claimed', { terms: claimed.join(', ') })
           : either && instead
-            ? `leave out ${either.term}; the posting accepts ${instead.term}, which you have`
-            : `leave out ${terms.map((k) => k.term).join(', ')}`,
+            ? t('summary.avoid.either', { term: either.term, instead: instead.term })
+            : t('summary.avoid.leaveOut', { terms: terms.map((k) => k.term).join(', ') }),
     });
   }
 
   return checks;
+}
+
+/** What the summary names of the must-haves, and what it could still name; an empty list is left out of the sentence. */
+function mustsDetail(named: string, offer: string): string {
+  if (named === '') return offer === '' ? t('summary.musts.none') : t('summary.musts.noneOffer', { offer });
+  return offer === '' ? t('summary.musts.named', { terms: named }) : t('summary.musts.namedOffer', { terms: named, offer });
 }
