@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [2.43.1] — 2026-10-05
+## [2.47.1] — 2026-10-06
 
 ### Fixed
 - **Tailor resume wrote the posting's job title onto a skills line.** The
@@ -16,6 +16,110 @@ All notable changes to this project are documented here. The format follows
   were the title. It is no longer offered as a skill. It still counts in the
   score, stays among the missing chips, and goes on the title line through
   its own suggestion or by hand.
+
+## [2.47.0] — 2026-10-05
+
+### Added
+- **A folder of job files as a source.** Companies → Add sources → **A
+  folder on this computer**: name a folder a tool of yours writes exports
+  into, and each hourly check reads the new `.json`, `.jsonl`, `.csv` and
+  `.tsv` files in it. **Check** shows what is in the folder, which column
+  was read as what, the first rows as they would be stored and what the next
+  check would cost, with no AI spent; **Add (off)** stores it, and you switch
+  it on in the table. A file is read once and again only when it changes; a
+  file still being written waits for the next check; a copy of one already
+  read is set aside.
+- **Folders on this computer** on Companies shows each folder's line
+  ("214 files · 3 new at the last check") with **Files** — what became of
+  every file, in words — **Mapping** and **Check now**.
+- ApplyPack never writes, moves, renames or deletes anything in the folder.
+  With `npm start` a folder inside your home folder works (the page can
+  create `~/ApplyPack/inbox`); in Docker, mount the folder read-only into
+  both services and name it in `APPLYPACK_INBOX_ROOTS`
+  ([ADR 0062](docs/adr/0062-rows-the-user-brings-are-read-never-fetched.md),
+  addendum; [docs/install.md](docs/install.md#a-folder-of-job-files)).
+
+## [2.46.0] — 2026-10-05
+
+### Added
+- **Import a file of jobs.** Jobs → **Import a file** takes rows you already
+  have — an export, a spreadsheet you keep, the output of a tool you run — as
+  JSON, JSON Lines, CSV or TSV (up to 5 MB, the first 2 000 rows). Before
+  anything is stored a preview shows which column was read as the title, the
+  link, the company and the text, with a select to correct each; the first
+  three rows as they would be kept; how many are new and pass your searches'
+  filter; and what scoring them costs. **Import** then runs them through the
+  same filter, scoring and alerts as every other job, with a row on Runs.
+  While fetching is paused they are stored unscored and no AI is spent. A
+  newer export into the same source adds only what is new, and each company
+  in the file is named on its own rows, so a mute works on it.
+- ApplyPack reads the file and requests nothing. Columns about people (who
+  posted, who recruits, an email, a phone) are never read, a link is kept
+  only when it is http(s), and the file itself is never stored
+  ([ADR 0062](docs/adr/0062-rows-the-user-brings-are-read-never-fetched.md)).
+
+### Fixed
+- A posting whose markup is never closed no longer stalls the reader. Three
+  hundred kilobytes of unclosed tags took nine to twenty-five seconds to
+  turn into text; it takes milliseconds now, and the text of every other
+  posting comes out the same.
+- A posting carrying `&#0;` is stored like any other. The decoded NUL made
+  the database refuse the row, and the fetch that brought it failed.
+- A link written with a trailing dot after its host (`host.com.`) is
+  recognised as that host by the list of sites ApplyPack never requests.
+- The progress page of a long run keeps its answer for half an hour after
+  the run finishes, not after it started.
+
+## [2.44.0] — 2026-10-05
+
+### Added
+- **Each AI engine takes the tasks you give it.** Every engine card on
+  Settings → AI engine has a row of boxes, **Tasks it takes**: scoring
+  postings, reading a resume, resume analysis, cover letters, the web check
+  and (in employer mode) screening. All are ticked at first, so nothing
+  changes until you untick one. An engine that does not take a task is not
+  asked for it, and is not its fallback when the engine above fails. A small
+  model on your computer can score the hourly postings while your
+  subscription writes the letters: put the local engine first and leave
+  only **Scoring postings** ticked on it (ADR 0060).
+- **Who does what, in one table.** The AI tab opens with a row per task:
+  the engine and model that answer it, whose money that spends, and the
+  engines behind it. It redraws when a card saves. A task that no usable
+  engine takes is still answered by the whole list, and the tab names it.
+- **AI usage, a page of its own.** In the menu under System: which model did
+  what, how long it took and what it cost. The calls are grouped by the model
+  that answered, each task with its number of calls, the typical time (the
+  middle call, and the one nine in ten were faster than), the tokens and the
+  money. The three totals stay apart as before: billed, covered by your
+  plans, local. Last 7 days, this month, last month or this year.
+- **Worth a look: what the ledger suggests changing.** Above the table, in
+  plain sentences with your own numbers: the task most of the bill went to
+  while an engine your plan covers (or a model on this computer) stands
+  ready, with the step that is missing — enable it, tick the task, move it
+  up; calls that fell over to a billed engine and what they cost; an engine
+  that keeps failing or hitting its rate limit; scoring billed on a model
+  several times the price of the cheapest one its engine offers; a month
+  whose pace runs past your budget. Every hint is arithmetic on your calls,
+  your engines and the published prices. None says a model is good enough
+  for a task, a model on this computer is suggested for scoring only, and
+  applicants' resumes are never steered onto a personal plan.
+
+### Changed
+- Settings → AI engine no longer carries the Usage & cost table: it moved to
+  the AI usage page, which also shows who answers each task now. The
+  **Monthly budget** stays on the tab, with a link.
+- The engine named on a comparison's progress page, on the Screening tab
+  and under a cost estimate is the one that answers that task, which is no
+  longer always engine #1. Reading a resume and analysing it may be two
+  engines, and the progress page times each step on its own.
+- The warning about a billed engine standing ahead of one your plan covers
+  is read per task, and redraws with the table.
+- In the usage ledger, "served by a fallback" is read against the engine the
+  table names for the task. A web check answered by the first engine that
+  can search is no longer recorded as a fallback.
+- While employer mode is off the page has no Screening box. An engine's
+  first narrowed list sends Screening where Resume analysis goes, and a
+  choice made with the box in sight is kept.
 
 ## [2.43.0] — 2026-10-04
 
@@ -4705,7 +4809,10 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[2.43.1]: https://github.com/applypack/applypack/compare/v2.43.0...v2.43.1
+[2.47.1]: https://github.com/applypack/applypack/compare/v2.47.0...v2.47.1
+[2.47.0]: https://github.com/applypack/applypack/compare/v2.46.0...v2.47.0
+[2.46.0]: https://github.com/applypack/applypack/compare/v2.44.0...v2.46.0
+[2.44.0]: https://github.com/applypack/applypack/compare/v2.43.0...v2.44.0
 [2.43.0]: https://github.com/applypack/applypack/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/applypack/applypack/compare/v2.41.2...v2.42.0
 [2.41.2]: https://github.com/applypack/applypack/compare/v2.41.1...v2.41.2

@@ -255,6 +255,30 @@ describe('describeStatus', () => {
   it('never calls a rate limit a dead slug', () => {
     assert.notEqual(describeStatus('rate_limit').tone, describeStatus('slug_gone').tone);
   });
+
+  it('speaks of a folder in a folder’s words, and of everything else as before', () => {
+    assert.deepEqual(describeStatus('slug_gone', 'FOLDER'), { label: 'Folder not found', tone: 'bad' });
+    assert.equal(describeStatus('auth', 'FOLDER').label, 'Not allowed to read');
+    assert.equal(describeStatus('bad_payload', 'FOLDER').label, 'Files do not fit the mapping');
+    assert.equal(describeStatus('empty', 'FOLDER').label, 'Nothing new');
+    assert.equal(describeStatus('ok', 'FOLDER').label, 'OK');
+    assert.equal(describeStatus(null, 'FOLDER').tone, 'none');
+    assert.equal(describeStatus('slug_gone', 'GREENHOUSE').label, 'Slug not found');
+  });
+});
+
+describe('classifyFetchError — a folder source', () => {
+  const fault = (code: string): Error => Object.assign(new Error('folder'), { name: 'FolderError', fault: code });
+
+  it('reads what went wrong with the folder into the statuses the health row already has', () => {
+    assert.equal(classifyFetchError(fault('missing')), 'slug_gone');
+    assert.equal(classifyFetchError(fault('not-a-folder')), 'slug_gone');
+    assert.equal(classifyFetchError(fault('refused')), 'auth');
+    assert.equal(classifyFetchError(fault('not-allowed')), 'auth');
+    assert.equal(classifyFetchError(fault('unmapped')), 'bad_payload');
+    assert.equal(classifyFetchError(fault('too-many')), 'bad_payload');
+    assert.equal(classifyFetchError(fault('something-new')), 'unknown');
+  });
 });
 
 describe('isFailureStatus', () => {
@@ -280,6 +304,9 @@ describe('isSilent — sources that never post', () => {
   it('never ages a change watch, which produces no postings by design', () => {
     assert.equal(isSilent({ ...old, atsType: 'CAREER_PAGE' }, now), false);
     assert.equal(isSilent({ ...old, atsType: 'MANUAL' }, now), false);
+    assert.equal(isSilent({ ...old, atsType: 'IMPORT' }, now), false);
+    // A folder nothing new landed in is not a board that went quiet.
+    assert.equal(isSilent({ ...old, atsType: 'FOLDER' }, now), false);
   });
 
   it('still reports one that is failing outright', () => {

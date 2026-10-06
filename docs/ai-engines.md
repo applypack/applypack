@@ -4,14 +4,45 @@ The pipeline can run on any mix of seven AI backends. You enable the ones you
 have, put them in priority order on **`/settings` → AI engine**, and the app
 does the rest:
 
-- **Engine #1 serves every call** (job classification, resume analysis,
-  verification).
+- **The first engine that takes a task answers it** (job classification,
+  resume analysis, verification). Until you say otherwise every engine takes
+  every task, so engine #1 serves every call.
 - If it errors, runs out of quota, or hits a rate limit, the call
-  **automatically retries on engine #2**, then #3, and so on.
+  **automatically retries on the next engine that takes the task**.
 - The switch is per call — as soon as #1 recovers, it serves again. No
   restarts, no manual flipping.
 - An enabled engine that is not set up yet (no key / not logged in) is
   simply **skipped** and joins the chain the moment its auth appears.
+
+## Giving each engine its tasks
+
+Every engine card has a row of boxes, **Tasks it takes**, all ticked at
+first:
+
+| Task | What it covers |
+| --- | --- |
+| Scoring postings | the score of every new posting, the two-stage prefilter, reading a posting you paste |
+| Reading a resume | the scan after an upload, the shape read for the clean version |
+| Resume analysis | the posting brief, the comparison, the edit suggestions and rewrites, the strength review |
+| Cover letters | writing a letter |
+| Is it real? | the deep check of a posting (needs web search, so it is not offered to an engine without it) |
+| Screening applicants | employer mode; shown while it is on. Until then an engine you narrow for the first time gets it where Resume analysis goes, and a choice you already made is kept |
+
+Untick a task and that engine is no longer asked for it: not first, and not
+as a fallback when the engine above it fails. The table at the top of the
+tab, **Task · Answered by · If that fails**, shows the outcome for every
+task, with the model each engine would use.
+
+The usual split is a cheap or local engine for the volume and a strong one
+for the writing. Put the cheap engine **above** the strong one and leave only
+**Scoring postings** ticked on it: scoring goes to it, with the strong
+engine as its fallback, and everything else goes straight to the strong
+engine.
+
+A task that no usable engine takes is still answered, by every engine in
+the list in order, and the tab says which tasks are in that state. Nothing
+here says which model is good enough for which task; a small local model
+can read a posting and still write a poor letter (ADR 0060).
 
 Every engine card has a **Test** button — it sends one tiny live request
 through that engine and reports success or the exact failure. Use it after
@@ -269,9 +300,15 @@ it instead of running on to its timeout on your plan.
 
 ## What it costs, and checking it against the vendor
 
-`/settings` → AI engine → **Usage & cost** lists every call ApplyPack made
-(ADR 0055): what it was for, which model answered, the tokens the vendor
-reported and the money. It keeps three totals apart and never adds them:
+The **AI usage** page (in the menu under System) lists every call ApplyPack
+made (ADR 0055), by the model that answered: what it did, how long a call
+typically took, the tokens the vendor reported and the money. Above the
+table, **Worth a look** reads the same ledger for what you could change:
+the task most of your bill went to while a plan or a local model stands
+ready, calls that fell over to a billed engine, a model that keeps failing
+or hitting its rate limit. The hints are arithmetic on your own calls and
+the published prices; none of them says a model is good enough for a task.
+The page keeps three totals apart and never adds them:
 
 - **Billed** — the Anthropic API, an OpenAI-compatible server on the
   internet, the Gemini CLI with a key. Priced from `src/ai-prices.ts`, a

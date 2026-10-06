@@ -31,6 +31,7 @@ const REASON: Record<string, string> = {
  */
 const FACTS: { key: string; one: string; many: string; always?: true; job?: string }[] = [
   { key: 'fetched', one: 'fetched', many: 'fetched', always: true },
+  { key: 'fetched', job: 'import', one: 'row read from the file', many: 'rows read from the file', always: true },
   { key: 'persisted', one: 'new', many: 'new', always: true },
   { key: 'duplicate', one: 'duplicate', many: 'duplicates' },
   { key: 'crossListed', one: 'cross-listed', many: 'cross-listed' },
@@ -93,7 +94,8 @@ function humanise(key: string): string {
  * 0 alerted" is a finding, "0 new, 0 alerted" is noise.
  */
 export function summarizeRun(name: string, stats: CronStats): string[] {
-  const facts = FACTS.filter((f) => f.job === undefined || f.job === name);
+  // A job's own wording for a count replaces the shared one ("3 rows read from the file", not "3 fetched").
+  const facts = FACTS.filter((f) => f.job === name || (f.job === undefined && !FACTS.some((own) => own.job === name && own.key === f.key)));
   const out: string[] = [];
   const num = (key: string): number | null => (typeof stats[key] === 'number' ? (stats[key] as number) : null);
 
@@ -121,6 +123,7 @@ const AFTER_FAILURE: Record<string, string> = {
   fetch: 'What it stored before the failure stays, and the next tick tries again',
   'fetch-now': 'What it stored before the failure stays; press Fetch now again, or wait for the next tick',
   'hn-hiring': 'What it stored before the failure stays, and the next run tries again',
+  import: 'What it stored before the failure stays; import the same file again and only the rest is added',
   digest: 'Nothing was sent; the next digest hour tries again',
   'stale-applications': 'Nothing was sent; the next digest hour tries again',
   cleanup: 'Nothing past the failure was deleted, and tomorrow\'s run tries again',

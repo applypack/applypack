@@ -1,0 +1,32 @@
+[
+  {
+    "id": "h1",
+    "title": { "text": "An object where the title should be" },
+    "url": "https://rows.example/1",
+    "description": "The title of this row is an object."
+  },
+  {
+    "id": "h2",
+    "title": "A row whose link is a script",
+    "url": "javascript:alert(document.cookie)",
+    "applyUrl": "data:text/html,<script>alert(1)</script>",
+    "description": "Neither link is http(s), so the job is kept by its id and carries no link at all."
+  },
+  {
+    "id": "h3",
+    "title": "A row dated in words",
+    "url": "https://rows.example/3",
+    "postedAt": "three days ago",
+    "description": "A date in words is not a date; the row takes the time of the read."
+  },
+  {
+    "jobPosterName": "Only A Person",
+    "recruiterEmail": "person@rows.example",
+    "contactPhone": "+1 555 0101",
+    "authorProfileUrl": "https://rows.example/people/1"
+  },
+  {
+    "title": "A row with no id and no link",
+    "description": "Nothing tells this row from the next one."
+  }
+]

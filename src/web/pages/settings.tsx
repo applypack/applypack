@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Card,
+  CardLink,
   Code,
   ConfirmAction,
   Empty,
@@ -49,8 +50,9 @@ import { MAX_UPLOAD_MB } from '../upload';
 import { ALERT_MODES, ALL_DAYS, DAY_LABELS, FETCH_EVERY, MAX_DIGEST_HOURS, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
-import { AiSpendCard, type AiSpendProps } from './ai-spend-card';
-import { BILLING_WORDS } from '../../ai-spend';
+import { AiPlan, BILLING_TONE } from './ai-plan';
+import type { AiPlanRow } from '../ai-plan';
+import { BILLING_WORDS, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 
 interface MaskedTarget {
@@ -104,6 +106,8 @@ export interface AiEngineRow {
   lastResort: boolean;
   /** False when Disable would store the same list again — the .env engine alone in it. */
   canToggle: boolean;
+  /** The tasks the page shows and whether this engine takes each (ADR 0060); one it cannot do at all — the web check, with no web search — is not offered. */
+  tasks: { id: string; label: string; taken: boolean; offered: boolean }[];
   classifierModel: string;
   resumeModel: string;
   coverModel: string;
@@ -154,10 +158,10 @@ export interface ScheduleView {
 }
 
 export interface AiStatusSummary {
-  active: string;
-  chain: string[];
+  /** Who does what: each task with the engines a call for it tries, in order (web/ai-plan.ts). */
+  plan: AiPlanRow[];
   skipped: string[];
-  /** A pay-per-token engine standing ahead of one a plan covers (ai-spend.ts:billingNotes). */
+  /** A pay-per-token engine answering a task ahead of one a plan covers (ai-spend.ts:billingNotes). */
   billingNotes: string[];
 }
 
@@ -214,7 +218,8 @@ export interface SettingsProps {
   schedule: ScheduleView;
   aiEngines: AiEngineRow[];
   aiStatus: AiStatusSummary;
-  aiSpend: AiSpendProps;
+  /** The monthly ceiling on billed AI money in cents (null = none), and what this UTC month has billed, micro-dollars. */
+  aiBudget: { cents: number | null; billedThisMonthMicro: number };
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -459,7 +464,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   schedule,
   aiEngines,
   aiStatus,
-  aiSpend,
+  aiBudget,
   targets,
   profiles,
   activeProfile,
@@ -705,19 +710,17 @@ export const SettingsPage: FC<SettingsProps> = ({
       <>
       <Section
         title="AI engines"
-        desc="In priority order: #1 serves every call, and the next enabled engine takes over when it errors or hits a rate limit."
-        more="An engine is an AI subscription or an API key of yours. How to set each one up, locally and in Docker: docs/ai-engines.md in the repo."
+        desc="In priority order: the first engine that takes a task answers it, and the next one that takes it steps in when the first errors or hits a rate limit."
+        more="An engine is an AI subscription, an API key or a model on this computer. Each takes every task until you untick some on its card: a small local model can score postings while a stronger one writes the letters. How to set each one up, locally and in Docker: docs/ai-engines.md in the repo."
       >
         <div class="space-y-3">
-          <div class="text-note text-ink-muted">
-            Active now: <span class="font-medium text-ink">{aiStatus.active}</span>
-            {aiStatus.chain.length > 1 && (
-              <span> → fallback: {aiStatus.chain.slice(1).join(' → ')}</span>
-            )}
+          {/* settings-models.mjs redraws this block after a card saves: the table and the note read off it. */}
+          <div data-ai-plan class="space-y-3">
+            <AiPlan plan={aiStatus.plan} />
+            {aiStatus.billingNotes.map((note) => (
+              <Notice tone="warn">{note}</Notice>
+            ))}
           </div>
-          {aiStatus.billingNotes.map((note) => (
-            <Notice tone="warn">{note}</Notice>
-          ))}
           {aiStatus.skipped.length > 0 && (
             <Notice tone="warn">
               Enabled but skipped for now: {aiStatus.skipped.join(', ')} — not usable on this
@@ -735,12 +738,29 @@ export const SettingsPage: FC<SettingsProps> = ({
       </Section>
 
       <Section
-        id="usage"
-        title="Usage & cost"
-        desc="Every AI call ApplyPack made: what it was for, which model answered, and what it spent."
-        more="Tokens are what the vendor reported; a count it did not report stays empty rather than zero. Money is our price from a dated table of the vendors' published rates, or the vendor's own figure where it sends one (OpenRouter, the Claude Code CLI's estimate). Days are UTC, as on the vendors' own dashboards. Nothing of a prompt or a reply is kept."
+        id="budget"
+        title="Monthly budget"
+        desc="A ceiling on what the pay-per-token engines may bill in a month, with a warning before you reach it."
       >
-        <AiSpendCard {...aiSpend} />
+        <form method="post" action="/settings/ai/budget" class="flex flex-wrap items-end gap-3">
+          <Field
+            label="Budget for billed calls, USD a month"
+            hint={
+              aiBudget.cents
+                ? `Billed this month: ${formatUsd(aiBudget.billedThisMonthMicro)} of ${formatUsd(aiBudget.cents * 10_000)} (${Math.round((aiBudget.billedThisMonthMicro / (aiBudget.cents * 10_000)) * 100)} %).`
+                : 'Empty = no budget. A plan or a local model never counts against it.'
+            }
+            class="w-72"
+          >
+            <Input type="number" name="budget" min="0" step="0.01" value={aiBudget.cents ? (aiBudget.cents / 100).toFixed(2) : ''} />
+          </Field>
+          <Button variant="secondary">Save budget</Button>
+        </form>
+        <Hint>
+          A warning on your alert chats at 80 % and at 100 % of it, once each a month (UTC). Nothing is ever stopped: a
+          missed match costs more than a cent.
+        </Hint>
+        <CardLink href="/ai">Which model did what, how long it took and what it cost: AI usage</CardLink>
       </Section>
 
       <Section
@@ -1252,10 +1272,10 @@ export const SettingsPage: FC<SettingsProps> = ({
       )}
 
       {activeTab === 'screening' && (
-      <Section title="Which engine reads applicants" desc="Every screening call uses the first engine in your chain, with its resume model.">
+      <Section title="Which engine reads applicants" desc="Every screening call goes to the first engine that takes Screening applicants, with its resume model.">
         <div>
           <p class="text-sm text-ink">
-            First in the chain: <span class="font-medium">{screening.engineLabel}</span>
+            Answers screening now: <span class="font-medium">{screening.engineLabel}</span>
             {screening.engineSubscription ? (
               <Badge tone="warn" class="ml-2">
                 personal subscription
@@ -1270,7 +1290,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             {screening.engineSubscription
               ? 'A CLI on a personal subscription runs under terms and data settings the subscriber controls, not the employer. For applicants’ data the defensible path is an API engine under a data-processing agreement, or a local model through the OpenAI-compatible engine (a localhost base URL). The screening page warns about this too; it does not block.'
               : 'An API or a local model is what other people’s data should go through — check the vendor’s data-processing terms, or keep the model on your own machine.'}{' '}
-            Change the order on the AI engine tab.
+            Change who takes Screening applicants on the AI engine tab.
           </Hint>
         </div>
       </Section>
@@ -1534,7 +1554,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       <span class="text-entity text-ink">{e.label}</span>
       <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
       {e.lastResort && <Badge tone="warn">last resort</Badge>}
-      <Badge tone={e.billing === 'billed' ? 'warn' : e.billing === 'local' ? 'ok' : 'neutral'}>{BILLING_WORDS[e.billing]}</Badge>
+      <Badge tone={BILLING_TONE[e.billing]}>{BILLING_WORDS[e.billing]}</Badge>
       <div class="ml-auto flex flex-wrap justify-end gap-2">
         {e.enabled && e.position > 0 && (
           <ActionForm action="/settings/ai/move" hidden={{ provider: e.id }}>
@@ -1641,7 +1661,42 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
         </div>
       </form>
     )}
+    {e.enabled && <EngineTasks engine={e} />}
   </Card>
+);
+
+/** The tasks an engine takes (ADR 0060): every box ticked until the user narrows it. */
+const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
+  <form method="post" action="/settings/ai/tasks" data-model-form class="mt-4">
+    <input type="hidden" name="provider" value={e.id} />
+    <fieldset>
+      <legend class="text-label text-ink">Tasks it takes</legend>
+      <div class="mt-2 flex flex-wrap gap-2">
+        {e.tasks.map((t) =>
+          t.offered ? (
+            <PillCheckbox name="tasks" value={t.id} checked={t.taken}>
+              {t.label}
+            </PillCheckbox>
+          ) : (
+            <PillCheckbox name="tasks" value={t.id} disabled>
+              {t.label}
+            </PillCheckbox>
+          ),
+        )}
+      </div>
+    </fieldset>
+    <Hint class="mt-2">
+      A task you untick goes to the next engine in the list that takes it, and this one is not its
+      fallback either.
+      {e.tasks.some((t) => !t.offered) && ' The web check is not offered here: this engine cannot search the web.'}
+    </Hint>
+    <div class="mt-3 flex items-center gap-3">
+      <Button size="sm" variant="secondary" data-save-button>
+        Save tasks
+      </Button>
+      <span class="text-meta text-ink-faint" data-save-status role="status" aria-live="polite"></span>
+    </div>
+  </form>
 );
 
 /** Closed families get a select (no wrong-family ids possible); base-URL

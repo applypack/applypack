@@ -29,7 +29,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (33 kinds of source, the change watch, and MANUAL)
+## Sources (33 kinds of source, the change watch, the rows you bring, and MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -48,6 +48,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
 | CAREER_PAGE        | per-company   | none      | A careers page with nothing machine-readable on it; the atsToken is the page URL. **Never yields a job** — it hashes the page's text and reports that it changed (ADR 0036) |
 | BROWSER_PAGE       | per-company   | none      | A careers page that draws its jobs in the browser (a loading shell: no board, no feed, almost no text); the atsToken is the page URL. **Never fetched** — the row is watched and inactive, and the user pastes the page's text to see what is new (TASKS N8) |
+| FOLDER             | your folder   | none      | A folder on this computer that a tool writes files of rows into (`.json`, `.jsonl`, `.csv`, `.tsv`); the atsToken is its absolute path, `sourceConfig` keeps the name filter and the column mapping, `source_file` is the ledger of what was read. Read on the tick with **no request**: a new or changed file is read once, a file still being written waits, and nothing in the folder is ever written, moved or deleted. Rows carry many employers, each named on its row (ADR 0062) |
+| IMPORT             | your file     | none      | Rows the user uploads on `/jobs/import` — a JSON array, JSON Lines, CSV or TSV; the atsToken is the source's name as a slug and `sourceConfig` keeps the column mapping the user confirmed. **Never fetched** and never active: the rows go through `processNormalizedJobs` once, at the import, and carry many employers, each named on its row (ADR 0062) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
@@ -699,6 +701,52 @@ on confirmation the stored text is replaced, the original kept next to it
 (`descriptionOriginal`, `descriptionRefreshedAt`), the posting re-classified
 and the next comparison's keyword frame read afresh (ADR 0043).
 
+## Imported rows (ADR 0062)
+
+`/jobs/import` takes a file of jobs the user already has: a JSON array, an
+object holding one list, JSON Lines, CSV or TSV, up to 5 MB and 2 000 rows.
+Nothing is requested from anywhere, and the file is never stored: its rows
+wait in the web process's memory between the two steps.
+
+1. **Preview, no AI.** `datasets/map.ts:detectMapping` decides which column
+   is the title, the link, the company, the text, the place, the date and
+   the pay — from the names first, from the values where the names say
+   nothing. The page shows each field with a sample and a select, the first
+   three rows as they would be stored, and the counts: rows read, rows that
+   are a job (the others by reason: no title, neither an id nor a link,
+   marked closed, a repeat), rows the source already holds, and new rows the
+   running searches' base filter admits. That last number is the AI calls an
+   import would make.
+2. **Import.** The rows become jobs of an inactive `Company` with
+   `atsType = IMPORT` (one per source name; the confirmed mapping is kept in
+   `sourceConfig`) through `processNormalizedJobs`: filter, mute, dedupe,
+   classify, persist, alert. It shares the fetch lock with the tick, is
+   recorded as an `import` run, and stores the rows unscored while fetching
+   is paused. A newer export into the same source adds only what is new.
+
+Each row names its own employer (ADR 0056): the list reads "Acme · via
+September export", and a mute acts on Acme. Columns about people are never
+offered for mapping and never stored; a link is kept only when it is http(s).
+
+**A folder a tool writes into** is the same rows without the upload
+(`atsType = FOLDER`). Companies → Add sources → *A folder on this computer*
+takes a typed path, **Check** shows what is in it and what the next check
+would do (no AI, nothing stored), and **Add (off)** stores the path, an
+optional name filter and the column mapping. Switched on, the hourly check
+reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
+
+- a file is read again only when its size or time changes; one changed in
+  the last ten seconds waits; a copy of a file already read is set aside;
+- 20 files and 5 000 rows a check, 5 MB a file, three folders deep;
+- what became of each file is kept in `source_file`, written only after the
+  check stored its jobs, and shown on the folder's **Files** page;
+- nothing in the folder is ever written, moved, renamed or deleted.
+
+Which folders may be read: on a local install, one inside the home folder
+(not a hidden one, not `Library` / `AppData`, not ApplyPack's own data
+folder); on a server or in Docker, only one inside a root named in
+`APPLYPACK_INBOX_ROOTS`.
+
 ## Cover letters (F8, ADR 0021)
 
 "Cover letter" on `/jobs/:id` writes a short letter (120–180 words, capped
@@ -831,12 +879,22 @@ never added: **billed** (the Anthropic API, an OpenAI-compatible server on
 the internet, the Gemini CLI with a key), **covered by a plan** (Claude
 Code, Codex, the Gemini CLI on a Google login — the figure is what the call
 would cost on the API) and **local** (an OpenAI-compatible server on this
-machine or network — free). `/settings` → AI engine → Usage & cost shows
-the three totals over the last 7 days, this month, last month or this year
-(UTC days, as the vendors' dashboards), a table of feature × model with
-calls, tokens and money, and three sentences when they apply: which
-feature takes most of one kind of money, which calls are not priced, and
-how many ended with no usage (a timed-out call may still be billed). Each
+machine or network — free). The **AI usage** page (`/ai`, in the menu under
+System) shows the three totals over the last 7 days, this month, last month
+or this year (UTC days, as the vendors' dashboards); a table by the model
+that answered — what it did, how many calls, the typical time (the middle
+call and the slow tail), tokens and money; three sentences when they apply
+(which feature takes most of one kind of money, which calls are not priced,
+how many ended with no usage — a timed-out call may still be billed); who
+answers each task now (ADR 0060); and **Worth a look**, hints read off the
+ledger by `web/usage-hints.ts`: the task most of the bill went to while a
+plan or a local model stands ready, billed calls that were a fallback, a
+model that keeps failing or hitting its rate limit, scoring billed on a
+model several times the price of the cheapest, a month's pace over the
+budget. A hint never says a model is good enough for a task, offers a
+model on this computer for scoring only, and never steers applicants'
+resumes onto a personal plan. The monthly budget stays on
+`/settings` → AI engine. Each
 engine card says which kind it spends; a billed engine standing ahead of
 one a plan covers gets a warning with the move that fixes it. `/jobs/:id`
 shows what the AI spent on that posting, and Compare, Verify and Generate
@@ -861,7 +919,7 @@ vendor's admin key never enters ApplyPack.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind over semantic CSS-variable tokens, built by `npm run css` and committed (`src/web/public/tailwind.css`), so the runtime has no build step and no page loads a CDN (light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam, seven engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `agy_cli` (headless CLI, Google Antigravity account), `openai_api` (fetch → any /chat/completions endpoint: the server on its card, else OPENAI_BASE_URL; a local one needs no key), `codex_cli` (headless CLI, ChatGPT subscription), `local_api` (Ollama's own `/api/chat` on this machine: the context window per call, JSON mode, one call at a time, a prompt too large for the window refused before it is sent — ADR 0057). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (on the two Claude engines: `CLAUDE_MODEL`, Haiku 4.5, for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter. Gemini 2.5 Flash for the classifier and 2.5 Pro for the rest on the Gemini CLI; `OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on Codex); `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam, seven engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `agy_cli` (headless CLI, Google Antigravity account), `openai_api` (fetch → any /chat/completions endpoint: the server on its card, else OPENAI_BASE_URL; a local one needs no key), `codex_cli` (headless CLI, ChatGPT subscription), `local_api` (Ollama's own `/api/chat` on this machine: the context window per call, JSON mode, one call at a time, a prompt too large for the window refused before it is sent — ADR 0057). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); each engine takes every task until its card unticks some (`aiEngine.tasks`, six tasks in `ai-tasks.ts`, ADR 0060), and a call fails over down the engines that take its task automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (on the two Claude engines: `CLAUDE_MODEL`, Haiku 4.5, for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter. Gemini 2.5 Flash for the classifier and 2.5 Pro for the rest on the Gemini CLI; `OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on Codex); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout

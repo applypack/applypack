@@ -12,12 +12,12 @@ import {
   periodRange,
   spendReportLines,
   spendView,
+  usageByModel,
   typicalMicro,
   type LedgerInput,
   type SpendGroup,
 } from './ai-spend';
 import { NO_USAGE, type AiBilling } from './ai-usage';
-import type { AiProviderId } from './ai-engine';
 import { PRICES_AS_OF } from './ai-prices';
 
 const attempt = (over: Partial<LedgerInput> = {}): LedgerInput => ({
@@ -72,6 +72,11 @@ const group = (over: Partial<SpendGroup>): SpendGroup => ({
   tokensIn: 0,
   tokensOut: 0,
   micro: 0,
+  medianMs: null,
+  p90Ms: null,
+  rateLimited: 0,
+  viaFallback: 0,
+  fallbackMicro: 0,
   ...over,
 });
 
@@ -141,12 +146,22 @@ test('the budget warns once at 80 % and once at 100 % a month, and a new month s
 });
 
 test('a billed engine ahead of one a plan covers is named, with the move that fixes it', () => {
-  const billing = (id: AiProviderId): AiBilling => (id === 'anthropic_api' || id === 'openai_api' ? 'billed' : 'plan');
-  assert.deepEqual(billingNotes(['anthropic_api', 'claude_code'], billing), [
+  const API = { label: 'Anthropic API', billing: 'billed' as const };
+  const OPENAI = { label: 'OpenAI-compatible API', billing: 'billed' as const };
+  const CLI = { label: 'Claude Code CLI', billing: 'plan' as const };
+  const rows = (...engines: { label: string; billing: AiBilling }[][]) =>
+    engines.map((list, i) => ({ task: ['scoring', 'analysis', 'letters'][i]!, label: ['Scoring postings', 'Resume analysis', 'Cover letters'][i]!, engines: list }));
+  assert.deepEqual(billingNotes(rows([API, CLI], [API, CLI], [API, CLI])), [
     'Calls go to Anthropic API first and are billed per token; Claude Code CLI, which your plan covers, answers only when it fails. Move Claude Code CLI up to spend the plan first.',
   ]);
-  assert.deepEqual(billingNotes(['claude_code', 'anthropic_api'], billing), []);
-  assert.deepEqual(billingNotes(['anthropic_api', 'openai_api'], billing), []);
+  assert.deepEqual(billingNotes(rows([CLI, API], [CLI, API], [CLI, API])), []);
+  assert.deepEqual(billingNotes(rows([API, OPENAI], [API, OPENAI], [API])), []);
+  // ADR 0060: a billed engine narrowed to the letters is ahead of the plan for the letters only.
+  assert.deepEqual(billingNotes(rows([CLI], [CLI], [API, CLI])), [
+    'For Cover letters, calls go to Anthropic API first and are billed per token; Claude Code CLI, which your plan covers, answers only when it fails. Move Claude Code CLI up to spend the plan first.',
+  ]);
+  // Applicants' resumes are not steered onto a personal plan.
+  assert.deepEqual(billingNotes([{ task: 'screening', label: 'Screening applicants', engines: [API, CLI] }]), []);
 });
 
 test('an estimate is the middle of at least three, and money reads as money', () => {
@@ -185,3 +200,23 @@ test('before any call is on record, the hint says what kind of money and no figu
   assert.equal(billingHint('plan'), 'Your plan covers it.');
   assert.equal(billingHint('local'), 'Runs on your local model: free.');
 });
+
+test('the rows by the model that answered: the busiest model first, and inside it the busiest task', () => {
+  const view = spendView([
+    group({ engine: 'claude_code', billing: 'plan', calls: 395, micro: 1_600_000, medianMs: 3_374, p90Ms: 3_836 }),
+    group({ feature: 'posting-extract', engine: 'claude_code', billing: 'plan', calls: 3, failed: 1, micro: 10_000 }),
+    group({ feature: 'resume-match', engine: 'claude_code', model: 'claude-sonnet-5', billing: 'plan', calls: 15, micro: 1_190_000, medianMs: 29_427, p90Ms: 34_361 }),
+    group({ feature: 'classifier', engine: 'local_api', model: 'gemma4:e4b', billing: 'local', calls: 40, micro: 0 }),
+  ]);
+  const models = usageByModel(view.rows);
+  assert.deepEqual(models.map((m) => [m.engine, m.model, m.calls, m.failed, m.micro]), [
+    ['Claude Code CLI', 'claude-haiku-4-5-20251001', 398, 1, 1_610_000],
+    ['Local model (Ollama)', 'gemma4:e4b', 40, 0, 0],
+    ['Claude Code CLI', 'claude-sonnet-5', 15, 0, 1_190_000],
+  ]);
+  assert.deepEqual(models[0]?.rows.map((r) => [r.feature, r.calls, r.medianMs, r.p90Ms]), [
+    ['Scoring new postings', 395, 3_374, 3_836],
+    ['Reading a pasted posting', 3, null, null],
+  ]);
+});
+
