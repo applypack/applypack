@@ -1259,7 +1259,7 @@
   "settings.resumePipeline": "Відновити",
   "settings.pause": "Призупинити",
   "settings.thePipelineIsTheHourly": "Автоматичний пошук — це збір із ваших джерел за розкладом і щомісячне читання гілки «Who is hiring» на Hacker News.",
-  "settings.pausingStopsNewJobsAnd": "На паузі нові вакансії й сповіщення не надходять. Панель, щоденний підсумок і очищення працюють далі.",
+  "settings.pausingStopsNewJobsAnd": "Пауза зупиняє нові вакансії й сповіщення. Панель, щоденний підсумок і очищення працюють далі.",
   "settings.timeZone": "Часовий пояс",
   "settings.timeZoneDesc": "У цьому поясі ApplyPack показує всі дати й години, і в ньому ж задано години розкладу.",
   "settings.timeZoneHintUnsaved": "Поки ви не зберегли свій, вибрано пояс вашого браузера.",

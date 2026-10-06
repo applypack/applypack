@@ -1259,7 +1259,7 @@
   "settings.resumePipeline": "Reprendre",
   "settings.pause": "Suspendre",
   "settings.thePipelineIsTheHourly": "La recherche automatique, c'est la lecture programmée de vos sources et le fil mensuel « Who is hiring » de Hacker News.",
-  "settings.pausingStopsNewJobsAnd": "En pause, aucune nouvelle offre ni alerte n'arrive. Le tableau de bord, le récapitulatif quotidien et le nettoyage continuent de tourner.",
+  "settings.pausingStopsNewJobsAnd": "La pause arrête les nouvelles offres et les alertes. Le tableau de bord, le récapitulatif quotidien et le nettoyage continuent de tourner.",
   "settings.timeZone": "Fuseau horaire",
   "settings.timeZoneDesc": "Toutes les dates et heures affichées par ApplyPack, et celles des horaires, sont dans ce fuseau.",
   "settings.timeZoneHintUnsaved": "Celui de votre navigateur est utilisé tant que vous n'en enregistrez pas un.",
