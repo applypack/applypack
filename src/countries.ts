@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import gazetteer from './countries.json';
+import { LOCALES, PSEUDO_LOCALE, type Locale } from './i18n/locale';
 
 const CountrySchema = z.object({
   code: z.string().regex(/^[A-Z]{2}$/),
@@ -222,7 +223,35 @@ export function findCountry(query: string): Country | null {
   const hit = PLACE_ALIASES.get(key);
   if (hit && hit.kind !== 'region') return byCode.get(hit.code) ?? null;
   const demonym = DEMONYMS.get(key);
-  return demonym ? (byCode.get(demonym) ?? null) : null;
+  if (demonym) return byCode.get(demonym) ?? null;
+  // A name in one of the interface's languages ("Polonia", "Allemagne"): the hints there name countries so.
+  const named = interfaceNames().get(key);
+  return named ? (byCode.get(named) ?? null) : null;
+}
+
+let namesByLanguage: Map<string, string> | null = null;
+
+/**
+ * Every country's name as CLDR writes it in each language the interface
+ * speaks (ADR 0061), normalised like the gazetteer's own names. Built once,
+ * on the first lookup that needs it; the gazetteer's aliases win a clash.
+ * Only the typed-list path reads it — never the posting parser (location.ts).
+ */
+function interfaceNames(): Map<string, string> {
+  if (namesByLanguage) return namesByLanguage;
+  const names = new Map<string, string>();
+  for (const locale of Object.keys(LOCALES) as Locale[]) {
+    if (locale === PSEUDO_LOCALE) continue;
+    const display = new Intl.DisplayNames([LOCALES[locale].intl], { type: 'region', fallback: 'none' });
+    for (const country of COUNTRIES) {
+      const name = display.of(country.code);
+      if (!name) continue;
+      const key = normalizePlace(name);
+      // A name the gazetteer refuses on its own ("Georgia") stays refused in every language.
+      if (!names.has(key) && !PLACE_ALIASES.has(key) && !AMBIGUOUS_NAMES.has(key)) names.set(key, country.code);
+    }
+  }
+  return (namesByLanguage = names);
 }
 
 const REGIONAL_INDICATOR_A = 0x1f1e6;

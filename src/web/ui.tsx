@@ -81,7 +81,8 @@ export const PageHeader: FC<
         page offers sits at the right, level with the title. */}
     <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div class="min-w-0 flex-1 basis-64">
-        <h1 class="truncate text-title text-ink" title={title} translate={titleIsData ? 'no' : undefined}>
+        {/* A name of the person's own is cut with its whole self on hover; our words wrap — a translation runs longer. */}
+        <h1 class={`${titleIsData ? 'truncate' : 'break-words'} text-title text-ink`} title={title} translate={titleIsData ? 'no' : undefined}>
           {title}
         </h1>
         {children && (
@@ -243,7 +244,7 @@ export const CardHeader: FC<PropsWithChildren<{ title: string; info?: string; ac
 }) => (
   <div class={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 ${className}`}>
     <div class="flex min-w-0 items-center gap-2">
-      <h2 class="truncate text-section text-ink">{title}</h2>
+      <h2 class="break-words text-section text-ink">{title}</h2>
       {children}
       {info && <InfoTip text={info} />}
     </div>
@@ -561,7 +562,7 @@ export const StatCard: FC<{
   >
     <IconTile icon={icon} tone={tone} />
     <div class="min-w-0 flex-1">
-      <div class="truncate text-label text-ink-muted">{label}</div>
+      <div class="break-words text-label text-ink-muted">{label}</div>
       {/* The bars share the number's row and give way first: a narrow card clips the oldest days, never the number. */}
       <div class="mt-0.5 flex items-end justify-between gap-3">
         <div class="text-kpi tabular-nums text-ink">

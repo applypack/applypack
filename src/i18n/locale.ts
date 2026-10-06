@@ -34,6 +34,8 @@ export const PSEUDO_LOCALE = 'en-XA';
 export const LOCALES = {
   en: { name: 'English', intl: 'en-US', stage: 'ready' },
   uk: { name: 'Українська', intl: 'uk-UA-u-nu-latn', stage: 'ready' },
+  es: { name: 'Español', intl: 'es-u-nu-latn', stage: 'beta' },
+  fr: { name: 'Français', intl: 'fr-u-nu-latn', stage: 'beta' },
   [PSEUDO_LOCALE]: { name: 'Pseudo', intl: 'en-US', stage: 'internal' },
 } as const satisfies Record<string, LocaleInfo>;
 

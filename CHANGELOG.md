@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.53.0] — 2026-10-06
+
+### Added
+- **Spanish and French, in beta.** Español and Français are in the language
+  switcher beside English and Українська, marked beta: every page, the lines
+  a page writes while you edit or wait, employer mode and the Telegram and
+  Discord messages are translated by machine from the glossary and held to
+  one set of terms, and no native speaker has read them yet. A wording is
+  corrected in `src/i18n/catalog/es.json` or `fr.json`. Dates, numbers and
+  country names follow the language.
+- A search's countries can be typed in any language the interface speaks:
+  "Polonia", « Pologne », «Польща» or "Poland" all name Poland.
+
+### Changed
+- A page's title, a card's title, a status card's label and the setup
+  wizard's steps wrap onto a second line instead of losing their end — a
+  translation runs longer than the English. A job's or a resume's own name is
+  still cut, and shown whole on hover.
+
 ## [2.52.0] — 2026-10-06
 
 ### Added
@@ -4970,6 +4989,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.53.0]: https://github.com/applypack/applypack/compare/v2.52.0...v2.53.0
 [2.52.0]: https://github.com/applypack/applypack/compare/v2.51.0...v2.52.0
 [2.51.0]: https://github.com/applypack/applypack/compare/v2.50.0...v2.51.0
 [2.50.0]: https://github.com/applypack/applypack/compare/v2.49.0...v2.50.0

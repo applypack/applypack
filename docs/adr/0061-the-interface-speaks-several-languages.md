@@ -169,3 +169,23 @@ a constant that holds words has to become a function or a key.
   language at setup (`locale.ts:languageKeptAtSetup`, #355), so an install
   set up before a language existed can still be invited to it; the
   invitation shows above the page below the `lg` breakpoint (#358).
+
+## Addendum (2026-10-06): Spanish and French in beta (v2.53.0)
+
+- **Spanish and French** are in the switcher as `beta`: machine-translated
+  from the glossary in eight pieces, then held to one term list by a final
+  editor per language (`docs/translating.md`, "Spanish and French: terms
+  settled while translating"). The `Intl` tags are `es-u-nu-latn` and
+  `fr-u-nu-latn`. German and Hindi wait for their own PR.
+- **A translation may add a plural** on an argument the English writes
+  plainly: French and Spanish agree a participle with its count where
+  English does not ("{failed} failed" → « # échoué(s) »). `catalog.test.ts`
+  still requires every plural of the source.
+- **A typed country is read in every language the interface speaks**
+  (`countries.ts:findCountry`, CLDR's names for each offered language): the
+  Spanish and French hints name "Polonia" and « Pologne ». The posting parser
+  (`location.ts`) never reads these names, and a name the gazetteer refuses
+  on its own ("Georgia") stays refused in every language.
+- **Our own titles and labels wrap** instead of cutting their end: a
+  translation runs 20–40 % longer than the English. A title that is data (a
+  job's, a resume's name) is still cut, whole on hover.

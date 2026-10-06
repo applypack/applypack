@@ -469,8 +469,8 @@ const ActivityRow: FC<{ icon: IconName; title: string; at?: Date | null; none?: 
   <li class="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
     <IconTile icon={icon} tone={tone} class="h-9 w-9 !rounded-full" />
     <div class="min-w-0 flex-1">
-      <div class="truncate text-sm font-medium text-ink">{title}</div>
-      <div class="mt-0.5 truncate text-note text-ink-faint">
+      <div class="break-words text-sm font-medium text-ink">{title}</div>
+      <div class="mt-0.5 break-words text-note text-ink-faint">
         {detail ?? (at ? tRich('overview.latestAt', {}, { when: () => <When at={at} /> }) : none)}
       </div>
     </div>
