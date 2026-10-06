@@ -15,6 +15,7 @@ import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-ti
 import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from '../applications-export';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { displayZone } from '../display-zone';
+import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 
 // Stage keys are validated at runtime against the configured list
@@ -110,8 +111,16 @@ applicationsRoute.get('/applications', async (c) => {
   );
 });
 
-/** The board as rows for a file, in column order, newest application first within a column. */
-async function exportRows(): Promise<{ rows: ApplicationExportRow[]; columns: { key: string; label: string }[]; now: Date }> {
+/**
+ * The board as rows for a file, in column order, newest application first
+ * within a column. A file is data, as its header is: the stages the interface
+ * names itself are written in English whatever language the page reads in.
+ */
+function exportRows(): Promise<{ rows: ApplicationExportRow[]; columns: { key: string; label: string }[]; now: Date }> {
+  return withLocale('en', boardRows);
+}
+
+async function boardRows(): Promise<{ rows: ApplicationExportRow[]; columns: { key: string; label: string }[]; now: Date }> {
   const { work, columns, cards, now } = await loadBoard();
   const order = new Map(columns.map((col, i) => [col.key, i]));
   const rows = cards

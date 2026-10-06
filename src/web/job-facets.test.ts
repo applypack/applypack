@@ -45,6 +45,9 @@ describe('query parsing', () => {
     assert.equal(parsePosted('7d'), '7d');
     assert.equal(parsePosted('2y'), '');
     assert.equal(parsePosted(undefined), '');
+    // A name every object has is not a window: /jobs?posted=constructor once queried an Invalid Date.
+    assert.equal(parsePosted('constructor'), '');
+    assert.equal(postedSince('constructor', new Date()), null);
   });
 });
 

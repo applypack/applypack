@@ -2447,7 +2447,7 @@
   "score.label.hard": "Hard requirements",
   "score.label.toConfirm": "To confirm",
   "score.requirements": "{met} of {total} the posting asks for",
-  "score.requirements.title": "Weighted for how hard the posting asks: {earned} of {total}, worth {points} of {max} points.",
+  "score.requirements.title": "Weighted for how hard the posting asks: {earned, number} of {total}, worth {points, number} of {max} points.",
   "score.coreStack.none": "this posting names none",
   "score.coreStack.allPresent": "{names} — all present",
   "score.coreStack.covered": "covered",
@@ -2816,5 +2816,8 @@
   "common.alreadyRunning": "That is already running — give it a moment.",
 
   "runs.folderCheck.nothingNew": "{label}: nothing new in the folder. A file is read once, and again when it changes.",
-  "runs.folderCheck.notRead": "{label}: the folder was not read — {status}. Nothing stored is touched; Files on its row says what happened to each file, and Mapping checks the folder again."
+  "runs.folderCheck.notRead": "{label}: the folder was not read — {status}. Nothing stored is touched; Files on its row says what happened to each file, and Mapping checks the folder again.",
+
+  "brief.line.level": "{seniority} level",
+  "brief.line": "{parts} — {keywords, plural, one {# keyword} other {# keywords}}{groups, plural, =0 {} one {, # either/or requirement} other {, # either/or requirements}}"
 }

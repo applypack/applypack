@@ -12,6 +12,7 @@ import {
   type PostingBrief,
 } from './prompts';
 import { createPostingBrief, getPostingBrief } from './store';
+import { t } from '../i18n/t';
 
 /*
  * The posting read once, on its own (ADR 0044). No resume reaches this call,
@@ -120,10 +121,13 @@ export async function briefForPosting(
 
 /** One line for the progress page: what the reading found, in the user's words. */
 export function briefLine(brief: PostingBrief): string {
+  // The role, the level and the industry are the reading's own words; the rest is ours.
   const parts = [brief.role.family];
-  if (brief.role.seniority) parts.push(`${brief.role.seniority} level`);
+  if (brief.role.seniority) parts.push(t('brief.line.level', { seniority: brief.role.seniority }));
   if (brief.company.industry) parts.push(brief.company.industry);
-  const groups = brief.requirement_groups.length;
-  const tail = `${brief.keywords.length} keywords${groups > 0 ? `, ${groups} either/or requirement${groups === 1 ? '' : 's'}` : ''}`;
-  return `${parts.filter(Boolean).join(' · ')} — ${tail}`;
+  return t('brief.line', {
+    parts: parts.filter(Boolean).join(' · '),
+    keywords: brief.keywords.length,
+    groups: brief.requirement_groups.length,
+  });
 }

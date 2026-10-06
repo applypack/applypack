@@ -2447,7 +2447,7 @@
   "score.label.hard": "Жорсткі вимоги",
   "score.label.toConfirm": "Треба підтвердити",
   "score.requirements": "{met} із {total}, яких просить вакансія",
-  "score.requirements.title": "З вагою за те, наскільки наполегливо вакансія цього просить: {earned} із {total}, що дає {points} із {max} балів.",
+  "score.requirements.title": "З вагою за те, наскільки наполегливо вакансія цього просить: {earned, number} із {total}, що дає {points, number} із {max} балів.",
   "score.coreStack.none": "ця вакансія його не називає",
   "score.coreStack.allPresent": "{names} — усе є",
   "score.coreStack.covered": "покрито",
@@ -2816,5 +2816,8 @@
   "common.alreadyRunning": "Це вже виконується — зачекайте трохи.",
 
   "runs.folderCheck.nothingNew": "{label}: у теці нічого нового. Файл читається один раз і ще раз — коли змінюється.",
-  "runs.folderCheck.notRead": "{label}: теку не прочитано — {status}. Нічого збереженого не зачеплено; «Файли» в її рядку покажуть, що сталося з кожним файлом, а «Зіставлення» перевірить теку знову."
+  "runs.folderCheck.notRead": "{label}: теку не прочитано — {status}. Нічого збереженого не зачеплено; «Файли» в її рядку покажуть, що сталося з кожним файлом, а «Зіставлення» перевірить теку знову.",
+
+  "brief.line.level": "рівень {seniority}",
+  "brief.line": "{parts} — {keywords, plural, one {# ключове слово} few {# ключові слова} many {# ключових слів} other {# ключового слова}}{groups, plural, =0 {} one {, # вимога на вибір} few {, # вимоги на вибір} many {, # вимог на вибір} other {, # вимоги на вибір}}"
 }

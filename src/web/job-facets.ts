@@ -64,7 +64,7 @@ export function parseWorkplaces(raw: string | undefined): WorkplaceCode[] {
 }
 
 export function parsePosted(raw: string | undefined): string {
-  return raw && raw in POSTED_WINDOWS ? raw : '';
+  return raw && Object.hasOwn(POSTED_WINDOWS, raw) ? raw : '';
 }
 
 /** Where-clause for the place facet: OR across the selection; null when nothing is selected. */
@@ -81,7 +81,7 @@ export function placeWhere(places: string[]): Prisma.JobWhereInput | null {
 }
 
 export function postedSince(posted: string, now: Date): Date | null {
-  const days = POSTED_WINDOWS[posted];
+  const days = Object.hasOwn(POSTED_WINDOWS, posted) ? POSTED_WINDOWS[posted] : undefined;
   return days ? new Date(now.getTime() - days * DAY_MS) : null;
 }
 
@@ -153,8 +153,7 @@ const POSTED_ACTIVE: Record<string, MessageKey> = {
 
 /** The words for `value`, read when asked; a value the table does not know stays as it is. */
 function worded(keys: Record<string, MessageKey>, value: string): string {
-  const key = keys[value];
-  return key ? t(key) : value;
+  return Object.hasOwn(keys, value) ? t(keys[value]!) : value;
 }
 
 /** The place values one row counts under. */
