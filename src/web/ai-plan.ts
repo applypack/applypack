@@ -67,3 +67,23 @@ export function aiPlanRows(engine: ResolvedAiEngine, billingFor: (id: AiProvider
       })),
     }));
 }
+
+/**
+ * The plan in one or two sentences, for the top of the AI & costs tab: who
+ * answers when one engine answers everything, and who stands behind it.
+ * Null when a task has no engine at all — the tab's own warning says that.
+ */
+export function planSummary(rows: readonly AiPlanRow[]): { lead: string; fallback: string | null } | null {
+  if (rows.length === 0 || rows.some((r) => r.engines.length === 0)) return null;
+  const firsts = new Set(rows.map((r) => r.engines[0]!.id));
+  if (firsts.size > 1) return { lead: t('plan.summary.split', { n: firsts.size }), fallback: null };
+  const first = rows[0]!.engines[0]!;
+  // The engine behind it, when every task that has one has the same: a task no other engine can take
+  // (the web check, where only one engine searches) has none, and says nothing against it.
+  const behind = rows.flatMap((r) => (r.engines[1] ? [r.engines[1]] : []));
+  const second = behind.length > 0 && behind.every((e) => e.id === behind[0]!.id) ? behind[0] : undefined;
+  return {
+    lead: t('plan.summary.one', { engine: first.label, billing: first.billing }),
+    fallback: second ? t('plan.summary.fallback', { engine: second.label }) : null,
+  };
+}

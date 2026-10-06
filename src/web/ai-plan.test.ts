@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiPlanRows, pickedTasks, taskShown, tasksSaved } from './ai-plan';
+import { aiPlanRows, pickedTasks, planSummary, taskShown, tasksSaved } from './ai-plan';
 import { resolveAiEngine, type AiEngineEnv } from '../ai-engine';
 
 const ENV: AiEngineEnv = {
@@ -56,4 +56,22 @@ test('while the page hides Screening, a first list sends it where Resume analysi
   // With its own box on the page, the box decides.
   assert.deepEqual(pickedTasks(['analysis'], true, ['screening']), ['analysis']);
   assert.deepEqual(pickedTasks(['scoring', 'screening'], true, undefined), ['scoring', 'screening']);
+});
+
+test('the plan in a sentence: one engine for everything, and who stands behind it', () => {
+  const one = resolveAiEngine({ order: ['claude_code', 'local_api'] }, ENV);
+  const summary = planSummary(aiPlanRows(one, (id) => (id === 'local_api' ? 'local' : 'plan'), false));
+  assert.equal(summary?.lead, 'Claude Code CLI answers every task, on your subscription.');
+  assert.equal(summary?.fallback, 'If it fails, Local model (Ollama) steps in.');
+});
+
+test('the plan in a sentence: tasks split between engines send the reader to the table', () => {
+  const split = resolveAiEngine({ order: ['local_api', 'claude_code'], tasks: { local_api: ['scoring'] } }, ENV);
+  const summary = planSummary(aiPlanRows(split, (id) => (id === 'local_api' ? 'local' : 'plan'), false));
+  assert.equal(summary?.lead, '2 engines share the tasks; the table below says which does what.');
+  assert.equal(summary?.fallback, null);
+});
+
+test('the plan in a sentence: nothing to say when a task has no engine', () => {
+  assert.equal(planSummary([]), null);
 });

@@ -591,8 +591,10 @@ fetched.
 - **Board column:** the subtle surface, 12px corners, no outline; an empty
   column says "No applications" in one faint meta line. No dashed wells: the
   surface already reads as a place to drop.
-- **ToggleRow:** label + ok/neutral dot-pill beside an Enable/Disable button —
-  the settings on/off idiom.
+- **ToggleRow:** the label and one sentence on the left, a switch on the right
+  (`role="switch"`, a submit button in its own form, so no script is needed;
+  the label is wired to it) with the state in words beside the track, an
+  ok-green track when on — the settings on/off idiom.
 
 ### Screening (employer mode, ADR 0047–0052)
 The other side of the table reuses every primitive above; what is new is

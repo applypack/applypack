@@ -14,7 +14,7 @@ import { t } from '../i18n/t';
 import { Icon } from './icons';
 import { languagePage } from './language';
 import { tRich } from './rich';
-import { ActionForm, Badge, Button, Disclosure, Hint, MarkIcon } from './ui';
+import { ActionForm, Badge, Button, Disclosure, Hint, MarkIcon, Select } from './ui';
 
 /*
  * The language controls (ADR 0061): the switcher at the bottom of the menu
@@ -180,13 +180,25 @@ export const LanguageSettings: FC = () => {
   const current = currentLocale();
   const offered = offeredLocales();
   const unfinished = unfinishedLocales();
+  // A language still being translated stays the picked one while it is in use, as in the menu's switcher.
+  const choices: Locale[] = unfinished.includes(current) ? [...offered, current] : offered;
   return (
     <>
-      <ul class="divide-y divide-line">
-        {offered.map((l) => (
-          <LanguageRow locale={l} current={l === current} />
-        ))}
-      </ul>
+      {/* One picker, not a row and a button per language: the choice is one value. */}
+      <form method="post" action={SWITCH_ACTION} class="flex flex-wrap items-end gap-3" data-language-form>
+        <input type="hidden" name="back" value={SETTINGS_BACK} />
+        <label class="flex flex-col gap-1.5">
+          <span class="text-label text-ink">{t('settings.language.pick')}</span>
+          <Select name="locale" class="!w-64">
+            {choices.map((l) => (
+              <option value={l} selected={l === current} lang={l} translate="no">
+                {isBeta(l) ? t('settings.language.betaOption', { language: localeName(l) }) : localeName(l)}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <Button variant="secondary">{t('language.use')}</Button>
+      </form>
       {offered.some(isBeta) && <Hint>{tRich('settings.language.betaNote', {}, { link: (words) => <CatalogLink words={words} /> })}</Hint>}
       {unfinished.length > 0 && (
         <Disclosure summary={t('settings.language.unfinished')} open={unfinished.includes(current)}>

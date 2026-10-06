@@ -975,57 +975,69 @@ export const ActionForm: FC<
   </form>
 );
 
-/** Status line + toggle button, used by every on/off card on /settings. */
+/**
+ * An on/off setting: its label and one sentence on the left, a switch on the
+ * right. The switch is a submit button with `role="switch"` in its own form,
+ * so it works without a script; the label is wired to it, so a press on the
+ * words flips it too, and the state is said in words beside the track, never
+ * by its colour alone.
+ */
 export const ToggleRow: FC<
   PropsWithChildren<{
     label: string;
     enabled: boolean;
     action: string;
+    /** The state in words: "On" / "Off" unless the setting has better ones ("Running" / "Paused"). */
     onLabel?: string;
     offLabel?: string;
-    enableText?: string;
-    disableText?: string;
+    /** Fields the action needs besides the press itself. */
+    hidden?: Record<string, string | number>;
     extra?: Child;
     /** What else is worth knowing, behind "How this works"; `children` stays one sentence. */
     more?: Child;
   }>
-> = ({
-  label,
-  enabled,
-  action,
-  onLabel = t('ui.enabled'),
-  offLabel = t('ui.disabled'),
-  enableText = t('ui.enable'),
-  disableText = t('ui.disable'),
-  extra,
-  more,
-  children,
-}) => (
-  <div class="flex flex-wrap items-start justify-between gap-4">
-    <div class="min-w-0 flex-1">
-      <div class="flex items-center gap-2 text-sm">
-        <span class="font-medium text-ink">{label}</span>
-        <Badge tone={enabled ? 'ok' : 'neutral'}>
-          <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-          {enabled ? onLabel : offLabel}
-        </Badge>
+> = ({ label, enabled, action, onLabel = t('ui.on'), offLabel = t('ui.off'), hidden, extra, more, children }) => {
+  const id = `switch${action.replace(/[^a-z0-9]+/gi, '-')}`;
+  return (
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0 flex-1">
+        <label for={id} class="cursor-pointer text-sm font-medium text-ink">
+          {label}
+        </label>
+        <Hint class="mt-1">{children}</Hint>
+        {more && <More class="mt-1">{more}</More>}
       </div>
-      <Hint class="mt-1">{children}</Hint>
-      {more && <More class="mt-1">{more}</More>}
+      {/* Row, not column: a card with an `extra` action (Discovery's "Run now")
+          keeps it beside the switch; they wrap only when the card is too narrow for both. */}
+      <div class="flex shrink-0 flex-wrap items-center justify-end gap-3">
+        {extra}
+        <ActionForm action={action} hidden={hidden}>
+          <button
+            type="submit"
+            id={id}
+            role="switch"
+            aria-checked={enabled ? 'true' : 'false'}
+            class="group inline-flex min-h-[32px] cursor-pointer items-center gap-2 rounded-full"
+          >
+            <span class="text-note font-medium text-ink-muted">{enabled ? onLabel : offLabel}</span>
+            <span
+              aria-hidden="true"
+              class={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150 ${
+                enabled ? 'bg-ok' : 'bg-line-strong'
+              }`}
+            >
+              <span
+                class={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ${
+                  enabled ? 'translate-x-[22px]' : 'translate-x-0.5'
+                }`}
+              />
+            </span>
+          </button>
+        </ActionForm>
+      </div>
     </div>
-    {/* Row, not column: a card with an `extra` action (Discovery's "Run now")
-        stacked its two buttons vertically, which read as one button dropped
-        below the other. They wrap only when the card is too narrow for both. */}
-    <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-      <ActionForm action={action}>
-        <Button variant={enabled ? 'secondary' : 'primary'}>
-          {enabled ? disableText : enableText}
-        </Button>
-      </ActionForm>
-      {extra}
-    </div>
-  </div>
-);
+  );
+};
 
 /**
  * Newline-joined list in a textarea — the transport the backend already
