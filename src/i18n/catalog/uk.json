@@ -3896,7 +3896,7 @@
   "screening.applicant.career": "Кар'єра за датами: {line}. Кількість роботодавців і тривалість роботи — факти, про які варто спитати, а не бали.",
   "screening.applicant.noRoles": "У тексті немає ролей із датами — роки, галузі й типи компаній до балу не враховано.",
   "screening.applicant.noDates": "без дат",
-  "screening.applicant.notCountedWhy": "не враховано: {why}",
+  "screening.applicant.notCountedWhy": "не враховано: <en>{why}</en>",
   "screening.applicant.questions": "Питання для співбесіди",
   "screening.applicant.noneWritten": "Не записано жодного.",
   "screening.applicant.risks": "Факти для обговорення",
@@ -3947,5 +3947,8 @@
   "resume.read.notZip": "Файл не є коректним .docx (це не zip-архів).",
   "resume.read.unsupported": "Тип файлу «{ext}» не підтримується. Завантажте {accepted}.",
   "resume.read.tooShort": "Із файлу вийшло лише {n, plural, one {# символ} few {# символи} many {# символів} other {# символу}} тексту. Це справді резюме?",
-  "pack.why.companyUnchecked": "Компанію не перевірено: {reason}"
+  "pack.why.companyUnchecked": "Компанію не перевірено: {reason}",
+  "pack.why.postingGone": "Вакансії вже немає.",
+  "pack.why.noResume": "До пошуку, що знайшов цю вакансію, не прив'язано резюме. Прив'яжіть його в «Налаштування → Пошуки → Резюме для цього пошуку», а тоді підготуйте пакет знову.",
+  "pack.why.noResumeMade": "Пакет завершився без резюме, яке можна показати."
 }

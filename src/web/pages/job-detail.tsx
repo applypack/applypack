@@ -641,8 +641,8 @@ const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions
   const places = [...job.countries, ...job.regions];
   if (job.workplace === 'UNKNOWN' && places.length === 0) return null;
   return (
-    // Everything inside is in the reader's language (the catalog, the country names), so a browser may translate it;
-    // the tooltip is the posting's own string, which the header above already shows as posted.
+    // The chips are in the reader's language already (the catalog, the country names); the tooltip is the posting's
+    // own string, so the list is marked as data whole — it only keeps a browser's translator off the posting's words.
     <ul class="mt-2 flex flex-wrap items-center gap-1.5" aria-label={t('job.whereThisJobIs')} title={job.location} translate="no">
       {job.workplace !== 'UNKNOWN' && (
         <li>

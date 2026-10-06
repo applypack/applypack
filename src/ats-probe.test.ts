@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AtsType } from '@prisma/client';
-import { probeAts, robotsRefusal } from './ats-probe';
+import { isDeadToken, probeAts, robotsRefusal } from './ats-probe';
 
 /**
  * A manually added feed or careers page fetches the user's own host, so
@@ -69,4 +69,17 @@ describe('probeAts — the two types that fetch the user’s own site', () => {
       assert.match(result.error ?? '', /robots\.txt/i);
     });
   }
+});
+
+describe('isDeadToken', () => {
+  it('reads a refused token off the vendor status, never off the words', () => {
+    assert.equal(isDeadToken(404), true);
+    assert.equal(isDeadToken(410), true);
+  });
+
+  it('keeps a rate-limited, broken or unanswered probe alive', () => {
+    assert.equal(isDeadToken(429), false);
+    assert.equal(isDeadToken(503), false);
+    assert.equal(isDeadToken(undefined), false);
+  });
 });

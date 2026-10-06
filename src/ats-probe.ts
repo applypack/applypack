@@ -21,6 +21,8 @@ export interface ProbeResult {
   ok: boolean;
   jobsCount?: number;
   error?: string;
+  /** The vendor's HTTP status when it answered with an error — a code to test, where `error` is words in the reader's language. */
+  status?: number;
 }
 
 /** One robots.txt answer, reduced to what `robotsAllows` reads. A failure is a 0. */
@@ -327,13 +329,22 @@ export async function probeAts(
     return { ok: true, jobsCount };
   } catch (err) {
     if (err instanceof HttpError) {
-      return { ok: false, error: describeHttpFailure(err.status, atsType, trimmed) };
+      return { ok: false, error: describeHttpFailure(err.status, atsType, trimmed), status: err.status };
     }
     return {
       ok: false,
       error: err instanceof Error ? err.message : t('probe.unknownError'),
     };
   }
+}
+
+/**
+ * A failed probe that proves the token dead: the vendor looked it up and
+ * refused it (a 4xx). A rate limit (429) says nothing about the token. Read
+ * off the status, never off the words, which follow the reader's language.
+ */
+export function isDeadToken(status: number | undefined): boolean {
+  return status !== undefined && status >= 400 && status < 500 && status !== 429;
 }
 
 /**
@@ -352,7 +363,6 @@ function describeHttpFailure(
   if (status >= 500) {
     return t('probe.http.vendorTrouble', { atsType, status });
   }
-  // "HTTP 4xx" stays in every language: the discovery job reads a dead token off it.
   return t('probe.http.invalidToken', { atsType, status, token: atsToken });
 }
 

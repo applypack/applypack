@@ -126,14 +126,6 @@ app.use('/static/*', async (c, next) => {
 // cannot turn a stylesheet into a 500.
 app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
 
-// Every POST carries a body ceiling; the upload routes bring their own,
-// larger one and are stepped around here (body-limits.ts).
-app.use('*', async (c, next) =>
-  hasOwnBodyLimit(c.req.method, c.req.path)
-    ? next()
-    : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
-);
-
 // Tiny request log; also loads the employer-mode switch once, for the sidebar
 // (ADR 0049), the zone every date on the page is written in, and the language
 // the page is worded in (ADR 0061).
@@ -171,6 +163,15 @@ app.use('*', async (c, next) => {
     'web: request',
   );
 });
+
+// Every POST carries a body ceiling; the upload routes bring their own,
+// larger one and are stepped around here (body-limits.ts). It sits inside the
+// language middleware above, so a 413 reads in the request's language.
+app.use('*', async (c, next) =>
+  hasOwnBodyLimit(c.req.method, c.req.path)
+    ? next()
+    : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
+);
 
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);

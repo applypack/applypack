@@ -3896,7 +3896,7 @@
   "screening.applicant.career": "Career, read off the dates: {line}. Employer count and tenure are facts to ask about, never points.",
   "screening.applicant.noRoles": "No roles with dates the text carries — years, sectors and company types were left out of the score.",
   "screening.applicant.noDates": "no dates",
-  "screening.applicant.notCountedWhy": "not counted: {why}",
+  "screening.applicant.notCountedWhy": "not counted: <en>{why}</en>",
   "screening.applicant.questions": "Questions for the interview",
   "screening.applicant.noneWritten": "None written.",
   "screening.applicant.risks": "Facts to discuss",
@@ -3947,5 +3947,8 @@
   "resume.read.notZip": "The file is not a valid .docx (not a zip archive).",
   "resume.read.unsupported": "Unsupported file type \"{ext}\". Upload {accepted}.",
   "resume.read.tooShort": "Only {n, plural, one {# character} other {# characters}} of text came out of the file — is it a real resume?",
-  "pack.why.companyUnchecked": "The company was not checked: {reason}"
+  "pack.why.companyUnchecked": "The company was not checked: {reason}",
+  "pack.why.postingGone": "The posting is gone.",
+  "pack.why.noResume": "No resume is linked to the search that found this posting. Link one on Settings → Searches → \"Resume for this search\", then prepare the pack again.",
+  "pack.why.noResumeMade": "The pack ended with no resume to show."
 }

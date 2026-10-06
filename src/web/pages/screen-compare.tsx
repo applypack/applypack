@@ -5,7 +5,7 @@ import { ActionForm, Badge, Button, Card, Flash, Hint, Notice, PageHeader } from
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import { CRITERION_KIND_LABELS, criterionLabel, EVIDENCE_RUNG_LABELS } from '../../screening/rubric';
-import { answerBadge, GATE_BUCKET_LABELS, type ScoreRow } from '../../screening/score';
+import { answerBadge, GATE_BUCKET_LABELS, type ScoreRow, detailWords } from '../../screening/score';
 import { GATE_MARK } from '../../screening/export';
 import { who, type ComparisonView } from '../../screening/comparison';
 import type { SideBySide } from '../screen-compare';
@@ -42,8 +42,8 @@ const Cell: FC<{ r: ScoreRow | null }> = ({ r }) => {
       </span>
       {r.mode === 'scored' && r.max > 0 && <span class="ml-1.5 text-meta tabular-nums text-ink-faint">{r.pts} / {r.max}</span>}
       {r.quote && <q class="mt-1 block text-note leading-5 text-ink-muted" translate="no">{r.quote}</q>}
-      {/* Written into the stored breakdown in English (score.ts) — data. */}
-      {!r.quote && r.detail && <div class="mt-1 text-meta text-ink-faint" lang="en">{r.detail}</div>}
+      {/* Stored in English (score.ts) and worded here, as the scorecard words it. */}
+      {!r.quote && r.detail && <div class="mt-1 text-meta text-ink-faint">{detailWords(r.detail)}</div>}
     </>
   );
 };

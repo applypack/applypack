@@ -98,7 +98,6 @@ export const PageHeader: FC<
   </header>
 );
 
-/** "3 hours ago", with the date and time it stands for on hover and in the markup (TASKS R20). */
 /**
  * A model's words inside a sentence of ours, as a `tRich` tag renderer
  * (`{ en: inEnglish }`): marked English, as it wrote them, whatever language
@@ -106,6 +105,7 @@ export const PageHeader: FC<
  */
 export const inEnglish = (words: Child[]) => <span lang="en">{words}</span>;
 
+/** "3 hours ago", with the date and time it stands for on hover and in the markup (TASKS R20). */
 export const When: FC<{ at: Date | null | undefined }> = ({ at }) =>
   at ? (
     <time datetime={at.toISOString()} title={formatDate(at)}>

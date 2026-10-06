@@ -16,6 +16,7 @@ import {
   Table,
   Td,
   Tr,
+  inEnglish,
 } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
@@ -293,7 +294,8 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                           </span>
                         )}
                         <span class="text-ink-faint">
-                          — <span lang="en">{r.relevant ? r.why : t('screening.applicant.notCountedWhy', { why: r.why })}</span>
+                          {/* The model's reason is its own English; "not counted" is ours. */}
+                          — {r.relevant ? <span lang="en">{r.why}</span> : tRich('screening.applicant.notCountedWhy', { why: r.why }, { en: inEnglish })}
                         </span>
                       </li>
                     );

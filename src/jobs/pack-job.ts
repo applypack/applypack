@@ -99,10 +99,10 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
   // Read per pack, not per beat: a setting changed while the queue runs applies to the next pack (gotcha 9).
   const [pack, settings, primary] = await Promise.all([getPackSettings(), getSettings(), getActiveProfile()]);
   const inputs = await loadPackInputs(jobId, primary?.resumeId ?? null);
-  if (!inputs) return fail('The posting is gone.');
+  if (!inputs) return fail(t('pack.why.postingGone'));
   const { posting, resume } = inputs;
   if (!resume) {
-    return fail('No resume is linked to the search that found this posting. Link one on Settings → Searches → "Resume for this search", then prepare the pack again.');
+    return fail(t('pack.why.noResume'));
   }
 
   let prepared: Prepared;
@@ -141,7 +141,7 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
     return 'stopped';
   }
   const made = prepared.resume;
-  if (!made || !prepared.match) return fail('The pack ended with no resume to show.');
+  if (!made || !prepared.match) return fail(t('pack.why.noResumeMade'));
 
   const edits: PackEdits = {
     applied: made.checks.length === 0 ? made.outcome.done.length : 0,

@@ -55,6 +55,7 @@ import { BUCKET_TONE, confidenceLabel, groupRows, type ApplicantRowView } from '
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { formatList } from '../../i18n/format';
 
 export interface ScreenDetailProps {
   screening: {
@@ -702,7 +703,8 @@ function progressText(run: ScreenRunState): string {
     total: run.total,
     failed: run.failed,
     hasFailed: run.failed > 0 ? 'yes' : 'no',
-    reading: run.inFlight.map((n) => `№${n}`).join(', '),
+    // Joined as screen.mjs joins it on every poll, so the first paint reads the same.
+    reading: formatList(run.inFlight.map((n) => `№${n}`), 'unit'),
     hasReading: run.inFlight.length > 0 ? 'yes' : 'no',
     queued: run.queued.length,
     hasQueued: run.queued.length > 0 ? 'yes' : 'no',
