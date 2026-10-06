@@ -238,14 +238,20 @@ lets the user switch it.
   rendered. The `JobPosting` block many job pages carry gives the title, the
   company, the place and the date; its description is the text when it is
   long enough, else the page's `<main>`, else the whole page. The page's own
-  address comes from its canonical link, `og:url`, the block's `url`, or the
-  "saved from url" comment a browser writes, http(s) only. It becomes the
-  job's link, and it is never followed.
+  address comes from the block's `url` or the "saved from url" comment a
+  browser writes — they name this posting — else its canonical link or
+  `og:url`, which a careers page that embeds a board may share across every
+  posting on it; http(s) only. It becomes the job's link, and it is never
+  followed.
+- What a browser's "Webpage, Complete" save puts beside a page (`Job_files/`,
+  or a localized name) is passed over: a framed document in there is not a
+  posting of its own.
 - `.txt` / `.md` as they are; `.pdf` and `.docx` through the resume
   module's readers ([0008](./0008-resume-module-in-web.md) addendum), the
   PDF reader loaded on the first PDF.
 - Fewer than 200 characters is a note, not a posting, and is set aside.
-- Ceilings by kind: 2 MB a page or a text file, 10 MB a PDF or a `.docx`,
+- Ceilings by kind: 2 MB a page or a text file, 5 MB a PDF or a `.docx`
+  (parsed on the event loop, in the worker and in the Check page),
   5 MB a file of rows as before.
 
 **A model reads only what the file did not say.** When the page states its
@@ -261,10 +267,18 @@ one, and `NormalizedJob.handPicked` set. `processNormalizedJobs` then skips
 the search's base filter and the employer gate for it — the user chose it;
 a junk first line must not be what gets it filtered out in silence — and
 scores, alerts, holds and queues packs as for every job. One difference: a
-saved posting every search turns down is stored **Saved**, with its
-verdicts, never Dismissed, which the cleanup deletes after a month. Its id
-is the page's address when there is one, so the same posting saved twice is
-one job, else the title and the text, as a paste is keyed.
+saved posting every search turns down — or the two-stage prefilter sets
+aside — is stored **Saved**, with its verdicts, never Dismissed, which the
+cleanup deletes after a month. Its id is never something a model said: the
+page's own address when it names this posting alone, so the same posting
+saved twice is one job, else its text.
+
+**A model is not paid twice for one file.** A look whose jobs were not all
+stored is dropped, and the next look reads the same files again (the rule
+above). What the model read off a file is remembered by the file's hash for
+the process's life, so that second read asks nothing. And while no running
+search can score — every one is blank — no model is asked at all: the
+posting waits as it does while paused.
 
 **Where it came from.** `Job.sourceFile` (a hand-written migration) names
 the file, for a tool's rows as well. The job page shows "From <folder> /
@@ -276,16 +290,22 @@ job it became, and a match's alert says "From your folder: <folder> /
 out through the normal path, under the alert window, the digest, "Alerts
 off" and the held matches. Below it: silence, and the job on Jobs. A folder
 may set `alerts: off`: its matches are stored and shown, never sent or held
-(`alertSourceOff` on the run).
+(`alertSourceOff` on the run), and no application pack is prepared for them
+on its own — the user asked that folder to stay quiet.
 
 **Read within a minute on a local install** (`jobs/folder-watch.ts`, the
 plan `folder-watch-plan.ts` pure). Under the launcher the worker watches
 the switched-on folders of saved postings (`fs.watch`, recursive where the
 system allows), lets a burst of changes settle for twelve seconds, then runs
 the fetch scoped to that one source under the fetch lock, recorded as a
-`folder-watch` run. It does so outside the search hours — the user has just
-saved it — and never while fetching is paused. A look that meets another
-fetch tries once more a minute later. A server stays on the hourly tick: a
+`folder-watch` run. Only a change a look would read counts: not a hidden
+file, not a download still in progress (its rename into place does), not
+deeper than a look goes. Changes that arrive while a look waits add
+nothing. It runs outside the search hours — the user has just saved it — and
+never while fetching is paused. A look that meets another fetch tries again
+a minute later, and the hourly tick that meets a folder look does the same,
+so a saved posting never costs the hour its search. A folder deleted, or
+deleted and made again, is watched again at the next minute's refresh. A server stays on the hourly tick: a
 change seen through a Docker bind mount is not reliable. The watcher only
 notices; it reads nothing and writes nothing.
 

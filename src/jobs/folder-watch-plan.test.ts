@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { SETTLE_MS } from '../datasets/folder-scan';
-import { WATCH_SETTLE_MS, watchChanges } from './folder-watch-plan';
+import { WATCH_SETTLE_MS, watchChanges, worthALook } from './folder-watch-plan';
 
 describe('watchChanges', () => {
   it('starts a folder switched on, stops one switched off, and leaves the rest alone', () => {
@@ -28,4 +28,16 @@ describe('watchChanges', () => {
 
 it('lets a change settle longer than a look waits for a fresh file, so the look that follows reads it', () => {
   assert.ok(WATCH_SETTLE_MS > SETTLE_MS);
+});
+
+describe('worthALook', () => {
+  it('looks for a saved posting, its rename into place, and a new folder', () => {
+    for (const name of ['job.pdf', 'sub/Job at Acme.html', 'Role.DOCX', 'new folder', null]) assert.equal(worthALook(name), true, String(name));
+  });
+
+  it('passes over what a look never reads', () => {
+    for (const name of ['job.pdf.crdownload', 'job.part', '.DS_Store', '.git/index', 'sub/.hidden/a.html', 'a/b/c/d.html', 'Job_files/logo.png']) {
+      assert.equal(worthALook(name), false, name);
+    }
+  });
 });

@@ -57,8 +57,8 @@ export const SETTLE_MS = 10_000;
 export const MAX_FILE_BYTES = MAX_BODY_MB * 1024 * 1024;
 /** A saved page or a text file: a posting is a few kilobytes, and a page drags its markup along. */
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
-/** A PDF or a .docx of a posting: its fonts and images weigh more than its words. */
-const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/** A PDF or a .docx of a posting: its fonts and images weigh more than its words, and it is parsed on the event loop. */
+const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 
 const count = (n: number): string => n.toLocaleString('en-US');
 
@@ -66,7 +66,6 @@ const count = (n: number): string => n.toLocaleString('en-US');
 export const FILE_NOTES = {
   fresh: 'Changed a moment ago, so it may still be written. The next check reads it.',
   changing: 'It changed while it was read, so it is still being written. The next check reads it.',
-  tooLarge: tooLargeNote('json'),
   refused: 'The system did not let ApplyPack read this file.',
   outside: 'A link, or a file outside the folder. Not read.',
   notRows: 'No rows in it: not a JSON array of objects, JSON Lines, CSV or TSV.',
@@ -122,6 +121,32 @@ export function guessHolds(listing: readonly ListedFile[], include: (relPath: st
     else if (postingFileKind(file.relPath) !== null) postings++;
   }
   return rows > postings ? 'rows' : 'postings';
+}
+
+/**
+ * The files a browser's "Webpage, Complete" save puts beside a page: a folder
+ * named after the page (`Job_files`, or localized, `Job-Dateien`) holding its
+ * images, scripts and framed documents. A framed `.html` in there is not a
+ * posting, so everything under such a folder is passed over.
+ */
+export function pageResources(listing: readonly ListedFile[]): (relPath: string) => boolean {
+  // The pages' names, by the folder they sit in.
+  const stems = new Map<string, string[]>();
+  for (const { relPath } of listing) {
+    if (!/\.html?$/i.test(relPath)) continue;
+    const cut = relPath.lastIndexOf('/');
+    const parent = cut === -1 ? '' : relPath.slice(0, cut);
+    stems.set(parent, [...(stems.get(parent) ?? []), relPath.slice(cut + 1).replace(/\.html?$/i, '')]);
+  }
+  return (relPath) => {
+    const parts = relPath.split('/');
+    for (let i = 0; i < parts.length - 1; i++) {
+      const dir = parts[i]!;
+      const beside = stems.get(parts.slice(0, i).join('/')) ?? [];
+      if (beside.some((stem) => dir.length > stem.length && dir.startsWith(stem) && /[_\- .]/.test(dir[stem.length]!))) return true;
+    }
+    return false;
+  };
 }
 
 /** The most a file of this kind is read at. */

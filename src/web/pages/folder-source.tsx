@@ -176,7 +176,7 @@ const AlertsField: FC<{ alerts: FolderAlerts }> = ({ alerts }) => (
         A match sends an alert, like every source
       </option>
       <option value="off" selected={alerts === 'off'}>
-        No alerts: matches stay on Jobs
+        No alerts: matches stay on Jobs, and get no application pack
       </option>
     </Select>
   </Field>
@@ -479,8 +479,9 @@ const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, ex
                   : 'Fetching is paused: the hourly check does not run. “Check now” stores the files whose page states its title and company, unscored; the others wait until fetching is resumed.'}
               </li>
               <li>
-                A file is read once; the same posting saved twice is one job. Up to {maxBytesOf('html') / (1024 * 1024)} MB a page or a
-                text file, {maxBytesOf('pdf') / (1024 * 1024)} MB a PDF or a .docx.
+                A file is read once, and again only when it changes; a copy of a file already read is set aside, and a page saved twice
+                from the same posting is one job. Up to {maxBytesOf('html') / (1024 * 1024)} MB a page or a text file,{' '}
+                {maxBytesOf('pdf') / (1024 * 1024)} MB a PDF or a .docx; what a browser saves beside a page is passed over.
               </li>
               <li>What a saved file holds goes to your AI engine as every posting does; a local engine keeps it on this computer.</li>
             </ul>

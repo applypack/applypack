@@ -12,6 +12,7 @@ import {
   includeMatcher,
   judgeFile,
   maxBytesOf,
+  pageResources,
   planScan,
   postingFileKind,
   rowFileKind,
@@ -245,13 +246,16 @@ async function previewPostings(
   now: Date,
   base: PreviewBase,
 ): Promise<Omit<PostingsPreviewProps, 'flash'>> {
-  const files = listing.filter((f) => postingFileKind(f.relPath) !== null && matches(f.relPath));
+  // As the look takes them (fetchers/folder.ts): what a browser saves beside a page is not a posting.
+  const resource = pageResources(listing);
+  const take = (relPath: string): boolean => matches(relPath) && !resource(relPath);
+  const files = listing.filter((f) => postingFileKind(f.relPath) !== null && take(f.relPath));
   const kinds: Partial<Record<PostingKind, number>> = {};
   for (const file of files) {
     const kind = postingFileKind(file.relPath)!;
     kinds[kind] = (kinds[kind] ?? 0) + 1;
   }
-  const plan = planScan(listing, ledger, now.getTime(), matches, postingFileKind);
+  const plan = planScan(listing, ledger, now.getTime(), take, postingFileKind);
   const newest: PostingSample[] = [];
   for (const file of [...files].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, NEWEST_SHOWN)) {
     const kind = postingFileKind(file.relPath)!;

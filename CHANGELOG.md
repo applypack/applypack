@@ -13,11 +13,13 @@ All notable changes to this project are documented here. The format follows
   file. Each file becomes one job, taken as a posting you pasted: scored,
   never set aside by a search's filter, and kept as Saved when no search
   wants it. A match alerts like any other and says which folder and file it
-  came from; the folder's **Alerts** can be set to "No alerts".
+  came from; the folder's **Alerts** can be set to "No alerts", which also
+  prepares no application pack for it.
 - Code reads what it can first: a page's own posting block (title, company,
   place, date), its address, its main text. The AI engine is asked for the
-  title and company only when the file does not state them, and never while
-  fetching is paused.
+  title and company only when the file does not state them, never twice for
+  the same file, and never while fetching is paused. What a browser saves
+  beside a page (its `_files` folder) is passed over.
 - **Read within a minute with `npm start`.** The worker watches these
   folders and reads a saved file a few seconds after it lands, outside your
   search hours too. In Docker they are read at the hourly check.

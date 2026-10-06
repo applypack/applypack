@@ -764,10 +764,11 @@ Check guesses which kind a folder holds and lets the user switch it.
   filter and no employer rule sets it aside, it is scored, and one that
   every search turns down is kept **Saved**. A match alerts like any other
   and says "From your folder: <folder> / <file>"; the folder's **Alerts**
-  can be "No alerts", which keeps matches on Jobs only.
+  can be "No alerts", which keeps matches on Jobs only, with no application
+  pack prepared for them on its own.
 - The job page says which folder and file it came from (`Job.sourceFile`),
   and the folder's **Files** page links each file to its job.
-- 2 MB a page or a text file, 10 MB a PDF or a `.docx`; under 200
+- 2 MB a page or a text file, 5 MB a PDF or a `.docx`; under 200
   characters is a note, not a posting.
 - With `npm start` the worker watches these folders and reads a saved file
   within a minute, outside the search hours too, never while paused. A

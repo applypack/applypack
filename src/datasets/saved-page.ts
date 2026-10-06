@@ -28,6 +28,12 @@ export interface SavedPage {
   text: string;
   /** Where the page was saved from, http(s) only; null when the page does not say. */
   address: string | null;
+  /**
+   * Whether the address names this posting alone: the posting block's own
+   * `url` or the browser's "saved from" note. A canonical link or `og:url`
+   * may be a whole careers page that many postings share.
+   */
+  addressIsOwn: boolean;
   /** Null when the page carries no `JobPosting` block. */
   facts: PageFacts | null;
   /** The page's own `<title>`, for the preview; never a job's title by itself. */
@@ -35,7 +41,7 @@ export interface SavedPage {
 }
 
 /** As `jobs/manual-job.ts:MAX_POSTING_CHARS`: the most a posting may run to. */
-const MAX_TEXT_CHARS = 60_000;
+export const MAX_POSTING_TEXT_CHARS = 60_000;
 /** A description shorter than this is a teaser, and the page's own text says more. */
 const MIN_BLOCK_TEXT_CHARS = 200;
 const MAX_FIELD_CHARS = 200;
@@ -53,7 +59,8 @@ const oneLine = (text: string): string => text.replace(/\s+/g, ' ').trim();
 /** A short fact as the page wrote it: entities decoded, markup and control characters gone, one line, capped. */
 function field(value: unknown): string | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null;
-  const text = clipText(oneLine(stripHtml(storableText(String(value)))), MAX_FIELD_CHARS).trim();
+  // Cleaned after the markup is gone: an entity such as `&#7;` only becomes a control character there.
+  const text = clipText(storableText(oneLine(stripHtml(String(value)))), MAX_FIELD_CHARS).trim();
   return text.length > 0 ? text : null;
 }
 
@@ -69,25 +76,30 @@ function attribute(tag: string, name: string): string | null {
   return value === null ? null : decodeHtmlEntities(value);
 }
 
-/** Every opening tag of one name in the head, as text. */
+/** Every opening tag of one name in the head, as text. `[^<>]` stops at the next tag, so `<link<link<link…` stays linear. */
 function tags(head: string, name: string): string[] {
-  return head.match(new RegExp(`<${name}\\b[^>]*>`, 'gi')) ?? [];
+  return head.match(new RegExp(`<${name}\\b[^<>]*>`, 'gi')) ?? [];
 }
 
 /**
- * The page's address, from what the page says about itself: its canonical
- * link, its `og:url`, the posting block's `url`, and the comment a browser
- * writes when it saves a page ("saved from url=").
+ * The page's address, from what the page says about itself: the posting
+ * block's `url` and the browser's "saved from url=" note first — they name
+ * this posting — then its canonical link and its `og:url`, which a careers
+ * page that embeds a board shares across every posting on it.
  */
-function pageAddress(head: string, blockUrl: unknown): string | null {
+function pageAddress(head: string, blockUrl: unknown): { address: string | null; own: boolean } {
+  const savedFrom = /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
+  for (const candidate of [blockUrl, savedFrom]) {
+    const href = link(candidate);
+    if (href !== null) return { address: href, own: true };
+  }
   const canonical = tags(head, 'link').find((tag) => /(^|\s)canonical(\s|$)/i.test(attribute(tag, 'rel') ?? ''));
   const og = tags(head, 'meta').find((tag) => (attribute(tag, 'property') ?? attribute(tag, 'name'))?.toLowerCase() === 'og:url');
-  const savedFrom = /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
-  for (const candidate of [canonical && attribute(canonical, 'href'), og && attribute(og, 'content'), blockUrl, savedFrom]) {
+  for (const candidate of [canonical && attribute(canonical, 'href'), og && attribute(og, 'content')]) {
     const href = link(candidate);
-    if (href !== null) return href;
+    if (href !== null) return { address: href, own: false };
   }
-  return null;
+  return { address: null, own: false };
 }
 
 /** The contents of every `application/ld+json` script, at most `MAX_BLOCKS` of them, found by index, not by a pattern that could backtrack. */
@@ -191,10 +203,12 @@ export function readSavedPage(html: string, now: Date = new Date()): SavedPage {
   }
   const blockText = posting && typeof posting.description === 'string' ? stripHtml(storableText(posting.description)) : '';
   const text = blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : mainText(html);
-  const titleTag = /<title\b[^>]*>([^<]{1,1000})<\/title\s*>/i.exec(head)?.[1];
+  const titleTag = /<title\b[^<>]*>([^<]{1,1000})<\/title\s*>/i.exec(head)?.[1];
+  const { address, own } = pageAddress(head, posting?.url);
   return {
-    text: clipText(storableText(text).trim(), MAX_TEXT_CHARS).trim(),
-    address: pageAddress(head, posting?.url),
+    text: clipText(storableText(text).trim(), MAX_POSTING_TEXT_CHARS).trim(),
+    address,
+    addressIsOwn: own,
     facts: posting ? readFacts(posting, now) : null,
     pageTitle: titleTag === undefined ? null : field(titleTag),
   };

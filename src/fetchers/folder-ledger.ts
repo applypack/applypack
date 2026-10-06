@@ -8,7 +8,8 @@
  * fetcher stages; `runFetchJob` hands the looks to the ledger only when
  * `tickStoredEverything()` agrees. A tick that did not store everything drops
  * them, and the next look reads the same files again: rows already stored are
- * duplicates, which cost nothing.
+ * duplicates, which cost nothing, and a saved posting's model reading is
+ * remembered by its file's hash (fetchers/folder.ts), so it is not paid twice.
  */
 
 import type { FileChange } from '../datasets/folder-scan';
@@ -16,7 +17,7 @@ import type { FileChange } from '../datasets/folder-scan';
 export interface FolderLook {
   companyId: number;
   at: Date;
-  /** Every row file the look listed: what "N files" counts. */
+  /** Every file of the folder's kind the look listed: what "N files" counts. */
   seen: string[];
   changes: FileChange[];
 }

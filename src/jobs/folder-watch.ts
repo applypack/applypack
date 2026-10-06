@@ -1,9 +1,9 @@
-import { watch, type FSWatcher } from 'node:fs';
+import { statSync, watch, type FSWatcher } from 'node:fs';
 import { AtsType } from '@prisma/client';
 import { readSourceConfig } from '../datasets/map';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { WATCH_REFRESH_MS, WATCH_SETTLE_MS, watchChanges } from './folder-watch-plan';
+import { WATCH_REFRESH_MS, WATCH_RETRY_MS, WATCH_SETTLE_MS, watchChanges, worthALook } from './folder-watch-plan';
 
 /*
  * A posting saved into a folder is read within a minute on a local install
@@ -15,8 +15,8 @@ import { WATCH_REFRESH_MS, WATCH_SETTLE_MS, watchChanges } from './folder-watch-
  * watcher only notices; it reads nothing and writes nothing.
  */
 
-/** What the worker does when a folder settled: a look at that source; resolves when it is done. */
-export type FolderCheck = (companyId: number) => Promise<void>;
+/** What the worker does when a folder settled: a look at that source. `busy` = another fetch held the lock; try again later. */
+export type FolderCheck = (companyId: number) => Promise<'done' | 'busy'>;
 
 export interface FolderWatch {
   stop(): void;
@@ -28,48 +28,84 @@ async function wantedFolders(): Promise<Map<number, string>> {
   return new Map(rows.filter((r) => readSourceConfig(r.sourceConfig)?.holds === 'postings').map((r) => [r.id, r.atsToken]));
 }
 
+/** The folder's inode, or null when it is gone: a folder deleted and made again is a new one to watch. */
+function inodeOf(path: string): number | null {
+  try {
+    return statSync(path).ino;
+  } catch {
+    return null;
+  }
+}
+
 export function startFolderWatch(check: FolderCheck): FolderWatch {
-  const watchers = new Map<number, { path: string; watcher: FSWatcher }>();
+  const watchers = new Map<number, { path: string; ino: number | null; watcher: FSWatcher }>();
   const timers = new Map<number, NodeJS.Timeout>();
+  /** Folders waiting in the queue: a second change before the look starts adds nothing. */
+  const queued = new Set<number>();
+  /** Folders that could not be watched: said once, tried again at every refresh. */
+  const unwatchable = new Set<number>();
   let running: Promise<void> = Promise.resolve();
   let stopped = false;
 
   // One look at a time, in the order the folders settled.
-  const settle = (id: number): void => {
+  const enqueue = (id: number): void => {
+    if (queued.has(id)) return;
+    queued.add(id);
+    running = running
+      .then(async () => {
+        queued.delete(id);
+        if (stopped) return;
+        if ((await check(id)) === 'busy') later(id, WATCH_RETRY_MS);
+      })
+      .catch((err) => logger.warn({ err, companyId: id }, 'folder-watch: the look failed'));
+  };
+  const later = (id: number, ms: number): void => {
     clearTimeout(timers.get(id));
     timers.set(
       id,
       setTimeout(() => {
         timers.delete(id);
-        running = running.then(() => (stopped ? undefined : check(id))).catch((err) => logger.warn({ err, companyId: id }, 'folder-watch: the look failed'));
-      }, WATCH_SETTLE_MS).unref(),
+        enqueue(id);
+      }, ms).unref(),
     );
   };
 
   const open = (id: number, path: string): void => {
+    const onChange = (_event: string, filename: string | Buffer | null): void => {
+      if (worthALook(filename === null ? null : String(filename))) later(id, WATCH_SETTLE_MS);
+    };
     let watcher: FSWatcher;
     try {
-      watcher = watch(path, { recursive: true, persistent: false }, () => settle(id));
+      watcher = watch(path, { recursive: true, persistent: false }, onChange);
     } catch (err) {
       // A system without recursive watching still sees the folder itself; deeper files wait for the hourly tick.
       try {
-        watcher = watch(path, { persistent: false }, () => settle(id));
+        watcher = watch(path, { persistent: false }, onChange);
       } catch {
-        logger.warn({ err, companyId: id }, 'folder-watch: the folder cannot be watched; the hourly check reads it');
+        if (!unwatchable.has(id)) logger.warn({ err, companyId: id }, 'folder-watch: the folder cannot be watched; the hourly check reads it');
+        unwatchable.add(id);
         return;
       }
     }
-    // A folder that disappears ends its watcher; the next refresh opens it again once it is back.
+    unwatchable.delete(id);
+    // A watcher that stops is opened again at the next refresh.
     watcher.on('error', (err) => {
       logger.warn({ err, companyId: id }, 'folder-watch: watcher stopped');
       watcher.close();
       watchers.delete(id);
     });
-    watchers.set(id, { path, watcher });
+    watchers.set(id, { path, ino: inodeOf(path), watcher });
   };
 
   const refresh = async (): Promise<void> => {
     if (stopped) return;
+    // A folder deleted, or deleted and made again, leaves a watcher on nothing: close it, and it is opened again below.
+    for (const [id, w] of watchers) {
+      if (inodeOf(w.path) !== w.ino) {
+        w.watcher.close();
+        watchers.delete(id);
+      }
+    }
     const current = new Map([...watchers].map(([id, w]) => [id, w.path]));
     const { start, stop } = watchChanges(await wantedFolders(), current);
     for (const id of stop) {

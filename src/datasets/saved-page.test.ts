@@ -58,14 +58,20 @@ describe('readSavedPage: the posting block', () => {
 });
 
 describe('readSavedPage: the page’s address', () => {
-  it('takes the canonical link first, then og:url, then the posting’s url, then the browser’s saved-from note', () => {
+  it('takes the posting’s own url and the browser’s saved-from note before the canonical link and og:url', () => {
     const canonical = '<link rel="canonical" href="https://jobs.example/acme/123?ref=a&amp;b=1">';
     const og = '<meta property="og:url" content="https://og.example/123">';
     const saved = '<!-- saved from url=(0031)https://saved.example/job/123 -->';
-    assert.equal(readSavedPage(page({ head: canonical + og }), NOW).address, 'https://jobs.example/acme/123?ref=a&b=1');
-    assert.equal(readSavedPage(page({ head: og }), NOW).address, 'https://og.example/123');
-    assert.equal(readSavedPage(page({ head: block({ '@type': 'JobPosting', url: 'https://block.example/1' }) }), NOW).address, 'https://block.example/1');
-    assert.equal(readSavedPage(`${saved}\n${page()}`, NOW).address, 'https://saved.example/job/123');
+    const own = block({ '@type': 'JobPosting', url: 'https://block.example/1' });
+    const at = (html: string): [string | null, boolean] => {
+      const got = readSavedPage(html, NOW);
+      return [got.address, got.addressIsOwn];
+    };
+    assert.deepEqual(at(page({ head: canonical + og + own })), ['https://block.example/1', true]);
+    assert.deepEqual(at(`${saved}\n${page({ head: canonical })}`), ['https://saved.example/job/123', true]);
+    // A canonical link or og:url may be a careers page every posting on it shares: kept as the link, not as the posting's own.
+    assert.deepEqual(at(page({ head: canonical + og })), ['https://jobs.example/acme/123?ref=a&b=1', false]);
+    assert.deepEqual(at(page({ head: og })), ['https://og.example/123', false]);
   });
 
   it('keeps no address that is not http(s)', () => {
@@ -81,10 +87,21 @@ describe('readSavedPage on what a page should not be able to do', () => {
   });
 
   it('stays quick on a page of unclosed scripts and a huge head', () => {
-    const hostile = `${'<script type="application/ld+json">'.repeat(5_000)}${'<link rel=x '.repeat(20_000)}`;
-    const started = performance.now();
-    readSavedPage(hostile, NOW);
-    assert.ok(performance.now() - started < 2_000);
+    for (const hostile of [
+      `${'<script type="application/ld+json">'.repeat(5_000)}${'<link rel=x '.repeat(20_000)}`,
+      '<link'.repeat(60_000),
+      '<meta'.repeat(60_000),
+      `<title${'<title'.repeat(50_000)}`,
+    ]) {
+      const started = performance.now();
+      readSavedPage(hostile, NOW);
+      assert.ok(performance.now() - started < 1_000, hostile.slice(0, 12));
+    }
+  });
+
+  it('drops a control character an entity spells', () => {
+    const got = readSavedPage(page({ head: block({ '@type': 'JobPosting', title: 'Dev&#7;eloper', hiringOrganization: 'Ac&#1;me' }) }), NOW);
+    assert.deepEqual([got.facts?.title, got.facts?.company], ['Developer', 'Acme']);
   });
 
   it('reads a block nested past the depth it walks as no block at all', () => {

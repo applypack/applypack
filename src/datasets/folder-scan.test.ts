@@ -10,6 +10,7 @@ import {
   includeMatcher,
   kindsFor,
   maxBytesOf,
+  pageResources,
   postingFileKind,
   tooLargeNote,
   judgeFile,
@@ -235,7 +236,7 @@ describe('judgeFile', () => {
     assert.deepEqual(judge({ ok: false, why: 'gone' }), { change: null, jobs: [], rows: 'none' });
     assert.deepEqual([judge({ ok: false, why: 'changing' }).change?.status, judge({ ok: false, why: 'changing' }).change?.detail], ['waiting', FILE_NOTES.changing]);
     assert.deepEqual([judge({ ok: false, why: 'refused' }).change?.status, judge({ ok: false, why: 'refused' }).change?.detail], ['failed', FILE_NOTES.refused]);
-    assert.equal(judge({ ok: false, why: 'too-large' }).change?.detail, FILE_NOTES.tooLarge);
+    assert.equal(judge({ ok: false, why: 'too-large' }).change?.detail, tooLargeNote('json'));
     assert.equal(judge({ ok: false, why: 'outside' }).change?.detail, FILE_NOTES.outside);
     assert.equal(judge({ ok: false, why: 'outside' }).change?.status, 'skipped');
     const odd = judge({ ok: false, why: 'unreadable', code: 'EIO' }).change;
@@ -288,8 +289,8 @@ describe('saved postings in a folder', () => {
 
   it('reads each kind up to its own size, and says so in the list', () => {
     assert.equal(maxBytesOf('json'), MAX_FILE_BYTES);
-    assert.ok(maxBytesOf('html') < maxBytesOf('json') && maxBytesOf('json') < maxBytesOf('pdf'));
-    assert.match(tooLargeNote('pdf'), /10 MB, which is more than a document/);
+    assert.ok(maxBytesOf('html') < maxBytesOf('pdf'));
+    assert.match(tooLargeNote('pdf'), /5 MB, which is more than a document/);
     const page = file('big.html', 10 * MINUTE, maxBytesOf('html') + 1);
     const plan = planScan([page, file('ok.pdf', 10 * MINUTE, maxBytesOf('html') + 1)], [], NOW, undefined, postingFileKind);
     assert.deepEqual([names(plan.tooLarge), names(plan.read)], [['big.html'], ['ok.pdf']]);
@@ -301,5 +302,13 @@ describe('saved postings in a folder', () => {
     assert.equal(guessHolds([file('a.json'), file('c.html'), file('d.pdf')]), 'postings');
     assert.equal(guessHolds([]), 'postings');
     assert.equal(guessHolds([file('a.json'), file('c.html'), file('d.pdf')], includeMatcher('*.json')), 'rows');
+  });
+});
+
+describe('pageResources', () => {
+  it('passes over what a browser saves beside a page, localized names too, and nothing else', () => {
+    const listing = [file('Job at Acme.html'), file('Job at Acme_files/frame.html'), file('Job at Acme_files/deep/x.html'), file('sub/Role.htm'), file('sub/Role-Dateien/a.html'), file('old_files/real.html'), file('Job at Acme Two.html')];
+    const isResource = pageResources(listing);
+    assert.deepEqual(listing.map((f) => f.relPath).filter(isResource), ['Job at Acme_files/frame.html', 'Job at Acme_files/deep/x.html', 'sub/Role-Dateien/a.html']);
   });
 });

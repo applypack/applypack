@@ -155,13 +155,16 @@ export async function runAllFetchers(
   // Where the running searches hunt (stage 3a): sources with a geo filter
   // ask for these places instead of the whole world. Blank searches are
   // left out here as they are in process-jobs — they gate on nothing.
-  const places = opts.places ?? searchPlaces((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
+  const usable = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  const places = opts.places ?? searchPlaces(usable);
   if (places.countries.length > 0 || places.regions.length > 0) {
     logger.info(places, 'fetchers: geo-filtered sources follow the searches');
   }
+  // A model is worth asking only when something will score what it reads (process-jobs.ts drops a blank search).
+  const scoring = settings.fetchingEnabled && usable.length > 0;
   // The keyed sources' credentials ride in the context (ADR 0034); the
   // context is never logged whole from here on.
-  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now, scoring: settings.fetchingEnabled };
+  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now, scoring };
   // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
   // beyond that are refused, not silently fetched (ADR 0034). The ids come
   // from their own query over the FULL active list, not from this tick's due
@@ -419,9 +422,9 @@ export async function fetchOne(
       // the row is never active.
       return [];
     case AtsType.FOLDER:
-      // A folder a tool writes into (ADR 0062): read from the disk, no
-      // request. What it learns about each file is staged in
-      // `folder-ledger.ts` and kept once the tick stored the jobs.
+      // A folder a tool writes into, or one the user saves postings into
+      // (ADR 0062): read from the disk, no request. What it learns about each
+      // file is staged in `folder-ledger.ts` and kept once the tick stored the jobs.
       return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS), {
         now: context.now,
         scoring: context.scoring !== false,

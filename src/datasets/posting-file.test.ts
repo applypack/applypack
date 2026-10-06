@@ -54,10 +54,10 @@ describe('readPostingFile', () => {
 
 describe('savedPostingJob', () => {
   const file = { companyId: 7, relPath: 'saved/Senior_PHP_Developer at Acme.pdf', mtimeMs: Date.UTC(2026, 9, 5) };
-  const plain = { ok: true as const, text: BODY, address: null, facts: null, pageTitle: null };
+  const plain = { ok: true as const, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null };
 
   it('takes what the page said first, a model’s reading second', () => {
-    const page = { ...plain, address: 'https://jobs.example/9', facts: { title: 'Page Title', company: 'Page Co', location: null, workplace: 'REMOTE' as const, postedAt: null } };
+    const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true, facts: { title: 'Page Title', company: 'Page Co', location: null, workplace: 'REMOTE' as const, postedAt: null } };
     const job = savedPostingJob(file, page, { title: 'Model Title', company: 'Model Co', location: 'Berlin', workplace: 'hybrid' });
     assert.deepEqual(
       [job.title, job.employer, job.location, job.locationHints?.workplace, job.url],
@@ -78,13 +78,27 @@ describe('savedPostingJob', () => {
     assert.match(savedPostingNote(job), /company not named; the file gives no address/);
   });
 
-  it('keys a posting by its address, so the same page saved twice is one job', () => {
-    const page = { ...plain, address: 'https://jobs.example/9' };
+  it('keys a posting by its own address, so the same page saved twice is one job', () => {
+    const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true };
     const a = savedPostingJob(file, page, null);
     const b = savedPostingJob({ ...file, relPath: 'other.html' }, { ...page, text: `${BODY} (edited)` }, null);
     assert.equal(a.externalId, b.externalId);
     assert.notEqual(savedPostingJob(file, plain, null).externalId, a.externalId);
     assert.match(a.externalId, /^saved-[0-9a-f]{16}$/);
+  });
+
+  it('keys by the text when the address is a careers page many postings share', () => {
+    const shared = { ...plain, address: 'https://careers.example/', addressIsOwn: false };
+    const one = savedPostingJob(file, shared, null);
+    const other = savedPostingJob(file, { ...shared, text: `${BODY} Another role entirely.` }, null);
+    assert.notEqual(one.externalId, other.externalId);
+    assert.equal(one.url, 'https://careers.example/');
+  });
+
+  it('never keys by what a model said: a title worded differently is the same job', () => {
+    const first = savedPostingJob(file, plain, { title: 'Senior PHP Dev', company: 'Acme', location: null, workplace: null });
+    const again = savedPostingJob(file, plain, { title: 'Senior PHP Developer', company: 'Acme', location: null, workplace: null });
+    assert.equal(first.externalId, again.externalId);
   });
 
   it('asks a model only when the page did not say both its title and its company', () => {

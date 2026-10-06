@@ -7,6 +7,7 @@ import {
   kindsFor,
   maxBytesOf,
   newestIsMisfit,
+  pageResources,
   planScan,
   postingFileKind,
   unreadChange,
@@ -40,7 +41,7 @@ interface FolderCompany {
 
 export interface FolderLookOptions {
   now?: Date;
-  /** False while fetching is paused: no model is asked, and a posting that needs one waits. */
+  /** False while fetching is paused, or while no running search can score: no model is asked, and a posting that needs one waits. */
   scoring?: boolean;
 }
 
@@ -55,7 +56,10 @@ export async function fetchFolder(company: FolderCompany, ledger: readonly Ledge
   if (!allowed.ok) throw new FolderError('not-allowed', allowed.reason);
 
   const listing = await listFolder(root);
-  const include = includeMatcher(config.include);
+  const named = includeMatcher(config.include);
+  // What a browser saves beside a page (its `_files` folder) is never a posting of its own.
+  const resource = config.holds === 'postings' ? pageResources(listing) : () => false;
+  const include = (relPath: string): boolean => named(relPath) && !resource(relPath);
   const kindOf = kindsFor(config.holds);
   const { jobs, changes, misfit } = await (config.holds === 'postings'
     ? lookAtPostings(company.id, root, listing, ledger, include, now, opts.scoring !== false)
@@ -109,14 +113,30 @@ async function lookAtRows(
   return { jobs, changes, misfit };
 }
 
+/**
+ * What the model read off a file, by the file's hash: a look whose jobs were
+ * not all stored is dropped and the file read again, and asking again about
+ * the same bytes would be the same answer, paid twice. Kept for the
+ * process's life, the oldest forgotten past the cap.
+ */
+const readByModel = new Map<string, ModelFacts>();
+const READ_BY_MODEL_CAP = 500;
+
 /** A model's reading of a posting's head, or null when no engine answered: the file's name then stands in for the title. */
-async function readWithModel(text: string): Promise<ModelFacts | null> {
+async function readWithModel(sha256: string, text: string): Promise<ModelFacts | null> {
+  const known = readByModel.get(sha256);
+  if (known) return known;
+  let facts: ModelFacts | null = null;
   try {
-    return await extractPostingFacts(text);
+    facts = await extractPostingFacts(text);
   } catch (err) {
     logger.warn({ err }, 'folder: a saved posting was not read by the model; its file name stands in');
-    return null;
   }
+  if (facts) {
+    if (readByModel.size >= READ_BY_MODEL_CAP) readByModel.delete(readByModel.keys().next().value!);
+    readByModel.set(sha256, facts);
+  }
+  return facts;
 }
 
 async function lookAtPostings(
@@ -156,12 +176,12 @@ async function lookAtPostings(
     }
     let model: ModelFacts | null = null;
     if (needsModel(read)) {
-      // Paused: nothing is sent to a model, and the file is read again once it may be.
+      // Paused, or no search can score: nothing is sent to a model, and the file is read again once it may be.
       if (!scoring) {
         changes.push({ ...measured, sha256: null, status: 'waiting', detail: POSTING_NOTES.needsModel });
         continue;
       }
-      model = await readWithModel(read.text);
+      model = await readWithModel(got.sha256, read.text);
     }
     const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model);
     changes.push({ ...measured, status: 'done', detail: savedPostingNote(job), jobCount: 1 });

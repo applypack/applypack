@@ -337,8 +337,9 @@ export async function processNormalizedJobs(
       stats.preFiltered++;
       // Stored, dismissed and unscored, with the prefilter's reason: unstored,
       // the next tick met it as new and paid the prefilter again, every hour it
-      // stayed on its feed (#290). "Save & re-classify" still reads it.
-      await persistJob(placed, null, JobStatus.DISMISSED, [], batch, {
+      // stayed on its feed (#290). "Save & re-classify" still reads it. A
+      // posting the user saved is kept Saved instead, as below (ADR 0062).
+      await persistJob(placed, null, job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, [], batch, {
         summary: prefilterReason ? `Set aside by the prefilter: ${prefilterReason}` : 'Set aside by the prefilter.',
       });
       continue;
@@ -409,8 +410,10 @@ export async function processNormalizedJobs(
     // Asked here and nowhere else — about a posting this tick has just
     // stored — so the backlog is never walked and a re-classify queues
     // nothing (pack/trigger.ts). The runner picks the row up (pack-job.ts).
+    // A source whose alerts are off asked to be left quiet: no pack is prepared on its own either.
     if (
       !skipsAlert &&
+      item.quiet !== true &&
       autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, now: new Date(), queuedToday: packsToday }) === 'queue'
     ) {
       // A pack is an extra: failing to queue one must never cost the match its alert.

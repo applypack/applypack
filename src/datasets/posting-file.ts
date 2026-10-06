@@ -14,16 +14,14 @@ import { clipText, hashShortId, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import type { PostingKind } from './folder-scan';
 import { decodeBody } from './rows';
-import { readSavedPage, type PageFacts } from './saved-page';
+import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts } from './saved-page';
 
 /** As `jobs/manual-job.ts:MIN_DESCRIPTION_CHARS`: less than this is not a posting, it is a note. */
 const MIN_POSTING_CHARS = 200;
-/** As `jobs/manual-job.ts:MAX_POSTING_CHARS`. */
-const MAX_POSTING_CHARS = 60_000;
 const MAX_TITLE_CHARS = 200;
 
 export type PostingRead =
-  | { ok: true; text: string; address: string | null; facts: PageFacts | null; pageTitle: string | null }
+  | { ok: true; text: string; address: string | null; addressIsOwn: boolean; facts: PageFacts | null; pageTitle: string | null }
   | { ok: false; why: string };
 
 /** What the per-file list says about a saved posting that gave no job. */
@@ -34,7 +32,8 @@ export const POSTING_NOTES = {
   needsModel: 'Waits until fetching is resumed: the page does not say its title and company, and reading them asks the AI engine.',
 } as const;
 
-const text = (raw: string): string => clipText(storableText(raw.replace(/\r\n?/g, '\n')).trim(), MAX_POSTING_CHARS).trim();
+const text = (raw: string): string => clipText(storableText(raw.replace(/\r\n?/g, '\n')).trim(), MAX_POSTING_TEXT_CHARS).trim();
+const plain = (body: string): Extract<PostingRead, { ok: true }> => ({ ok: true, text: text(body), address: null, addressIsOwn: false, facts: null, pageTitle: null });
 
 /** A saved file as text and what it says about itself. Never throws for what a file holds. */
 export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now: Date = new Date()): Promise<PostingRead> {
@@ -44,18 +43,18 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
   } else if (kind === 'pdf') {
     try {
       const { pdfToText } = await import('../resume/pdf-text.js');
-      read = { ok: true, text: text(await pdfToText(Buffer.from(bytes))), address: null, facts: null, pageTitle: null };
+      read = plain(await pdfToText(Buffer.from(bytes)));
     } catch {
       return { ok: false, why: POSTING_NOTES.pdf };
     }
   } else if (kind === 'docx') {
     try {
-      read = { ok: true, text: text(docxToText(Buffer.from(bytes))), address: null, facts: null, pageTitle: null };
+      read = plain(docxToText(Buffer.from(bytes)));
     } catch {
       return { ok: false, why: POSTING_NOTES.docx };
     }
   } else {
-    read = { ok: true, text: text(decodeBody(bytes).replace(/^﻿/, '')), address: null, facts: null, pageTitle: null };
+    read = plain(decodeBody(bytes).replace(/^\uFEFF/, ''));
   }
   return read.text.length < MIN_POSTING_CHARS ? { ok: false, why: POSTING_NOTES.tooShort } : read;
 }
@@ -91,10 +90,9 @@ export interface SavedFile {
 
 /**
  * The job a saved posting becomes. What the page said itself comes first, a
- * model's reading second, the file's name last for the title. The id is the
- * page's address when it has one — the same posting saved twice is one job —
- * else the title and the text, as a paste is keyed. Flagged `handPicked`:
- * the user chose it, so no base filter and no employer gate turns it away.
+ * model's reading second, the file's name last for the title. The id is
+ * `savedPostingId`: nothing a model said. Flagged `handPicked`: the user
+ * chose it, so no base filter and no employer gate turns it away.
  */
 export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok: true }>, model: ModelFacts | null): NormalizedJob {
   const facts = read.facts;
@@ -102,7 +100,7 @@ export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok
   const workplace = facts?.workplace ?? (model?.workplace ? WORKPLACE[model.workplace] : null);
   return {
     companyId: file.companyId,
-    externalId: `saved-${hashShortId(read.address ?? `${title}\n${read.text}`)}`,
+    externalId: savedPostingId(read),
     title,
     url: read.address ?? '',
     location: facts?.location ?? model?.location ?? '',
@@ -113,6 +111,16 @@ export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok
     sourceFile: file.relPath,
     handPicked: true,
   };
+}
+
+/**
+ * A saved posting's id, from what code read and never from what a model said
+ * (a title worded differently would make a second job): the page's own
+ * address when it names this posting alone — the same posting saved twice is
+ * one job — else its text.
+ */
+function savedPostingId(read: Extract<PostingRead, { ok: true }>): string {
+  return `saved-${hashShortId(read.addressIsOwn && read.address !== null ? read.address : read.text)}`;
 }
 
 /** The per-file list's line for a saved posting that became a job. */

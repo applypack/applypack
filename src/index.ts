@@ -29,6 +29,8 @@ let inFlight = 0;
 let shuttingDown = false;
 /** Watches the folders of saved postings on a local install (ADR 0062); null on a server. */
 let folderWatch: FolderWatch | null = null;
+/** A folder check holds the fetch lock right now. */
+let folderChecking = false;
 /** This install's identity — read once in main(), before anything registers. */
 let instanceId = '';
 
@@ -48,7 +50,7 @@ async function main(): Promise<void> {
   // the same board in the same second (docs/scale-plan.md §2).
   instanceId = await getInstanceId();
 
-  registerCron('5 * * * *', 'fetch', () => recordCronRun('fetch', runFetchJob));
+  registerCron('5 * * * *', 'fetch', fetchTick);
   // Both daily summaries follow the one "digest time" the user picks
   // (TASKS §16.4), so the heartbeat is hourly and the hour decides. They read
   // that hour differently: the recap is a window and goes out at every digest
@@ -106,11 +108,12 @@ async function main(): Promise<void> {
  * fetch scoped to that row, under the same lock as the tick. Never while
  * fetching is paused — a saved posting waits for the pipeline as every source
  * does — and outside the search hours too, since the user has just saved it.
- * A check that met another fetch tries once more a minute later.
+ * `busy` when another fetch held the lock: the watcher tries again later.
  */
-async function checkFolder(companyId: number): Promise<void> {
-  if (shuttingDown || !(await getSettings()).fetchingEnabled) return;
+async function checkFolder(companyId: number): Promise<'done' | 'busy'> {
+  if (shuttingDown || !(await getSettings()).fetchingEnabled) return 'done';
   inFlight++;
+  folderChecking = true;
   let overlap = false;
   try {
     await recordCronRun('folder-watch', async () => {
@@ -119,9 +122,33 @@ async function checkFolder(companyId: number): Promise<void> {
       return out;
     });
   } finally {
+    folderChecking = false;
     inFlight--;
   }
-  if (overlap) setTimeout(() => void checkFolder(companyId), WATCH_RETRY_MS).unref();
+  return overlap ? 'busy' : 'done';
+}
+
+/**
+ * The hourly tick. One that met a folder check holding the lock tries once
+ * more a minute later, so a saved posting never costs the hour its search.
+ */
+async function fetchTick(): Promise<void> {
+  const blockedByFolder = folderChecking;
+  let overlap = false;
+  await recordCronRun('fetch', async () => {
+    const out = await runFetchJob();
+    overlap = out.stats.reason === 'overlap';
+    return out;
+  });
+  if (overlap && (blockedByFolder || folderChecking)) {
+    setTimeout(() => {
+      if (shuttingDown) return;
+      inFlight++;
+      void recordCronRun('fetch', runFetchJob)
+        .catch((err) => logger.warn({ err }, 'cron: the retried fetch failed'))
+        .finally(() => inFlight--);
+    }, WATCH_RETRY_MS).unref();
+  }
 }
 
 /** The container healthcheck's evidence that this process still turns (heartbeat.ts). */

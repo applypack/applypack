@@ -193,7 +193,8 @@ model SourceFile {
   mtime     DateTime
   // Of the bytes as read; NULL for a file that was never read.
   sha256    String?
-  // json | jsonl | csv | tsv, by the file's name.
+  // By the file's name: json | jsonl | csv | tsv for a tool's rows,
+  // html | txt | md | pdf | docx for a saved posting (folder-scan.ts:FileKind).
   kind      String
   // done | waiting | skipped | failed (datasets/folder-scan.ts:FileStatus).
   status    String
