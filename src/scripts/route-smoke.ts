@@ -900,6 +900,7 @@ async function folderChecks(): Promise<Check[]> {
     check('GET /companies with a folder among the sources', '/companies', list, list.status === 200 && (await list.text()).includes('1 file · 0 new at the last check'));
     const removed = await app.request(`/companies/${folder.id}/delete`, form({}));
     check('POST /companies/:id/delete on a folder (its jobs and its ledger go, its files stay)', `/companies/${folder.id}/delete`, removed, removed.status === 303 && (await stored()) === 0 && (await prisma.sourceFile.count()) === 0 && (await fs.readdir(inbox)).length === 1);
+    out.push(...(await savedPostingChecks(path.join(inbox, 'saved'), checkNow, stored)));
   } finally {
     await setFetchingEnabled(wasFetching);
     await fs.rm(inbox, { recursive: true, force: true });
@@ -947,6 +948,52 @@ async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url:
   ].join('\n');
   rows.push({ route: `the pseudo-language pass (${perPage.length} pages drawn)`, url: '', status: 200, ok: perPage.length > 0 });
   return { rows, report };
+}
+
+const SAVED_BODY = 'Own the PHP billing services, their APIs and their queues, with two other engineers, remotely across the EU. '.repeat(3);
+
+/**
+ * ADR 0062, saved postings, with fetching paused so no engine is asked: a
+ * page that states its title and company is stored unscored as a job of the
+ * folder, a text file that would need a model to read them waits, and the
+ * job page names the file it came from.
+ */
+async function savedPostingChecks(dir: string, checkNow: (id: number) => Promise<Response>, stored: () => Promise<number>): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, url: string, res: Response, ok: boolean): void => {
+    out.push({ route, url, status: res.status, ok });
+  };
+  await fs.mkdir(dir, { recursive: true });
+  const block = { '@context': 'https://schema.org', '@type': 'JobPosting', title: 'Senior PHP Developer', hiringOrganization: { name: 'Smoke Saved Co' }, description: SAVED_BODY };
+  await fs.writeFile(path.join(dir, 'page.html'), `<html><head><link rel="canonical" href="https://saved.example/jobs/1"><script type="application/ld+json">${JSON.stringify(block)}</script></head><body><main>${SAVED_BODY}</main></body></html>`);
+  await fs.writeFile(path.join(dir, 'note.txt'), `Backend Engineer\n\n${SAVED_BODY}`);
+  const settledAt = new Date(Date.now() - 60_000);
+  for (const name of ['page.html', 'note.txt']) await fs.utimes(path.join(dir, name), settledAt, settledAt);
+
+  const preview = await app.request('/companies/folder/check', form({ path: dir, name: 'Smoke saved' }));
+  const html = preview.status === 200 ? await preview.text() : '';
+  check('POST /companies/folder/check on saved postings (read as postings, the newest without AI)', '/companies/folder/check', preview, html.includes('2 saved postings') && html.includes('Senior PHP Developer') && html.includes('https://saved.example/jobs/1'));
+  const added = await app.request('/companies/folder', form({ path: dir, name: 'Smoke saved', include: '', holds: 'postings', alerts: 'off' }));
+  const folder = await prisma.company.findFirst({ where: { atsType: 'FOLDER', name: 'Smoke saved' } });
+  check('POST /companies/folder (saved postings added, no mapping)', '/companies/folder', added, added.status === 303 && folder?.active === false);
+  if (!folder) return out;
+  await app.request(`/companies/${folder.id}/toggle-active`, form({}));
+  const looked = await checkNow(folder.id);
+  const job = await prisma.job.findFirst({ where: { companyId: folder.id } });
+  const note = await prisma.sourceFile.findFirst({ where: { companyId: folder.id, relPath: 'note.txt' } });
+  check(
+    'POST /companies/:id/check-now on saved postings while paused (the page stored unscored, the text waits for a model)',
+    `/companies/${folder.id}/check-now`,
+    looked,
+    (await stored()) === 1 && job?.sourceFile === 'page.html' && job.fitScore === null && job.employer === 'Smoke Saved Co' && job.url === 'https://saved.example/jobs/1' && note?.status === 'waiting',
+  );
+  if (job) {
+    const page = await app.request(`/jobs/${job.id}`, { headers: ORIGIN });
+    check('GET /jobs/:id for a saved posting (names its folder and file)', `/jobs/${job.id}`, page, page.status === 200 && (await page.text()).includes('page.html'));
+  }
+  const removed = await app.request(`/companies/${folder.id}/delete`, form({}));
+  check('POST /companies/:id/delete on saved postings (its job goes, its files stay)', `/companies/${folder.id}/delete`, removed, removed.status === 303 && (await stored()) === 0 && (await fs.readdir(dir)).length === 2);
+  return out;
 }
 
 /** A run once it has finished, or null if it never does within the wait. */
