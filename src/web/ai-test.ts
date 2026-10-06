@@ -12,8 +12,14 @@ import { listOllamaModels, listServerModels, listsModel, preferredModel } from '
 import { recordAiCall } from '../ai-ledger';
 import { billingOf } from '../ai-usage';
 import { getAiKeys, getSettings } from '../settings';
+import { formatNumber } from '../i18n/format';
+import { t } from '../i18n/t';
 
 const ENGINE_TEST_TIMEOUT_MS = 90_000;
+/** How many of the server's models the sentence names before it trails off. */
+const OFFERED_SHOWN = 5;
+/** Seconds as `toFixed(1)` writes them, with the reader's decimal mark: "1.5" in English, "1,5" in Ukrainian. */
+const SECONDS_FORMAT = { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false } as const;
 
 export interface EngineTestResult {
   ok: boolean;
@@ -29,13 +35,13 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
   } catch (err) {
     return {
       ok: false,
-      text: `${label} test failed: ${err instanceof Error ? err.message : 'not configured'}.`,
+      text: err instanceof Error ? t('aiTest.failedConfig', { engine: label, reason: err.message }) : t('aiTest.notConfigured', { engine: label }),
     };
   }
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
   if (providerUnusable(provider, env)) {
-    return { ok: false, text: `${label} has no credentials yet — paste a key, or set it in .env.` };
+    return { ok: false, text: t('aiTest.noCredentials', { engine: label }) };
   }
   const engine = resolveAiEngine(settings.aiEngine, env);
   let model = engine.modelFor(provider, 'classifier');
@@ -49,7 +55,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
   if (provider === 'openai_api' || provider === 'local_api') {
     const listed = provider === 'local_api' ? await listOllamaModels(base) : await listServerModels(base, resolveAiKey(provider, keys));
     if ('reason' in listed) {
-      unlistable = ` Asked for its models: ${listed.reason}.`;
+      unlistable = t('aiTest.modelsUnlistable', { reason: listed.reason });
     } else {
       offered = listed.models;
       // No slot filled and nothing in .env: the provider would ask for a model no local server has.
@@ -91,17 +97,26 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
     viaFallback: false,
     billing: billingOf(provider, billingFacts(keys, settings.openAiBaseUrl)),
   });
-  const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  const offer = offered === null ? '' : offered.length === 0 ? ' The server lists no models yet — pull one first.' : ` The server offers ${offered.length === 1 ? '1 model' : `${offered.length} models`}: ${offered.slice(0, 5).join(', ')}${offered.length > 5 ? ', …' : ''}.`;
+  const seconds = formatNumber(Number(((Date.now() - started) / 1000).toFixed(1)), SECONDS_FORMAT);
+  const offer =
+    offered === null
+      ? ''
+      : offered.length === 0
+        ? t('aiTest.offersNone')
+        : t('aiTest.offers', { n: offered.length, models: `${offered.slice(0, OFFERED_SHOWN).join(', ')}${offered.length > OFFERED_SHOWN ? ', …' : ''}` });
   if (attempt.text !== null) {
-    const picked = pickedForTest ? ' No model is chosen yet, so the test used one from the server\'s list — pick yours below.' : '';
-    return { ok: true, text: `${label} works — replied in ${seconds}s (model ${model || 'CLI default'}).${picked}${offer}` };
+    const worked = model ? t('aiTest.works', { engine: label, seconds, model }) : t('aiTest.worksCliDefault', { engine: label, seconds });
+    return { ok: true, text: sentences(worked, pickedForTest ? t('aiTest.pickedForTest') : '', offer) };
   }
-  const reason: string = failure ?? 'no reason reported — see the web container logs';
   // A model the server never pulled is the likeliest cause on a local server; the list says so.
-  const unlisted = offered !== null && offered.length > 0 && model !== '' && !listsModel(offered, model) ? ` The server does not list "${model}".` : '';
-  return {
-    ok: false,
-    text: `${label} test failed after ${seconds}s — ${reason}.${unlisted}${offer}${unlistable}`,
-  };
+  const unlisted = offered !== null && offered.length > 0 && model !== '' && !listsModel(offered, model) ? t('aiTest.unlisted', { model }) : '';
+  // Read through its declared type: the compiler does not follow the callback that sets it.
+  const reason = failure as string | null;
+  const failed = reason === null ? t('aiTest.failedNoReason', { engine: label, seconds }) : t('aiTest.failed', { engine: label, seconds, reason });
+  return { ok: false, text: sentences(failed, unlisted, offer, unlistable) };
+}
+
+/** Whole sentences side by side; the ones that do not apply are empty. */
+function sentences(...parts: string[]): string {
+  return parts.filter((part) => part !== '').join(' ');
 }

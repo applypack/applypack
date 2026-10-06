@@ -1,3 +1,5 @@
+import { t } from '../i18n/t';
+
 /*
  * The two rows a search profile points at — its resume and its alert
  * target — are picked from dropdowns rendered when the page loaded. Either
@@ -22,13 +24,13 @@ export interface ProfileLinks {
  */
 export function missingLinkMessage(links: ProfileLinks): string | null {
   if (links.resumeGone && links.notificationTargetGone) {
-    return 'That resume and that alert target no longer exist — reload the page and pick again. Nothing was saved.';
+    return t('profile.links.bothGone');
   }
   if (links.resumeGone) {
-    return 'That resume no longer exists — reload the page and pick another one. Nothing was saved.';
+    return t('profile.links.resumeGone');
   }
   if (links.notificationTargetGone) {
-    return 'That alert target no longer exists — reload the page and pick another one. Nothing was saved.';
+    return t('profile.links.targetGone');
   }
   return null;
 }

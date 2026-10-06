@@ -5,24 +5,39 @@
 // the columns between them are editable. Prisma access lives in settings.ts.
 
 import { z } from 'zod';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 export interface StageDef {
   key: string;
   label: string;
 }
 
-const ENTRY_STAGE: StageDef = { key: 'applied', label: 'Applied' };
-export const TERMINAL_STAGES: StageDef[] = [
-  { key: 'rejected', label: 'Rejected' },
-  { key: 'ghosted', label: 'Ghosted' },
-];
+/**
+ * A stage the interface names itself: the fixed ones, and the work columns
+ * nobody has edited yet. Its label is read from the catalog each time it is
+ * asked for, so every page that shows a stage speaks the reader's language
+ * without knowing which stages are ours. A stored list is the user's own
+ * words: saving one writes the labels down as they read at that moment.
+ */
+function named(key: string, label: MessageKey): StageDef {
+  return {
+    key,
+    get label() {
+      return t(label);
+    },
+  };
+}
+
+const ENTRY_STAGE = named('applied', 'stages.applied');
+export const TERMINAL_STAGES: StageDef[] = [named('rejected', 'stages.rejected'), named('ghosted', 'stages.ghosted')];
 export const TERMINAL_KEYS = TERMINAL_STAGES.map((s) => s.key);
 
 export const DEFAULT_WORK_STAGES: StageDef[] = [
-  { key: 'screen', label: 'Screen' },
-  { key: 'tech', label: 'Tech' },
-  { key: 'onsite', label: 'Onsite' },
-  { key: 'offer', label: 'Offer' },
+  named('screen', 'stages.default.screen'),
+  named('tech', 'stages.default.tech'),
+  named('onsite', 'stages.default.onsite'),
+  named('offer', 'stages.default.offer'),
 ];
 
 export const MAX_WORK_STAGES = 10;
@@ -133,7 +148,7 @@ export function boardStages(work: StageDef[]): StageDef[] {
  * configured keys, so the cards vanished — invisible, and with no column to
  * drag them out of. The key is reserved, so a user cannot create a second one.
  */
-export const UNFILED_STAGE: StageDef = { key: 'unfiled', label: 'Unfiled' };
+export const UNFILED_STAGE = named('unfiled', 'stages.unfiled');
 
 /** The stages these jobs hold that no column covers. Empty is the normal case. */
 export function strandedStages(work: StageDef[], held: readonly (string | null)[]): string[] {

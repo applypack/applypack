@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { loginItemFor, type LoginItem } from '../login-item';
 import { dataDirFor } from '../local/data-dir';
 import { underLauncher } from '../local/child';
+import { t } from '../i18n/t';
 
 /*
  * Settings → General → "Start with this computer" (TASKS S5, Q29): the
@@ -22,7 +23,8 @@ export interface LoginItemState {
   available: boolean;
   on: boolean;
   file: string | null;
-  kind: string | null;
+  /** The system the entry is written for: the page's sentence names its mechanism (a launchd agent, a systemd user service, a Startup script) by it. */
+  kind: NodeJS.Platform | null;
 }
 
 /**
@@ -62,13 +64,13 @@ function currentItem(): { item: LoginItem; logFile: string } | null {
 export function loginItemState(): LoginItemState {
   const current = underLauncher() ? currentItem() : null;
   if (!current) return { available: false, on: false, file: null, kind: null };
-  return { available: true, on: fs.existsSync(current.item.file), file: current.item.file, kind: current.item.kind };
+  return { available: true, on: fs.existsSync(current.item.file), file: current.item.file, kind: process.platform };
 }
 
 /** Writes or removes the entry; the reason is a sentence for the flash when it could not. */
 export async function setLoginItem(on: boolean): Promise<{ ok: true } | { ok: false; reason: string }> {
   const current = underLauncher() ? currentItem() : null;
-  if (!current) return { ok: false, reason: 'only an install started with npm start can start itself at login' };
+  if (!current) return { ok: false, reason: t('settings.login.reason.noLauncher') };
   const { item, logFile } = current;
   if (on) {
     fs.mkdirSync(path.dirname(item.file), { recursive: true });
@@ -79,8 +81,10 @@ export async function setLoginItem(on: boolean): Promise<{ ok: true } | { ok: fa
     } catch (err) {
       fs.rmSync(item.file, { force: true });
       const e = err as { stderr?: unknown; message?: string };
-      const why = typeof e.stderr === 'string' && e.stderr.trim() ? e.stderr.trim() : (e.message ?? 'no reason given');
-      return { ok: false, reason: `the system would not take it (${why.split('\n')[0]}); nothing was left behind` };
+      // The system's own words when it gave any: they stay as it wrote them.
+      const why = typeof e.stderr === 'string' && e.stderr.trim() ? e.stderr.trim() : e.message;
+      const reason = why === undefined ? t('settings.login.reason.refusedSilently') : t('settings.login.reason.refused', { why: why.split('\n')[0]! });
+      return { ok: false, reason };
     }
     return { ok: true };
   }

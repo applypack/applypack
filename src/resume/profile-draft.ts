@@ -1,3 +1,5 @@
+import { t } from '../i18n/t';
+
 /*
  * Maps a stored resume scan onto a profile — the "Fill from resume" flow.
  * Pure: the route renders the result into the profile editor as an unsaved
@@ -70,16 +72,15 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
 
   const outside = readsAsNonEngineering(scan);
   if (outside) {
-    warnings.push(
-      `this resume reads as a ${outside} role — ApplyPack's boards, scan and scoring are built for software engineering, so the required stack was left as it is; expect few matches`,
-    );
+    // The role is the resume's own wording, so it goes in as it was written.
+    warnings.push(t('profile.draft.warn.nonEngineering', { role: outside }));
   } else if (scan.primarySkills.length > 0) {
     if (!sameTags(scan.primarySkills, current.stackRequired)) {
       changes.stackRequired = scan.primarySkills;
-      changed.push('required stack');
+      changed.push(t('profile.draft.changed.requiredStack'));
     }
   } else {
-    warnings.push('the scan marks no primary stack, so the required stack was kept');
+    warnings.push(t('profile.draft.warn.noPrimary'));
   }
 
   const required = changes.stackRequired ?? current.stackRequired;
@@ -87,19 +88,17 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
     const candidates = withoutTags(scan.skills, required).filter((s) => !UNIVERSAL_TOOLING.has(norm(s)));
     const nice = candidates.slice(0, NICE_TO_HAVE_MAX);
     if (candidates.length > nice.length) {
-      warnings.push(
-        `the scan names ${scan.skills.length} skills — the nice-to-have list keeps the first ${NICE_TO_HAVE_MAX}, add any other by hand`,
-      );
+      warnings.push(t('profile.draft.warn.niceCapped', { n: scan.skills.length, max: NICE_TO_HAVE_MAX }));
     }
     if (!sameTags(nice, current.stackNiceToHave)) {
       changes.stackNiceToHave = nice;
-      changed.push('nice-to-have stack');
+      changed.push(t('profile.draft.changed.niceToHave'));
     }
   }
 
   if (scan.roleTypes.length > 0 && !sameTags(scan.roleTypes, current.roleTypes)) {
     changes.roleTypes = scan.roleTypes;
-    changed.push('role types');
+    changed.push(t('profile.draft.changed.roleTypes'));
   }
 
   if (
@@ -108,12 +107,12 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
     !sameTags([scan.seniority], current.seniority)
   ) {
     changes.seniority = [scan.seniority];
-    changed.push('seniority');
+    changed.push(t('profile.draft.changed.seniority'));
   }
 
   if (DEFAULT_PROFILE_NAMES.includes(current.name) && scan.title !== null && scan.title !== current.name) {
     changes.name = scan.title;
-    changed.push('name');
+    changed.push(t('profile.draft.changed.name'));
   }
 
   return { changes, changed, warnings };
@@ -122,7 +121,7 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
 function sameTags(a: string[], b: string[]): boolean {
   const setA = new Set(a.map(norm));
   const setB = new Set(b.map(norm));
-  return setA.size === setB.size && [...setA].every((t) => setB.has(t));
+  return setA.size === setB.size && [...setA].every((tag) => setB.has(tag));
 }
 
 function withoutTags(list: string[], drop: string[]): string[] {

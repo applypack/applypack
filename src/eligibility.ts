@@ -1,4 +1,5 @@
 import { countriesOf, groupsOf, placeLabel } from './countries';
+import type { MessageKey } from './i18n/catalog';
 
 /*
  * "Can I apply from where I live" (stage 4, ADR 0033). A search says where
@@ -14,12 +15,12 @@ export const RELOCATION_CODES = ['no', 'yes', 'sponsorship'] as const;
 
 export type RelocationCode = (typeof RELOCATION_CODES)[number];
 
-/** What each choice says, in the words the editor and the prompt use. */
-export const RELOCATION_LABEL: Readonly<Record<RelocationCode, string>> = {
-  no: 'I stay where I am',
-  yes: 'I would relocate',
-  sponsorship: 'I would relocate and need visa sponsorship',
-};
+/** What each choice says in the editor, as catalog keys: the page words them in the reader's language. */
+export const RELOCATION_LABEL = {
+  no: 'relocation.label.no',
+  yes: 'relocation.label.yes',
+  sponsorship: 'relocation.label.sponsorship',
+} as const satisfies Record<RelocationCode, MessageKey>;
 
 /** For the prompt — the same three choices, said to the model. */
 export const RELOCATION_PROMPT: Readonly<Record<RelocationCode, string>> = {

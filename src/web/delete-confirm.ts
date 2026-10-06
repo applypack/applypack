@@ -1,4 +1,6 @@
 import { DELETED_LABEL } from '../jobs/applied-with';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 /**
  * Confirm text for the two deletes that cascade (audit, TASKS §14). Pure so the
@@ -34,28 +36,22 @@ export interface DeleteImpact {
  * opposite of what happens, so they get a sentence of their own.
  */
 export function deleteConfirm(name: string, impact: DeleteImpact): string {
-  const deleted = [
-    countOf(impact.matches, 'comparison', 'comparisons'),
-    countOf(impact.letters, 'cover letter', 'cover letters'),
-    countOf(impact.reviews, 'strength review', 'strength reviews'),
-  ].filter((p): p is string => p !== null);
+  const deleted = joinList([
+    countOf(impact.matches, 'profile.deleteConfirm.part.comparisons'),
+    countOf(impact.letters, 'profile.deleteConfirm.part.letters'),
+    countOf(impact.reviews, 'profile.deleteConfirm.part.reviews'),
+  ]);
+  const unlinked = joinList([
+    countOf(impact.searches, 'profile.deleteConfirm.part.searchesStop'),
+    // The words the applications will show are another module's: they go in as they are.
+    impact.applications === 0 ? null : t('profile.deleteConfirm.part.applicationsShow', { n: impact.applications, label: DELETED_LABEL }),
+  ]);
 
-  const unlinked = [
-    impact.searches === 0
-      ? null
-      : `${impact.searches} ${impact.searches === 1 ? 'search stops' : 'searches stop'} hunting with it`,
-    impact.applications === 0
-      ? null
-      : `${impact.applications} ${impact.applications === 1 ? 'application' : 'applications'} will show "${DELETED_LABEL}" instead`,
-  ].filter((p): p is string => p !== null);
-
-  if (deleted.length === 0 && unlinked.length === 0) {
-    return `Delete "${name}"? Nothing else is attached to it.`;
-  }
-  const head =
-    deleted.length === 0 ? `Delete "${name}"?` : `Delete "${name}" and ${joinList(deleted)}?`;
-  const side = unlinked.length === 0 ? '' : ` ${joinList(unlinked)}.`;
-  return `${head}${side} This cannot be undone.`;
+  // One sentence per shape: what goes with the resume belongs in the question, what only loses its link after it.
+  if (deleted === '' && unlinked === '') return t('profile.deleteConfirm.resume.nothingAttached', { name });
+  if (deleted === '') return t('profile.deleteConfirm.resume.plain', { name, unlinked });
+  if (unlinked === '') return t('profile.deleteConfirm.resume.withDeleted', { name, deleted });
+  return t('profile.deleteConfirm.resume.withBoth', { name, deleted, unlinked });
 }
 
 export interface CompanyDeleteImpact {
@@ -74,22 +70,26 @@ export interface CompanyDeleteImpact {
  * all its 73 jobs?" was hiding six applications and a cover letter.
  */
 export function companyDeleteConfirm(name: string, impact: CompanyDeleteImpact): string {
-  const jobs = countOf(impact.jobs, 'job', 'jobs') ?? 'no jobs';
-  const rest = [
-    countOf(impact.applications, 'tracked application', 'tracked applications'),
-    countOf(impact.comparisons, 'resume comparison', 'resume comparisons'),
-    countOf(impact.letters, 'cover letter', 'cover letters'),
-  ].filter((p): p is string => p !== null);
-  if (rest.length === 0) return `Delete "${name}" and ${jobs}? This cannot be undone.`;
-  return `Delete "${name}", ${jobs}, and with them ${joinList(rest)}? This cannot be undone.`;
+  const rest = joinList([
+    countOf(impact.applications, 'profile.deleteConfirm.part.trackedApplications'),
+    countOf(impact.comparisons, 'profile.deleteConfirm.part.resumeComparisons'),
+    countOf(impact.letters, 'profile.deleteConfirm.part.letters'),
+  ]);
+  if (rest === '') return t('profile.deleteConfirm.company.jobs', { name, jobs: impact.jobs });
+  return t('profile.deleteConfirm.company.jobsAndMore', { name, jobs: impact.jobs, rest });
 }
 
-function countOf(n: number, one: string, many: string): string | null {
-  return n === 0 ? null : `${n} ${n === 1 ? one : many}`;
+/** "12 comparisons" by the count's own plural, or null when there are none to name. */
+function countOf(n: number, key: MessageKey): string | null {
+  return n === 0 ? null : t(key, { n });
 }
 
-/** "a, b and c" — the last separator is a word, not another comma. */
-function joinList(parts: string[]): string {
-  if (parts.length <= 1) return parts[0] ?? '';
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+/**
+ * "a, b and c" — the last separator is a word, not another comma. The word is
+ * the catalog's; `formatList` would write the English with a comma before it.
+ */
+function joinList(parts: (string | null)[]): string {
+  const named = parts.filter((p): p is string => p !== null);
+  if (named.length <= 1) return named[0] ?? '';
+  return t('profile.deleteConfirm.and', { head: named.slice(0, -1).join(', '), last: named[named.length - 1]! });
 }
