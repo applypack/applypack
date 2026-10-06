@@ -48,7 +48,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
 | CAREER_PAGE        | per-company   | none      | A careers page with nothing machine-readable on it; the atsToken is the page URL. **Never yields a job** — it hashes the page's text and reports that it changed (ADR 0036) |
 | BROWSER_PAGE       | per-company   | none      | A careers page that draws its jobs in the browser (a loading shell: no board, no feed, almost no text); the atsToken is the page URL. **Never fetched** — the row is watched and inactive, and the user pastes the page's text to see what is new (TASKS N8) |
-| FOLDER             | your folder   | none      | A folder on this computer that a tool writes files of rows into (`.json`, `.jsonl`, `.csv`, `.tsv`); the atsToken is its absolute path, `sourceConfig` keeps the name filter and the column mapping, `source_file` is the ledger of what was read. Read on the tick with **no request**: a new or changed file is read once, a file still being written waits, and nothing in the folder is ever written, moved or deleted. Rows carry many employers, each named on its row (ADR 0062) |
+| FOLDER             | your folder   | none      | A folder on this computer that a tool writes files of rows into (`.json`, `.jsonl`, `.csv`, `.tsv`), or that the user saves postings into (`.html`, `.pdf`, `.docx`, `.txt`, `.md`, one a file); the atsToken is its absolute path, `sourceConfig` keeps what it holds, the name filter, the alerts and, for rows, the column mapping; `source_file` is the ledger of what was read. Read on the tick with **no request**: a new or changed file is read once, a file still being written waits, and nothing in the folder is ever written, moved or deleted. Rows carry many employers, each named on its row (ADR 0062) |
 | IMPORT             | your file     | none      | Rows the user uploads on `/jobs/import` — a JSON array, JSON Lines, CSV or TSV; the atsToken is the source's name as a slug and `sourceConfig` keeps the column mapping the user confirmed. **Never fetched** and never active: the rows go through `processNormalizedJobs` once, at the import, and carry many employers, each named on its row (ADR 0062) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
@@ -749,6 +749,29 @@ Which folders may be read: on a local install, one inside the home folder
 (not a hidden one, not `Library` / `AppData`, not ApplyPack's own data
 folder); on a server or in Docker, only one inside a root named in
 `APPLYPACK_INBOX_ROOTS`.
+
+**A folder the user saves postings into** is the same source holding one
+posting a file (`sourceConfig.holds = 'postings'`, ADR 0062 addendum
+2026-10-06): a saved page (`.html`), a PDF, a `.docx`, text or Markdown.
+Check guesses which kind a folder holds and lets the user switch it.
+
+- Code reads what it can first: a page's `JobPosting` block (title,
+  company, place, date, description), its own address (canonical link,
+  `og:url`, the browser's "saved from url" note), its main text. A model
+  reads the title and the company only when the page does not state them —
+  one small call, none while fetching is paused (the file waits).
+- Each file becomes one job of the folder, taken as a paste: no search's
+  filter and no employer rule sets it aside, it is scored, and one that
+  every search turns down is kept **Saved**. A match alerts like any other
+  and says "From your folder: <folder> / <file>"; the folder's **Alerts**
+  can be "No alerts", which keeps matches on Jobs only.
+- The job page says which folder and file it came from (`Job.sourceFile`),
+  and the folder's **Files** page links each file to its job.
+- 2 MB a page or a text file, 10 MB a PDF or a `.docx`; under 200
+  characters is a note, not a posting.
+- With `npm start` the worker watches these folders and reads a saved file
+  within a minute, outside the search hours too, never while paused. A
+  server reads them on the hourly check.
 
 ## Cover letters (F8, ADR 0021)
 

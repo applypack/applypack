@@ -97,3 +97,8 @@ TypeScript (only three of the nine scripts are generic).
   (`src/jobs/pack-job.ts`) runs the comparison, the suggestions and the cover
   letter for an application pack ([0063](./0063-the-worker-prepares-an-application-pack.md)).
   The dashboard's own calls are where they were.
+- The worker also reads documents with the module's pure readers: a PDF or a
+  `.docx` saved into a folder source is turned into a posting's text by
+  `docx-text.ts` and `pdf-text.ts` (via `datasets/posting-file.ts`, ADR
+  [0062](./0062-rows-the-user-brings-are-read-never-fetched.md) addendum
+  2026-10-06). No resume data and no AI call of the module is involved.

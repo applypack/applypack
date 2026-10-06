@@ -215,3 +215,90 @@ Consequences added:
 - **Still not built:** postings saved one a file (`.html`, `.pdf`, `.txt`,
   `.md`, `.docx`), the instant watch, and the "from your folder" line on an
   alert.
+
+## Addendum (2026-10-06): postings the user saves (v2.50.0)
+
+The third way in: a folder the user saves postings into by hand — "Save
+page as…", a page printed to PDF, a `.docx`, a text or Markdown file. It
+closes the three items the addendum above left out. The folder rules, the
+ledger, the read-only module and the "stored first, ledger second" rule all
+hold unchanged.
+
+**What a folder holds.** `sourceConfig` gains `holds` — `rows` (a tool's
+files, as above) or `postings` — and `alerts`. A folder of postings has no
+mapping. A config stored before this reads as `rows` that alert, so no
+stored row changes. Check guesses from the files' names (more saved
+postings than files of rows, or nothing yet, reads as postings) and the page
+lets the user switch it.
+
+**One file, one posting, read by code first** (`datasets/saved-page.ts`,
+`datasets/posting-file.ts`, pure):
+
+- `.html` / `.htm`: the page's markup only ever becomes text, it is never
+  rendered. The `JobPosting` block many job pages carry gives the title, the
+  company, the place and the date; its description is the text when it is
+  long enough, else the page's `<main>`, else the whole page. The page's own
+  address comes from its canonical link, `og:url`, the block's `url`, or the
+  "saved from url" comment a browser writes, http(s) only. It becomes the
+  job's link, and it is never followed.
+- `.txt` / `.md` as they are; `.pdf` and `.docx` through the resume
+  module's readers ([0008](./0008-resume-module-in-web.md) addendum), the
+  PDF reader loaded on the first PDF.
+- Fewer than 200 characters is a note, not a posting, and is set aside.
+- Ceilings by kind: 2 MB a page or a text file, 10 MB a PDF or a `.docx`,
+  5 MB a file of rows as before.
+
+**A model reads only what the file did not say.** When the page states its
+title and its company, nothing is asked. Otherwise one small call
+(`jobs/posting-extract.ts`, the paste path's own, fenced, ledger feature
+`posting-extract`) reads them, and the file's name stands in for a title it
+could not find. While fetching is paused no model is asked: a page that
+states both is stored unscored, the others wait in the ledger.
+
+**A saved posting is a paste, through the one pipeline.** It becomes a job
+of the folder's own source row, with its employer as an aggregator's row has
+one, and `NormalizedJob.handPicked` set. `processNormalizedJobs` then skips
+the search's base filter and the employer gate for it — the user chose it;
+a junk first line must not be what gets it filtered out in silence — and
+scores, alerts, holds and queues packs as for every job. One difference: a
+saved posting every search turns down is stored **Saved**, with its
+verdicts, never Dismissed, which the cleanup deletes after a month. Its id
+is the page's address when there is one, so the same posting saved twice is
+one job, else the title and the text, as a paste is keyed.
+
+**Where it came from.** `Job.sourceFile` (a hand-written migration) names
+the file, for a tool's rows as well. The job page shows "From <folder> /
+<file>" linked to the folder's file list, the list links each file to the
+job it became, and a match's alert says "From your folder: <folder> /
+<file>" where other sources put their attribution line.
+
+**Alerts.** A match is a match: at or above a search's threshold it goes
+out through the normal path, under the alert window, the digest, "Alerts
+off" and the held matches. Below it: silence, and the job on Jobs. A folder
+may set `alerts: off`: its matches are stored and shown, never sent or held
+(`alertSourceOff` on the run).
+
+**Read within a minute on a local install** (`jobs/folder-watch.ts`, the
+plan `folder-watch-plan.ts` pure). Under the launcher the worker watches
+the switched-on folders of saved postings (`fs.watch`, recursive where the
+system allows), lets a burst of changes settle for twelve seconds, then runs
+the fetch scoped to that one source under the fetch lock, recorded as a
+`folder-watch` run. It does so outside the search hours — the user has just
+saved it — and never while fetching is paused. A look that meets another
+fetch tries once more a minute later. A server stays on the hourly tick: a
+change seen through a Docker bind mount is not reliable. The watcher only
+notices; it reads nothing and writes nothing.
+
+Consequences added:
+
+- **The worker asks a model outside the classifier** for a saved posting
+  that does not state its title and company: at most one call a file, at
+  most 20 files a look, none while paused. It is the call a paste already
+  makes.
+- **A saved posting is never set aside by a filter or a mute.** A posting
+  from a company the user muted, saved by hand, is stored and scored: the
+  save is the newer word. Jobs still hides it while the company stays
+  muted, as it hides every row of a muted company; unmuting shows it.
+- **Not built, and not planned yet:** mail with job alerts, links saved as
+  `.url` / `.webloc`, a screenshot. Each is skipped as another file, and
+  counted.

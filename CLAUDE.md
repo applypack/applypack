@@ -238,6 +238,20 @@
   `jobs/source-file-store.ts` (the only file that touches `source_file`) only
   when `tickStoredEverything()` agrees, as for validators. Never mark a file
   read before its jobs are stored.
+- A folder may hold postings the user saves instead (`sourceConfig.holds =
+  'postings'`, ADR 0062 addendum 2026-10-06): one file, one posting.
+  `datasets/saved-page.ts` (a saved page's text, its own address, its
+  `JobPosting` block — markup only ever becomes text, an address is never
+  followed) and `datasets/posting-file.ts` (bytes → text by kind, the PDF and
+  `.docx` readers of `src/resume/`; `savedPostingJob`) are pure. A model is
+  asked (`extractPostingFacts`) only when the page did not state its title
+  and company, never while paused. The job carries `handPicked`:
+  `processNormalizedJobs` skips the base filter and the employer gate for it,
+  as for a paste, and stores a turned-down one Saved, never Dismissed.
+  `Job.sourceFile` names the file for every folder row. Under the launcher
+  the worker watches these folders (`jobs/folder-watch.ts`, plan
+  `folder-watch-plan.ts`) and runs the scoped fetch a few seconds after a
+  save; never while paused, never on a server.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
@@ -671,7 +685,9 @@ When the question is **"how does the user toggle / configure X?"**:
 | Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |
 | Throw away a keyword list the model got wrong | the keyword table → "Rebuild keywords" (one run with the stored frame withheld; your own keyword edits survive it, the new score is not comparable with the old) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
+| A saved posting in a folder: what code reads off it, when a model is asked, why it is never filtered out, where it says it came from | `src/datasets/saved-page.ts:readSavedPage` (the `JobPosting` block, `<main>`, the canonical / `og:url` / "saved from url" address) → `src/datasets/posting-file.ts` (`readPostingFile` by kind, `needsModel`, `savedPostingJob` — `externalId` from the address, else title + text; `handPicked`) → `src/fetchers/folder.ts:lookAtPostings` (`extractPostingFacts` only when needed and allowed, `FetchContext.scoring`) → `jobs/process-jobs.ts` (no base filter or employer gate for `handPicked`, Saved when every search turns it down, `quiet` from `sourceConfig.alerts`, the "From your folder" attribution); `Job.sourceFile` on the job page and the files list; the instant read is `src/jobs/folder-watch.ts` from `src/index.ts`. ADR 0062 addendum 2026-10-06 |
 | Have ApplyPack read a folder a tool writes job files into | `/companies` → **Add sources** → **A folder on this computer**: type the folder's full path (a local install can press **Create ~/ApplyPack/inbox and check it**), optionally a name and a name filter (`jobs-*.json`) → **Check** shows what is in it, which column was taken for what, the first rows as they would be stored and what the next check would cost → **Add (off)** → switch it on in the table. The hourly check then reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once; **Folders on this computer** shows "N files · M new at the last check" with **Files** (what became of each file), **Mapping** (check and save it again) and **Check now**. ApplyPack never writes into the folder |
+| Have ApplyPack read the postings you save | `/companies` → **Add sources** → **A folder on this computer**: the folder you save pages, PDFs or `.docx` files of postings into → **Check** reads it as **Postings I save** (switch it if it guessed wrong), shows the newest five as read without AI and what scoring costs → **Add (off)** → switch it on. Each file becomes one job, scored, never filtered out, kept Saved when no search wants it; a match alerts like any other unless **Alerts** is set to "No alerts". With `npm start` a saved file is read within a minute; while fetching is paused only pages that state their title and company are stored, unscored |
 | Let a Docker install read such a folder | mount it read-only into both services (`./inbox:/inbox:ro` under `app` and `web` in `docker-compose.yml`) and set `APPLYPACK_INBOX_ROOTS=/inbox` in `.env`; the folder form then takes `/inbox` or a folder inside it |
 | Import a file of jobs you already have (an export, a spreadsheet, a tool's output) | `/jobs` → **Import a file** (`/jobs/import`): choose a .json, .jsonl, .csv or .tsv file (5 MB, the first 2 000 rows) and name its source → the next page shows which column was taken for the title, the link, the company and the text (change a select, then **Update the preview**), the first three rows as they would be stored, how many are new and pass your searches' filter, and what scoring them costs → **Import**. No AI is spent before that press, and none at all while fetching is paused (the rows are stored unscored). A newer export into the same source adds only what is new; the page lists the sources you imported, each with **Delete** (the source and its jobs) |
 | Compare a pasted posting with any resume in one step | menu → Tailor resume (`/target`): paste posting, pick / upload / paste resume, Compare |

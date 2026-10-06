@@ -338,6 +338,8 @@ src/
     folder-path.ts             ← pure: which folder a source may read (home on a local install, named roots elsewhere), a typed path made absolute
     folder-scan.ts             ← pure: planScan — read, wait, leave alone — the ceilings, the name filter, judgeFile → jobs + the ledger row
     folder-io.ts               ← the one module that touches a user's folder, and it only reads: listFolder, readFolderFile, realFolder
+    saved-page.ts              ← pure: a saved web page → its text, its own address, its JobPosting block; never rendered, never followed
+    posting-file.ts            ← pure: a saved posting's bytes → text by kind (pages, text, the resume module's PDF/.docx readers) → the job
 
   resume/                      ← web-only resume module (ADR 0008); store.ts is its only Prisma access
     zip.ts                     ← read one entry, or all of them, from a zip (node:zlib), pure
@@ -458,7 +460,7 @@ src/
     teamtailor.ts              ← per-company RSS, or a custom career domain as the token
     feed.ts                    ← a generic RSS / Atom job feed; the atsToken is the feed URL (ADR 0036)
     career-page.ts             ← the change watch: hashes a careers page and never returns a job (ADR 0036)
-    folder.ts                  ← a folder a tool writes into: one look, new and changed row files → jobs, no request (ADR 0062)
+    folder.ts                  ← a folder source: one look — a tool's row files, or saved postings one a file (a model only for what a page does not say) → jobs, no request (ADR 0062)
     folder-ledger.ts           ← what a look learned about the folder's files, staged until the tick stored its jobs
     {larajobs,golangprojects}.ts ← single RSS feed
     weworkremotely.ts          ← per-category RSS (atsToken = category slug)
@@ -511,6 +513,8 @@ src/
                                   and /target classifies a new job in the background instead)
     import-job.ts               ← runImportJob: imported rows through processNormalizedJobs under the fetch lock (ADR 0062)
     source-file-store.ts        ← a folder source's ledger (source_file): loadLedger, keepFolderLooks, folderSummaries, listSourceFiles
+    folder-watch.ts             ← under the launcher: watches the folders of saved postings, runs the scoped fetch once a change settled
+    folder-watch-plan.ts        ← pure: which folders to watch, and how long a burst of changes settles
     blocked-hosts.ts            ← pure: isBlockedPostingHost — the hosts ADR 0005 names, for posting-url.ts and the dataset mapper
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
