@@ -122,6 +122,7 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
 const AFTER_FAILURE: Record<string, string> = {
   fetch: 'What it stored before the failure stays, and the next tick tries again',
   'fetch-now': 'What it stored before the failure stays; press Fetch now again, or wait for the next tick',
+  'folder-watch': 'What it stored before the failure stays, and the hourly check reads the folder again',
   'hn-hiring': 'What it stored before the failure stays, and the next run tries again',
   import: 'What it stored before the failure stays; import the same file again and only the rest is added',
   digest: 'Nothing was sent; the next digest hour tries again',
