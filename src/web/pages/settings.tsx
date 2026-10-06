@@ -42,7 +42,7 @@ import type { LoginItemState } from '../login-item-io';
 import { describeCount, type SourceGroup } from '../source-groups';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
-import { COUNTRIES, REGIONS, flagOf } from '../../countries';
+import { COUNTRIES, REGIONS } from '../../countries';
 import { RELOCATION_CODES, RELOCATION_LABEL } from '../../eligibility';
 import { PROFILE_WORKPLACES } from '../../location';
 import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
@@ -58,7 +58,7 @@ import { billingWords, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
 import { weekdayName } from '../../i18n/format';
-import { placeName, workplaceName } from '../../i18n/places';
+import { countryChip, placeName, workplaceName } from '../../i18n/places';
 import { t } from '../../i18n/t';
 import { LanguageSettings } from '../language-menu';
 import { tRich } from '../rich';
@@ -1942,7 +1942,7 @@ const ProfileEditor: FC<{
         more={t('settings.polandPolskaAndPlAll')}
         name="countries"
         // Each line goes back through the form: the flag is what the save reads, so the name may be in any language.
-        values={profile.countries.map((c) => `${flagOf(c)} ${placeName(c)}`)}
+        values={profile.countries.map(countryChip)}
         placeholder={t('settings.polandGermanyNetherlands')}
         rows={2}
         picker="countries"

@@ -33,18 +33,17 @@ import {
   QUIET_STREAK,
   SILENT_DAYS,
   describeStatus,
-  type FetchStatus,
   type HealthTone,
   type QuietReason,
 } from '../../fetchers/source-health';
 import type { FlashMessage } from '../flash';
+import { healthLabel } from '../health-label';
 import { StarterPackPicker, type PackSegmentChoice } from './starter-pack';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 import { AddCompaniesCard, WatchlistSection, type WatchedRow } from './watchlist';
 import { MutedCompaniesSection, type MutedRow } from './muted-companies';
 import type { PackOffer } from '../pack-offers';
 import type { WatchlistRun } from '../watchlist-runs';
-import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { AddFolderCard, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
@@ -96,38 +95,6 @@ const DOT_TONE: Record<HealthTone, string> = {
   warn: 'bg-warn',
   none: 'bg-line',
 };
-
-/**
- * The word for a fetch status, as a catalog key. `describeStatus` keeps the
- * tone, and its own English label for the alerts that name a quiet source.
- */
-const HEALTH_LABEL = {
-  ok: 'sources.health.ok',
-  empty: 'sources.health.empty',
-  not_modified: 'sources.health.notModified',
-  slug_gone: 'sources.health.slugGone',
-  auth: 'sources.health.auth',
-  rate_limit: 'sources.health.rateLimit',
-  server: 'sources.health.server',
-  network: 'sources.health.network',
-  bad_payload: 'sources.health.badPayload',
-  unknown: 'sources.health.unknown',
-} as const satisfies Record<FetchStatus, MessageKey>;
-
-/** A folder's own words for the statuses a file read produces (fetchers/source-health.ts:FOLDER_STATUS). */
-const FOLDER_HEALTH_LABEL: Partial<Record<FetchStatus, MessageKey>> = {
-  empty: 'sources.health.folder.empty',
-  slug_gone: 'sources.health.folder.slugGone',
-  auth: 'sources.health.folder.auth',
-  bad_payload: 'sources.health.folder.badPayload',
-};
-
-function healthLabel(status: string | null, atsType?: string): string {
-  const folder = atsType === AtsType.FOLDER && status !== null && Object.hasOwn(FOLDER_HEALTH_LABEL, status) ? FOLDER_HEALTH_LABEL[status as FetchStatus] : undefined;
-  if (folder) return t(folder);
-  const key = status !== null && Object.hasOwn(HEALTH_LABEL, status) ? HEALTH_LABEL[status as FetchStatus] : 'sources.health.none';
-  return t(key);
-}
 
 /** Status dot + label, the per-row half of ADR 0019. */
 const HealthDot: FC<{ status: string | null; streak: number; atsType: string }> = ({ status, streak, atsType }) => {

@@ -2008,7 +2008,7 @@
   "jobRoute.verify.found": "{how} (rung {rung}, no AI spent)",
   "jobRoute.verify.closed": "Posting looks closed — {how} (rung {rung}, no AI spent).",
   "jobRoute.verify.live": "Posting is live — {how} (rung {rung}, no AI spent). Deep check runs the full ghost-job analysis.",
-  "jobRoute.verify.done": "Verified: {verdict} ({confidence}% confidence) — recommendation: {recommendation}.",
+  "jobRoute.verify.done": "Verified: {verdict} ({confidence}% confidence) — recommendation: {recommendation, select, apply {apply} caution {caution} skip {skip} other {{recommendation}}}.",
   "jobRoute.verify.failedWhat": "Verification failed",
   "jobRoute.verify.failedNext": "The job and its earlier checks are untouched; press Verify again.",
   "jobRoute.match.draft": "Draft",
@@ -2538,7 +2538,6 @@
   "match.noEdits.done": "No edits suggested — this resume is already saying what it can for this posting ({score} of a reachable {ceiling}).",
   "match.history.runs": "{n, plural, one {# run} other {# runs}}",
   "match.earlierOneOff": "An earlier one-off file",
-  "match.earlier.label": "{kind, select, file {the last check of this file} other {v{version}}}",
 
   "target.orientation.heading": "About this posting",
   "target.orientation.sector": "Sector",
@@ -2814,5 +2813,8 @@
   "match.suggestions.added": "Suggestions added — {actions, plural, one {# edit} other {# edits}}, {removals, plural, one {# removal} other {# removals}}; the score is unchanged.",
   "match.suggestions.addedReused": "The quick check from {when} judged this exact text, so its verdicts and score stand. Suggestions added — {actions, plural, one {# edit} other {# edits}}, {removals, plural, one {# removal} other {# removals}}; the score is unchanged.",
 
-  "common.alreadyRunning": "That is already running — give it a moment."
+  "common.alreadyRunning": "That is already running — give it a moment.",
+
+  "runs.folderCheck.nothingNew": "{label}: nothing new in the folder. A file is read once, and again when it changes.",
+  "runs.folderCheck.notRead": "{label}: the folder was not read — {status}. Nothing stored is touched; Files on its row says what happened to each file, and Mapping checks the folder again."
 }

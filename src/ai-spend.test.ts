@@ -6,6 +6,7 @@ import {
   budgetAlertText,
   billingHint,
   costHintText,
+  featureLabel,
   jobSpendText,
   formatUsd,
   ledgerRow,
@@ -218,5 +219,10 @@ test('the rows by the model that answered: the busiest model first, and inside i
     ['Scoring new postings', 395, 3_374, 3_836],
     ['Reading a pasted posting', 3, null, null],
   ]);
+});
+
+test('a feature reads as words, and one this version does not know reads as itself', () => {
+  assert.equal(featureLabel('resume-match'), 'Full analysis');
+  assert.equal(featureLabel('something-new'), 'something-new');
 });
 

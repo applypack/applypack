@@ -9,9 +9,6 @@
 
 import { t } from '../i18n/t';
 
-/** The English of `match.earlierOneOff`, for the test that names it; a page reads the catalog. */
-export const EARLIER_ONE_OFF = 'An earlier one-off file';
-
 export function comparedResumeName(snapshot: string, resume: { name: string; hidden: boolean }): string {
   if (!resume.hidden) return resume.name;
   return snapshot || t('match.earlierOneOff');
@@ -50,11 +47,6 @@ export function previousFor<T extends ComparedRow>(selected: T, matches: T[]): T
  */
 export function earlierParams(previous: ComparedRow): { kind: 'file' | 'version'; version: number } {
   return { kind: previous.resume.hidden ? 'file' : 'version', version: previous.resumeVersion };
-}
-
-/** The name on its own. */
-export function earlierLabel(previous: ComparedRow): string {
-  return t('match.earlier.label', earlierParams(previous));
 }
 
 /**

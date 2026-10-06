@@ -1,10 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { REGIONS, placeLabel } from '../countries';
+import { COUNTRIES, REGIONS, placeLabel, resolveCountries } from '../countries';
 import { WORKPLACE_CODES, WORKPLACE_LABEL } from '../location';
 import { MESSAGE_KEYS } from './catalog';
 import { withLocale } from './locale';
-import { placeName, workplaceName } from './places';
+import { parseTagList } from '../text-utils';
+import { countryChip, placeName, workplaceName } from './places';
 
 describe('placeName', () => {
   it('is the gazetteer\'s own name in English, for a country and for a group', () => {
@@ -35,3 +36,19 @@ describe('workplaceName', () => {
     assert.equal(withLocale('uk', () => workplaceName('REMOTE')), 'Віддалено');
   });
 });
+
+describe('countryChip', () => {
+  // The Searches editor and the wizard put these lines in a textarea, and the save splits it on commas.
+  for (const locale of ['en', 'uk'] as const) {
+    it(`goes back to the same countries through the save's own parsing (${locale})`, () => {
+      const codes = COUNTRIES.map((c) => c.code);
+      const chips = withLocale(locale, () => codes.map(countryChip));
+      assert.deepEqual(resolveCountries(parseTagList(chips.join('\n'))), { codes, unknown: [] });
+    });
+  }
+
+  it('keeps the first part of a name that carries a comma', () => {
+    assert.equal(withLocale('uk', () => countryChip('HK')), '🇭🇰 Гонконг');
+  });
+});
+

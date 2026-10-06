@@ -732,8 +732,9 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
             {t('welcome.packs.hint')}
           </Hint>
           <More summary={t('welcome.packs.more')} class="mt-1">
+            {/* A pack's name and blurb are the catalog's own (starter-packs/catalog.json), in English. */}
             {sources.packs.map((pack) => (
-              <p>
+              <p lang="en">
                 <span class="font-medium text-ink-muted">{pack.label}:</span> {pack.blurb}
               </p>
             ))}
@@ -743,7 +744,7 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
               <li class="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
                 <span class="min-w-0">
                   <span class="block font-medium text-ink">
-                    {p.label}{' '}
+                    <span lang="en">{p.label}</span>{' '}
                     <span class="font-normal text-ink-faint tabular-nums">
                       {t('welcome.packs.count', { count: p.count, tracked: p.tracked })}
                     </span>

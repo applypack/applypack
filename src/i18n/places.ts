@@ -1,4 +1,4 @@
-import { isRegionCode, placeLabel } from '../countries';
+import { flagOf, isRegionCode, placeLabel } from '../countries';
 import type { WorkplaceCode } from '../location';
 import type { MessageKey } from './catalog';
 import { regionName } from './format';
@@ -20,4 +20,14 @@ export function placeName(code: string): string {
 /** "Remote", "Hybrid", "On-site", "Unknown". */
 export function workplaceName(code: WorkplaceCode): string {
   return t(`workplace.${code}`);
+}
+
+/**
+ * A country as a chip editor shows it: its flag and its name in the reader's
+ * language. The chip goes back through `text-utils.ts:parseTagList`, which
+ * splits on commas, so a name with one ("Гонконг, ОАР Китаю") keeps its first
+ * part — the flag is what the save resolves either way.
+ */
+export function countryChip(code: string): string {
+  return `${flagOf(code)} ${placeName(code).split(',')[0]}`;
 }

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatDatePart, formatDateTime, formatList, formatNumber, regionName, weekdayName } from './format';
+import { formatDatePart, formatDateRange, formatDateTime, formatList, formatNumber, regionName, weekdayName } from './format';
 import { PSEUDO_LOCALE, withLocale } from './locale';
 
 /** ICU separates with no-break and narrow no-break spaces; the tests read plain ones. */
@@ -27,6 +27,22 @@ describe('formatDateTime', () => {
   it('reads one part out of a date', () => {
     assert.equal(formatDatePart(noonUtc, { timeZone: 'America/Chicago', timeZoneName: 'short' }, 'timeZoneName'), 'CDT');
     assert.equal(formatDatePart(noonUtc, { timeZone: 'UTC', year: 'numeric' }, 'timeZoneName'), null);
+  });
+});
+
+describe('formatDateRange', () => {
+  const day = { month: 'short', day: 'numeric', timeZone: 'UTC' } as const;
+  const range = (from: string, to: string) => formatDateRange(new Date(`${from}T00:00:00Z`), new Date(`${to}T00:00:00Z`), day);
+
+  it('writes a span of days as the language does', () => {
+    assert.equal(plain(range('2026-09-16', '2026-09-18')), 'Sep 16 – 18');
+    assert.equal(plain(range('2026-09-29', '2026-10-01')), 'Sep 29 – Oct 1');
+    assert.equal(plain(inUk(() => range('2026-09-16', '2026-09-18'))), '16–18 вер.');
+  });
+
+  it('adds no year the options left out when the span crosses New Year', () => {
+    assert.equal(plain(range('2025-12-30', '2026-01-01')), 'Dec 30 – Jan 1');
+    assert.equal(plain(inUk(() => range('2025-12-30', '2026-01-01'))), '30 груд. – 1 січ.');
   });
 });
 

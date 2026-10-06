@@ -100,32 +100,6 @@ const AI_FEATURES = [
 ] as const;
 export type AiFeature = (typeof AI_FEATURES)[number];
 
-/** What the user reads for each feature, each one a singular subject ("… is 4 % of the calls"). */
-const FEATURE_NAMES: Record<AiFeature, string> = {
-  classifier: 'Scoring new postings',
-  prefilter: 'Prefilter (two-stage)',
-  'posting-extract': 'Reading a pasted posting',
-  'posting-brief': 'Posting brief',
-  'resume-scan': 'Resume scan',
-  'resume-structure': 'Resume shape',
-  'resume-match': 'Full analysis',
-  'resume-match-fast': 'Quick check',
-  'resume-suggestions': 'Writing edit suggestions',
-  'resume-rewrite': 'Rewriting one suggestion',
-  'resume-review': 'Resume strength',
-  'cover-letter': 'Writing cover letters',
-  'job-verify': 'Checking a posting is real',
-  screening: 'Screening',
-  'screening-compare': 'Comparing applicants with AI',
-  'screening-bench': 'Screening bench',
-  'engine-test': 'Engine test',
-};
-
-/** A stored feature as words; a label this version does not know reads as itself. */
-export function featureName(label: string): string {
-  return (FEATURE_NAMES as Record<string, string>)[label] ?? label;
-}
-
 /**
  * Whose money an attempt spends, and so which total it joins. The three are
  * never added together (ADR 0055): a flat plan is not a bill, and a local

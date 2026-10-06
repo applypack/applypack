@@ -670,6 +670,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             <p id="doc-notice" class="mb-2 text-note leading-6 text-ink-muted" hidden></p>
             <div
               id="doc-pane"
+              translate="no"
               class="doc-pane editor h-[70vh] overflow-auto rounded-md border border-line-strong bg-surface-overlay"
               role="region"
               aria-label={t('target.doc.aria')}
@@ -700,7 +701,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             )}
           </Hint>
           <div class="editor relative h-[70vh] overflow-hidden rounded-md border border-line-strong bg-surface-raised">
-            <div id="backdrop" class="editor-layer" aria-hidden="true"></div>
+            <div id="backdrop" class="editor-layer" aria-hidden="true" translate="no"></div>
             <textarea
               id="editor"
               class="editor-layer"

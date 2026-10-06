@@ -17,7 +17,7 @@ import {
   setSetupCompleted,
 } from '../../settings';
 import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
-import { flagOf, resolveCountries } from '../../countries';
+import { resolveCountries } from '../../countries';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
 import { beginFetchNow } from '../fetch-now';
@@ -64,7 +64,7 @@ import {
 } from '../welcome-steps';
 import { spendHint } from '../cost-hint';
 import { currentLocale } from '../../i18n/locale';
-import { placeName } from '../../i18n/places';
+import { countryChip } from '../../i18n/places';
 import { t } from '../../i18n/t';
 
 const TOP_MATCHES = 5;
@@ -407,16 +407,6 @@ welcomeRoute.post('/welcome/score', async (c) => {
 });
 
 /* ---------- helpers ---------- */
-
-/**
- * A country as step 2's chip shows it: its flag and its name in the reader's
- * language. The chip comes back through parseTagList, which splits on commas,
- * so a name with one ("Гонконг, ОАР Китаю") keeps its first part — the flag
- * is what resolves it either way.
- */
-function countryChip(code: string): string {
-  return `${flagOf(code)} ${placeName(code).split(',')[0]}`;
-}
 
 /** The aggregators switched on — what step 2 asks. */
 async function countAggregators(): Promise<number> {
