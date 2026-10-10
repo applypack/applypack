@@ -43,7 +43,11 @@
  *  - the quote may not carry the contact line's email or phone;
  *  - the quote may not carry a keyword this posting wants and this resume has
  *    — a must or primary one blocks, anything lighter warns, exactly as a
- *    replacement that drops the same keyword does.
+ *    replacement that drops the same keyword does;
+ *  - nor may it take a whole labelled line that is what SHOWS such a keyword
+ *    without spelling it: eleven tools under "AI / LLM Automation" are the
+ *    evidence for "AI tooling", and one press deleted them while the term
+ *    was written onto another line with nothing behind it (#350).
  * A blocked removal keeps its advice and loses its `quote`: nothing is
  * highlighted, nothing is deletable in one press, and `why` says why.
  */
@@ -214,9 +218,42 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
   return { actions: gated, blocked, warned };
 }
 
+/** Letters and digits alone, so "AI / LLM Automation" and "AI/LLM Automation" are one name. */
+const lettersOf = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+/** A name shorter than this is in every sentence: "CI" proves nothing by standing in a keyword's note. */
+const MIN_NAME_LETTERS = 4;
+/** A quote this much of a line's terms takes the line; less leaves a line that still shows what it showed. */
+const WHOLE_LINE = 0.8;
+/** Words a place is described with that name no place: "Key Skills, AI / LLM Automation line" is the "AI / LLM Automation" one. */
+const PLACE_FILLER = new Set(['key', 'core', 'technical', 'skills', 'skill', 'section', 'line', 'lines', 'row', 'list', 'category', 'group', 'the', 'of', 'in']);
+
+/**
+ * The names a keyword's `where` may know the line by, when a removal takes
+ * that line whole; none when the quote is only part of its line.
+ *  - The label the line carries: "AI / LLM Automation" of "AI / LLM
+ *    Automation: OpenAI, Claude, …", or of the same row out of a .docx table,
+ *    where the reader writes " | " between the cells (gotcha 18).
+ *  - For a skills line, what the removal itself calls it. A PDF's skills
+ *    table reaches us as a stack of labels and a stack of value lines, so the
+ *    line that goes has no label on it — but the same reply that wrote the
+ *    keyword's note named the line it wants cut.
+ */
+function namesOfLineTaken(resumeText: string, removal: MatchRemoval, quote: string): string[] {
+  const squeeze = (s: string): string => s.replace(/\s+/g, ' ').trim();
+  const first = squeeze(quote.split('\n')[0] ?? '');
+  const line = first === '' ? undefined : resumeText.split('\n').map(squeeze).find((l) => l.includes(first));
+  if (!line) return [];
+  const cut = line.search(/: | \| /);
+  const terms = cut > 0 ? line.slice(cut) : line;
+  if (lettersOf(quote).length < lettersOf(terms).length * WHOLE_LINE) return [];
+  const named = removal.where.split(/[^\p{L}\p{N}]+/u).filter((w) => !PLACE_FILLER.has(w.toLowerCase())).join('');
+  const names = [cut > 0 ? line.slice(0, cut) : '', removal.section === 'skills' ? named : ''];
+  return names.map(lettersOf).filter((n) => n.length >= MIN_NAME_LETTERS);
+}
+
 /**
  * The same judgment over the delete list. A removal has no wording to check,
- * so only the two span rules apply — and both are about what the quote covers,
+ * so only the span rules apply — and they are about what the quote covers,
  * never about whether the advice is good.
  */
 export function gateRemovals(removals: MatchRemoval[], sources: GateSources): RemovalGateReport {
@@ -234,12 +271,19 @@ export function gateRemovals(removals: MatchRemoval[], sources: GateSources): Re
     // whatever it was aiming at (gotcha 11 — a ZIP code took the email with it).
     if (hasContactDetail(quote)) blocks.push('the span covers contact details — keep the email and phone');
 
-    // KEEP WANTED KEYWORDS: deleting the span deletes the evidence with it.
+    // KEEP WANTED KEYWORDS: deleting the span deletes the evidence with it —
+    // the keyword it spells, or the one its whole line is the evidence for.
+    // The comparison says which line that is: the keyword's own `where`.
+    const names = namesOfLineTaken(sources.resumeText, removal, quote);
     for (const k of sources.keywords) {
       if (k.status !== 'present' && k.status !== 'add') continue;
-      if (!has(quote, k)) continue;
-      if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`the span covers "${k.term}", a must-have this posting wants`);
-      else warns.push(`the span covers "${k.term}", which this posting asks for`);
+      const spelled = has(quote, k);
+      const noted = lettersOf(k.where ?? '');
+      const shown = !spelled && names.some((name) => noted.includes(name));
+      if (!spelled && !shown) continue;
+      const what = spelled ? `the span covers "${k.term}"` : `this line is what shows "${k.term}"`;
+      if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`${what}, a must-have this posting wants`);
+      else warns.push(`${what}, which this posting asks for`);
     }
 
     if (blocks.length > 0) {
