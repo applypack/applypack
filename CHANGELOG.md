@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.10] — 2026-10-10
+
+### Fixed
+- **A small .docx can no longer exhaust the worker's memory.** A .docx is a
+  zip, and one of 111 KB can unpack to 32 MB of document; reading that took
+  3.4 seconds and 2.2 GB, and the limit of 64 MB a part was above what the
+  process survives. A file saved into a folder of postings is read with
+  nobody watching, and a worker that died on it read it again on the next
+  check. A saved posting's .docx may now unpack to 2 MB (a posting is tens
+  of kilobytes) and is otherwise set aside with "Too large once unpacked" on
+  the folder's Files page; a resume or an applicant's .docx to 8 MB, four
+  times the largest real one. Both are refused at the unpacker, in a
+  millisecond (#400).
+
 ## [2.55.9] — 2026-10-10
 
 ### Fixed
@@ -5166,6 +5180,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.10]: https://github.com/applypack/applypack/compare/v2.55.9...v2.55.10
 [2.55.9]: https://github.com/applypack/applypack/compare/v2.55.8...v2.55.9
 [2.55.8]: https://github.com/applypack/applypack/compare/v2.55.7...v2.55.8
 [2.55.7]: https://github.com/applypack/applypack/compare/v2.55.6...v2.55.7

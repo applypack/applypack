@@ -3627,6 +3627,7 @@
   "datasets.posting.tooShort": "Menos de {n} caracteres de texto: una nota o una página vacía, no una oferta.",
   "datasets.posting.pdf": "No se pudo leer texto de este PDF: es una imagen escaneada, tiene contraseña o el archivo está dañado. Guarda la página como HTML, o imprímela en PDF con su texto.",
   "datasets.posting.docx": "No es un .docx legible.",
+  "datasets.posting.docxTooLarge": "Demasiado grande al descomprimirse: más de {mb} MB de documento dentro del .docx. Una oferta ocupa una o dos páginas; este archivo no se lee.",
   "datasets.posting.needsModel": "Espera a que se reanude la obtención: la página no indica su título ni su empresa, y leerlos requiere el motor de IA.",
   "datasets.posting.readAs": "Leída como “{title}”{named, select, yes { en {company}} other {, sin nombre de empresa}}{noAddress, select, yes {; el archivo no da ninguna dirección donde enviar la solicitud} other {}}.",
   "datasets.rows.notRows": "Este archivo no contiene filas que ApplyPack pueda leer. Admite un array JSON de objetos, JSON Lines, CSV o TSV.",

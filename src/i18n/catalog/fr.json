@@ -3627,6 +3627,7 @@
   "datasets.posting.tooShort": "Moins de {n} caractères de texte : une note ou une page vide, pas une offre.",
   "datasets.posting.pdf": "Aucun texte n'a pu être lu dans ce PDF : une image numérisée, un mot de passe ou un fichier endommagé. Enregistrez la page en HTML, ou imprimez-la en PDF avec son texte.",
   "datasets.posting.docx": "Pas un .docx lisible.",
+  "datasets.posting.docxTooLarge": "Trop volumineux une fois décompressé : plus de {mb} Mo de document dans le .docx. Une offre tient en une ou deux pages ; ce fichier n'est pas lu.",
   "datasets.posting.needsModel": "En attente de la reprise de la récupération : la page n'indique ni son intitulé ni son entreprise, et il faut le moteur d'IA pour les lire.",
   "datasets.posting.readAs": "Lue comme « {title} »{named, select, yes { chez {company}} other {, entreprise non nommée}}{noAddress, select, yes { ; le fichier ne donne aucune adresse où postuler} other {}}.",
   "datasets.rows.notRows": "Ce fichier ne contient aucune ligne qu'ApplyPack sache lire. Il accepte un tableau JSON d'objets, JSON Lines, CSV ou TSV.",

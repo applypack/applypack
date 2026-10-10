@@ -3627,6 +3627,7 @@
   "datasets.posting.tooShort": "Less than {n} characters of text: a note or an empty page, not a posting.",
   "datasets.posting.pdf": "No text could be read from this PDF: a scanned image, a password, or a damaged file. Save the page as HTML, or print it to PDF with its text.",
   "datasets.posting.docx": "Not a readable .docx.",
+  "datasets.posting.docxTooLarge": "Too large once unpacked: more than {mb} MB of document inside the .docx. A posting is a page or two; this file is not read.",
   "datasets.posting.needsModel": "Waits until fetching is resumed: the page does not say its title and company, and reading them asks the AI engine.",
   "datasets.posting.readAs": "Read as “{title}”{named, select, yes { at {company}} other {, company not named}}{noAddress, select, yes {; the file gives no address to apply at} other {}}.",
   "datasets.rows.notRows": "This file holds no rows ApplyPack can read. It takes a JSON array of objects, JSON Lines, CSV or TSV.",
