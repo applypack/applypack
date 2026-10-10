@@ -26,6 +26,8 @@ export interface RenderPageProps {
   structure: JsonResume;
   /** Where the structure came from — the AI's reading (structure.ts) or the built-in reader's. */
   origin: 'ai' | 'text';
+  /** Lines under the roles that the AI reading lacks (structure-complete.ts): few enough to draw it, said so the person can look. */
+  lostLines?: number;
   /** Where the typography came from; 'none' means the file said nothing. */
   styleSource: 'docx' | 'pdf' | 'none';
   /** The plain text the .docx renders to — literally what the ATS gets. */
@@ -53,6 +55,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
   knobs,
   structure,
   origin,
+  lostLines = 0,
   styleSource,
   preview,
   dropped = [],
@@ -89,6 +92,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
           </span>
         </div>
         <Hint class="mt-2">{t(ORIGIN_NOTE[origin])}</Hint>
+        {lostLines > 0 && <p class="mt-2 text-sm text-warn">{t('render.aiLeftOut', { n: lostLines })}</p>}
         {origin === 'text' && (
           <ActionForm action={`/resumes/${resume.id}/render/shape`} class="mt-3" once>
             <Button size="sm" variant="violet" title={t('render.oneAiCallUnderA')}>

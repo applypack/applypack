@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.4] — 2026-10-10
+
+### Fixed
+- **"Read the shape with AI" no longer keeps a reading that left jobs out.**
+  A model that copied two of a resume's six roles, every word of them
+  faithfully, passed the check that each string is the resume's own, and the
+  clean version was drawn four jobs short; **Save as a new resume** would
+  have written that file. A reading is now also held against the whole text:
+  every role, and every line under one, that the built-in reader finds is
+  looked up in it. With a role missing, or more than a tenth of those lines,
+  the reading is not stored and the page keeps the built-in one, which loses
+  no line; the run says what was missing ("the model read 2 of the 6 roles
+  in your resume"). A reading stored before this is checked the same way
+  each time the page opens. With a line or two missing the reading is still
+  drawn, and the page says how many lines are not in it (#408).
+
 ## [2.55.3] — 2026-10-10
 
 ### Fixed
@@ -5083,6 +5099,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.4]: https://github.com/applypack/applypack/compare/v2.55.3...v2.55.4
 [2.55.3]: https://github.com/applypack/applypack/compare/v2.55.2...v2.55.3
 [2.55.2]: https://github.com/applypack/applypack/compare/v2.55.1...v2.55.2
 [2.55.1]: https://github.com/applypack/applypack/compare/v2.55.0...v2.55.1

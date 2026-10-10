@@ -643,7 +643,10 @@ starts it from its "Read the shape with AI" button
 (`POST /resumes/:id/render/shape`), never on a visit.
 `resume/structure-anchor.ts` drops at persist time every string that is not
 a verbatim span of the resume text, and a reply the guard emptied is not
-stored. Until a reading is stored, `resume/structure-from-text.ts` reads the
+stored. `resume/structure-complete.ts` then holds the reading against the
+whole text: one that left a role out, or more than a tenth of the lines under
+the roles, is not stored either, and a stored one is checked again on every
+visit. Until a reading is stored, `resume/structure-from-text.ts` reads the
 text deterministically instead. `resume/style-infer.ts` takes the typography from
 the file's own runs (not its style sheet, which on the corpus file says a
 different font and size entirely) and from a PDF's embedded fonts. A PDF's
