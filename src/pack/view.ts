@@ -115,7 +115,8 @@ const NOTICE_MAX = 8;
 /**
  * One grouped message for the packs that finished since the last one, as
  * plain lines: the ready ones first, then the ones not worth the evening —
- * knowing which postings to skip is half of what a pack is for.
+ * knowing which postings to skip is half of what a pack is for — and last
+ * the ones that could not be prepared, which the job's page explains.
  */
 export function packNoticeLines(packs: PackNotice[]): string[] {
   const name = (p: PackNotice): string => `${p.title} — ${p.company}`;
@@ -135,6 +136,13 @@ export function packNoticeLines(packs: PackNotice[]): string[] {
       lines.push(`• ${name(p)}: ${t('pack.notice.stop', { stop: stopCase(p.stop) })}`);
     }
     if (stopped.length > NOTICE_MAX) lines.push(t('pack.notice.more', { n: stopped.length - NOTICE_MAX }));
+  }
+  const failed = packs.filter((p) => p.status === 'failed');
+  if (failed.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push(t('pack.notice.failed', { n: failed.length }));
+    for (const p of failed.slice(0, NOTICE_MAX)) lines.push(`• ${name(p)}`);
+    if (failed.length > NOTICE_MAX) lines.push(t('pack.notice.more', { n: failed.length - NOTICE_MAX }));
   }
   return lines;
 }
