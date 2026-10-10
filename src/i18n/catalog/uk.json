@@ -3630,6 +3630,7 @@
   "datasets.posting.docxTooLarge": "Завеликий після розпакування: усередині .docx понад {mb} МБ документа. Вакансія — це сторінка-дві; цей файл не читається.",
   "datasets.posting.needsModel": "Чекає, доки збір вакансій не відновиться: сторінка не вказує назву й компанію, а щоб прочитати їх, потрібен рушій ШІ.",
   "datasets.posting.readAs": "Прочитано як «{title}»{named, select, yes {, компанія {company}} other {, компанію не вказано}}{noAddress, select, yes {; у файлі немає адреси для подання заявки} other {}}.",
+  "datasets.posting.samePosting": "Та сама вакансія, що й у {file}: вона вже є серед вакансій.",
   "datasets.rows.notRows": "У цьому файлі немає рядків, які ApplyPack може прочитати. Підходять масив об'єктів JSON, JSON Lines, CSV або TSV.",
   "datasets.rows.tooManyColumns": "У цій таблиці {n, plural, one {# колонка} few {# колонки} many {# колонок} other {# колонки}}, а ApplyPack читає до {max}. Експортуйте колонки, що описують вакансію.",
   "datasets.rows.empty": "Цей файл порожній.",

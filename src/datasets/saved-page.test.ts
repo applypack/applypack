@@ -80,6 +80,70 @@ describe('readSavedPage: the page’s address', () => {
   });
 });
 
+describe('readSavedPage: a page that carries several postings', () => {
+  const posting = (title: string, url?: string): Record<string, unknown> => ({ '@type': 'JobPosting', title, hiringOrganization: 'Acme', description: `${title}. ${BODY}`, ...(url && { url }) });
+  const savedFrom = (url: string): string => `<!-- saved from url=(${String(url.length).padStart(4, '0')})${url} -->`;
+  const main = posting('Staff Backend Engineer', 'https://acme.example/jobs/42');
+  const similar = posting('QA Engineer', 'https://acme.example/jobs/7');
+
+  it('reads the one the page is about, wherever its "similar jobs" stand', () => {
+    for (const blocks of [block(similar) + block(main), block(main) + block(similar), block({ '@graph': [similar, main] })]) {
+      const got = readSavedPage(`${savedFrom('https://acme.example/jobs/42?utm_source=mail')}${page({ head: blocks })}`, NOW);
+      assert.equal(got.facts?.title, 'Staff Backend Engineer', blocks.slice(0, 60));
+      assert.deepEqual([got.address, got.addressIsOwn], ['https://acme.example/jobs/42', true]);
+      assert.match(got.text, /^Staff Backend Engineer\./);
+    }
+    // The canonical link and og:url say which page this is where the browser left no note.
+    assert.equal(readSavedPage(page({ head: `<link rel="canonical" href="https://acme.example/jobs/42">${block(similar)}${block(main)}` }), NOW).facts?.title, 'Staff Backend Engineer');
+    assert.equal(readSavedPage(page({ head: `<meta property="og:url" content="https://acme.example/jobs/7">${block(main)}${block(similar)}` }), NOW).facts?.title, 'QA Engineer');
+  });
+
+  it('reads no posting off a list of them: the first on a page of results is somebody else’s job', () => {
+    const list = { '@type': 'ItemList', itemListElement: [main, similar].map((item, i) => ({ '@type': 'ListItem', position: i + 1, item })) };
+    const got = readSavedPage(`${savedFrom('https://acme.example/search?q=engineer')}${page({ head: block(list) })}`, NOW);
+    assert.equal(got.facts, null);
+    // The page it was saved from stays as a link, and names no posting.
+    assert.deepEqual([got.address, got.addressIsOwn], ['https://acme.example/search?q=engineer', false]);
+    assert.equal(got.text.includes('Own the billing service'), true);
+    // With nothing saying which page this is, several postings are a list too.
+    assert.equal(readSavedPage(page({ head: block(main) + block(similar) }), NOW).facts, null);
+    // Two that name the page's address are not told apart by it.
+    const twins = [posting('Data Engineer', 'https://acme.example/careers'), posting('Platform Engineer', 'https://acme.example/careers')];
+    assert.equal(readSavedPage(page({ head: `<link rel="canonical" href="https://acme.example/careers">${twins.map(block).join('')}` }), NOW).facts, null);
+  });
+
+  it('takes one posting written twice as one', () => {
+    const got = readSavedPage(page({ head: block(main) + block({ '@graph': [main] }) }), NOW);
+    assert.equal(got.facts?.title, 'Staff Backend Engineer');
+    assert.equal(got.addressIsOwn, true);
+  });
+});
+
+describe('readSavedPage: what an earlier version keyed the job by', () => {
+  const savedFrom = '<!-- saved from url=(0041)https://acme.example/jobs/42?utm_source=x -->';
+  const posting = (more: Record<string, unknown> = {}): Record<string, unknown> => ({ '@type': 'JobPosting', title: 'Staff Backend Engineer', description: BODY, ...more });
+
+  it('is the first block’s url as written, else the browser’s note, else the text', () => {
+    assert.equal(readSavedPage(`${savedFrom}${page({ head: block(posting({ url: 'https://acme.example/jobs/42?ref=a' })) })}`, NOW).earlierKey, 'https://acme.example/jobs/42?ref=a');
+    assert.equal(readSavedPage(`${savedFrom}${page({ head: block(posting()) })}`, NOW).earlierKey, 'https://acme.example/jobs/42?utm_source=x');
+    assert.equal(readSavedPage(page({ head: `<link rel="canonical" href="https://acme.example/careers">${block(posting())}` }), NOW).earlierKey, BODY);
+    assert.equal(readSavedPage(page(), NOW).earlierKey, readSavedPage(page(), NOW).text);
+  });
+
+  it('is the first posting’s, even where the page is about another', () => {
+    const similar = { '@type': 'JobPosting', title: 'QA Engineer', description: `QA. ${BODY}`, url: 'https://acme.example/jobs/7' };
+    const about = posting({ url: 'https://acme.example/jobs/42' });
+    const got = readSavedPage(`${savedFrom}${page({ head: block(similar) + block(about) })}`, NOW);
+    assert.equal(got.facts?.title, 'Staff Backend Engineer');
+    assert.equal(got.earlierKey, 'https://acme.example/jobs/7');
+    // A list with no address of its own was keyed by its first posting's text.
+    const { url: _, ...unaddressed } = similar;
+    const list = readSavedPage(page({ head: block(unaddressed) + block(posting()) }), NOW);
+    assert.equal(list.facts, null);
+    assert.equal(list.earlierKey, `QA. ${BODY}`);
+  });
+});
+
 describe('readSavedPage on what a page should not be able to do', () => {
   it('never keeps markup, a script or a NUL in the text', () => {
     const got = readSavedPage(page({ body: `<main><script>steal()</script><style>p{}</style><p>${BODY}\u0000</p><img src=x onerror=alert(1)></main>` }), NOW);

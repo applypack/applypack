@@ -3630,6 +3630,7 @@
   "datasets.posting.docxTooLarge": "Too large once unpacked: more than {mb} MB of document inside the .docx. A posting is a page or two; this file is not read.",
   "datasets.posting.needsModel": "Waits until fetching is resumed: the page does not say its title and company, and reading them asks the AI engine.",
   "datasets.posting.readAs": "Read as “{title}”{named, select, yes { at {company}} other {, company not named}}{noAddress, select, yes {; the file gives no address to apply at} other {}}.",
+  "datasets.posting.samePosting": "The same posting as {file}, which is a job already.",
   "datasets.rows.notRows": "This file holds no rows ApplyPack can read. It takes a JSON array of objects, JSON Lines, CSV or TSV.",
   "datasets.rows.tooManyColumns": "This table has {n, plural, one {# column} other {# columns}}, and ApplyPack reads up to {max}. Export the columns that describe the job.",
   "datasets.rows.empty": "This file is empty.",

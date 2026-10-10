@@ -10,7 +10,7 @@
 import { cleanEmployer } from '../employer';
 import { decodeHtmlEntities, stripHtml } from '../http';
 import type { WorkplaceCode } from '../location';
-import { clipText, storableText } from '../text-utils';
+import { clipText, normalizeUrlKey, storableText } from '../text-utils';
 import { safeHref } from '../web/format';
 import { readDate } from './map';
 
@@ -31,13 +31,20 @@ export interface SavedPage {
   /**
    * Whether the address names this posting alone: the posting block's own
    * `url` or the browser's "saved from" note. A canonical link or `og:url`
-   * may be a whole careers page that many postings share.
+   * may be a whole careers page that many postings share, and a page that
+   * lists several postings has no address that names one of them.
    */
   addressIsOwn: boolean;
-  /** Null when the page carries no `JobPosting` block. */
+  /** Null when the page carries no `JobPosting` block, or several and none that is the page's own. */
   facts: PageFacts | null;
   /** The page's own `<title>`, for the preview; never a job's title by itself. */
   pageTitle: string | null;
+  /**
+   * What versions up to 2.55.11 took a saved page's job id from: the first
+   * block's `url`, else the browser's note, else the text. Jobs stored then
+   * are found by it (posting-file.ts:identifyPosting).
+   */
+  earlierKey: string;
 }
 
 /** As `jobs/manual-job.ts:MAX_POSTING_CHARS`: the most a posting may run to. */
@@ -53,6 +60,8 @@ const MAX_BLOCK_CHARS = 200_000;
 const HEAD_CHARS = 300_000;
 /** How deep a block's nesting is walked to find the posting (an array, a `@graph`, a page wrapping it). */
 const MAX_DEPTH = 4;
+/** How many postings of a page are told apart: a page with more is a list whatever else it is. */
+const MAX_POSTINGS = 20;
 
 const oneLine = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
@@ -81,25 +90,30 @@ function tags(head: string, name: string): string[] {
   return head.match(new RegExp(`<${name}\\b[^<>]*>`, 'gi')) ?? [];
 }
 
+/** What the page's head says of where it came from, each null when it does not. */
+interface HeadAddresses {
+  /** The browser's "saved from url=" note. */
+  savedFrom: string | null;
+  canonical: string | null;
+  og: string | null;
+}
+
+function headAddresses(head: string): HeadAddresses {
+  const savedFrom = /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
+  const canonical = tags(head, 'link').find((tag) => /(^|\s)canonical(\s|$)/i.test(attribute(tag, 'rel') ?? ''));
+  const og = tags(head, 'meta').find((tag) => (attribute(tag, 'property') ?? attribute(tag, 'name'))?.toLowerCase() === 'og:url');
+  return { savedFrom: link(savedFrom), canonical: link(canonical && attribute(canonical, 'href')), og: link(og && attribute(og, 'content')) };
+}
+
 /**
  * The page's address, from what the page says about itself: the posting
  * block's `url` and the browser's "saved from url=" note first — they name
  * this posting — then its canonical link and its `og:url`, which a careers
  * page that embeds a board shares across every posting on it.
  */
-function pageAddress(head: string, blockUrl: unknown): { address: string | null; own: boolean } {
-  const savedFrom = /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
-  for (const candidate of [blockUrl, savedFrom]) {
-    const href = link(candidate);
-    if (href !== null) return { address: href, own: true };
-  }
-  const canonical = tags(head, 'link').find((tag) => /(^|\s)canonical(\s|$)/i.test(attribute(tag, 'rel') ?? ''));
-  const og = tags(head, 'meta').find((tag) => (attribute(tag, 'property') ?? attribute(tag, 'name'))?.toLowerCase() === 'og:url');
-  for (const candidate of [canonical && attribute(canonical, 'href'), og && attribute(og, 'content')]) {
-    const href = link(candidate);
-    if (href !== null) return { address: href, own: false };
-  }
-  return { address: null, own: false };
+function pageAddress(from: HeadAddresses, blockUrl: unknown): { address: string | null; own: boolean } {
+  const own = link(blockUrl) ?? from.savedFrom;
+  return own !== null ? { address: own, own: true } : { address: from.canonical ?? from.og, own: false };
 }
 
 /** The contents of every `application/ld+json` script, at most `MAX_BLOCKS` of them, found by index, not by a pattern that could backtrack. */
@@ -129,23 +143,15 @@ function isPosting(node: Record<string, unknown>): boolean {
   return type === 'JobPosting' || (Array.isArray(type) && type.includes('JobPosting'));
 }
 
-/** The first `JobPosting` in a parsed block: the block itself, an item of a list, of a `@graph`, or one level inside a page. */
-function findPosting(node: unknown, depth = 0): Record<string, unknown> | null {
-  if (depth > MAX_DEPTH) return null;
+/** Every `JobPosting` in a parsed block, in the block's order: the block itself, the items of a list, of a `@graph`, or one level inside a page. */
+function collectPostings(node: unknown, out: Record<string, unknown>[], depth = 0): void {
+  if (depth > MAX_DEPTH || out.length >= MAX_POSTINGS) return;
   if (Array.isArray(node)) {
-    for (const item of node.slice(0, 50)) {
-      const found = findPosting(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
+    for (const item of node.slice(0, 50)) collectPostings(item, out, depth + 1);
+  } else if (isObject(node)) {
+    if (isPosting(node)) out.push(node);
+    else for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item']) collectPostings(node[key], out, depth + 1);
   }
-  if (!isObject(node)) return null;
-  if (isPosting(node)) return node;
-  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item']) {
-    const found = findPosting(node[key], depth + 1);
-    if (found) return found;
-  }
-  return null;
 }
 
 const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined || value === null ? [] : [value]);
@@ -176,6 +182,30 @@ function readFacts(posting: Record<string, unknown>, now: Date): PageFacts {
   };
 }
 
+/**
+ * The posting this page is about, of the ones its blocks carry. One posting,
+ * or the same one written twice, is it. Of several — the page's own and its
+ * "similar jobs", or a page of search results — it is the one whose `url` is
+ * the page's own address, as the browser's note, the canonical link or
+ * `og:url` give it. With none named so, the page is a list and code reads no
+ * posting off it: the first on a list is somebody else's job.
+ */
+function ownPosting(postings: readonly Record<string, unknown>[], pageAddresses: readonly (string | null)[]): Record<string, unknown> | null {
+  const urlKey = (posting: Record<string, unknown>): string | null => normalizeUrlKey(link(posting.url));
+  const distinct = new Map<string, Record<string, unknown>>();
+  for (const posting of postings) {
+    const key = [urlKey(posting), field(posting.title) ?? field(posting.name), named(posting.hiringOrganization)].join('\n');
+    if (!distinct.has(key)) distinct.set(key, posting);
+  }
+  if (distinct.size <= 1) return postings[0] ?? null;
+  for (const address of pageAddresses) {
+    const key = normalizeUrlKey(address);
+    const matching = key === null ? [] : [...distinct.values()].filter((posting) => urlKey(posting) === key);
+    if (matching.length === 1) return matching[0]!;
+  }
+  return null;
+}
+
 /** The page's main text: its `<main>`, else its `<article>`, else the whole page — navigation and footers are not the posting. */
 function mainText(html: string): string {
   const lower = html.toLowerCase();
@@ -192,24 +222,34 @@ function mainText(html: string): string {
 
 export function readSavedPage(html: string, now: Date = new Date()): SavedPage {
   const head = html.slice(0, HEAD_CHARS);
-  let posting: Record<string, unknown> | null = null;
+  const postings: Record<string, unknown>[] = [];
   for (const block of structuredBlocks(html)) {
     try {
-      posting = findPosting(JSON.parse(block));
+      collectPostings(JSON.parse(block), postings);
     } catch {
       // A block that is not JSON is the page's mistake, and the page's own text still reads.
     }
-    if (posting) break;
   }
-  const blockText = posting && typeof posting.description === 'string' ? stripHtml(storableText(posting.description)) : '';
-  const text = blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : mainText(html);
+  const from = headAddresses(head);
+  const posting = ownPosting(postings, [from.savedFrom, from.canonical, from.og]);
+  // The posting as text: its block's description when that is long enough, else the page's main text.
+  const textOf = (block: Record<string, unknown> | null): string => {
+    const blockText = block && typeof block.description === 'string' ? stripHtml(storableText(block.description)) : '';
+    return clipText(storableText(blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : mainText(html)).trim(), MAX_POSTING_TEXT_CHARS).trim();
+  };
+  const text = textOf(posting);
   const titleTag = /<title\b[^<>]*>([^<]{1,1000})<\/title\s*>/i.exec(head)?.[1];
-  const { address, own } = pageAddress(head, posting?.url);
+  const { address, own } = pageAddress(from, posting?.url);
+  // As versions up to 2.55.11 read it: the first posting on the page, whichever the page was about.
+  const first = postings[0] ?? null;
+  const earlier = pageAddress(from, first?.url);
   return {
-    text: clipText(storableText(text).trim(), MAX_POSTING_TEXT_CHARS).trim(),
+    text,
     address,
-    addressIsOwn: own,
+    // A list of postings has an address, and it names none of them.
+    addressIsOwn: own && (posting !== null || postings.length === 0),
     facts: posting ? readFacts(posting, now) : null,
     pageTitle: titleTag === undefined ? null : field(titleTag),
+    earlierKey: earlier.own && earlier.address !== null ? earlier.address : first === posting ? text : textOf(first),
   };
 }

@@ -52,7 +52,7 @@ import { fetchCareerPage } from './career-page';
 import { fetchFolder } from './folder';
 import { alertsOff } from '../datasets/map';
 import { currentFolderRules } from '../datasets/folder-io';
-import { loadLedger } from '../jobs/source-file-store';
+import { loadLedger, loadStoredPostings } from '../jobs/source-file-store';
 import { config } from '../config';
 import { underLauncher } from '../local/child';
 import { getSourceKeys } from '../settings';
@@ -428,6 +428,7 @@ export async function fetchOne(
       return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS), {
         now: context.now,
         scoring: context.scoring !== false,
+        stored: () => loadStoredPostings(company.id),
       });
   }
 }
