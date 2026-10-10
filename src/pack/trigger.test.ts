@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parsePackSettings } from './settings';
-import { autoPack, utcDayStart } from './trigger';
+import { autoPack, autoPackUnwanted, utcDayStart } from './trigger';
 
 const NOW = new Date('2026-10-05T14:30:00Z');
 const daysAgo = (n: number): Date => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -37,4 +37,18 @@ test('the daily limit stops the sixth, and zero is no limit at all', () => {
 test('the day the limit counts is the UTC day', () => {
   assert.equal(utcDayStart(NOW).toISOString(), '2026-10-05T00:00:00.000Z');
   assert.equal(utcDayStart(new Date('2026-10-05T23:59:59.999Z')).toISOString(), '2026-10-05T00:00:00.000Z');
+});
+
+test('a pack the tick queued is asked again when the runner takes it', () => {
+  const wanted = { enabled: true, status: 'ALERTED', applied: false, muted: false };
+  assert.equal(autoPackUnwanted(wanted), null);
+  assert.equal(autoPackUnwanted({ ...wanted, status: 'NEW' }), null);
+  assert.equal(autoPackUnwanted({ ...wanted, status: 'SAVED' }), null);
+  // Switched off since: the queue may hold a day of them.
+  assert.equal(autoPackUnwanted({ ...wanted, enabled: false }), 'off');
+  assert.equal(autoPackUnwanted({ ...wanted, status: 'DISMISSED' }), 'dismissed');
+  // Applied by any road: marked applied, or put on the applications board.
+  assert.equal(autoPackUnwanted({ ...wanted, status: 'APPLIED', applied: true }), 'applied');
+  assert.equal(autoPackUnwanted({ ...wanted, applied: true }), 'applied');
+  assert.equal(autoPackUnwanted({ ...wanted, muted: true }), 'muted');
 });

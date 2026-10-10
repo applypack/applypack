@@ -6,20 +6,24 @@ import { preparePosting, type Prepared } from '../pack/prepare';
 import { wantsCoverLetter } from '../pack/settings';
 import {
   claimNextPack,
+  dropAutoPack,
   finishPack,
   hasUnfinishedPacks,
   listUnnotifiedPacks,
   loadPackInputs,
   markPacksNotified,
+  packJobState,
   requeueOrphans,
   setPackStep,
 } from '../pack/store';
+import { autoPackUnwanted, type Unwanted } from '../pack/trigger';
 import { packNoticeLines, type PackEdits, type PackNotice } from '../pack/view';
 import { getActiveProfile } from '../profiles';
 import { readCoverAngles } from '../resume/prompts';
 import { getPackSettings, getSchedule, getSettings } from '../settings';
 import { shouldDeliverHeld } from '../user-schedule';
 import type { CronStats } from './cron-run';
+import { mutedKeys } from './employer-store';
 import { tryAdvisoryLock } from './fetch-lock';
 import { t } from '../i18n/t';
 
@@ -66,7 +70,7 @@ async function noticesDue(): Promise<(PackNotice & { id: number })[]> {
 }
 
 export async function runPackJob(): Promise<{ stats: CronStats }> {
-  const stats = { ready: 0, stopped: 0, failed: 0, requeued: 0, notified: 0 };
+  const stats = { ready: 0, stopped: 0, failed: 0, requeued: 0, dropped: 0, notified: 0 };
   // One runner at a time, across processes: a pack is minutes of AI, and two
   // runners would each take the "oldest" and could only race for the limit.
   const lock = await tryAdvisoryLock(PACK_LOCK_KEY);
@@ -75,6 +79,14 @@ export async function runPackJob(): Promise<{ stats: CronStats }> {
     stats.requeued = await requeueOrphans();
     for (let next = stopping ? null : await claimNextPack(); next; next = stopping ? null : await claimNextPack()) {
       const { id, jobId } = next;
+      // The tick queued it hours ago, perhaps: asked again before anything is spent on it.
+      const unwanted = next.trigger === 'auto' ? await noLongerWanted(jobId) : null;
+      if (unwanted) {
+        await dropAutoPack(id);
+        logger.info({ packId: id, jobId, unwanted }, 'pack: no longer wanted; taken out of the queue');
+        stats.dropped++;
+        continue;
+      }
       // Whatever goes wrong with one pack ends with that pack: left `running`
       // it would be re-queued and tried again on every beat.
       const outcome = await runOne(id, jobId).catch(async (err: unknown) => {
@@ -89,6 +101,14 @@ export async function runPackJob(): Promise<{ stats: CronStats }> {
     await lock.release();
   }
   return { stats };
+}
+
+/** Why a pack the tick queued should not be prepared now (trigger.ts), or null. Read per pack: the settings and the job are the person's to change while the queue runs. */
+async function noLongerWanted(jobId: number): Promise<Unwanted | null> {
+  const [pack, job, muted] = await Promise.all([getPackSettings(), packJobState(jobId), mutedKeys()]);
+  // A job that is gone fails in runOne, with its own sentence.
+  if (!job) return null;
+  return autoPackUnwanted({ enabled: pack.enabled, status: job.status, applied: job.applied, muted: job.employerKey !== null && muted.includes(job.employerKey) });
 }
 
 async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped' | 'failed' | 'requeued'> {

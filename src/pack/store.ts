@@ -142,6 +142,26 @@ export async function claimNextPack(): Promise<{ id: number; jobId: number; trig
   }
 }
 
+/** What became of a job since its pack was queued: its status, whether it was applied to by any road, and who hires. */
+export async function packJobState(jobId: number): Promise<{ status: string; applied: boolean; employerKey: string | null } | null> {
+  const job = await prisma.job.findUnique({ where: { id: jobId }, select: { status: true, appliedAt: true, pipelineStage: true, employerKey: true } });
+  return job && { status: job.status, applied: job.status === 'APPLIED' || job.appliedAt !== null || job.pipelineStage !== null, employerKey: job.employerKey };
+}
+
+/**
+ * A pack the tick queued and nobody wants any more, taken out before
+ * anything is prepared: no row is left to announce, and the day's limit gets
+ * its slot back. Never a pack asked for by hand.
+ */
+export async function dropAutoPack(id: number): Promise<void> {
+  await prisma.applicationPack.deleteMany({ where: { id, trigger: 'auto', status: 'running' } });
+}
+
+/** Packs were switched off: the ones the tick queued and no runner has started are not prepared. Returns how many. */
+export async function cancelQueuedAutoPacks(): Promise<number> {
+  return (await prisma.applicationPack.deleteMany({ where: { trigger: 'auto', status: 'queued' } })).count;
+}
+
 export async function setPackStep(id: number, step: PrepareStep): Promise<void> {
   await prisma.applicationPack.updateMany({ where: { id, status: 'running' }, data: { step } });
 }

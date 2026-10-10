@@ -77,6 +77,8 @@ describe('summarizeRun', () => {
       '3 packs announced',
     ]);
     assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, notified: 0 }), []);
+    // A pack the tick queued and nobody wanted by the time the runner took it.
+    assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, dropped: 3, notified: 0 }), ['3 packs no longer wanted, taken out of the queue']);
     assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, notified: 0, reason: 'overlap' }), [
       'Another run was preparing packs; this one did nothing',
     ]);
