@@ -50,7 +50,7 @@ import { fetchFranceTravail } from './francetravail';
 import { fetchFeed } from './feed';
 import { fetchCareerPage } from './career-page';
 import { fetchFolder } from './folder';
-import { readSourceConfig } from '../datasets/map';
+import { alertsOff } from '../datasets/map';
 import { currentFolderRules } from '../datasets/folder-io';
 import { loadLedger } from '../jobs/source-file-store';
 import { config } from '../config';
@@ -209,7 +209,7 @@ export async function runAllFetchers(
       );
       const watch = watchRules(company);
       // A folder whose alerts are off keeps its matches on /jobs and sends nothing (ADR 0062).
-      const quiet = company.atsType === AtsType.FOLDER && readSourceConfig(company.sourceConfig)?.alerts === 'off';
+      const quiet = alertsOff(company);
       for (const job of jobs) {
         out.push({ job, companyName: company.name, source: { atsType: company.atsType, atsToken: company.atsToken }, watch, ...(quiet && { quiet }) });
       }

@@ -2,7 +2,7 @@ import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { alertChannel, sendDigest, type Delivery } from '../notifier';
-import { attributionLine } from '../web/pages/attribution';
+import { sourceLine } from '../web/pages/attribution';
 import { shouldDeliverHeld, type Schedule } from '../user-schedule';
 import { starred, watchRules } from '../watchlist/interval';
 import { groupHeldByTarget, heldTitle, type HeldRow } from './held-alerts';
@@ -58,6 +58,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
       redFlags: true,
       summary: true,
       fetchedAt: true,
+      sourceFile: true,
       company: { select: { name: true, atsType: true, atsToken: true, watched: true, alertPolicy: true } },
       scores: {
         select: { profile: { select: { name: true, notificationTargetId: true } } },
@@ -78,7 +79,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
       // company must read the same as one sent on the spot (ADR 0036).
       companyName: starred(j.employer ?? j.company.name, watchRules(j.company)),
       watched: j.company.watched,
-      attribution: attributionLine(j.company.atsType, j.company.atsToken),
+      attribution: sourceLine(j.sourceFile, j.company.name, j.company),
       location: j.location,
       countries: j.countries,
       workplace: j.workplace,
