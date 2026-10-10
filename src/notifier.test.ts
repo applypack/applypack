@@ -95,6 +95,18 @@ describe('formatTelegramDigest', () => {
     assert.equal(only, 'No new matches since the last digest\\.\n\n1 new job is stored without a score and is not listed as a match — see the Jobs page, under New\\.');
     assert.equal(formatTelegramDigest([], [], 'Daily digest')[0], 'No new matches since the last digest\\.');
   });
+
+  it('writes no Apply line for a job that has no link, in the alert and in the recap (#360)', () => {
+    // A posting saved as text or a PDF has no page address, and its alert ended "[Apply →]()".
+    for (const url of ['', '   ', 'N/A', 'javascript:alert(1)']) {
+      const saved = { ...job, url, attribution: 'From your folder: Saved postings / role.md' };
+      const alert = formatJobMessage(saved);
+      assert.doesNotMatch(alert, /Apply|\]\(/, url);
+      assert.equal(alert.split('\n').at(-1), 'From your folder: Saved postings / role\\.md', url);
+      assert.doesNotMatch(formatTelegramDigest([saved], [], 'Daily digest').join('\n'), /Apply|\]\(/, url);
+    }
+    assert.ok(formatJobMessage(job).endsWith('[Apply →](https://example.com/jobs/1)'));
+  });
 });
 
 describe('formatSalary', () => {

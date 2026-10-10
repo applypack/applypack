@@ -49,6 +49,17 @@ describe('the Discord channel', () => {
     assert.equal(formatDiscordAlert({ ...job, watched: true, matchedProfile: null }).split('\n')[0], '**★ New posting — fit 87/100**');
   });
 
+  it('writes no Apply line for a job that has no link, in the alert and in the digest', () => {
+    // A posting saved as text or a PDF has no page address; a row from a file may hold a link that is none.
+    for (const url of ['', '   ', 'N/A', 'javascript:alert(1)']) {
+      const saved = { ...job, url, attribution: 'From your folder: Saved postings / role.md' };
+      const text = formatDiscordAlert(saved);
+      assert.doesNotMatch(text, /Apply|<>/, url);
+      assert.equal(text.split('\n').at(-1), 'From your folder: Saved postings / role.md', url);
+      assert.doesNotMatch(formatDiscordDigest([saved], [], 'Daily recap').join('\n'), /Apply|<>/, url);
+    }
+  });
+
   it('escapes what would format, and nothing else', () => {
     assert.equal(escapeDiscord('a*b_c~d`e|f>g#h'), 'a\\*b\\_c\\~d\\`e\\|f\\>g\\#h');
     assert.equal(escapeDiscord('C++ and .NET — fine'), 'C++ and .NET — fine');
