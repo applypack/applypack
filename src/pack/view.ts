@@ -12,7 +12,7 @@ import type { HeldReason } from './policy';
 
 const isPackStop = (v: unknown): v is PackStop => (PACK_STOPS as readonly unknown[]).includes(v);
 
-const HELD_REASONS = ['no-wording', 'drops-figure', 'section', 'over-limit', 'removals-off'] as const satisfies readonly HeldReason[];
+const HELD_REASONS = ['no-wording', 'check-first', 'drops-figure', 'section', 'over-limit', 'removals-off'] as const satisfies readonly HeldReason[];
 
 const EditsSchema = z.object({
   applied: z.number().int().min(0).catch(0).default(0),
@@ -35,6 +35,7 @@ export function readPackEdits(v: unknown): PackEdits {
 /** Why a suggestion was left for the person, as the end of "… — <reason>": catalog keys, worded on the page. */
 export const HELD_WORDS = {
   'no-wording': 'pack.held.noWording',
+  'check-first': 'pack.held.checkFirst',
   'drops-figure': 'pack.held.dropsFigure',
   section: 'pack.held.section',
   'over-limit': 'pack.held.overLimit',

@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.2] — 2026-10-10
+
+### Fixed
+- **An application pack no longer writes wording the fact check only warned
+  about.** A suggestion the check let through with a note ("says
+  "Kubernetes" — confirm you have it first", a term the line loses) is a card
+  you read before pressing Apply on the Tailor page; a pack applied it to a
+  file nobody had read yet. Measured on 98 stored suggestions: 15 carried
+  such a note, and a pack would have written every one. They now wait under
+  **Left for you**, with the reason (#374).
+- **A note to the writer is no longer offered as resume text.** The model
+  sometimes put its own instruction into the wording: "(ask the candidate to
+  confirm which role used JIRA)", "[add your real number]", "XX%", a
+  question. One press of Apply pasted that into the resume, and a pack would
+  have sent it. Such a wording is refused when a comparison is made (the card
+  says why, and Copy and Edit & apply still work), and a pack leaves it out
+  on comparisons stored before this (#208).
+
 ## [2.55.1] — 2026-10-10
 
 ### Fixed
@@ -5049,6 +5067,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.2]: https://github.com/applypack/applypack/compare/v2.55.1...v2.55.2
 [2.55.1]: https://github.com/applypack/applypack/compare/v2.55.0...v2.55.1
 [2.55.0]: https://github.com/applypack/applypack/compare/v2.54.0...v2.55.0
 [2.54.0]: https://github.com/applypack/applypack/compare/v2.53.0...v2.54.0

@@ -1,6 +1,7 @@
 import { proposalOf, suggestionKey } from '../resume/change-sheet';
 import { effectiveKeywords } from '../resume/keyword-overrides';
 import type { ACTION_SECTIONS, MatchAction, MatchKeyword, MatchRemoval } from '../resume/prompts';
+import { hasCheckNote, instructionIn } from '../resume/replacement-gate';
 
 /*
  * What an unattended tailoring may do to a resume, and the plan that holds a
@@ -51,8 +52,11 @@ export interface SkillTerm {
 /**
  * `no-wording`: an instruction with nothing to paste, or wording the gate
  * refused. `drops-figure`: the new wording loses a number the line had.
+ * `check-first`: the gate let the wording through with a note to check — a
+ * skill nobody confirmed, a term the line loses. On the Tailor page the person
+ * reads that note before pressing Apply; a pack is a file nobody has read yet.
  */
-export type HeldReason = 'no-wording' | 'drops-figure' | 'section' | 'over-limit' | 'removals-off';
+export type HeldReason = 'no-wording' | 'check-first' | 'drops-figure' | 'section' | 'over-limit' | 'removals-off';
 
 export interface HeldEdit {
   section: ActionSection;
@@ -85,10 +89,14 @@ export function dropsFigure(quote: string, wording: string): boolean {
   return figuresOf(quote).some((n) => !kept.has(n));
 }
 
-/** The operation a card's Apply runs, or null when the card has none. */
+/**
+ * The operation a card's Apply runs, or null when the card has none. A wording
+ * that is a note to the writer has none either: the gate refuses it now, and a
+ * comparison stored before it did still carries "(ask the candidate …)".
+ */
 function operationOf(action: MatchAction): EditOperation | null {
   const wording = proposalOf(action)?.text;
-  if (!wording) return null;
+  if (!wording || instructionIn(wording, action.quote ?? '')) return null;
   const key = suggestionKey(action);
   if (action.quote) return { key, kind: 'change', quote: action.quote, wording };
   if (action.insert_after) return { key, kind: 'add', anchor: action.insert_after, wording };
@@ -119,6 +127,7 @@ export function planEdits(
     const op = operationOf(action);
     if (!op) hold(action, 'no-wording');
     else if (!allowed(action)) hold(action, 'section');
+    else if (hasCheckNote(action)) hold(action, 'check-first');
     else if (op.kind === 'change' && dropsFigure(op.quote, op.wording)) hold(action, 'drops-figure');
     else if (!queued.has(op.key)) {
       queued.add(op.key);
@@ -142,6 +151,7 @@ export function planEdits(
     if (!removal.quote) hold(removal, 'no-wording');
     else if (!policy.removals) hold(removal, 'removals-off');
     else if (!allowed(removal)) hold(removal, 'section');
+    else if (hasCheckNote(removal)) hold(removal, 'check-first');
     else if (!queued.has(key)) {
       queued.add(key);
       ops.push({ key, kind: 'remove', quote: removal.quote });

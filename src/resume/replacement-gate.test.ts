@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gateActions, gateRemovals, splitRefusal, type GateSources } from './replacement-gate';
+import { gateActions, gateRemovals, hasCheckNote, instructionIn, splitRefusal, type GateSources } from './replacement-gate';
 import { readKeywords, readRemovals, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 const RESUME = [
@@ -245,4 +245,93 @@ test('a refusal is read back off why, and only off a refused wording', async () 
   assert.deepEqual(splitRefusal(warned), { why: warned.why, refusal: null });
   // An instruction with no wording was never refused.
   assert.equal(splitRefusal(action({ why: 'reorder the bullets' })).refusal, null);
+});
+
+test('a note to the writer is not resume text: the four wordings stored on real comparisons', () => {
+  for (const wording of [
+    'Tracked and prioritized work using JIRA in Agile/Scrum sprints (ask the candidate to confirm which role used JIRA)',
+    'Personal interest: active follower of crypto markets, investing, and personal finance trends (ask the candidate for the real detail)',
+    'Ask the candidate: did any AWS work at V Shred or Vodwork use Lambda or a serverless design (vs. EC2/RDS)? If yes, add a bullet describing it.',
+    'Architected an AI-powered RAG chat/voice support bot using vector search and LLM APIs, reducing support workload by 20% - ask the candidate whether Elasticsearch backed the vector store.',
+    'Built and maintained Node.js services alongside the Laravel backend to support payment workflows, ask the candidate for the real scope/number.',
+  ]) {
+    assert.match(instructionIn(wording) ?? '', /ask the candidate/i, wording);
+  }
+});
+
+test('a slot left to fill in, a placeholder figure and a question are notes too', () => {
+  const notes: [string, string][] = [
+    ['Cut checkout latency by [add your real number] with Redis caching.', '[add your real number]'],
+    ['Reduced deploy time by XX% with GitHub Actions.', 'XX%'],
+    ['Cut largest-contentful-paint from Xs to Ys on the storefront.', 'from Xs to Ys'],
+    ['Grew revenue to $XXk a month.', '$XXk'],
+    ['Led the migration to Kubernetes (confirm the cluster size).', '(confirm the cluster size)'],
+    ['Owned the billing roadmap. TBD', 'TBD'],
+    ['Owned the cloud bill. Did this role use Terraform? Name it here.', 'Did this role use Terraform?'],
+    ['Shipped the payments API; if yes, add the volume it handled.', 'if yes, add'],
+  ];
+  for (const [wording, span] of notes) assert.equal(instructionIn(wording), span, wording);
+});
+
+test('resume text that only looks like a note passes', () => {
+  for (const wording of [
+    'Fixed N+1 queries across the Laravel API, cutting page load 40%.',
+    'Built payments (check processing, ACH) for 12 regional banks.',
+    'Wrote CRUD endpoints (insert, update, delete) for the orders API.',
+    'Ran the KYC pipeline (verify, screen, onboard) for three banks.',
+    'Shipped add-on billing (add to cart, upsell) for the storefront.',
+    'Improved the candidate experience for a recruiting platform with 2M users.',
+    'Asked to lead the user research guild after six months.',
+    'Built a to-do app in React Native; 4.8 stars on the App Store.',
+    'Ran X (Twitter) and LinkedIn campaigns for a Y Combinator startup.',
+    'Senior Backend Engineer (PHP/Laravel) - Remote',
+    'Maintained https://example.com/search?q=php for the docs team.',
+  ]) {
+    assert.equal(instructionIn(wording), null, wording);
+  }
+});
+
+test("a span the quoted line already had is the candidate's own text", () => {
+  const quote = 'Maintainer of [laravel-queues], a package with 3k stars.';
+  assert.equal(instructionIn('Maintainer of [laravel-queues], a Laravel package with 3k stars.', quote), null);
+  assert.equal(instructionIn('Maintainer of [laravel-queues] with [X] stars.', quote), '[X]');
+  assert.equal(instructionIn('Why PHP? Because it ships.', 'Why PHP? It ships.'), null);
+});
+
+test('a wording of brackets and nothing else is read in a blink', () => {
+  const started = Date.now();
+  assert.equal(instructionIn('['.repeat(40_000) + '?x'.repeat(40_000)) === null, true);
+  assert.ok(Date.now() - started < 500);
+});
+
+test('the gate refuses a note to the writer and says so first', async () => {
+  const src = await sources();
+  const out = gateActions(
+    [
+      action({
+        quote: 'Led migration of the monolith to services',
+        replacement: 'Led migration of the monolith to services (ask the candidate to confirm the team size).',
+      }),
+    ],
+    src,
+  );
+  assert.equal(out.blocked, 1);
+  assert.equal(out.actions[0]!.replacement, null);
+  assert.equal(
+    splitRefusal(out.actions[0]!).refusal,
+    '"ask the candidate" is a note to the writer, not resume text',
+  );
+});
+
+test('a check note is read off a wording the gate let through, and only its own', async () => {
+  const src = await sources({ keywords: [keyword({ term: 'Kubernetes', status: 'ask_user', requirement: 'preferred' })] });
+  const [warned, clean] = gateActions(
+    [
+      action({ quote: 'Led migration of the monolith to services', replacement: 'Led migration of the monolith to services on Kubernetes.' }),
+      action({ quote: 'Designed Laravel payment workflows', replacement: 'Owned Laravel payment workflows processing $4M/month.' }),
+    ],
+    src,
+  ).actions;
+  assert.equal(hasCheckNote(warned!), true);
+  assert.equal(hasCheckNote(clean!), false);
 });
