@@ -579,10 +579,10 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 200,
     },
     {
-      // "I sent this file" with no ready pack behind it marks the job applied and freezes nothing.
-      name: 'POST /jobs/:id/status with pack=1 and no ready pack',
-      init: form({ status: 'APPLIED', pack: '1', tab: 'pack' }),
-      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+      // "I sent this file" from a page whose pack is no longer ready: nothing is recorded or frozen, and the pack tab says why.
+      name: 'POST /jobs/:id/status naming a pack that is not ready (refused, nothing recorded)',
+      init: form({ status: 'APPLIED', appliedResumeId: 'pack-1', tab: 'pack' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack` && (res.headers.get('set-cookie') ?? '').includes('flash='),
     },
   ];
   const postPaths = [

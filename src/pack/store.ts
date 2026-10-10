@@ -38,14 +38,27 @@ export async function getPackFile(jobId: number, kind: 'docx' | 'pdf'): Promise<
   return { bytes: Buffer.from(bytes), fileName: name };
 }
 
-export type QueueOutcome = 'queued' | 'busy' | 'sent';
+export type QueueOutcome = 'queued' | 'busy' | 'sent' | 'kept';
+
+/** A posting the person applied to, by any road: marked applied, or put on the applications board. */
+const APPLIED_TO = { OR: [{ status: 'APPLIED' }, { appliedAt: { not: null } }, { pipelineStage: { not: null } }] } satisfies Prisma.JobWhereInput;
+
+/**
+ * Whether a job's ready pack is kept as it is: the person applied, and its
+ * file may be the one that went out whether or not they said so. Starting
+ * it over would delete that file.
+ */
+export async function packIsKept(jobId: number): Promise<boolean> {
+  return (await prisma.applicationPack.count({ where: { jobId, status: 'ready', job: APPLIED_TO } })) > 0;
+}
 
 /**
  * Put a posting in the queue. A posting has one pack: asking again starts it
- * over, except while it is being prepared (`busy`) and once the person has
- * said its file went out (`sent`) — that row is the record of what they sent.
- * A row keeps the trigger it was born with, so preparing one again by hand
- * does not hand the day's limit a free slot.
+ * over, except while it is being prepared (`busy`), once the person has said
+ * its file went out (`sent`) — that row is the record of what they sent — and
+ * while a ready pack belongs to a job they applied to (`kept`). A row keeps
+ * the trigger it was born with, so preparing one again by hand does not hand
+ * the day's limit a free slot.
  */
 export async function queuePack(jobId: number, trigger: PackTrigger): Promise<QueueOutcome> {
   const existing = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true, sentAt: true } });
@@ -61,6 +74,7 @@ export async function queuePack(jobId: number, trigger: PackTrigger): Promise<Qu
   }
   if (existing.sentAt) return 'sent';
   if (existing.status === 'queued' || existing.status === 'running') return 'busy';
+  if (await packIsKept(jobId)) return 'kept';
   const reset = await prisma.applicationPack.updateMany({
     where: { jobId, sentAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
     data: { ...BLANK, status: 'queued', queuedAt: new Date() },

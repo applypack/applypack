@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
 import { t } from '../../i18n/t';
-import { getPack, getPackFile, packFiles, queuePack } from '../../pack/store';
+import { getPack, getPackFile, packFiles, packIsKept, queuePack } from '../../pack/store';
 import { readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { contentDisposition } from '../../resume/draft-document';
@@ -29,8 +29,8 @@ packRoute.post('/jobs/:id/pack', async (c) => {
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
   const outcome = await queuePack(id, 'manual');
   const tab = jobHref(id, 'pack');
-  if (outcome === 'sent') {
-    return flashRedirect(tab, 'warn', t('pack.flash.sent'));
+  if (outcome === 'sent' || outcome === 'kept') {
+    return flashRedirect(tab, 'warn', t(outcome === 'sent' ? 'pack.flash.sent' : 'pack.flash.kept'));
   }
   return flashRedirect(tab, 'ok', outcome === 'busy' ? t('pack.flash.busy') : t('pack.flash.queued'));
 });
@@ -55,7 +55,7 @@ packRoute.get('/jobs/:id/pack/resume.pdf', (c) => sendPackFile(c, 'pdf'));
 
 /** Everything the job page's pack tab shows, read from what the pack stored. */
 export async function loadPackView(jobId: number, url: string): Promise<ApplicationPackProps> {
-  const [pack, files, settings] = await Promise.all([getPack(jobId), packFiles(jobId), getPackSettings()]);
+  const [pack, files, settings, kept] = await Promise.all([getPack(jobId), packFiles(jobId), getPackSettings(), packIsKept(jobId)]);
   const [verification, match] = await Promise.all([
     pack?.verificationId
       ? prisma.jobVerification.findUnique({
@@ -74,6 +74,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
     jobId,
     url,
     pack,
+    kept,
     files,
     edits: readPackEdits(pack?.edits),
     changes,

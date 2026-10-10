@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
-import { appliedResumeColumns } from '../applied-resume';
+import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
   parsePlaces,
   parsePosted,
@@ -36,7 +36,7 @@ import { addresseeFromFinding } from '../../resume/addressee';
 import { livenessCodeLabel } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
 import { jobHref, jobTabLabels, resolveJobTab, type JobTab } from '../job-tabs';
-import { getPack, markPackSent } from '../../pack/store';
+import { getPack, markPackSent, type PackRow } from '../../pack/store';
 import { packFact } from '../../pack/view';
 import { loadPackView } from './pack';
 import { JobDetailPage } from '../pages/job-detail';
@@ -508,6 +508,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       appliedResumePicker={{
         resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
         suggestedId: appliedPick?.id ?? null,
+        packValue: packChoiceValue(applicationPack.pack),
       }}
       profileScores={job.scores.map((sc) => ({
         profileId: sc.profileId,
@@ -568,16 +569,18 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
 
   const form = await c.req.parseBody();
+  // The picker's answer: a resume, none, or the application pack's file.
+  const choice = readAppliedResumeChoice(form.appliedResumeId);
   const parsed = StatusBodySchema.safeParse({
     status: form.status,
-    appliedResumeId: form.appliedResumeId === '' ? undefined : form.appliedResumeId,
+    appliedResumeId: choice.kind === 'set' ? choice.id : undefined,
   });
   if (!parsed.success) return c.text(t('http.invalidStatus'), 400);
   // The update below throws on a row that is not there; a missing job is a 404, not a 500.
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
 
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
-  let sentPack: Awaited<ReturnType<typeof getPack>> = null;
+  let sentPack: ReturnType<typeof packAsShown<PackRow>> = null;
   if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
     data.alertedAt = data.alertedAt ?? new Date();
   }
@@ -606,14 +609,17 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
     // the version alone would name v3 and hand back v5's words. The rules for
     // what counts live in applied-resume.ts, shared with the two paths on
     // /applications that used to record nothing at all (#75).
-    // "I sent this file" on the pack tab (ADR 0063): what went out is the
-    // pack's text, not the resume's as it stands — and the pack is frozen
-    // below, once the status is written.
-    sentPack = form.pack === '1' ? await getPack(id) : null;
-    if (sentPack?.status !== 'ready' || !sentPack.text || !sentPack.resumeId) sentPack = null;
+    // "The application pack's file" (ADR 0063), from the pack tab or the
+    // picker: what went out is the pack's text, not the resume's as it stands
+    // — and the pack is frozen below, once the status is written.
+    if (choice.kind === 'pack') {
+      sentPack = packAsShown(await getPack(id), choice.at);
+      // Prepared again since the page was drawn, or not ready: its file is not the one the person looked at.
+      if (!sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
+    }
     const requested = sentPack?.resumeId ?? parsed.data.appliedResumeId;
     const picked = requested ? await getResume(requested) : null;
-    const columns = appliedResumeColumns(picked && sentPack?.text ? { ...picked, text: sentPack.text } : picked);
+    const columns = appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
     data.appliedResume = columns.appliedResumeId
       ? { connect: { id: columns.appliedResumeId } }
       : { disconnect: true };
