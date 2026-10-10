@@ -743,7 +743,10 @@ reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
 
 - a file is read again only when its size or time changes; one changed in
   the last ten seconds waits; a copy of a file already read is set aside;
-- 20 files and 5 000 rows a check, 5 MB a file, three folders deep;
+- 20 files and 5 000 rows a check, 5 MB a file, three folders deep. A file
+  with more rows than a check has left waits ("5,000 of 12,000 rows read so
+  far") and the next check reads on from there; a file that only grew is
+  read from its old end, one written anew from its start;
 - what became of each file is kept in `source_file`, written only after the
   check stored its jobs, and shown on the folder's **Files** page;
 - nothing in the folder is ever written, moved, renamed or deleted.

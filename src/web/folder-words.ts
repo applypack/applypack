@@ -40,7 +40,7 @@ export function fileLine(file: { status: string; detail: string | null; jobCount
   const say = (...sentences: (string | null)[]): string => sentences.filter((s) => s).join(' ');
   if (file.status === 'done') {
     if (posting) return { label: t('folders.file.read'), tone: 'ok', text: say(file.detail ?? t('folders.file.readAsPosting'), gone) };
-    return { label: t('folders.file.read'), tone: 'ok', text: say(t('folders.file.rowsRead', { n: file.jobCount }), file.detail, gone) };
+    return { label: t('folders.file.read'), tone: 'ok', text: say(t('folders.file.rowsRead', { n: file.jobCount }), gone) };
   }
   if (file.status === 'waiting') return { label: t('folders.file.waiting'), tone: 'neutral', text: say(file.detail ?? t('folders.file.nextCheckReads'), gone) };
   if (file.status === 'failed') return { label: t('folders.file.notRead'), tone: 'danger', text: say(file.detail ?? t('folders.file.couldNotRead'), gone) };

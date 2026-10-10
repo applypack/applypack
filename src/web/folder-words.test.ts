@@ -12,7 +12,8 @@ test('folderLine: what a folder holds and what the last check found', () => {
 
 test('fileLine: each state of a file as a badge and a sentence', () => {
   assert.deepEqual(fileLine({ status: 'done', detail: null, jobCount: 37, kind: 'json' }, true), { label: 'Read', tone: 'ok', text: '37 rows read as jobs.' });
-  assert.equal(fileLine({ status: 'done', detail: 'The first 2,000 of 2,005 rows.', jobCount: 1, kind: 'json' }, true).text, '1 row read as a job. The first 2,000 of 2,005 rows.');
+  // A long file part-way through waits, and its note says how far it was read.
+  assert.deepEqual(fileLine({ status: 'waiting', detail: '5,000 of 12,000 rows read so far.', jobCount: 4_870, kind: 'jsonl' }, true), { label: 'Waiting', tone: 'neutral', text: '5,000 of 12,000 rows read so far.' });
   assert.deepEqual(fileLine({ status: 'waiting', detail: 'Changed a moment ago.', jobCount: 0, kind: 'json' }, true), { label: 'Waiting', tone: 'neutral', text: 'Changed a moment ago.' });
   assert.equal(fileLine({ status: 'failed', detail: null, jobCount: 0, kind: 'json' }, true).label, 'Not read');
   assert.equal(fileLine({ status: 'skipped', detail: 'No rows in it.', jobCount: 0, kind: 'json' }, true).label, 'Set aside');

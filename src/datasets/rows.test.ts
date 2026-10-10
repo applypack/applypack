@@ -160,6 +160,27 @@ describe('findRows: the ceiling', () => {
     assert.equal(found.rows.length, 4);
     assert.equal(found.over, 5);
   });
+
+  it('reads on from a row, in every format, and says how many the body holds', () => {
+    const titles = Array.from({ length: 9 }, (_, i) => `t${i}`);
+    const bodies = {
+      json: JSON.stringify(titles.map((title) => ({ title }))),
+      jsonl: titles.map((title) => JSON.stringify({ title })).join('\n'),
+      csv: `title,url\n${titles.map((title) => `${title},u`).join('\n')}`,
+    };
+    for (const [format, body] of Object.entries(bodies)) {
+      const page = findRows(body, 4, 3);
+      assert.ok(page.ok, format);
+      assert.deepEqual([page.rows.map((r) => r.title), page.over, page.total], [['t3', 't4', 't5', 't6'], 2, 9], format);
+      const last = findRows(body, 4, 7);
+      assert.ok(last.ok, format);
+      assert.deepEqual([last.rows.map((r) => r.title), last.over, last.total], [['t7', 't8'], 0, 9], format);
+      // Past its end there is nothing to give, and the total still says what it holds.
+      const past = findRows(body, 4, 12);
+      assert.ok(past.ok, format);
+      assert.deepEqual([past.rows, past.over, past.total], [[], 0, 9], format);
+    }
+  });
 });
 
 describe('decodeBody', () => {

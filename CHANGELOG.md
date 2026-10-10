@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.11] — 2026-10-10
+
+### Fixed
+- **A file in a folder is read to its end.** A folder's file of rows was
+  read to its 2,000th row and marked done: the rest never became jobs, and a
+  tool that appends to one file stopped yielding there, every change
+  re-reading the same first 2,000 rows. A file is now read 5,000 rows a
+  check until its end, and the Files page says how far it is ("5,000 of
+  12,000 rows read so far"); a file that only grew is read from its old end,
+  so an appended row is one new job and not a second reading of the file. A
+  check also stops at 5,000 rows exactly, where it could hand over 6,999.
+  Files already cut at 2,000 rows are picked up again at the next check
+  (#393).
+
 ## [2.55.10] — 2026-10-10
 
 ### Fixed
@@ -5180,6 +5194,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.11]: https://github.com/applypack/applypack/compare/v2.55.10...v2.55.11
 [2.55.10]: https://github.com/applypack/applypack/compare/v2.55.9...v2.55.10
 [2.55.9]: https://github.com/applypack/applypack/compare/v2.55.8...v2.55.9
 [2.55.8]: https://github.com/applypack/applypack/compare/v2.55.7...v2.55.8

@@ -3623,7 +3623,7 @@
   "datasets.file.unreadable": "Le système n'a pas pu lire ce fichier ({code}). Nouvel essai à la prochaine vérification.",
   "datasets.file.sameContent": "Le même contenu que {file}, déjà lu.",
   "datasets.file.misfit": "Ses colonnes ne correspondent pas au mappage : {jobs, number} sur {rows, plural, one {# ligne lue comme une offre} many {# de lignes lues comme une offre} other {# lignes lues comme une offre}}.",
-  "datasets.file.firstRows": "Les {first, number} premières sur {total, plural, one {# ligne} many {# de lignes} other {# lignes}}.",
+  "datasets.file.partRows": "{read, number} sur {total, plural, one {# ligne} many {# de lignes} other {# lignes}} lues pour l'instant. La prochaine vérification reprendra à partir de là.",
   "datasets.posting.tooShort": "Moins de {n} caractères de texte : une note ou une page vide, pas une offre.",
   "datasets.posting.pdf": "Aucun texte n'a pu être lu dans ce PDF : une image numérisée, un mot de passe ou un fichier endommagé. Enregistrez la page en HTML, ou imprimez-la en PDF avec son texte.",
   "datasets.posting.docx": "Pas un .docx lisible.",

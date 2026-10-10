@@ -3623,7 +3623,7 @@
   "datasets.file.unreadable": "Система не змогла прочитати цей файл ({code}). Наступна перевірка спробує знову.",
   "datasets.file.sameContent": "Той самий вміст, що й у {file}, який уже прочитано.",
   "datasets.file.misfit": "Його колонки не відповідають зіставленню: як вакансію прочитано {jobs, number} з {rows, plural, one {# рядка} few {# рядків} many {# рядків} other {# рядка}}.",
-  "datasets.file.firstRows": "Перші {first, number} з {total, plural, one {# рядка} few {# рядків} many {# рядків} other {# рядка}}.",
+  "datasets.file.partRows": "Прочитано {read, number} з {total, plural, one {# рядка} few {# рядків} many {# рядків} other {# рядка}}. Наступна перевірка читатиме далі.",
   "datasets.posting.tooShort": "Менше ніж {n} символів тексту: це нотатка чи порожня сторінка, а не вакансія.",
   "datasets.posting.pdf": "З цього PDF не вдалося прочитати текст: це скан, файл під паролем або пошкоджений файл. Збережіть сторінку як HTML або надрукуйте її в PDF разом із текстом.",
   "datasets.posting.docx": "Це не читабельний .docx.",

@@ -3623,7 +3623,7 @@
   "datasets.file.unreadable": "The system could not read this file ({code}). It is tried again at the next check.",
   "datasets.file.sameContent": "The same content as {file}, which was read already.",
   "datasets.file.misfit": "Its columns do not fit the mapping: {jobs, number} of {rows, plural, one {# row} other {# rows}} read as a job.",
-  "datasets.file.firstRows": "The first {first, number} of {total, plural, one {# row} other {# rows}}.",
+  "datasets.file.partRows": "{read, number} of {total, plural, one {# row} other {# rows}} read so far. The next check reads on from there.",
   "datasets.posting.tooShort": "Less than {n} characters of text: a note or an empty page, not a posting.",
   "datasets.posting.pdf": "No text could be read from this PDF: a scanned image, a password, or a damaged file. Save the page as HTML, or print it to PDF with its text.",
   "datasets.posting.docx": "Not a readable .docx.",

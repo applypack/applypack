@@ -9,7 +9,7 @@ import type { FoundRows } from '../datasets/rows';
  * handful at most, so a few megabytes of rows cannot pile up.
  */
 
-export interface ImportStash extends FoundRows {
+export interface ImportStash extends Omit<FoundRows, 'total'> {
   id: string;
   fileName: string;
   /** Where the rows go: an import source that exists (`id`), or the name of one to create. */

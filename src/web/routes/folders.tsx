@@ -191,12 +191,15 @@ async function previewRows(
 
   // The first look, as the fetcher would take it (fetchers/folder.ts), with nothing staged and nothing stored.
   const readAs = new Map(ledger.filter((e) => e.status === 'done' && e.sha256 !== null).map((e) => [e.sha256!, e.relPath]));
+  const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const jobs: NormalizedJob[] = [];
+  let left = MAX_ROWS_PER_LOOK;
   let misfits = 0;
   if (usableMapping(detected.mapping)) {
     for (const file of plan.read) {
-      if (jobs.length >= MAX_ROWS_PER_LOOK) break;
-      const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs);
+      if (left <= 0) break;
+      const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs, known.get(file.relPath), left);
+      left -= verdict.taken;
       if (verdict.rows === 'misfit') misfits++;
       if (verdict.rows === 'fit') {
         readAs.set(verdict.change!.sha256!, file.relPath);

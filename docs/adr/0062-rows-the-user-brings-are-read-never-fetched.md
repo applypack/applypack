@@ -170,6 +170,18 @@ dashboard. `datasets/folder-path.ts` bounds it, on real paths:
   nothing and is set aside by name.
 - Ceilings: 20 files and 5 000 rows a look, 5 MB a file, and a folder of
   more than 20 000 entries is refused whole.
+- *Amended 2026-10-10 (v2.55.11, #393).* The import's 2 000 rows a body
+  first applied to a folder's file too: it was read to its 2 000th row and
+  marked done, and a tool that appends to one file stopped yielding there.
+  The ledger now keeps how many rows of a file were read
+  (`source_file.rowsRead`). A file with more rows than the look has left
+  waits and is read on at the next look; a file that only grew — its first
+  bytes still hash to what was read — is read from its old end; any other
+  change is a file written anew, read from its start, where the rows
+  already stored are duplicates. The count is kept only with the hash of
+  the bytes it was read from, so a look that could not read the file starts
+  it over. A file rewritten whole more often than its rows can be paged
+  through is read at its head each time and keeps saying so.
 - A file where fewer than half the rows read as a job no longer fits the
   mapping: none of it is handed over, and it is not read again until it
   changes or the mapping is saved again. When every file a look reads
