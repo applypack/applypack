@@ -2802,6 +2802,7 @@
   "screen.list.deleteConfirm": "Supprimer « {title} » avec tous les fichiers des candidats et tous les verdicts ? Cette action est irréversible.",
   "screen.list.retentionHint": "Chaque présélection est supprimée avec ses fichiers à la date indiquée dans « Conservée jusqu'au » — réglez la durée par défaut dans Paramètres → Outils employeur, ou prolongez-en une depuis sa page.",
   "pack.held.noWording": "une consigne sans formulation à coller, ou une formulation refusée par la vérification des faits",
+  "pack.held.checkFirst": "la formulation porte une note à vérifier d'abord, par exemple une compétence que vous n'avez pas confirmée",
   "pack.held.dropsFigure": "la nouvelle formulation perd un chiffre que la ligne contenait",
   "pack.held.section": "cette section est fermée aux modifications automatiques",
   "pack.held.overLimit": "au-delà de la limite de puces d'expérience",

@@ -25,6 +25,11 @@
  *    warns — the rule as written blocked a good rewrite of a bullet whose one
  *    "SQL" was the phrase "SQL injection".
  *
+ *  - wording that is a note to the writer and not resume text is refused
+ *    (`instructionIn`): the prompt sends "ask the candidate for the real
+ *    number" to `why`, and the model still writes it, or a slot to fill in,
+ *    into the wording itself — one press then put that sentence in the resume.
+ *
  * A blocked action keeps everything but its replacement, which becomes an
  * explicit null — proposalOf reads that as "judged, do not parse `what`".
  *
@@ -88,6 +93,58 @@ export function splitRefusal(action: Pick<MatchAction, 'why' | 'replacement'>): 
   return { why: action.why.slice(0, at), refusal: action.why.slice(at + BLOCK_NOTE.length) };
 }
 
+/**
+ * Whether the gate let this wording through with a note for the person to
+ * check (" · check: …" on `why`). On the Tailor page they read it on the card
+ * before pressing Apply; anything that applies with nobody reading asks here.
+ * Only the first note is written, so one about a dropped term can stand in
+ * front of one about a skill nobody confirmed: every note counts.
+ */
+export function hasCheckNote(item: { why: string }): boolean {
+  return item.why.includes(WARN_NOTE);
+}
+
+/**
+ * What gives a note to the writer away. Each is something a resume line does
+ * not say: a request to the candidate, a slot left to fill in, a question.
+ * Kept narrow on purpose — "N+1 queries", "(check processing)", "(insert,
+ * update, delete)" and "add-on" are resume text.
+ */
+const INSTRUCTION_PATTERNS: RegExp[] = [
+  /\bask(?:ing)? (?:the |your )?(?:candidate|applicant|user)\b/gi,
+  /\b(?:confirm|check|verify) with (?:the )?(?:candidate|applicant|user)\b/gi,
+  /\b(?:candidate|applicant) (?:to|should|must|needs to) (?:confirm|provide|supply|add|fill|specify|verify)\b/gi,
+  /\bif (?:yes|so|true|applicable),? (?:add|include|mention|describe)\b/gi,
+  // A parenthesis that opens with an order: "(confirm which role used JIRA)", "(add your real number)".
+  /\((?:ask\b|(?:confirm|verify|specify|check) (?:the|which|whether|if|your|with|this|that)\b|fill in\b|add (?:your|the real|a real|real|actual)\b|replace with\b)[^)]*\)?/gi,
+  // A slot: "[add your real number]", "[X]", "[company]".
+  /\[[^[\]\n]+\]/g,
+  /\b(?:TBD|TODO)\b/g,
+  // Placeholder figures: "XX%", "$XXk", "from Xs to Ys" (the brief's own shapes use these letters).
+  /\bX{1,3}\s?%|[$€£]X+\w?\b|\bXX+\b|\bN\s?%|\bfrom X\w{0,2} to Y\w{0,2}\b/g,
+];
+/** A resume line never asks. Not the "?" of an address: that one has no space after it. */
+const QUESTION_MARK = /\?(?=\s|$)/g;
+
+/**
+ * The span that makes a wording a note to the writer instead of resume text,
+ * or null. A span the quoted line already carried is the candidate's own text
+ * and is never held against the rewrite.
+ */
+export function instructionIn(wording: string, quote = ''): string | null {
+  for (const pattern of INSTRUCTION_PATTERNS) {
+    for (const [found] of wording.matchAll(pattern)) {
+      if (!quote.includes(found)) return found.trim();
+    }
+  }
+  for (const { index } of wording.matchAll(QUESTION_MARK)) {
+    const from = Math.max(wording.lastIndexOf('. ', index), wording.lastIndexOf('\n', index)) + 1;
+    const question = wording.slice(from, index + 1).trim();
+    if (!quote.includes(question)) return question;
+  }
+  return null;
+}
+
 /** Confirmed facts as lines the fact check can index — the same shape the cover letter feeds it. */
 function factLines(facts: FactLike[]): string[] {
   return facts
@@ -115,6 +172,10 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
       sources: [sources.resumeText, sources.posting, ...factLines(sources.facts)],
       facts: sources.facts,
     });
+    // First on purpose: of the reasons a card can show, this one says the wording was never a line.
+    const instruction = instructionIn(text, quote);
+    if (instruction) blocks.push(`"${instruction}" is a note to the writer, not resume text`);
+
     if (check.verdict === 'block') blocks.push(...check.reasons);
     else if (check.verdict === 'warn') warns.push(...check.reasons);
 

@@ -2802,6 +2802,7 @@
   "screen.list.deleteConfirm": "Delete \"{title}\" with every applicant file and verdict? This cannot be undone.",
   "screen.list.retentionHint": "Each screening is deleted with its files on the date in \"Kept until\" — set the default on Settings → Employer tools, or extend one from its page.",
   "pack.held.noWording": "an instruction with no wording to paste, or wording the fact check refused",
+  "pack.held.checkFirst": "the wording carries a note to check first, such as a skill you have not confirmed",
   "pack.held.dropsFigure": "the new wording loses a number the line had",
   "pack.held.section": "this section is closed to automatic edits",
   "pack.held.overLimit": "over the limit of experience bullets",

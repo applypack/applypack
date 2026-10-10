@@ -2802,6 +2802,7 @@
   "screen.list.deleteConfirm": "¿Eliminar “{title}” con todos los archivos de los candidatos y todos los veredictos? Esta acción no se puede deshacer.",
   "screen.list.retentionHint": "Cada preselección se elimina con sus archivos en la fecha de “Se conserva hasta” — define el plazo predeterminado en Configuración → Para empleadores, o amplía una desde su página.",
   "pack.held.noWording": "una indicación sin redacción que pegar, o una redacción que rechazó la verificación de hechos",
+  "pack.held.checkFirst": "la redacción lleva una nota que conviene revisar antes, como una habilidad que no has confirmado",
   "pack.held.dropsFigure": "la nueva redacción pierde una cifra que tenía la línea",
   "pack.held.section": "esta sección no admite ediciones automáticas",
   "pack.held.overLimit": "supera el límite de viñetas de experiencia",

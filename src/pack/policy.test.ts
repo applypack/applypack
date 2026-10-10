@@ -65,6 +65,43 @@ test('wording the gate refused, an instruction and an edit with no place are hel
   ]);
 });
 
+test('a wording the gate only warned about waits for the person: nobody reads a note on a pack', () => {
+  // The live case (#374): fourteen of ninety-eight stored wordings carried a note, and a pack applied every one.
+  const unconfirmed = action({
+    section: 'skills',
+    where: 'Cloud & DevOps',
+    why: 'the posting asks for it · check: says "client-go" — confirm you have it first',
+    quote: 'Cloud & DevOps: Kubernetes, CI/CD, Git',
+    replacement: 'Cloud & DevOps: Kubernetes (client-go, controller-runtime), CI/CD, Git',
+  });
+  const clean = action({ section: 'summary', where: 'Summary' });
+  const cut = removal({ where: 'warned cut', why: 'reads cleaner · check: the span covers "Memcached", which this posting asks for' });
+  const { ops, held } = plan({ actions: [unconfirmed, clean], removals: [cut] }, { removals: true });
+  assert.deepEqual(ops.map((o) => o.key), [suggestionKey(clean)]);
+  assert.deepEqual(held.map((h) => [h.where, h.reason]), [
+    ['Cloud & DevOps', 'check-first'],
+    ['warned cut', 'check-first'],
+  ]);
+});
+
+test('a wording that is a note to the writer is never pasted, on a comparison stored before the gate refused it', () => {
+  const note = action({
+    where: 'V Shred · new bullet',
+    quote: null,
+    insert_after: 'Built a billing service.',
+    replacement: 'Built and maintained Node.js services alongside the Laravel backend, ask the candidate for the real scope/number.',
+  });
+  const { ops, held } = plan({ actions: [note] });
+  assert.deepEqual(ops, []);
+  assert.deepEqual(held.map((h) => h.reason), ['no-wording']);
+});
+
+test('a warned edit does not use up the bullet limit', () => {
+  const warned = action({ where: 'warned', priority: 'high', quote: 'a', why: 'x · check: drops "SQL"' });
+  const kept = action({ where: 'kept', priority: 'low', quote: 'b' });
+  assert.deepEqual(plan({ actions: [warned, kept] }, { maxBullets: 1 }).ops.map((o) => o.key), [suggestionKey(kept)]);
+});
+
 test('the bullet limit keeps the highest priority first and leaves the report order alone', () => {
   const low = action({ where: 'low', priority: 'low', quote: 'a' });
   const high = action({ where: 'high', priority: 'high', quote: 'b' });
