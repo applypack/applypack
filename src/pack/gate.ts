@@ -28,6 +28,23 @@ export interface Stop {
   why: string;
 }
 
+/** What becomes of one run of the runner (jobs/pack-job.ts). */
+export type RunVerdict = 'requeue' | 'failed' | 'stopped' | 'ready';
+
+/**
+ * What a run comes to. A run the worker's shutdown cut into is not an answer
+ * about the posting, whatever it returned: a company check killed mid-call
+ * reads as "not checked", and the pack would end ready and be announced
+ * without it. It goes back in the queue — the comparison and the check it
+ * did finish are stored, and the next run reuses them.
+ */
+export function runVerdict(run: { stopping: boolean; error: string | null; stopped: boolean; made: boolean }): RunVerdict {
+  if (run.stopping) return 'requeue';
+  if (run.error !== null) return 'failed';
+  if (run.stopped) return 'stopped';
+  return run.made ? 'ready' : 'failed';
+}
+
 /** The free check before any AI: only a posting known to be gone stops; "uncertain" goes on. */
 export function livenessStop(result: { liveness: string; label: string }): Stop | null {
   return result.liveness === 'expired' ? { stop: 'closed', why: result.label } : null;
