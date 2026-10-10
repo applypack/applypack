@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.19] — 2026-10-10
+
+### Fixed
+- **A posting pasted without a title is no longer named after its first
+  heading.** When neither you nor the model named the role, the first line
+  of the paste became the title, and a paste from a job board opens with a
+  heading: the job was listed as "Full job description", and the comparison
+  read that as the role, so the title line was never measured. A first line
+  that is a section heading ("Full job description", "About the job",
+  "About Acme", "Who we are", "The role") is not taken: the job is
+  "Untitled role" until you name it (#352).
+
 ## [2.55.18] — 2026-10-10
 
 ### Fixed
@@ -5299,6 +5311,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.19]: https://github.com/applypack/applypack/compare/v2.55.18...v2.55.19
 [2.55.18]: https://github.com/applypack/applypack/compare/v2.55.17...v2.55.18
 [2.55.17]: https://github.com/applypack/applypack/compare/v2.55.16...v2.55.17
 [2.55.16]: https://github.com/applypack/applypack/compare/v2.55.15...v2.55.16

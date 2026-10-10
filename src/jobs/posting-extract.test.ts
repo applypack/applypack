@@ -68,6 +68,18 @@ test('fallbackTitle uses a short first line, else a neutral default', () => {
   assert.equal(fallbackTitle(''), 'Untitled role');
 });
 
+test('fallbackTitle does not take a section heading for the role (#352)', () => {
+  // The live case: a paste from Indeed, stored and scored as "Full job description".
+  assert.equal(fallbackTitle('Full job description\nABOUT THE ROLE\nWe are hiring a backend engineer.'), 'Untitled role');
+  for (const heading of ['Full job description', 'About the job', 'Job description', 'Job details', 'About the role', 'Description', 'About Betterment', 'About us', 'ABOUT THE TEAM', 'Who we are', 'The role', 'The Opportunity', 'Overview', 'Position Summary', 'Role overview:', 'What you’ll do', "What you'll do", 'Responsibilities', 'Requirements:']) {
+    assert.equal(fallbackTitle(`${heading}\nWe build payroll software for small teams.`), 'Untitled role', heading);
+  }
+  // A role that only resembles one is still a title.
+  for (const title of ['Senior PHP Developer', 'Job Description Writer', 'Overview Analyst, Risk', 'Head of Requirements Engineering', 'Aboutness Researcher', 'Role: Staff Engineer']) {
+    assert.equal(fallbackTitle(`${title}\nrest`), title, title);
+  }
+});
+
 test('parseExtractReply caps runaway field lengths', () => {
   const long = 'A'.repeat(500);
   const facts = parseExtractReply(`{"company":"${long}","title":"ok","location":null}`);
