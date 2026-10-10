@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.12] — 2026-10-10
+
+### Fixed
+- **Saved postings no longer merge into one job, or split into two.** A
+  saved posting's id was its page's address, else its text, and both halves
+  misfired. One opening in two cities shares a description, and two postings
+  may name the same careers page as their address: the second was counted as
+  read and never became a job. The same address with another campaign
+  parameter, or a note added to a `.md`, made a second job, a second alert
+  and possibly a second pack. The id now holds the role and the place the
+  page states beside its address (without campaign parameters) or its text,
+  and a file is first matched to a job the folder already holds: by the id
+  earlier versions gave it, or as the same file with a note under it. A page
+  that carries several postings is read as the one its own address names
+  (not the first "similar job" on it), and a page of search results is no
+  longer taken for the first posting on its list. A posting the folder holds
+  costs no model call, and its file says "The same posting as <file>" on the
+  Files page. Files that were counted as read and never became a job are
+  read again at the next check; jobs already stored keep their ids (#390).
+
 ## [2.55.11] — 2026-10-10
 
 ### Fixed
@@ -5194,6 +5214,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.12]: https://github.com/applypack/applypack/compare/v2.55.11...v2.55.12
 [2.55.11]: https://github.com/applypack/applypack/compare/v2.55.10...v2.55.11
 [2.55.10]: https://github.com/applypack/applypack/compare/v2.55.9...v2.55.10
 [2.55.9]: https://github.com/applypack/applypack/compare/v2.55.8...v2.55.9

@@ -1,6 +1,8 @@
 import { prisma } from '../db';
+import { fromDbBigInt } from '../fingerprint';
 import { logger } from '../logger';
 import type { FileStatus, LedgerEntry } from '../datasets/folder-scan';
+import type { StoredPosting } from '../datasets/posting-file';
 import type { FolderLook } from '../fetchers/folder-ledger';
 
 /*
@@ -23,6 +25,20 @@ export async function loadLedger(companyId: number): Promise<LedgerEntry[]> {
     select: { relPath: true, size: true, mtime: true, sha256: true, status: true, rowsRead: true, jobCount: true },
   });
   return rows.map(({ mtime, status, ...r }) => ({ ...r, mtimeMs: mtime.getTime(), status: status as FileStatus }));
+}
+
+/**
+ * The jobs a folder of saved postings holds, the newest first, as much of
+ * each as telling one posting from the next takes (posting-file.ts:
+ * identifyPosting). A person's folder: hundreds of rows, never their text.
+ */
+export async function loadStoredPostings(companyId: number): Promise<StoredPosting[]> {
+  const rows = await prisma.job.findMany({
+    where: { companyId },
+    orderBy: { id: 'desc' },
+    select: { externalId: true, title: true, employer: true, url: true, sourceFile: true, descriptionSimhash: true },
+  });
+  return rows.map(({ descriptionSimhash, ...job }) => ({ ...job, fingerprint: fromDbBigInt(descriptionSimhash) }));
 }
 
 /**

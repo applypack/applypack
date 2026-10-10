@@ -2,7 +2,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildLetterPdf } from '../resume/pdf-write';
 import { buildZip } from '../resume/zip-write';
-import { POSTING_NOTES, needsModel, readPostingFile, savedPostingJob, savedPostingNote, type PostingRead } from './posting-file';
+import { simhash64 } from '../fingerprint';
+import { hashShortId } from '../text-utils';
+import { POSTING_NOTES, identifyPosting, needsModel, readPostingFile, savedPostingJob, savedPostingNote, type PostingRead, type StoredPosting } from './posting-file';
 
 const NOW = new Date(Date.UTC(2026, 9, 6, 12));
 const BODY = 'You will own the payments ledger, its APIs and its on-call rota, working with two product teams. '.repeat(4).trim();
@@ -65,14 +67,14 @@ describe('readPostingFile', () => {
 
 describe('savedPostingJob', () => {
   const file = { companyId: 7, relPath: 'saved/Senior_PHP_Developer at Acme.pdf', mtimeMs: Date.UTC(2026, 9, 5) };
-  const plain = { ok: true as const, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null };
+  const plain = { ok: true as const, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY };
 
   it('takes what the page said first, a model’s reading second', () => {
     const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true, facts: { title: 'Page Title', company: 'Page Co', location: null, workplace: 'REMOTE' as const, postedAt: null } };
-    const job = savedPostingJob(file, page, { title: 'Model Title', company: 'Model Co', location: 'Berlin', workplace: 'hybrid' });
+    const job = savedPostingJob(file, page, { title: 'Model Title', company: 'Model Co', location: 'Berlin', workplace: 'hybrid' }, 'saved-1');
     assert.deepEqual(
-      [job.title, job.employer, job.location, job.locationHints?.workplace, job.url],
-      ['Page Title', 'Page Co', 'Berlin', 'REMOTE', 'https://jobs.example/9'],
+      [job.title, job.employer, job.location, job.locationHints?.workplace, job.url, job.externalId],
+      ['Page Title', 'Page Co', 'Berlin', 'REMOTE', 'https://jobs.example/9', 'saved-1'],
     );
     assert.equal(job.sourceFile, 'saved/Senior_PHP_Developer at Acme.pdf');
     assert.equal(job.handPicked, true);
@@ -80,7 +82,7 @@ describe('savedPostingJob', () => {
   });
 
   it('falls back to the file’s name for a title and to its time for a date; names no employer nobody named', () => {
-    const job = savedPostingJob(file, plain, null);
+    const job = savedPostingJob(file, plain, null, 'saved-1');
     assert.equal(job.title, 'Senior PHP Developer at Acme');
     assert.equal(job.employer, null);
     assert.equal(job.postedAt.getTime(), file.mtimeMs);
@@ -89,33 +91,132 @@ describe('savedPostingJob', () => {
     assert.match(savedPostingNote(job), /company not named; the file gives no address/);
   });
 
-  it('keys a posting by its own address, so the same page saved twice is one job', () => {
-    const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true };
-    const a = savedPostingJob(file, page, null);
-    const b = savedPostingJob({ ...file, relPath: 'other.html' }, { ...page, text: `${BODY} (edited)` }, null);
-    assert.equal(a.externalId, b.externalId);
-    assert.notEqual(savedPostingJob(file, plain, null).externalId, a.externalId);
-    assert.match(a.externalId, /^saved-[0-9a-f]{16}$/);
-  });
-
-  it('keys by the text when the address is a careers page many postings share', () => {
-    const shared = { ...plain, address: 'https://careers.example/', addressIsOwn: false };
-    const one = savedPostingJob(file, shared, null);
-    const other = savedPostingJob(file, { ...shared, text: `${BODY} Another role entirely.` }, null);
-    assert.notEqual(one.externalId, other.externalId);
-    assert.equal(one.url, 'https://careers.example/');
-  });
-
-  it('never keys by what a model said: a title worded differently is the same job', () => {
-    const first = savedPostingJob(file, plain, { title: 'Senior PHP Dev', company: 'Acme', location: null, workplace: null });
-    const again = savedPostingJob(file, plain, { title: 'Senior PHP Developer', company: 'Acme', location: null, workplace: null });
-    assert.equal(first.externalId, again.externalId);
-  });
-
   it('asks a model only when the page did not say both its title and its company', () => {
     const facts = { title: 'T', company: null, location: null, workplace: null, postedAt: null };
     assert.equal(needsModel(plain), true);
     assert.equal(needsModel({ ...plain, facts }), true);
     assert.equal(needsModel({ ...plain, facts: { ...facts, company: 'C' } }), false);
+  });
+});
+
+describe('identifyPosting', () => {
+  type Read = Extract<PostingRead, { ok: true }>;
+  const plain: Read = { ok: true, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY };
+  const says = (title: string, location: string | null = null) => ({ title, company: 'Acme', location, workplace: null, postedAt: null });
+  const idOf = (read: Read, relPath = 'a.html'): string => identifyPosting(relPath, read, []).externalId;
+  const stored = (externalId: string, more: Partial<StoredPosting> = {}): StoredPosting => ({ externalId, title: 'Backend Engineer', employer: 'Acme', url: '', sourceFile: 'first.html', fingerprint: null, ...more });
+  /** The id a version up to 2.55.11 gave: the page's own address as written, else its text. */
+  const earlierId = (key: string): string => `saved-${hashShortId(key)}`;
+
+  // A posting long enough to have a fingerprint, as real ones are.
+  const POSTING = [
+    'Senior Backend Engineer, Payments',
+    'We are looking for an engineer to own the ledger that every payout of ours goes through. You will design its APIs with two product teams, keep its on-call rota humane, and decide what we build next quarter.',
+    'What you bring: five years of backend work in TypeScript or Go, strong SQL on Postgres, and the habit of writing down why a decision was made. Experience with double-entry bookkeeping is welcome and not required.',
+    'What we offer: a salary band stated in the first call, thirty days of leave, a remote team spread across Europe, and a yearly budget for conferences and books.',
+    'How we hire: a thirty-minute call, a paid exercise of about three hours, a conversation with the team, and an answer within a week.',
+  ].join('\n\n');
+  const OTHER = [
+    'Product Designer, Onboarding',
+    'You will redesign the first ten minutes a new customer spends with us: the sign-up, the bank connection and the first invoice. You will run the research yourself and ship with three engineers.',
+    'What you bring: a portfolio that shows shipped flows and the numbers they moved, fluency in Figma, and comfort presenting half-finished work. A background in fintech helps.',
+    'What we offer: hybrid work from the Lisbon office, private health cover, stock options, and a sabbatical month after four years.',
+    'How we hire: portfolio review, a whiteboard session on a real problem of ours, two conversations with the team, and an offer within ten days.',
+  ].join('\n\n');
+
+  it('keys a posting by its own address, whatever campaign brought the reader to it', () => {
+    const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true };
+    assert.match(idOf(page), /^saved-[0-9a-f]{16}$/);
+    assert.equal(idOf({ ...page, address: 'https://jobs.example/9?utm_source=newsletter&gh_src=abc', text: `${BODY} (edited)` }), idOf(page));
+    assert.equal(idOf({ ...page, address: 'https://JOBS.example/9/' }), idOf(page));
+    assert.notEqual(idOf({ ...page, address: 'https://jobs.example/10' }), idOf(page));
+    assert.notEqual(idOf(plain), idOf(page));
+  });
+
+  it('keys by the text when the address is a careers page many postings share', () => {
+    const shared = { ...plain, address: 'https://careers.example/', addressIsOwn: false };
+    assert.notEqual(idOf(shared), idOf({ ...shared, text: `${BODY} Another role entirely.` }));
+    // As every version did: a text file stored before is found under the same id.
+    assert.equal(idOf(shared), earlierId(BODY));
+  });
+
+  it('keeps one opening’s two cities apart, though they share a description', () => {
+    const berlin = { ...plain, facts: says('Backend Engineer (Berlin)', 'Berlin') };
+    assert.notEqual(idOf(berlin), idOf({ ...plain, facts: says('Backend Engineer (Munich)', 'Munich') }));
+    assert.notEqual(idOf({ ...plain, facts: says('Backend Engineer', 'Berlin') }), idOf({ ...plain, facts: says('Backend Engineer', 'Munich') }));
+    assert.equal(idOf(berlin), idOf({ ...berlin }, 'saved-again.html'));
+  });
+
+  it('keeps two postings apart when both name the careers page as their address', () => {
+    const root = { ...plain, address: 'https://acme.example/careers', addressIsOwn: true };
+    assert.notEqual(idOf({ ...root, facts: says('Data Engineer') }), idOf({ ...root, facts: says('Platform Engineer') }));
+  });
+
+  it('finds the job a file already is, by its id', () => {
+    const job = stored(idOf(plain));
+    assert.deepEqual(identifyPosting('copy.txt', plain, [stored('saved-other'), job]), { externalId: job.externalId, known: job });
+    assert.deepEqual(identifyPosting('copy.txt', plain, [stored('saved-other')]), { externalId: idOf(plain), known: null });
+  });
+
+  it('finds a job stored under the id an earlier version gave it', () => {
+    const page = { ...plain, address: 'https://jobs.example/9?utm_source=x', addressIsOwn: true, facts: says('Backend Engineer'), earlierKey: 'https://jobs.example/9?utm_source=x' };
+    const old = stored(earlierId('https://jobs.example/9?utm_source=x'));
+    assert.notEqual(idOf(page), old.externalId);
+    assert.deepEqual(identifyPosting('saved-again.html', page, [old]), { externalId: old.externalId, known: old });
+    // A page that states no title was keyed by its address alone, and still is that job.
+    assert.equal(identifyPosting('x.html', { ...page, facts: null }, [old]).known, old);
+  });
+
+  it('does not take another posting’s job for its own: the earlier id was shared by one opening’s two cities', () => {
+    const munich = { ...plain, facts: says('Backend Engineer (Munich)', 'Munich') };
+    const berlinStored = stored(earlierId(BODY), { title: 'Backend Engineer (Berlin)', sourceFile: 'berlin.html' });
+    assert.deepEqual(identifyPosting('munich.html', munich, [berlinStored]), { externalId: idOf(munich), known: null });
+    // Berlin's own file, read again, is still Berlin's job.
+    assert.equal(identifyPosting('berlin.html', { ...plain, facts: says('Backend Engineer (Berlin)', 'Berlin') }, [berlinStored]).known, berlinStored);
+  });
+
+  it('knows a file whose text was added to as the posting it was', () => {
+    const before = stored(earlierId(POSTING), { title: 'Read by a model', sourceFile: 'notes/role.md', fingerprint: simhash64(POSTING) });
+    const noted: Read = { ...plain, text: `${POSTING}\n\nMy note: applied through a friend, follow up on Monday.`, earlierKey: '' };
+    assert.notEqual(idOf(noted), before.externalId);
+    assert.equal(identifyPosting('notes/role.md', noted, [before]).known, before);
+    // The same text under another name is not asked how alike it is: two files, two jobs.
+    assert.equal(identifyPosting('notes/other.md', noted, [before]).known, null);
+  });
+
+  it('takes another posting saved over the same name as a new job', () => {
+    const before = stored(earlierId(POSTING), { sourceFile: 'job.txt', fingerprint: simhash64(POSTING) });
+    assert.equal(identifyPosting('job.txt', { ...plain, text: OTHER, earlierKey: OTHER }, [before]).known, null);
+    // A text too short to have a fingerprint is never called the same on likeness.
+    assert.equal(simhash64(BODY), null);
+    assert.equal(identifyPosting('job.txt', { ...plain, text: `${BODY} A note.`, earlierKey: '' }, [stored('saved-x', { sourceFile: 'job.txt' })]).known, null);
+  });
+
+  it('knows a few lines about a job by the notes kept under or over them, however short', () => {
+    const before = stored(earlierId(BODY), { sourceFile: 'jobs/acme.md' });
+    const under: Read = { ...plain, text: `${BODY}\n\n## Notes\n- called Dana on Tuesday\n- second round next week`, earlierKey: '' };
+    const over: Read = { ...plain, text: `Applied 2026-10-06, waiting.\n\n${BODY}`, earlierKey: '' };
+    assert.equal(identifyPosting('jobs/acme.md', under, [before]).known, before);
+    assert.equal(identifyPosting('jobs/acme.md', over, [before]).known, before);
+    // Written into the middle of it, a short text is no longer told from another posting.
+    assert.equal(identifyPosting('jobs/acme.md', { ...plain, text: BODY.replace('ledger', 'ledger (ask about it)'), earlierKey: '' }, [before]).known, null);
+    // More than a note under it is another document that happens to quote the posting.
+    assert.equal(identifyPosting('jobs/acme.md', { ...plain, text: `${BODY}\n${'x'.repeat(5_000)}`, earlierKey: '' }, [before]).known, null);
+    assert.equal(identifyPosting('jobs/other.md', under, [before]).known, null);
+  });
+
+  it('knows a page saved again over itself by the title it states', () => {
+    const before = stored('saved-before', { title: 'Backend Engineer', sourceFile: 'page.html' });
+    const again = { ...plain, text: `Posted 12 days ago. ${BODY}`, facts: says('Backend Engineer'), earlierKey: '' };
+    assert.equal(identifyPosting('page.html', again, [before]).known, before);
+    assert.equal(identifyPosting('page.html', { ...again, facts: says('Staff Backend Engineer') }, [before]).known, null);
+    // The same title at another company, saved over the same name, is another posting.
+    assert.equal(identifyPosting('page.html', { ...again, facts: { ...says('Backend Engineer'), company: 'Globex' } }, [before]).known, null);
+    assert.equal(identifyPosting('page.html', { ...again, facts: { ...says('Backend Engineer'), company: null } }, [before]).known, before);
+  });
+
+  it('prefers the newest of the jobs one file became', () => {
+    const [newer, older] = [stored('saved-2', { sourceFile: 'page.html' }), stored('saved-1', { sourceFile: 'page.html' })];
+    assert.equal(identifyPosting('page.html', { ...plain, facts: says('Backend Engineer'), earlierKey: '' }, [newer, older]).known, newer);
   });
 });

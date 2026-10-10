@@ -3630,6 +3630,7 @@
   "datasets.posting.docxTooLarge": "Trop volumineux une fois décompressé : plus de {mb} Mo de document dans le .docx. Une offre tient en une ou deux pages ; ce fichier n'est pas lu.",
   "datasets.posting.needsModel": "En attente de la reprise de la récupération : la page n'indique ni son intitulé ni son entreprise, et il faut le moteur d'IA pour les lire.",
   "datasets.posting.readAs": "Lue comme « {title} »{named, select, yes { chez {company}} other {, entreprise non nommée}}{noAddress, select, yes { ; le fichier ne donne aucune adresse où postuler} other {}}.",
+  "datasets.posting.samePosting": "La même offre que {file}, déjà parmi vos offres.",
   "datasets.rows.notRows": "Ce fichier ne contient aucune ligne qu'ApplyPack sache lire. Il accepte un tableau JSON d'objets, JSON Lines, CSV ou TSV.",
   "datasets.rows.tooManyColumns": "Ce tableau a {n, plural, one {# colonne} many {# de colonnes} other {# colonnes}}, et ApplyPack en lit {max} au plus. Exportez les colonnes qui décrivent l'offre.",
   "datasets.rows.empty": "Ce fichier est vide.",

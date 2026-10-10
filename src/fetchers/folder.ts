@@ -17,7 +17,8 @@ import {
   type ListedFile,
 } from '../datasets/folder-scan';
 import { readSourceConfig, type Mapping } from '../datasets/map';
-import { POSTING_NOTES, needsModel, readPostingFile, savedPostingJob, savedPostingNote, type ModelFacts } from '../datasets/posting-file';
+import { POSTING_NOTES, identifyPosting, needsModel, readPostingFile, savedPostingJob, savedPostingNote, type ModelFacts, type StoredPosting } from '../datasets/posting-file';
+import { simhash64 } from '../fingerprint';
 import { t } from '../i18n/t';
 import { extractPostingFacts } from '../jobs/posting-extract';
 import { logger } from '../logger';
@@ -44,6 +45,8 @@ export interface FolderLookOptions {
   now?: Date;
   /** False while fetching is paused, or while no running search can score: no model is asked, and a posting that needs one waits. */
   scoring?: boolean;
+  /** The jobs a folder of saved postings holds already, the newest first; asked only when a file is read. */
+  stored?: () => Promise<StoredPosting[]>;
 }
 
 const MAP_AGAIN = 'Map it again under Add sources → A folder on this computer.';
@@ -63,7 +66,7 @@ export async function fetchFolder(company: FolderCompany, ledger: readonly Ledge
   const include = (relPath: string): boolean => named(relPath) && !resource(relPath);
   const kindOf = kindsFor(config.holds);
   const { jobs, changes, misfit } = await (config.holds === 'postings'
-    ? lookAtPostings(company.id, root, listing, ledger, include, now, opts.scoring !== false)
+    ? lookAtPostings(company.id, root, listing, ledger, include, now, opts.scoring !== false, opts.stored)
     : lookAtRows(company.id, root, listing, ledger, include, now, config.mapping));
   stageFolderLook({ companyId: company.id, at: now, seen: listing.filter((f) => kindOf(f.relPath) !== null && include(f.relPath)).map((f) => f.relPath), changes });
   if (misfit) throw new FolderError('unmapped', `The files in this folder no longer fit its column mapping. ${MAP_AGAIN}`);
@@ -151,6 +154,7 @@ async function lookAtPostings(
   include: (relPath: string) => boolean,
   now: Date,
   scoring: boolean,
+  stored: (() => Promise<StoredPosting[]>) | undefined,
 ): Promise<Look> {
   const plan = planScan(listing, ledger, now.getTime(), include, postingFileKind);
   const changes: FileChange[] = [
@@ -159,6 +163,8 @@ async function lookAtPostings(
   ];
   const readAs = readHashes(ledger);
   const jobs: NormalizedJob[] = [];
+  // What the folder holds, and what this look adds to it: two files saved from one posting are one job.
+  const held = plan.read.length > 0 && stored ? await stored() : [];
   for (const file of plan.read) {
     const kind = postingFileKind(file.relPath)!;
     const got = await readFolderFile(root, file.relPath, maxBytesOf(kind));
@@ -178,6 +184,18 @@ async function lookAtPostings(
       changes.push({ ...measured, status: 'skipped', detail: read.why });
       continue;
     }
+    // Before any model is asked: a posting the folder holds already costs nothing and adds nothing.
+    const { externalId, known } = identifyPosting(file.relPath, read, held);
+    if (known) {
+      const itself = known.sourceFile === file.relPath;
+      changes.push(
+        itself
+          ? { ...measured, status: 'done', detail: savedPostingNote(known), jobCount: 1 }
+          : { ...measured, status: 'skipped', detail: t('datasets.posting.samePosting', { file: known.sourceFile ?? known.title }) },
+      );
+      if (itself) readAs.set(got.sha256, file.relPath);
+      continue;
+    }
     let model: ModelFacts | null = null;
     if (needsModel(read)) {
       // Paused, or no search can score: nothing is sent to a model, and the file is read again once it may be.
@@ -187,10 +205,11 @@ async function lookAtPostings(
       }
       model = await readWithModel(got.sha256, read.text);
     }
-    const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model);
+    const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model, externalId);
     changes.push({ ...measured, status: 'done', detail: savedPostingNote(job), jobCount: 1 });
     readAs.set(got.sha256, file.relPath);
     jobs.push(job);
+    held.push({ externalId, title: job.title, employer: job.employer ?? null, url: job.url, sourceFile: file.relPath, fingerprint: simhash64(read.text) });
   }
   return { jobs, changes, misfit: false };
 }

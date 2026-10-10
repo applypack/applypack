@@ -285,6 +285,42 @@ cleanup deletes after a month. Its id is never something a model said: the
 page's own address when it names this posting alone, so the same posting
 saved twice is one job, else its text.
 
+*Amended 2026-10-10 (v2.55.12, #390).* Both halves of that id misfired. One
+opening in two cities shares a description and merged into one job, as did
+two postings whose block names the careers page as its `url`; the same
+address with another campaign parameter, or a note appended to a `.md`,
+split one posting into two. The rule now (`posting-file.ts`):
+
+- The id is the role and the place the page's block states, with the
+  page's own address reduced by `normalizeUrlKey`, else with its text. A
+  file that states nothing and has no address keeps the id it always had.
+- Of several postings on one page, the page is about the one whose `url`
+  is the page's own address (the browser's note, the canonical link,
+  `og:url`). With none named so the page is a list: no facts are read off
+  it and its address names no posting (`saved-page.ts:ownPosting`).
+- Changing the rule re-keys what is stored, so a file is first asked
+  whether the folder holds it already (`identifyPosting`): under the new
+  id; under the id the earlier rule gave it, when the stored job has the
+  title the page states — the earlier id was the one different postings
+  shared; or as the job this very file became, when it is still that
+  posting: the same stated title and company, or for a file that states
+  none the text it had with up to 4,000 characters of notes under or over
+  it (exact, by the hash that was its id, so a few lines about a job
+  qualify), or a fingerprint within 12 bits (measured on 437 stored
+  descriptions: a note appended moves it 11 at most, two different
+  postings stand 32 apart at the median). Stored rows are never rewritten.
+- That question comes before the model call, so a posting the folder
+  holds costs nothing, and its file says "The same posting as <file>".
+- Likeness is asked of the same file only. Across files it would join the
+  two cities again, so one posting printed to PDF twice under two names is
+  still two jobs. Replayed over 605 stored descriptions: a note of one or
+  of five lines kept the job in 605 of 605, and another posting saved over
+  the same name was taken for the old one in 3 of 6,593 pairs, each a twin
+  of it (one role, two teams).
+- A migration puts files that were counted as read and have no job that
+  names them back to waiting (read in the last 30 days only: past that a
+  dismissed job is deleted, and its file would bring it back).
+
 **A model is not paid twice for one file.** A look whose jobs were not all
 stored is dropped, and the next look reads the same files again (the rule
 above). What the model read off a file is remembered by the file's hash for
