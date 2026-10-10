@@ -135,7 +135,8 @@ export interface ProfileScore {
 export interface JobDetailProps {
   job: JobDetail;
   /** Resumes offered by "Mark applied", and the one it starts on. */
-  appliedResumePicker: { resumes: { id: number; name: string }[]; suggestedId: number | null };
+  /** `packValue`: the picker's value for the application pack's file, while a ready pack no one froze exists (applied-resume.ts:packChoiceValue). */
+  appliedResumePicker: { resumes: { id: number; name: string }[]; suggestedId: number | null; packValue: string | null };
   /** Every search that has scored this posting, best first. */
   profileScores: ProfileScore[];
   applicationTrackingEnabled: boolean;
@@ -698,8 +699,14 @@ const MarkAppliedPicker: FC<{
         >
           <Select name="appliedResumeId" form={MARK_APPLIED_FORM}>
             <option value="">{t('job.dontRecordAResume')}</option>
+            {/* A pack is ready: its file is the likely answer, and choosing it keeps that file for good. */}
+            {picker.packValue && (
+              <option value={picker.packValue} selected>
+                {t('job.applied.packFile')}
+              </option>
+            )}
             {picker.resumes.map((r) => (
-              <option value={r.id} selected={r.id === picker.suggestedId} translate="no">
+              <option value={r.id} selected={!picker.packValue && r.id === picker.suggestedId} translate="no">
                 {r.name}
               </option>
             ))}
@@ -742,6 +749,7 @@ const AppliedWithField: FC<{ job: JobDetail; picker: JobDetailProps['appliedResu
         <option value="" selected={job.appliedResumeId === null}>
           {t('job.notRecorded')}
         </option>
+        {picker.packValue && <option value={picker.packValue}>{t('job.applied.packFile')}</option>}
         {picker.resumes.map((r) => (
           <option value={r.id} selected={r.id === job.appliedResumeId} translate="no">
             {r.name}

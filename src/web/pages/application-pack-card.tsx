@@ -7,6 +7,7 @@ import { HELD_WORDS, STEP_WORDS, stopTitle, type PackEdits } from '../../pack/vi
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, ConfirmAction, Hint, Notice, SectionTitle, When } from '../ui';
+import { packChoiceValue } from '../applied-resume';
 import { safeHref } from '../format';
 import { jobHref } from '../job-tabs';
 import { VERDICT_TONE } from './verification-card';
@@ -16,6 +17,8 @@ export interface ApplicationPackProps {
   /** The posting's own page — where the application is made. Empty for a pasted posting. */
   url: string;
   pack: PackRow | null;
+  /** The job was applied to while this pack was ready: it is not started over (pack/store.ts:packIsKept). */
+  kept: boolean;
   files: { docx: boolean; pdf: boolean };
   edits: PackEdits;
   /** The lines the edits changed, as the Tailor page's own diff reads them. */
@@ -66,7 +69,7 @@ const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
   </ul>
 );
 
-export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, files, edits, changes, company, asks, unbacked, letter, automatic }) => {
+export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, kept, files, edits, changes, company, asks, unbacked, letter, automatic }) => {
   const prepare = `/jobs/${jobId}/pack`;
   if (!pack) {
     return (
@@ -83,8 +86,10 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
     );
   }
   const busy = pack.status === 'queued' || pack.status === 'running';
+  // What "I sent this file" posts: the same answer the rail's picker offers.
+  const sentValue = packChoiceValue(pack);
   const tailorHref = pack.tailoredMatchId ?? pack.matchId ? `/jobs/${jobId}/target?match=${pack.tailoredMatchId ?? pack.matchId}` : null;
-  const again = !busy && !pack.sentAt && (
+  const again = !busy && !pack.sentAt && !kept && (
     <ConfirmAction
       action={prepare}
       label={pack.status === 'ready' ? t('pack.card.prepareAgain') : t('pack.card.tryAgain')}
@@ -167,10 +172,10 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
           {pack.status === 'ready' && pack.document === 'clean' && (
             <Hint>{t('pack.card.cleanFile')}</Hint>
           )}
-          {pack.status === 'ready' && !pack.sentAt && (
+          {sentValue && (
             <form method="post" action={`/jobs/${jobId}/status`} class="flex flex-wrap items-center gap-2">
               <input type="hidden" name="status" value="APPLIED" />
-              <input type="hidden" name="pack" value="1" />
+              <input type="hidden" name="appliedResumeId" value={sentValue} />
               <input type="hidden" name="tab" value="pack" />
               <Button variant="secondary" size="sm">
                 {t('pack.card.markSent')}
@@ -179,6 +184,7 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
             </form>
           )}
           {pack.sentAt && <Hint>{t('pack.card.sentHint')}</Hint>}
+          {kept && !pack.sentAt && <Hint>{t('pack.card.keptHint')}</Hint>}
         </div>
 
         {(tailorHref || again || letter) && !busy && (

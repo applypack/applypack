@@ -86,6 +86,18 @@ Before a line of the feature was written, the pipeline was run dry over those
    as what went out and freezes the row: the resume's file can be replaced
    and the renderer changes between releases, and "what did I send them" has
    to have one answer a month later.
+   *Amended 2026-10-10 (v2.55.13, #377).* Only that button kept the file.
+   The rail's **Mark applied** recorded the untailored resume and left the
+   pack free to be prepared again, which deleted the file that had gone out;
+   so did a card moved to Applied on the board. Now the pack's file is an
+   answer of the "Applied with" pickers — preselected on the rail while a
+   ready pack exists — and choosing it records and freezes as the button
+   does. A ready pack of a job applied to by any road is not started over,
+   whether or not the person said which file went out: it may be that one.
+   The choice names the preparing the page showed, so a pack prepared again
+   in another tab is refused and nothing is recorded. The board still
+   records nothing by itself: a guess would state a fact the person never
+   gave.
 8. **One message.** Packs the worker started on its own are announced
    together — the ready ones, then the postings not worth the evening — when
    the person's schedule lets a held message out (`shouldDeliverHeld`). A

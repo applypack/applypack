@@ -4,8 +4,9 @@ import { idParam } from '../params';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
+import { getPack, markPackSent } from '../../pack/store';
 import { getResume } from '../../resume/store';
-import { appliedResumeColumns, readAppliedResumeChoice } from '../applied-resume';
+import { appliedResumeColumns, packAsShown, readAppliedResumeChoice } from '../applied-resume';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { jobHref, resolveJobTab } from '../job-tabs';
 import { ApplicationsPage, type ApplicationCard } from '../pages/applications';
@@ -235,11 +236,21 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   // "Which resume did I send?" is part of the application, so the form that
   // records the application records it too (#75). Until now only "Mark
   // applied" ever wrote these columns, and this form silently left them NULL.
+  const current = await prisma.job.findUnique({
+    where: { id },
+    select: { pipelineStage: true, appliedAt: true, appliedResumeId: true },
+  });
+  if (!current) return c.text(t('http.notFound'), 404);
+
   const choice = readAppliedResumeChoice(parsed.data.appliedResumeId);
-  const appliedResume =
-    choice.kind === 'keep'
-      ? null
-      : appliedResumeColumns(choice.kind === 'set' ? await getResume(choice.id) : null);
+  // "The application pack's file" (ADR 0063): its text is what went out, and the pack is frozen once this is written.
+  const sentPack = choice.kind === 'pack' ? packAsShown(await getPack(id), choice.at) : null;
+  if (choice.kind === 'pack' && !sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
+  // The resume already recorded, sent back by a form that changed something else, is not recorded again:
+  // the text kept is the one that went out, and the resume may have a newer version by now.
+  const unchanged = choice.kind === 'keep' || (choice.kind === 'set' && choice.id === current.appliedResumeId);
+  const picked = sentPack ? await getResume(sentPack.resumeId) : choice.kind === 'set' && !unchanged ? await getResume(choice.id) : null;
+  const appliedResume = unchanged ? null : appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
 
   const stageValue =
     pipelineStage && pipelineStage.length > 0 ? pipelineStage : null;
@@ -247,12 +258,6 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     appliedAt && appliedAt.length > 0 && !Number.isNaN(Date.parse(appliedAt))
       ? new Date(appliedAt)
       : null;
-
-  const current = await prisma.job.findUnique({
-    where: { id },
-    select: { pipelineStage: true, appliedAt: true },
-  });
-  if (!current) return c.text(t('http.notFound'), 404);
 
   // Keeping the job's current stage is always allowed — even one whose
   // column was removed by hand — but a CHANGE must land on a configured key.
@@ -291,6 +296,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   } else {
     await update;
   }
+  if (sentPack) await markPackSent(id, new Date());
 
   // Back to the tab the rail was used on; read through the resolver, so only a known tab reaches the redirect.
   return c.redirect(jobHref(id, resolveJobTab({ tab: typeof form.tab === 'string' ? form.tab : null })), 303);
