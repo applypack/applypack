@@ -2,7 +2,7 @@ import type { NotificationTarget } from '@prisma/client';
 import type { MessageKey } from '../i18n/catalog';
 import type { MessageParams } from '../i18n/message';
 import type { AlertJob } from '../types';
-import { formatPlaceLine, formatSalary, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './lines';
+import { formatPlaceLine, formatSalary, hasApplyLink, type PageChangeNotice, type QuietSourceAlert, quietSourceList } from './lines';
 import { tMarkup, type ChannelMarkup } from './markup';
 import { packMessages } from './pack';
 
@@ -62,7 +62,7 @@ export function formatDiscordAlert(job: AlertJob): string {
   if (job.summary) lines.push(`_${escapeDiscord(job.summary)}_`);
   if (job.attribution) lines.push(escapeDiscord(job.attribution));
   // Angle brackets keep Discord from unfurling the posting into an embed.
-  lines.push(`${discordText('notify.alert.apply')} <${job.url}>`);
+  if (hasApplyLink(job)) lines.push(`${discordText('notify.alert.apply')} <${job.url}>`);
   return lines.join('\n');
 }
 

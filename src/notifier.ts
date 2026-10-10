@@ -3,7 +3,7 @@ import { getSettings, listActiveNotificationTargets, markTargetUsed } from './se
 import { prisma } from './db';
 import type { NotificationTarget } from '@prisma/client';
 import type { AlertJob } from './types';
-import { formatPlaceLine, formatSalary, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './notify/lines';
+import { formatPlaceLine, formatSalary, hasApplyLink, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './notify/lines';
 import { deliverDiscord, escapeDiscord, formatDiscordAlert, formatDiscordDigest, formatDiscordPageChanges } from './notify/discord';
 import { tMarkup, type ChannelMarkup } from './notify/markup';
 import { packMessages } from './notify/pack';
@@ -263,7 +263,7 @@ export function formatJobMessage(job: AlertJob): string {
   if (job.attribution) {
     lines.push(escapeMarkdownV2(job.attribution));
   }
-  lines.push(`[${telegramText('notify.alert.apply')}](${escapeMarkdownV2Url(job.url)})`);
+  if (hasApplyLink(job)) lines.push(`[${telegramText('notify.alert.apply')}](${escapeMarkdownV2Url(job.url)})`);
   return lines.join('\n');
 }
 

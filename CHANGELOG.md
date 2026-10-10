@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.16] — 2026-10-10
+
+### Fixed
+- **An alert for a job with no link no longer ends in an empty "Apply →".**
+  A posting saved as text, Markdown, a PDF or a .docx has no page address,
+  and a row from a file may carry a link that is no web address. Their
+  alerts, and the daily recap, still wrote the Apply line: `[Apply →]()` on
+  Telegram, `Apply → <>` on Discord — a dead link, and one Telegram may
+  refuse the whole message for. The line is now written only for an http(s)
+  link; the "From your folder" line above it says where the posting is
+  (#360).
+
 ## [2.55.15] — 2026-10-10
 
 ### Fixed
@@ -5259,6 +5271,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.16]: https://github.com/applypack/applypack/compare/v2.55.15...v2.55.16
 [2.55.15]: https://github.com/applypack/applypack/compare/v2.55.14...v2.55.15
 [2.55.14]: https://github.com/applypack/applypack/compare/v2.55.13...v2.55.14
 [2.55.13]: https://github.com/applypack/applypack/compare/v2.55.12...v2.55.13

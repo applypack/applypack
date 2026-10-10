@@ -3,6 +3,7 @@ import { formatSalaryRange } from '../currency';
 import { workplaceName } from '../i18n/places';
 import { t } from '../i18n/t';
 import type { AlertJob } from '../types';
+import { safeHref } from '../web/format';
 
 /*
  * The words every channel says the same way, before its own markup goes on
@@ -11,6 +12,17 @@ import type { AlertJob } from '../types';
  * words are the catalog's, in the language of the run (ADR 0061); a
  * posting's own title, company and place stay as posted.
  */
+
+/**
+ * Whether a message can carry the job's link. A posting saved as text, a PDF
+ * or a .docx has no page address, and a row brought in from a file may hold a
+ * link that is no web address: "Apply →" over nothing is a dead link, and
+ * one a channel may refuse the whole message for. Without it the line is
+ * left out; the folder line above says where the posting is.
+ */
+export function hasApplyLink(job: Pick<AlertJob, 'url'>): boolean {
+  return safeHref(job.url) !== null;
+}
 
 /** Arrangement words a location string may already carry. */
 const WORKPLACE_WORDS = '\\b(remote|hybrid|on-?site|in-office)\\b';
