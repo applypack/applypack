@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.9] — 2026-10-10
+
+### Fixed
+- **Apply all no longer deletes the skills line that shows a must-have.** A
+  report advised cutting a whole line of eleven AI tools ("dense and
+  duplicative") while the same report named that line as the evidence for
+  "AI tooling", a must-have. The line spells no such term, so the check that
+  keeps wanted keywords let the cut through: one press deleted the line and
+  wrote "AI tooling" onto an unrelated line with nothing behind it. A
+  removal that takes a whole line is now also held when the comparison's own
+  note says that line is what shows a must-have: the advice stays on the
+  card, without the one-press delete, and the card says why. A lighter term
+  gets a note instead. Comparisons made before this keep the cut until the
+  resume is analysed again (#350).
+
 ## [2.55.8] — 2026-10-10
 
 ### Security
@@ -5151,6 +5166,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.9]: https://github.com/applypack/applypack/compare/v2.55.8...v2.55.9
 [2.55.8]: https://github.com/applypack/applypack/compare/v2.55.7...v2.55.8
 [2.55.7]: https://github.com/applypack/applypack/compare/v2.55.6...v2.55.7
 [2.55.6]: https://github.com/applypack/applypack/compare/v2.55.5...v2.55.6
