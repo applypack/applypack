@@ -640,7 +640,7 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
   const tab = formTab((await c.req.parseBody()).tab);
   const job = await prisma.job.findUnique({
     where: { id },
-    include: { company: { select: { name: true, atsType: true } } },
+    include: { company: { select: { name: true, atsType: true, sourceConfig: true } } },
   });
   if (!job) return c.text(t('http.notFound'), 404);
   try {
@@ -688,7 +688,7 @@ jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
 jobsRoute.post('/jobs/:id/description', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true, sourceConfig: true } } } });
   if (!job) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? normaliseDescription(form.text) : '';
@@ -705,7 +705,7 @@ jobsRoute.post('/jobs/:id/description', async (c) => {
 jobsRoute.post('/jobs/:id/description/restore', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true, sourceConfig: true } } } });
   if (!job) return c.text(t('http.notFound'), 404);
   const swap = await restoreDescription(job);
   if (!swap) return flashRedirect(`/jobs/${id}`, 'warn', t('jobRoute.restore.nothing'));
