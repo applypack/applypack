@@ -11,6 +11,7 @@
 import { t } from '../i18n/t';
 import type { WorkplaceCode } from '../location';
 import { docxToText } from '../resume/docx-text';
+import { ZipLimitError } from '../resume/zip';
 import { clipText, hashShortId, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import type { PostingKind } from './folder-scan';
@@ -19,6 +20,13 @@ import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts } from './saved-p
 
 /** As `jobs/manual-job.ts:MIN_DESCRIPTION_CHARS`: less than this is not a posting, it is a note. */
 const MIN_POSTING_CHARS = 200;
+/**
+ * What a saved .docx may unpack to. A posting's document.xml is tens of
+ * kilobytes, and these files are read with nobody watching: one that inflates
+ * to megabytes is not a posting, and reading it costs the worker 50 MB of
+ * memory a megabyte (zip.ts, #400).
+ */
+const MAX_POSTING_DOCX_BYTES = 2 * 1024 * 1024;
 const MAX_TITLE_CHARS = 200;
 
 export type PostingRead =
@@ -35,6 +43,9 @@ export const POSTING_NOTES = {
   },
   get docx(): string {
     return t('datasets.posting.docx');
+  },
+  get docxTooLarge(): string {
+    return t('datasets.posting.docxTooLarge', { mb: MAX_POSTING_DOCX_BYTES / 1024 / 1024 });
   },
   get needsModel(): string {
     return t('datasets.posting.needsModel');
@@ -58,9 +69,9 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
     }
   } else if (kind === 'docx') {
     try {
-      read = plain(docxToText(Buffer.from(bytes)));
-    } catch {
-      return { ok: false, why: POSTING_NOTES.docx };
+      read = plain(docxToText(Buffer.from(bytes), MAX_POSTING_DOCX_BYTES));
+    } catch (err) {
+      return { ok: false, why: err instanceof ZipLimitError ? POSTING_NOTES.docxTooLarge : POSTING_NOTES.docx };
     }
   } else {
     read = plain(decodeBody(bytes).replace(/^\uFEFF/, ''));

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { extractResumeText, ACCEPTED_EXTENSIONS } from './resume-text';
 import { ResumeTextError } from './docx-text';
+import { buildZip } from './zip-write';
 
 /**
  * What the reader does with a file that is not what it claims to be.
@@ -51,6 +52,17 @@ describe('extractResumeText — the files a user actually picks', () => {
     const notWord = readFileSync('src/resume/fixtures/flow-simple.docx');
     const truncated = notWord.subarray(0, Math.floor(notWord.length / 2));
     assert.ok((await refusal('cv.docx', truncated)).length > 0);
+  });
+
+  it('refuses a .docx whose document is larger inside than the reader survives, and reads one of honest size', async () => {
+    // Reading costs about 50 MB of memory a megabyte of XML: the ceiling is 8 MB, and a real resume is under 2 (#400).
+    const docx = (mb: number): Buffer => {
+      const paragraph = `<w:p><w:r><w:t>${PROSE}</w:t></w:r></w:p>`;
+      const body = paragraph.repeat(Math.ceil((mb * 1024 * 1024) / paragraph.length));
+      return buildZip([{ name: 'word/document.xml', data: Buffer.from(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`) }]);
+    };
+    assert.match(await refusal('cv.docx', docx(9)), /larger inside than this tool reads \(8 MB in one part\)/);
+    assert.ok((await extractResumeText('cv.docx', docx(1))).startsWith(PROSE.slice(0, 40)));
   });
 
   it('refuses a .pdf that is really a zip, and says so as a PDF problem', async () => {

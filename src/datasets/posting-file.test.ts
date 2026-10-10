@@ -48,6 +48,17 @@ describe('readPostingFile', () => {
     assert.deepEqual(await readPostingFile('txt', bytes('Call me back.'), NOW), { ok: false, why: POSTING_NOTES.tooShort });
     assert.deepEqual(await readPostingFile('pdf', bytes('%PDF-1.4 not really'), NOW), { ok: false, why: POSTING_NOTES.pdf });
     assert.deepEqual(await readPostingFile('docx', bytes('PK not a zip'), NOW), { ok: false, why: POSTING_NOTES.docx });
+  });
+
+  it('does not unpack a .docx that is megabytes inside: such a file is no posting, and reading it is the cost (#400)', async () => {
+    // 111 KB on disk inflated to 32 MB, 3.4 s and 2.2 GB in the worker; here 3 MB of paragraphs, refused at the inflater.
+    const paragraph = 'Senior engineer wanted for a platform team; remote in Europe. ';
+    const big = docx(Array.from({ length: 50 }, () => paragraph.repeat(1000)));
+    const started = Date.now();
+    const read = await readPostingFile('docx', big, NOW);
+    assert.deepEqual(read, { ok: false, why: POSTING_NOTES.docxTooLarge });
+    assert.match(POSTING_NOTES.docxTooLarge, /more than 2 MB of document inside/);
+    assert.ok(Date.now() - started < 1000, 'refused before the document is parsed');
     assert.deepEqual(await readPostingFile('html', bytes('<html><body><nav>Home</nav></body></html>'), NOW), { ok: false, why: POSTING_NOTES.tooShort });
   });
 });
