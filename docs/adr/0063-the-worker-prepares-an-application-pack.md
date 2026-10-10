@@ -60,6 +60,15 @@ Before a line of the feature was written, the pipeline was run dry over those
    advisory lock, and prepares the queued rows one at a time, oldest first. A
    beat with nothing queued and no message owed is one indexed lookup and
    writes no run row. No broker (ADR 0003).
+   *Amended 2026-10-10 (v2.55.15, #376).* A queue can lag by hours, and the
+   runner used to spend on a row without asking again whether it should.
+   Now a pack the tick queued is asked once more when the runner takes it
+   (`trigger.ts:autoPackUnwanted`): with packs switched off, the job
+   dismissed, applied to by any road, or its company muted, the row is
+   deleted — nothing was prepared, nothing is announced, and the day's limit
+   gets its slot back. Switching packs off deletes the queued automatic rows
+   at once and says how many. A pack asked for by hand is prepared whatever
+   became of the job: the person asked.
 4. **The worker calls the resume module.** A pack is the chain of calls the
    dashboard's buttons make, with nobody there to press them, and the worker
    is the process with the clock. Both run the same image; nothing else about

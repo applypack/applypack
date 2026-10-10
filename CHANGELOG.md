@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.15] — 2026-10-10
+
+### Fixed
+- **A queued pack is not prepared once you no longer want it.** The runner
+  spent on every row the search had queued without asking again: with packs
+  switched off, 30 queued ones were still prepared (comparisons, company
+  checks with web search) while the page said "none is prepared on its
+  own"; a job dismissed, applied to another way or from a company muted
+  since was prepared too, and a dismissed job's pack came in the morning
+  message. A pack the search queued is now asked once more when its turn
+  comes, and taken out of the queue instead; switching packs off cancels the
+  ones that wait and says how many. A pack you asked for by hand is prepared
+  whatever became of the job (#376).
+
 ## [2.55.14] — 2026-10-10
 
 ### Fixed
@@ -5245,6 +5259,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.15]: https://github.com/applypack/applypack/compare/v2.55.14...v2.55.15
 [2.55.14]: https://github.com/applypack/applypack/compare/v2.55.13...v2.55.14
 [2.55.13]: https://github.com/applypack/applypack/compare/v2.55.12...v2.55.13
 [2.55.12]: https://github.com/applypack/applypack/compare/v2.55.11...v2.55.12

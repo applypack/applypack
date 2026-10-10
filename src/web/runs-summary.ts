@@ -61,6 +61,7 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'stopped', job: 'pack', words: 'runs.fact.packStopped' },
   { key: 'failed', job: 'pack', words: 'runs.fact.packFailed' },
   { key: 'requeued', job: 'pack', words: 'runs.fact.packRequeued' },
+  { key: 'dropped', job: 'pack', words: 'runs.fact.packDropped' },
   { key: 'notified', job: 'pack', words: 'runs.fact.packNotified' },
   { key: 'unscored', job: 'digest', words: 'runs.fact.digestUnscored' },
   { key: 'deleted', job: 'cleanup', words: 'runs.fact.jobsDeleted', always: true },

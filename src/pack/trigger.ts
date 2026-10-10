@@ -32,6 +32,22 @@ export function autoPack(input: {
   return 'queue';
 }
 
+export type Unwanted = 'off' | 'dismissed' | 'applied' | 'muted';
+
+/**
+ * Whether a pack the tick queued is no longer wanted when the runner takes
+ * it. The queue can lag by hours — a pack is minutes of AI, the oldest first
+ * — and meanwhile the person may have switched packs off, dismissed the job,
+ * applied another way or muted the company. Asked of automatic packs only:
+ * one asked for by hand is prepared whatever became of the job.
+ */
+export function autoPackUnwanted(input: { enabled: boolean; status: string; applied: boolean; muted: boolean }): Unwanted | null {
+  if (!input.enabled) return 'off';
+  if (input.status === 'DISMISSED') return 'dismissed';
+  if (input.applied) return 'applied';
+  return input.muted ? 'muted' : null;
+}
+
 /** Midnight UTC of `now` — the day the limit counts, as the search funnel counts its days. */
 export function utcDayStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));

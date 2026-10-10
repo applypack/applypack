@@ -140,6 +140,7 @@ import { isBlankProfile } from '../../profile-guards';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
 import { packSettingsFromForm, parsePackSettings } from '../../pack/settings';
+import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
 import type { MessageKey } from '../../i18n/catalog';
@@ -1020,6 +1021,8 @@ settingsRoute.post('/settings/locale', async (c) => {
 settingsRoute.post('/settings/pack', async (c) => {
   const pack = packSettingsFromForm(await c.req.parseBody({ all: true }));
   await setPackSettings(pack);
+  // Off means off for what already waits: the flash says none is prepared on its own, and the queue may hold a day of them.
+  const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks();
   return flashRedirect(
     '/settings?tab=automation#packs',
     'ok',
@@ -1029,7 +1032,9 @@ settingsRoute.post('/settings/pack', async (c) => {
           days: pack.maxAgeDays,
           limit: pack.dailyLimit,
         })
-      : t('settingsRoute.pack.off'),
+      : cancelled > 0
+        ? t('settingsRoute.pack.offCancelled', { n: cancelled })
+        : t('settingsRoute.pack.off'),
   );
 });
 
