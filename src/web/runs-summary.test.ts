@@ -67,6 +67,27 @@ describe('summarizeRun', () => {
     ]);
   });
 
+  it('words a pack run in the catalog: its counts are bare words another job would mean differently', () => {
+    // Found in CI: a pack the worker took mid-smoke wrote "1 failed" on /runs, English in every language.
+    assert.deepEqual(summarizeRun('pack', { ready: 2, stopped: 1, failed: 1, requeued: 1, notified: 3 }), [
+      '2 packs ready',
+      '1 pack stopped before the edits',
+      '1 pack failed',
+      '1 pack put back in the queue',
+      '3 packs announced',
+    ]);
+    assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, notified: 0 }), []);
+    assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, notified: 0, reason: 'overlap' }), [
+      'Another run was preparing packs; this one did nothing',
+    ]);
+    assert.deepEqual(summarizeRun('fetch', { reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
+    // The tick that queued them agrees in number ("1 packs queued" before).
+    assert.ok(summarizeRun('fetch', { fetched: 10, persisted: 1, packsQueued: 1 }).includes('1 pack queued'));
+    assert.ok(summarizeRun('import', { fetched: 10, persisted: 2, packsQueued: 2 }).includes('2 packs queued'));
+    // Another job's "failed" is still its own word.
+    assert.deepEqual(summarizeRun('reclassify-all', { failed: 2 }), ['2 failed']);
+  });
+
   it('words a bare count for the job that writes it, and humanises it for any other', () => {
     assert.deepEqual(summarizeRun('digest', { count: 3, durationMs: 527 }), ['3 jobs in the digest']);
     // Rows found while paused are said apart from the matches, and only when there were some (#392).
