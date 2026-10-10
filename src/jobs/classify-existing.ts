@@ -1,4 +1,4 @@
-import { AtsType, JobStatus, type Job } from '@prisma/client';
+import type { AtsType, Job } from '@prisma/client';
 import { logger } from '../logger';
 import { classifyJob } from '../classifier';
 import { listActiveProfiles } from '../profiles';
@@ -7,16 +7,18 @@ import { getSettings } from '../settings';
 import { buildVerdicts, mergeVerdicts } from './verdict-merge';
 import { saveJobScores } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
+import { handPickedSource, statusAfterRescore } from './rescore-status';
 
-export type ClassifiableJob = Job & { company: { name: string; atsType: AtsType } };
+/** `sourceConfig` rides along because a folder of saved postings is told from a folder of rows by it (rescore-status.ts). */
+export type ClassifiableJob = Job & { company: { name: string; atsType: AtsType; sourceConfig: unknown } };
 
 /**
  * Classifies one stored job against every active search and writes the scores
  * back (ADR 0028). Used by the per-job "Re-classify" button and by manual job
- * entry. With `keepStatus` the row's status is left alone (a pasted job the
- * user cares about must not be auto-dismissed); otherwise the same
- * promote/demote rules as the fetch tick apply — a job is dismissed only when
- * EVERY search rejects it — except APPLIED, which is sealed.
+ * entry. With `keepStatus` the row's status is left alone; otherwise
+ * `statusAfterRescore` decides: a job is dismissed only when EVERY search
+ * rejects it, and never when it is Applied, Saved, or a posting the user
+ * pasted or saved as a file — a dismissed row is deleted a month on.
  * Returns false when no search is active or the classifier failed.
  */
 export async function classifyExistingJob(
@@ -51,11 +53,7 @@ export async function classifyExistingJob(
   const merged = mergeVerdicts(verdicts);
   if (!merged) return false;
 
-  let status = job.status;
-  if (!opts.keepStatus && job.status !== JobStatus.APPLIED) {
-    if (!merged.kept) status = JobStatus.DISMISSED;
-    else if (job.status === JobStatus.DISMISSED) status = JobStatus.NEW;
-  }
+  const status = opts.keepStatus ? job.status : statusAfterRescore(job.status, merged.kept, handPickedSource(job.company));
 
   await saveJobScores(job, merged, verdicts, status, mergeAiLocation(storedPlace(job), outcome.location));
   logger.info(

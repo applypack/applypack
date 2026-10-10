@@ -13,6 +13,7 @@ import { buildVerdicts, mergeVerdicts } from './verdict-merge';
 import { saveJobScores } from './score-store';
 import { storedPlace } from './classify-existing';
 import { mergeAiLocation } from './location-merge';
+import { handPickedSource, statusAfterRescore } from './rescore-status';
 import { rankByProfileFit, SCORE_BATCH, type ScorableJob } from './score-pick';
 import type { CronStats } from './cron-run';
 import { withoutMuted } from '../employer';
@@ -32,7 +33,8 @@ export interface ReclassifyOptions {
  * Re-classifies all jobs (except APPLIED) against every active search
  * (ADR 0028). Rewrites that job's JobScore rows and the best-of on the Job
  * row, and may move jobs between NEW and DISMISSED — dismissed only when
- * every search rejects them.
+ * every search rejects them, and never a Saved row or a posting the user
+ * pasted or saved as a file (rescore-status.ts).
  */
 export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   return reclassify({});
@@ -41,7 +43,8 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
 /**
  * The wizard's step 4: jobs a paused "Fetch now" stored unscored get their
  * score against the profile that now exists. Rows failing the base filter
- * are dismissed in one update — no AI spent on them; of the rest, the
+ * are dismissed in one update — no AI spent on them (a saved posting is not
+ * filtered here either, ADR 0062); of the rest, the
  * `limit` best matches by rankByProfileFit are classified (the wizard reads
  * the most promising ten, not the ten most recent), and `remaining` says
  * how many a second press would take.
@@ -68,13 +71,14 @@ export async function runScoreUnscored(
       regions: true,
       description: true,
       fetchedAt: true,
+      company: { select: { atsType: true, sourceConfig: true } },
     },
   });
   const rejectedIds: number[] = [];
   const rejectedBy = { rejectedTitle: 0, rejectedExcluded: 0, rejectedWorkplace: 0, rejectedPlace: 0 };
   const passing: ScorableJob[] = [];
   for (const j of unscored) {
-    const rejected = anyBaseFilterReason(j, profiles);
+    const rejected = handPickedSource(j.company) ? null : anyBaseFilterReason(j, profiles);
     if (rejected === null) {
       passing.push(j);
     } else {
@@ -134,7 +138,8 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   let reclassified = 0;
   let preFiltered = 0;
   let promoted = 0; // moved DISMISSED → NEW
-  let demoted = 0; // moved NEW/SAVED/ALERTED → DISMISSED
+  let demoted = 0; // moved NEW/ALERTED → DISMISSED
+  let keptSaved = 0; // a hand-picked posting no search wants: NEW/ALERTED → SAVED
   let unchanged = 0;
   let failed = 0;
   let filterRejected = 0;
@@ -154,7 +159,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
         ...scope,
         id: { ...scope.id, gt: lastId },
       },
-      include: { company: { select: { name: true, atsType: true } } },
+      include: { company: { select: { name: true, atsType: true, sourceConfig: true } } },
       orderBy: { id: 'asc' },
       take: RECLASSIFY_BATCH_SIZE,
     });
@@ -163,43 +168,59 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
 
     // Jobs no active search admits skip Claude entirely; the rest are
     // classified AI_CONCURRENCY at a time and persisted in id order as their
-    // results come in.
-    const pending = batch.map((j) => ({
-      job: j,
-      outcome: passesAnyBaseFilter(j, profiles)
-        ? limit(() =>
-            classifyJob(
-              {
-                title: j.title,
-                companyName: j.employer ?? j.company.name,
-                location: j.location,
-                place: { workplace: j.workplace, countries: j.countries, regions: j.regions },
-                description: j.description,
-                postedAt: j.postedAt,
-              },
-              profiles,
-              classifierMode,
-              (reason) => {
-                lastError = reason;
-              },
-            ),
-          )
-        : null,
-    }));
+    // results come in. A posting the user chose is scored whatever the filter
+    // says, as it was when it came in (ADR 0062).
+    const pending = batch.map((j) => {
+      const chosen = handPickedSource(j.company);
+      const scored = chosen || passesAnyBaseFilter(j, profiles);
+      return {
+        job: j,
+        chosen,
+        outcome: scored
+          ? limit(() =>
+              classifyJob(
+                {
+                  title: j.title,
+                  companyName: j.employer ?? j.company.name,
+                  location: j.location,
+                  place: { workplace: j.workplace, countries: j.countries, regions: j.regions },
+                  description: j.description,
+                  postedAt: j.postedAt,
+                },
+                profiles,
+                classifierMode,
+                (reason) => {
+                  lastError = reason;
+                },
+              ),
+            )
+          : null,
+      };
+    });
 
-    // Demotions are collected and written once per batch (DATA-4): a
-    // "Re-classify all" over thousands of rows was thousands of single-row
-    // updates, next to an updateMany the same file already uses above.
+    // Rows the scoring never reached (the filter, the prefilter) are moved
+    // once per batch (DATA-4): a "Re-classify all" over thousands of rows was
+    // thousands of single-row updates, next to an updateMany the same file
+    // already uses above.
     const demoteIds: number[] = [];
-    for (const { job: j, outcome } of pending) {
+    const saveIds: number[] = [];
+    const turnDown = (j: { id: number; status: JobStatus }, chosen: boolean): void => {
+      const target = statusAfterRescore(j.status, false, chosen);
+      if (target === j.status) return;
+      if (target === JobStatus.SAVED) {
+        saveIds.push(j.id);
+        keptSaved++;
+      } else {
+        demoteIds.push(j.id);
+        demoted++;
+      }
+    };
+    for (const { job: j, chosen, outcome } of pending) {
       scanned++;
       opts.onProgress?.(scanned, total);
 
       if (outcome === null) {
-        if (j.status !== JobStatus.DISMISSED) {
-          demoteIds.push(j.id);
-          demoted++;
-        }
+        turnDown(j, chosen);
         filterRejected++;
         continue;
       }
@@ -208,11 +229,8 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
       if (wasPreFiltered) {
         preFiltered++;
         // Reclassify treats pre-filtered jobs the same as base-filter rejects:
-        // demote to DISMISSED so they leave the inbox.
-        if (j.status !== JobStatus.DISMISSED) {
-          demoteIds.push(j.id);
-          demoted++;
-        }
+        // they leave the inbox.
+        turnDown(j, chosen);
         continue;
       }
       if (results.size === 0) {
@@ -230,31 +248,20 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
       priorityBoosted += boosted;
 
       if (!merged.kept && merged.winner.dismissReason) dismissedBy[DISMISS_KEY[merged.winner.dismissReason]]++;
-      const previousStatus = j.status;
-      const targetStatus = !merged.kept
-        ? JobStatus.DISMISSED
-        : previousStatus === JobStatus.DISMISSED
-          ? JobStatus.NEW
-          : previousStatus;
+      const targetStatus = statusAfterRescore(j.status, merged.kept, chosen);
 
       await saveJobScores(j, merged, verdicts, targetStatus, mergeAiLocation(storedPlace(j), location));
 
-      if (
-        targetStatus === JobStatus.NEW &&
-        previousStatus === JobStatus.DISMISSED
-      ) {
-        promoted++;
-      } else if (
-        targetStatus === JobStatus.DISMISSED &&
-        previousStatus !== JobStatus.DISMISSED
-      ) {
-        demoted++;
-      } else {
-        unchanged++;
-      }
+      if (targetStatus === j.status) unchanged++;
+      else if (targetStatus === JobStatus.NEW) promoted++;
+      else if (targetStatus === JobStatus.SAVED) keptSaved++;
+      else demoted++;
     }
     if (demoteIds.length > 0) {
       await prisma.job.updateMany({ where: { id: { in: demoteIds } }, data: { status: JobStatus.DISMISSED } });
+    }
+    if (saveIds.length > 0) {
+      await prisma.job.updateMany({ where: { id: { in: saveIds } }, data: { status: JobStatus.SAVED } });
     }
   }
 
@@ -268,6 +275,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     preFiltered,
     promoted,
     demoted,
+    keptSaved,
     unchanged,
     filterRejected,
     ...dismissedBy,

@@ -264,7 +264,8 @@
   asked (`extractPostingFacts`) only when the page did not state its title
   and company, never while paused. The job carries `handPicked`:
   `processNormalizedJobs` skips the base filter and the employer gate for it,
-  as for a paste, and stores a turned-down one Saved, never Dismissed.
+  as for a paste, and stores a turned-down one Saved, never Dismissed; a
+  re-score keeps both promises (`jobs/rescore-status.ts`).
   `Job.sourceFile` names the file for every folder row. Under the launcher
   the worker watches these folders (`jobs/folder-watch.ts`, plan
   `folder-watch-plan.ts`) and runs the scoped fetch a few seconds after a
@@ -582,6 +583,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Liveness ladder (free ATS-API + page checks before AI verify) | `src/verification/liveness.ts` (ADR 0016), run by `verify.ts:checkLiveness` |
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
 | Classify one stored job (Re-classify button, pasted jobs) | `src/jobs/classify-existing.ts` |
+| What a re-score may do to a job's status, and why a saved job is never dismissed by one | `src/jobs/rescore-status.ts` (pure): `statusAfterRescore(current, kept, handPicked)` — Applied and Saved never move, a dismissed row a search now wants comes back New, a row no search wants is dismissed unless it is hand-picked, which is kept Saved as the ingest stores it; `handPickedSource(company)` reads "pasted, or a file in a folder of postings" off the stored row's source. All three paths ask it: the job page's Re-classify (`classify-existing.ts`), "Save & re-classify" and the wizard's scoring (`reclassify-job.ts`, where a hand-picked row also skips the base filter, as at ingest). A dismissed row is deleted a month on (`cleanup-job.ts`), so a rule here is a rule about what the user can lose |
 | Live keyword score + highlights in the browser | `src/web/public/target.mjs` (served at `/static/`, tested from `src/web/target.test.ts`) |
 | The wording a suggestion proposes, pulled out of its `what` sentence | `src/resume/change-sheet.ts:proposalOf` (pure) — reads `'…'` and `"…"`, guards the apostrophe, takes the span after a `to`/`with` connective, refuses a run under 12 chars; `suggestionSheet` renders the whole list as the Markdown behind "Copy all suggestions" |
 | What the user changed in the editor, as Markdown ("Copy my changes") | `src/web/public/line-diff.mjs:diffLines` (LCS over normalised lines; a delete/insert pair becomes a `change` only when 30 % of the wording survives) + `public/change-sheet.mjs:formatEditSheet` |

@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.3] — 2026-10-10
+
+### Fixed
+- **A re-score no longer dismisses a job you saved, and the cleanup no longer
+  deletes it.** A posting saved into a folder, a pasted one, or any job you
+  marked Saved turned **Dismissed** as soon as it was scored again and no
+  search wanted it: the job page's **Re-classify**, **Save & re-classify**
+  and the wizard's scoring all did it, and the weekly cleanup then deleted
+  the row a month after it was found. Saved now stays Saved through any
+  re-score, as Applied always did; only the scores change. A posting you
+  pasted or saved as a file is never dismissed by a score: when no search
+  wants it any more it is kept Saved, and it is scored whatever the filter
+  says, as it was when it came in. A row dismissed this way before the fix
+  cannot be told from one you dismissed yourself, so it is not brought back
+  (#389).
+
 ## [2.55.2] — 2026-10-10
 
 ### Fixed
@@ -5067,6 +5083,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.3]: https://github.com/applypack/applypack/compare/v2.55.2...v2.55.3
 [2.55.2]: https://github.com/applypack/applypack/compare/v2.55.1...v2.55.2
 [2.55.1]: https://github.com/applypack/applypack/compare/v2.55.0...v2.55.1
 [2.55.0]: https://github.com/applypack/applypack/compare/v2.54.0...v2.55.0

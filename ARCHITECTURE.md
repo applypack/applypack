@@ -505,6 +505,7 @@ src/
     reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
     score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 5)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
+    rescore-status.ts           ← pure: the status after a re-score (a saved or hand-picked job is never dismissed)
     posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure; an Ashby URL is read from its board API)
     posting-extract.ts          ← one cheap classifier-model call: company, title, location, salary of a pasted posting
     description-diff.ts         ← pure: what "Refresh the description" is about to do (sizes, folded diff rows, the flashes — ADR 0043)
