@@ -66,6 +66,16 @@ describe('the Discord channel', () => {
     assert.equal(formatDiscordHealthLine([]), '');
   });
 
+  it('says unscored jobs in one line, with matches or alone, and never in the count', () => {
+    const parts = formatDiscordDigest([job], [], 'Daily digest', 0, 40);
+    assert.match(parts[0]!, /^\*\*Daily digest — 1 match\*\*/);
+    assert.ok(parts.at(-1)!.endsWith('40 new jobs are stored without a score and are not listed as a match — see the Jobs page, under New.'));
+    assert.equal(
+      formatDiscordDigest([], [], 'Daily digest', 0, 2)[0],
+      'No new matches since the last digest.\n\n2 new jobs are stored without a score and are not listed as a match — see the Jobs page, under New.',
+    );
+  });
+
   it('counts the unlisted matches of a long wait and closes with where they are', () => {
     const parts = formatDiscordDigest([job], [], 'While you were away', 12);
     assert.match(parts[0]!, /^\*\*While you were away — 13 matches\*\*/);

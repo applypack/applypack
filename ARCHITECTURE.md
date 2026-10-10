@@ -495,7 +495,7 @@ src/
     held-alerts.ts              ← pure: groupHeldByTarget (one delivery per routing target, the best twenty listed), heldReason
     page-change-alerts.ts       ← recordPageChanges + deliverPageChanges: a change waits on the row, then one message and the hash advances
     france-travail-sync.ts      ← the licence's daily re-check of the stored France Travail offers (ADR 0034)
-    digest-job.ts               ← runDigestJob (hourly beat; works on the user's digest hours)
+    digest-job.ts               ← runDigestJob (hourly beat; works on the user's digest hours): the scored NEW / ALERTED rows since the last recap, minus held ones and folders set to "No alerts"; unscored rows are one line, never matches
     stale-applications-job.ts   ← runStaleApplicationsJob (hourly beat; the day's first digest hour)
     stale-applications-format.ts ← pure formatStaleMessage
     applied-with.ts             ← pure "Senior Backend v3" label for the applied resume

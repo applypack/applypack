@@ -95,9 +95,14 @@ export async function sendDigest(
   title = t('digest.title'),
   /** Matches counted in the header but not listed — a long wait's backlog stays on the dashboard. */
   more = 0,
+  /** New jobs stored without a score (found while paused): one line, never a match and never in the count. */
+  unscored = 0,
 ): Promise<Delivery> {
   return broadcast(
-    { telegram: formatTelegramDigest(jobs, quiet, title, more), discord: formatDiscordDigest(jobs, quiet, title, more) },
+    {
+      telegram: formatTelegramDigest(jobs, quiet, title, more, unscored),
+      discord: formatDiscordDigest(jobs, quiet, title, more, unscored),
+    },
     targetId,
   );
 }
@@ -108,16 +113,18 @@ export function formatTelegramDigest(
   quiet: readonly QuietSourceAlert[],
   title: string,
   more = 0,
+  unscored = 0,
 ): string[] {
   const healthLine = formatSourceHealthLine([...quiet]);
+  const waiting = unscored > 0 ? telegramText('digest.unscored', { n: unscored }) : '';
   if (jobs.length === 0) {
-    const empty = telegramText('digest.empty');
-    return [healthLine ? `${empty}\n\n${healthLine}` : empty];
+    return [[telegramText('digest.empty'), waiting, healthLine].filter((part) => part !== '').join('\n\n')];
   }
   const header = `*${telegramText('digest.header', { title, n: jobs.length + more })}*${healthLine ? `\n${healthLine}` : ''}`;
   const blocks = jobs.map(formatJobMessage);
   // The last line of a delivery that lists only the best of a long wait; the rest are still New on the dashboard.
   if (more > 0) blocks.push(telegramText('digest.more', { n: more }));
+  if (waiting) blocks.push(waiting);
   return packMessages(header, blocks, '\n\n———\n\n', MAX_MESSAGE_LENGTH);
 }
 

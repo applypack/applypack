@@ -69,6 +69,9 @@ describe('summarizeRun', () => {
 
   it('words a bare count for the job that writes it, and humanises it for any other', () => {
     assert.deepEqual(summarizeRun('digest', { count: 3, durationMs: 527 }), ['3 jobs in the digest']);
+    // Rows found while paused are said apart from the matches, and only when there were some (#392).
+    assert.deepEqual(summarizeRun('digest', { count: 2, unscored: 40, durationMs: 14 }), ['2 jobs in the digest', '40 new jobs without a score']);
+    assert.deepEqual(summarizeRun('digest', { count: 2, unscored: 0, durationMs: 14 }), ['2 jobs in the digest']);
     assert.deepEqual(summarizeRun('stale-applications', { found: 0 }), ['0 stale applications']);
     assert.deepEqual(
       summarizeRun('cleanup', { deleted: 12, screeningsDeleted: 1, runsDeleted: 240, durationMs: 40 }),

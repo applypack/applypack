@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.6] — 2026-10-10
+
+### Fixed
+- **The daily recap no longer lists unscored jobs as matches.** Rows stored
+  while fetching is paused (a "Fetch now", an import, a folder read) have no
+  score yet; the recap counted each as a match and printed it as "fit
+  0/100", so forty paused rows opened the morning message as "40 matches".
+  Only scored jobs are matches now. The unscored ones are one line at the
+  end ("40 new jobs are stored without a score and are not listed as a
+  match"), and the run's row on Runs says the same (#392).
+
 ## [2.55.5] — 2026-10-10
 
 ### Fixed
@@ -5112,6 +5123,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.6]: https://github.com/applypack/applypack/compare/v2.55.5...v2.55.6
 [2.55.5]: https://github.com/applypack/applypack/compare/v2.55.4...v2.55.5
 [2.55.4]: https://github.com/applypack/applypack/compare/v2.55.3...v2.55.4
 [2.55.3]: https://github.com/applypack/applypack/compare/v2.55.2...v2.55.3
