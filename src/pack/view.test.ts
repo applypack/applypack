@@ -52,7 +52,20 @@ test('one message: the ready packs, then the postings to skip', () => {
     '• Senior Laravel Engineer — Acme: the posting is closed',
     '• Senior Laravel Engineer — Acme: stopped',
   ]);
-  assert.deepEqual(packNoticeLines([notice({ status: 'failed' })]), []);
+});
+
+test('a pack that could not be prepared is said, not passed over (#381)', () => {
+  // Five failed rows a day and no word about them: the message listed ready and stopped packs only.
+  assert.deepEqual(packNoticeLines([notice({ status: 'failed' })]), ['One could not be prepared — open the job to see why:', '• Senior Laravel Engineer — Acme']);
+  assert.deepEqual(packNoticeLines([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'failed' }), notice({ title: 'QA Lead', company: 'Corex', status: 'failed' })]), [
+    'An application pack is ready:',
+    '• Senior Laravel Engineer — Acme (match 76 → 100 · company legit, apply)',
+    'Open the job in ApplyPack → Application pack: read the edits, download the resume, apply.',
+    '',
+    '2 could not be prepared — open each job to see why:',
+    '• Go Developer — Bright',
+    '• QA Lead — Corex',
+  ]);
 });
 
 test('a long wait lists the first eight and counts the rest', () => {

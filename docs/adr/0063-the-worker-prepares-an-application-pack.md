@@ -111,6 +111,14 @@ Before a line of the feature was written, the pipeline was run dry over those
    together — the ready ones, then the postings not worth the evening — when
    the person's schedule lets a held message out (`shouldDeliverHeld`). A
    pack asked for by hand is not announced: its page is open.
+   *Amended 2026-10-10 (v2.55.17, #381).* A pack that failed was in neither
+   list, so five failed rows a day came with no word. The message now ends
+   with the ones that could not be prepared, by name; the job's tab says
+   why. And the commonest failure is gone: a search that names no resume —
+   the field is optional, "empty = pick by skill overlap" — gets the resume
+   the job page would preselect (`resume/pick.ts:preselectResume`), and a
+   pack fails for want of one only when none is stored. A pack that failed
+   before it compared anything takes no slot of the day's limit.
 9. **Nothing is submitted.** The person applies.
 
 ## Consequences

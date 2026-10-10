@@ -2837,6 +2837,7 @@
   "pack.notice.more": "…et {n} de plus.",
   "pack.notice.open": "Ouvrez l'offre dans ApplyPack → Dossier de candidature : lisez les modifications, téléchargez le CV, postulez.",
   "pack.notice.stopped": "{n, plural, one {Ne mérite pas votre temps :} many {Ne méritent pas votre temps (#) :} other {Ne méritent pas votre temps (#) :}}",
+  "pack.notice.failed": "{n, plural, one {Un dossier n'a pas pu être préparé — ouvrez l'offre pour voir pourquoi :} many {# n'ont pas pu être préparés — ouvrez chaque offre pour voir pourquoi :} other {# n'ont pas pu être préparés — ouvrez chaque offre pour voir pourquoi :}}",
   "pack.why.lowCeiling": "Les modifications peuvent porter ce CV à {ceiling} au plus, sous le seuil de {floor}",
   "pack.why.lowCeilingCore": "Les modifications peuvent porter ce CV à {ceiling} au plus, sous le seuil de {floor} — il montre {present} des {total} technologies principales",
   "pack.why.noReason": "le moteur n'a donné aucune raison",
@@ -4014,7 +4015,7 @@
   "resume.read.tooShort": "Le fichier n'a fourni que {n, plural, one {# caractère} many {# de caractères} other {# caractères}} de texte — s'agit-il vraiment d'un CV ?",
   "pack.why.companyUnchecked": "L'entreprise n'a pas été vérifiée : {reason}",
   "pack.why.postingGone": "L'offre n'existe plus.",
-  "pack.why.noResume": "Aucun CV n'est associé à la recherche qui a trouvé cette offre. Associez-en un dans Paramètres → Recherche d'emploi → « CV pour cette recherche », puis préparez à nouveau le dossier.",
+  "pack.why.noResume": "Il n'y a aucun CV avec lequel préparer ce dossier. Importez-en un dans CV, puis préparez à nouveau le dossier.",
   "pack.why.noResumeMade": "Le dossier s'est terminé sans CV à afficher.",
   "language.trigger": "Langue : {language}",
   "engine.probe.ollamaReason": "Ollama · {reason}"

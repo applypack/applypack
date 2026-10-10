@@ -2837,6 +2837,7 @@
   "pack.notice.more": "…and {n} more.",
   "pack.notice.open": "Open the job in ApplyPack → Application pack: read the edits, download the resume, apply.",
   "pack.notice.stopped": "{n, plural, one {Not worth your time:} other {Not worth your time (#):}}",
+  "pack.notice.failed": "{n, plural, one {One could not be prepared — open the job to see why:} other {# could not be prepared — open each job to see why:}}",
   "pack.why.lowCeiling": "Editing can take this resume to {ceiling} at most, under the floor of {floor}",
   "pack.why.lowCeilingCore": "Editing can take this resume to {ceiling} at most, under the floor of {floor} — it shows {present} of the {total} core technologies",
   "pack.why.noReason": "the engine gave no reason",
@@ -4014,7 +4015,7 @@
   "resume.read.tooShort": "Only {n, plural, one {# character} other {# characters}} of text came out of the file — is it a real resume?",
   "pack.why.companyUnchecked": "The company was not checked: {reason}",
   "pack.why.postingGone": "The posting is gone.",
-  "pack.why.noResume": "No resume is linked to the search that found this posting. Link one on Settings → Job search → \"Resume for this search\", then prepare the pack again.",
+  "pack.why.noResume": "There is no resume to prepare this pack with. Upload one on Resumes, then prepare the pack again.",
   "pack.why.noResumeMade": "The pack ended with no resume to show.",
   "language.trigger": "Language: {language}",
   "engine.probe.ollamaReason": "Ollama · {reason}"

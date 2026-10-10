@@ -2837,6 +2837,7 @@
   "pack.notice.more": "…y {n} más.",
   "pack.notice.open": "Abre la oferta en ApplyPack → Paquete de solicitud: revisa las ediciones, descarga el currículum y envía la solicitud.",
   "pack.notice.stopped": "{n, plural, one {No merece tu tiempo:} many {No merecen tu tiempo (#):} other {No merecen tu tiempo (#):}}",
+  "pack.notice.failed": "{n, plural, one {Uno no se pudo preparar — abre la oferta para ver por qué:} many {# no se pudieron preparar — abre cada oferta para ver por qué:} other {# no se pudieron preparar — abre cada oferta para ver por qué:}}",
   "pack.why.lowCeiling": "Con ediciones, este currículum llega como mucho a {ceiling}, por debajo del mínimo de {floor}",
   "pack.why.lowCeilingCore": "Con ediciones, este currículum llega como mucho a {ceiling}, por debajo del mínimo de {floor} — muestra {present} de las {total} tecnologías principales",
   "pack.why.noReason": "el motor no dio ningún motivo",
@@ -4014,7 +4015,7 @@
   "resume.read.tooShort": "El archivo solo devolvió {n, plural, one {# carácter} many {# de caracteres} other {# caracteres}} de texto — ¿es realmente un currículum?",
   "pack.why.companyUnchecked": "No se comprobó la empresa: {reason}",
   "pack.why.postingGone": "La oferta ya no existe.",
-  "pack.why.noResume": "No hay ningún currículum vinculado a la búsqueda que encontró esta oferta. Vincula uno en Configuración → Búsqueda de empleo → “Currículum para esta búsqueda” y vuelve a preparar el paquete.",
+  "pack.why.noResume": "No hay ningún currículum con el que preparar este paquete. Sube uno en Currículums y vuelve a preparar el paquete.",
   "pack.why.noResumeMade": "El paquete terminó sin un currículum que mostrar.",
   "language.trigger": "Idioma: {language}",
   "engine.probe.ollamaReason": "Ollama · {reason}"

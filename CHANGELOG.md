@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.17] — 2026-10-10
+
+### Fixed
+- **A pack no longer fails for want of a linked resume, and a failed one is
+  said.** "Resume for this search" is optional, and with it empty every
+  automatic pack failed ("No resume is linked to the search…"), took a slot
+  of the day's limit, and was mentioned nowhere: a person with one resume
+  who switched packs on got failed rows and no word. A pack now reads the
+  resume the job page would preselect — the search's own, else the one whose
+  skills the posting asks for most — and fails only when no resume is stored
+  at all. The "packs" message ends with the ones that could not be prepared
+  (an engine down overnight), by name, and a pack that failed before it
+  compared anything no longer uses the day's limit (#381).
+
 ## [2.55.16] — 2026-10-10
 
 ### Fixed
@@ -5271,6 +5285,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.17]: https://github.com/applypack/applypack/compare/v2.55.16...v2.55.17
 [2.55.16]: https://github.com/applypack/applypack/compare/v2.55.15...v2.55.16
 [2.55.15]: https://github.com/applypack/applypack/compare/v2.55.14...v2.55.15
 [2.55.14]: https://github.com/applypack/applypack/compare/v2.55.13...v2.55.14

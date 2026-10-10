@@ -1,5 +1,6 @@
 import type { ApplicationPack, Prisma } from '@prisma/client';
 import { isUniqueViolation, prisma } from '../db';
+import { preselectResume } from '../resume/pick';
 import type { PrepareStep } from './gate';
 import type { PackPosting, PackResume } from './prepare';
 import { utcDayStart } from './trigger';
@@ -109,7 +110,8 @@ const BLANK = {
 
 /** Packs the worker queued on its own since the UTC day began — what the daily limit counts. */
 export async function autoPacksToday(now: Date): Promise<number> {
-  return prisma.applicationPack.count({ where: { trigger: 'auto', queuedAt: { gte: utcDayStart(now) } } });
+  // A pack that failed before it compared anything (no resume to read, the engine down) spent nothing, and takes no slot.
+  return prisma.applicationPack.count({ where: { trigger: 'auto', queuedAt: { gte: utcDayStart(now) }, NOT: { status: 'failed', matchId: null } } });
 }
 
 /**
@@ -183,15 +185,19 @@ const JOB_FOR_PACK = {
   scores: { orderBy: { fitScore: 'desc' }, take: 1, select: { profile: { select: { resumeId: true } } } },
 } satisfies Prisma.JobInclude;
 
-/** A posting as the orchestrator reads it, and the resume its best search hunts with (else the primary's). */
+/**
+ * A posting as the orchestrator reads it, and the resume it is prepared with:
+ * the one its best search hunts with (else the primary's), and for a search
+ * that names none the one whose skills the posting asks for most — what the
+ * job page preselects (resume/pick.ts), since "Resume for this search" is
+ * optional. Null only when no resume is stored.
+ */
 export async function loadPackInputs(jobId: number, primaryResumeId: number | null): Promise<{ posting: PackPosting; resume: PackResume | null } | null> {
   const job = await prisma.job.findUnique({ where: { id: jobId }, include: JOB_FOR_PACK });
   if (!job) return null;
-  const resumeId = job.scores[0]?.profile.resumeId ?? primaryResumeId;
-  const resume =
-    resumeId === null
-      ? null
-      : await prisma.resume.findFirst({ where: { id: resumeId, hidden: false }, select: { id: true, name: true, text: true, version: true, updatedAt: true } });
+  const stored = await prisma.resume.findMany({ where: { hidden: false }, select: { id: true, skills: true, isDefault: true } });
+  const picked = preselectResume(stored, `${job.title} ${job.description}`, job.scores[0]?.profile.resumeId ?? primaryResumeId);
+  const resume = picked && (await prisma.resume.findUnique({ where: { id: picked.id }, select: { id: true, name: true, text: true, version: true, updatedAt: true } }));
   return {
     posting: {
       id: job.id,
@@ -212,10 +218,10 @@ export async function loadPackInputs(jobId: number, primaryResumeId: number | nu
 
 type NoticeRow = PackNotice & { id: number };
 
-/** Finished packs the worker started on its own that no message has carried yet. */
+/** Finished packs the worker started on its own that no message has carried yet — the ones that failed too: a pack that came to nothing is not passed over in silence. */
 export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
   const rows = await prisma.applicationPack.findMany({
-    where: { trigger: 'auto', notifiedAt: null, status: { in: ['ready', 'stopped'] } },
+    where: { trigger: 'auto', notifiedAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
     orderBy: { finishedAt: 'asc' },
     select: {
       id: true,
