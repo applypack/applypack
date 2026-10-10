@@ -7,7 +7,7 @@ import { wantsCoverLetter } from '../pack/settings';
 import {
   claimNextPack,
   finishPack,
-  hasQueuedPacks,
+  hasUnfinishedPacks,
   listUnnotifiedPacks,
   loadPackInputs,
   markPacksNotified,
@@ -30,7 +30,7 @@ import { t } from '../i18n/t';
  * calls the dashboard's buttons make, with nobody there to press them.
  *
  * It beats every minute and does nothing at all on a beat that finds no
- * queued row and no message owed, so an install that never switched the
+ * pack to take and no message owed, so an install that never switched the
  * feature on pays one indexed lookup a minute and no AI, ever.
  */
 
@@ -49,7 +49,7 @@ export function stopPackJob(): void {
 
 /** Whether this beat has anything to do — asked before a run row is written. */
 export async function packWorkWaiting(): Promise<boolean> {
-  return (await hasQueuedPacks()) || (await noticesDue()).length > 0;
+  return (await hasUnfinishedPacks()) || (await noticesDue()).length > 0;
 }
 
 /**

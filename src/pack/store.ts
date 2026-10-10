@@ -98,8 +98,14 @@ export async function autoPacksToday(now: Date): Promise<number> {
   return prisma.applicationPack.count({ where: { trigger: 'auto', queuedAt: { gte: utcDayStart(now) } } });
 }
 
-export async function hasQueuedPacks(): Promise<boolean> {
-  return (await prisma.applicationPack.findFirst({ where: { status: 'queued' }, select: { id: true } })) !== null;
+/**
+ * Whether the runner has a pack to take: one that waits, or one a worker that
+ * stopped left `running`. The runner's lock tells the two kinds of `running`
+ * apart — a beat that asked only for `queued` never started it, and such a
+ * row said "Preparing" for ever.
+ */
+export async function hasUnfinishedPacks(): Promise<boolean> {
+  return (await prisma.applicationPack.findFirst({ where: { status: { in: ['queued', 'running'] } }, select: { id: true } })) !== null;
 }
 
 /**
