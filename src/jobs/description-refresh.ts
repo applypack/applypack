@@ -54,7 +54,7 @@ async function swap(
   try {
     // The user cares about this posting — they just refreshed it — so a
     // search that now rejects it must not dismiss it under them.
-    reclassified = await classifyExistingJob({ ...job, ...updated }, { keepStatus: true });
+    reclassified = (await classifyExistingJob({ ...job, ...updated }, { keepStatus: true })).kind === 'scored';
   } catch (err) {
     logger.error({ err, jobId: job.id }, 'description-refresh: re-classify failed');
   }
