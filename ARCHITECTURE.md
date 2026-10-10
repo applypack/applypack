@@ -393,6 +393,7 @@ src/
     review-gate.ts             ← pure: a strength review's example bullet fact-checked; a blocked one asks instead (TASKS R3)
     json-resume.ts             ← pure: the JSON Resume subset ApplyPack renders (ADR 0039)
     structure-anchor.ts        ← pure: anchorStructure, every string a verbatim span of the text
+    structure-complete.ts      ← pure: structureGaps, whether an AI reading holds every role and line the text has
     structure-from-text.ts     ← pure: a resume's shape from the extracted text alone
     style-infer.ts             ← the typeface a resume is set in, read from its own runs (ADR 0039); a PDF's layout beside it
     pdf-geometry.ts            ← a PDF's text items with place, size, weight and per-character colour, and its rules (ADR 0059)

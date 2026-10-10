@@ -99,7 +99,7 @@ const SEPARATORS = /[∙·•‣▪◦|]/gu;
  * (₴, ✓, ★, +, $) — case, spacing, punctuation and separators aside. Letters
  * alone let a save that dropped "₴" and "✓" pass as whole — found in review, 2026-09-30.
  */
-function contentKey(s: string): string {
+export function contentKey(s: string): string {
   return s.normalize('NFKC').toLowerCase().replace(SEPARATORS, '').replace(/[^\p{L}\p{N}\p{S}]+/gu, '');
 }
 
