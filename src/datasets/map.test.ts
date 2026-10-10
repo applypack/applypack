@@ -14,6 +14,7 @@ import {
   mapRows,
   mappingFits,
   readDate,
+  alertsOff,
   readSourceConfig,
   sampleValue,
   usableMapping,
@@ -466,6 +467,21 @@ describe('a stored mapping', () => {
     assert.deepEqual(readSourceConfig({ holds: 'postings', include: '*.pdf' }), { holds: 'postings', mapping: null, include: '*.pdf', alerts: 'matches' });
     assert.equal(readSourceConfig({ holds: 'rows' }), null);
     assert.equal(readSourceConfig({ holds: 'postings', alerts: 'loud' }), null);
+  });
+
+  it('a folder set to "No alerts" is quiet for every message, and nothing else is', () => {
+    const quiet = { holds: 'postings', mapping: null, include: null, alerts: 'off' };
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: quiet }), true);
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: { ...quiet, alerts: 'matches' } }), false);
+    // A folder stored before the choice existed alerts, as every folder then did.
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: { holds: 'postings' } }), false);
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: null }), false);
+    // The switch belongs to folders: no other source offers it.
+    assert.equal(alertsOff({ atsType: 'IMPORT', sourceConfig: quiet }), false);
+    assert.equal(alertsOff({ atsType: 'GREENHOUSE', sourceConfig: null }), false);
+  });
+
+  it('refuses a config that is not one', () => {
     assert.equal(readSourceConfig(null), null);
     assert.equal(readSourceConfig({ mapping: { title: 5 } }), null);
     assert.equal(readSourceConfig('mapping'), null);

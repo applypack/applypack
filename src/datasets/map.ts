@@ -88,6 +88,15 @@ export function readSourceConfig(raw: unknown): SourceConfig | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * A folder set to "No alerts" (ADR 0062): its matches stay on Jobs and no
+ * message carries them — not the alert, not a held one, not the daily recap.
+ * Asked wherever a message is put together, so the promise has one reader.
+ */
+export function alertsOff(source: { atsType: string; sourceConfig: unknown }): boolean {
+  return source.atsType === 'FOLDER' && readSourceConfig(source.sourceConfig)?.alerts === 'off';
+}
+
 export function emptyMapping(): Mapping {
   return Object.fromEntries(MAPPING_FIELDS.map((f) => [f, null])) as Mapping;
 }

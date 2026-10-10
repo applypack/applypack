@@ -18,7 +18,7 @@ import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
 import { autoPacksToday, queuePack } from '../pack/store';
 import { autoPack } from '../pack/trigger';
-import { attributionLine } from '../web/pages/attribution';
+import { sourceLine } from '../web/pages/attribution';
 import { getPackSettings, type ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
 import { alertsEveryPosting, starred, type WatchRules } from '../watchlist/interval';
@@ -467,11 +467,7 @@ export async function processNormalizedJobs(
           title: created.title,
           companyName: starred(job.employer ?? companyName, item.watch),
           watched: item.watch?.watched === true,
-          attribution: job.sourceFile
-            ? `From your folder: ${companyName} / ${job.sourceFile}`
-            : item.source
-              ? attributionLine(item.source.atsType, item.source.atsToken)
-              : null,
+          attribution: sourceLine(job.sourceFile, companyName, item.source),
           location: created.location,
           countries: created.countries,
           workplace: created.workplace,

@@ -2,7 +2,8 @@ import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sendDigest, type QuietSourceAlert } from '../notifier';
-import { attributionLine } from '../web/pages/attribution';
+import { sourceLine } from '../web/pages/attribution';
+import { alertsOff } from '../datasets/map';
 import { QUIET_STREAK } from '../fetchers/source-health';
 import { getSettings, pausedFamilies } from '../settings';
 import { lastSuccessfulRunAt, type CronStats } from './cron-run';
@@ -23,7 +24,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   const since = previous ?? new Date(Date.now() - DIGEST_WINDOW_MS);
   logger.info({ since: since.toISOString(), firstEver: previous === null }, 'digest-job: start');
 
-  const jobs = await prisma.job.findMany({
+  const found = await prisma.job.findMany({
     where: {
       status: { in: [JobStatus.NEW, JobStatus.ALERTED] },
       fetchedAt: { gte: since },
@@ -49,7 +50,8 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
       redFlags: true,
       summary: true,
       fetchedAt: true,
-      company: { select: { name: true, atsType: true, atsToken: true } },
+      sourceFile: true,
+      company: { select: { name: true, atsType: true, atsToken: true, sourceConfig: true } },
       // The search that scored each posting best, so a reader running several
       // can tell the hunts apart in one list (ADR 0028).
       scores: {
@@ -60,12 +62,15 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     },
     orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
   });
+  // A folder set to "No alerts" is left out here as well: its match was never
+  // sent and never held, which made it exactly the row this query finds (#391).
+  const jobs = found.filter((j) => !alertsOff(j.company));
 
   const alerts: AlertJob[] = jobs.map((j) => ({
     title: j.title,
     companyName: j.employer ?? j.company.name,
     location: j.location,
-    attribution: attributionLine(j.company.atsType, j.company.atsToken),
+    attribution: sourceLine(j.sourceFile, j.company.name, j.company),
     countries: j.countries,
     workplace: j.workplace,
     url: j.url,
