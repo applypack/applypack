@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.8] — 2026-10-10
+
+### Security
+- **A `back` value can no longer send a form's redirect off the site.** The
+  guard for every "go back where you were" field refused `//host` and
+  `https://…`, but read the value as a string: `/\host` and `/.//host` both
+  start with one slash, and a browser reads both as another host. It now
+  reads the value the way a browser reads a Location and keeps it only when
+  it stays on this site. Every POST already passes the same-origin check, so
+  another page could not submit one; no released page takes `back` from a
+  link (#354).
+
+### Fixed
+- A `back` value with characters outside ASCII (a search in Cyrillic) made
+  the redirect a header the server refuses, and the request answered 500. It
+  comes back percent-encoded.
+
+## [2.55.7] — 2026-10-10
+
+### Fixed
+- **A pack run on the Runs page is worded in your language.** Its counts were
+  bare words ("1 failed", "2 ready") in English whatever the interface
+  language, a tick's "1 packs queued" did not agree in number, and a pack run
+  that stood down for another said "Another fetch was running". They now
+  read "1 pack failed", "2 packs ready", "1 pack put back in the queue",
+  "1 pack queued" and "Another run was preparing packs", in all four
+  languages (part of #384).
+
 ## [2.55.6] — 2026-10-10
 
 ### Fixed
@@ -5123,6 +5151,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.8]: https://github.com/applypack/applypack/compare/v2.55.7...v2.55.8
+[2.55.7]: https://github.com/applypack/applypack/compare/v2.55.6...v2.55.7
 [2.55.6]: https://github.com/applypack/applypack/compare/v2.55.5...v2.55.6
 [2.55.5]: https://github.com/applypack/applypack/compare/v2.55.4...v2.55.5
 [2.55.4]: https://github.com/applypack/applypack/compare/v2.55.3...v2.55.4

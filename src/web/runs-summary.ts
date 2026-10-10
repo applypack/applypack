@@ -28,6 +28,11 @@ const REASON: Record<string, MessageKey> = {
   'no-targets': 'runs.reason.noTargets',
 };
 
+/** A code two jobs share that means something else for one of them: a pack run stands down for a pack run, not for a fetch. */
+const REASON_FOR: Record<string, Record<string, MessageKey>> = {
+  pack: { overlap: 'runs.reason.packOverlap' },
+};
+
 /**
  * Known counts in reading order. `always` facts show at zero too — "0 new" is
  * the news of an uneventful tick; the rest speak only when they happened.
@@ -50,6 +55,13 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   // Bare words a second job could reuse for something else: worded for the job that writes them.
   { key: 'found', job: 'stale-applications', words: 'runs.fact.staleFound', always: true },
   { key: 'count', job: 'digest', words: 'runs.fact.digestCount', always: true },
+  // The application-pack runner (ADR 0063), and the tick that queued one for it.
+  { key: 'packsQueued', words: 'runs.fact.packsQueued' },
+  { key: 'ready', job: 'pack', words: 'runs.fact.packReady' },
+  { key: 'stopped', job: 'pack', words: 'runs.fact.packStopped' },
+  { key: 'failed', job: 'pack', words: 'runs.fact.packFailed' },
+  { key: 'requeued', job: 'pack', words: 'runs.fact.packRequeued' },
+  { key: 'notified', job: 'pack', words: 'runs.fact.packNotified' },
   { key: 'unscored', job: 'digest', words: 'runs.fact.digestUnscored' },
   { key: 'deleted', job: 'cleanup', words: 'runs.fact.jobsDeleted', always: true },
   { key: 'screeningsDeleted', words: 'runs.fact.screeningsDeleted' },
@@ -104,7 +116,7 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
   const num = (key: string): number | null => (typeof stats[key] === 'number' ? (stats[key] as number) : null);
 
   if (typeof stats.reason === 'string') {
-    const known = REASON[stats.reason];
+    const known = REASON_FOR[name]?.[stats.reason] ?? REASON[stats.reason];
     // A code this file has never heard of is shown as its own words, never dropped.
     out.push(known ? t(known) : t('runs.reason.other', { reason: stats.reason.replace(/-/g, ' ') }));
   }
