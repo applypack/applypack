@@ -19,7 +19,8 @@ import {
 } from '../job-facets';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
-import { classifyExistingJob } from '../../jobs/classify-existing';
+import { classifyExistingJob, type Rescored } from '../../jobs/classify-existing';
+import { rescoreFlash } from '../rescore-flash';
 import { locationMismatchReason } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
@@ -649,12 +650,16 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
     include: { company: { select: { name: true, atsType: true, sourceConfig: true } } },
   });
   if (!job) return c.text(t('http.notFound'), 404);
+  let outcome: Rescored;
   try {
-    await classifyExistingJob(job, { keepStatus: false });
+    outcome = await classifyExistingJob(job, { keepStatus: false });
   } catch (err) {
     logger.error({ err, jobId: id }, 'web: reclassify failed');
+    outcome = { kind: 'failed', reason: '' };
   }
-  return c.redirect(jobHref(id, tab), 303);
+  // A press that formed no verdict says so: the page it comes back to looks exactly as it did.
+  const said = rescoreFlash(outcome, job.status);
+  return said ? flashRedirect(jobHref(id, tab), said.kind, said.text) : c.redirect(jobHref(id, tab), 303);
 });
 
 /**

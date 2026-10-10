@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.18] — 2026-10-10
+
+### Fixed
+- **Re-classify says what happened when no verdict comes back.** The button
+  on a job came back to the same page with no word in three cases: every
+  engine failed (a refused sign-in, a server down), no running search had a
+  stack or role types, or two-stage scoring turned the posting away at its
+  first pass. Each now says what failed, that the verdict is as it was, and
+  where to look — with the engine's own reason when it gave one. A posting
+  the first pass turns away is also handled as "Save & re-classify" handles
+  it, instead of staying Alerted under a verdict the prefilter had just
+  reversed: it is dismissed, unless you saved, applied to or pasted it
+  yourself (#414).
+
 ## [2.55.17] — 2026-10-10
 
 ### Fixed
@@ -5285,6 +5299,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.18]: https://github.com/applypack/applypack/compare/v2.55.17...v2.55.18
 [2.55.17]: https://github.com/applypack/applypack/compare/v2.55.16...v2.55.17
 [2.55.16]: https://github.com/applypack/applypack/compare/v2.55.15...v2.55.16
 [2.55.15]: https://github.com/applypack/applypack/compare/v2.55.14...v2.55.15

@@ -103,7 +103,7 @@ export async function createManualJob(
   if (found.kind === 'existing') return { kind: 'existing', job: found.job };
   const { job, company } = found;
   const classified =
-    opts.classify === false ? false : await classifyExistingJob(job, { keepStatus: true });
+    opts.classify === false ? false : (await classifyExistingJob(job, { keepStatus: true })).kind === 'scored';
   logger.info({ jobId: job.id, company: company.name, classified }, 'web: manual job saved');
   return { kind: 'created', job, classified };
 }
