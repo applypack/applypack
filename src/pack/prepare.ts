@@ -63,6 +63,8 @@ export interface PrepareOptions {
   coverLetter: boolean;
   angles?: CoverAngles;
   onStep?: (step: PrepareStep) => void;
+  /** Asked between steps: true stops there (the worker is shutting down), with nothing further asked of a model. */
+  cancelled?: () => boolean;
 }
 
 export interface PreparedResume {
@@ -83,6 +85,8 @@ export interface Prepared {
   stop: Stop | null;
   /** A step that failed and left nothing to go on with; null otherwise. */
   error: string | null;
+  /** Cut short by `cancelled`: what is here is as far as it got, and says nothing about the posting. */
+  cancelled: boolean;
   match: ResumeMatch | null;
   /** A stored comparison of the same text answered, so none was paid for. */
   matchReused: boolean;
@@ -118,6 +122,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   const out: Prepared = {
     stop: null,
     error: null,
+    cancelled: false,
     match: null,
     matchReused: false,
     verification: null,
@@ -141,12 +146,16 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
     reason = r;
   };
   const because = (): string => reason || t('pack.why.noReason');
+  const cut = (): boolean => {
+    if (opts.cancelled?.()) out.cancelled = true;
+    return out.cancelled;
+  };
 
   const live = await timed('liveness', () =>
     runLivenessLadder({ url: posting.url, externalId: posting.externalId, atsType: posting.atsType, atsToken: posting.atsToken }),
   );
   out.stop = livenessStop({ liveness: live.liveness, label: livenessCodeLabel(live.code) ?? live.code });
-  if (out.stop) return out;
+  if (out.stop || cut()) return out;
 
   const me = { id: resume.id, name: resume.name, version: resume.version };
   out.match = await storedComparison(posting.id, resume.id, resume.text);
@@ -156,6 +165,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
     if (briefed?.reused) delete out.ms.brief;
     out.match = await timed('match', () => matchResumeToJob({ ...me, text: resume.text }, posting, { mode: 'full', brief: briefed, onError }));
   }
+  if (cut()) return out;
   const row = out.match;
   const breakdown = row ? readBreakdown(row.breakdown) : null;
   if (!row || !breakdown) {
@@ -177,6 +187,8 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
       reason = err instanceof Error ? err.message : String(err);
       return null;
     });
+    // A check the shutdown killed is not "the company was not checked".
+    if (cut()) return out;
     if (!out.verification) out.unchecked = because();
     else {
       out.stop = verifyStop(out.verification);
@@ -200,6 +212,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   if (checks.length > 0) logger.warn({ jobId: posting.id, checks }, 'pack: the edits failed a check and were dropped');
   out.ms.tailor = Date.now() - started;
 
+  if (cut()) return out;
   let tailored: ResumeMatch | null = null;
   if (opts.rejudge && text !== row.resumeText) {
     tailored =
@@ -230,7 +243,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   });
   out.resume = { plan, outcome, text, score: checks.length === 0 ? score : { before: score.before, after: score.before }, checks, tailored, document };
 
-  if (opts.coverLetter) {
+  if (opts.coverLetter && !cut()) {
     const letter = await timed('letter', () => generateCoverLetter({ ...me, text }, posting, { tone: 'warm', angles: opts.angles, evidence: 'own' })).catch(
       (err: unknown) => {
         logger.warn({ err, jobId: posting.id }, 'pack: the cover letter failed; the pack goes on without one');

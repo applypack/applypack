@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.14] — 2026-10-10
+
+### Fixed
+- **A pack interrupted by a restart is not announced as ready.** When the
+  worker stopped (a Docker restart, `npm run stop`, an upgrade) while a pack
+  was on the company check — its longest step — the killed check read as
+  "the company was not checked", the rest ran inside the shutdown window,
+  and the pack ended ready and went into the next message with the check
+  missing. A pack the shutdown cut into now goes back in the queue whatever
+  it had got to, and the next run takes it up: the comparison and a check
+  that did finish are stored and not paid for again. Nothing more is asked
+  of a model once the stop is asked for, so no cover letter is written into
+  a shutdown either (#375).
+
 ## [2.55.13] — 2026-10-10
 
 ### Fixed
@@ -5231,6 +5245,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.14]: https://github.com/applypack/applypack/compare/v2.55.13...v2.55.14
 [2.55.13]: https://github.com/applypack/applypack/compare/v2.55.12...v2.55.13
 [2.55.12]: https://github.com/applypack/applypack/compare/v2.55.11...v2.55.12
 [2.55.11]: https://github.com/applypack/applypack/compare/v2.55.10...v2.55.11

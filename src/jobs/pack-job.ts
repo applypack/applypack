@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { logger } from '../logger';
 import { alertChannel, sendPackNotice } from '../notifier';
-import { DEFAULT_MIN_CEILING } from '../pack/gate';
+import { DEFAULT_MIN_CEILING, runVerdict } from '../pack/gate';
 import { preparePosting, type Prepared } from '../pack/prepare';
 import { wantsCoverLetter } from '../pack/settings';
 import {
@@ -115,33 +115,35 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
       coverLetter: wantsCoverLetter(pack.coverLetter, posting.description),
       angles: readCoverAngles(settings.coverAngles),
       onStep: (step) => void setPackStep(packId, step).catch((err: unknown) => logger.warn({ err, packId }, 'pack: could not record the step')),
+      cancelled: () => stopping,
     });
   } catch (err) {
     logger.error({ err, packId, jobId }, 'pack: preparing threw');
     if (stopping) return requeue(packId);
     return fail(err instanceof Error ? err.message : String(err));
   }
-  // A call cut short by the shutdown is not an answer about the posting.
-  if (stopping && prepared.error) return requeue(packId);
+  const made = prepared.resume;
+  const match = prepared.match;
+  const verdict = runVerdict({ stopping, error: prepared.error, stopped: prepared.stop !== null, made: made !== null && match !== null });
+  // A run the shutdown cut into is not an answer about the posting (gate.ts).
+  if (verdict === 'requeue') return requeue(packId);
 
   const read = {
     resumeId: resume.id,
     resumeName: resume.name,
-    matchId: prepared.match?.id ?? null,
+    matchId: match?.id ?? null,
     verificationId: prepared.verification?.id ?? null,
-    scoreBefore: prepared.match?.matchScore ?? null,
+    scoreBefore: match?.matchScore ?? null,
   };
-  if (prepared.error) {
-    await finishPack(packId, { ...read, status: 'failed', why: prepared.error });
-    return 'failed';
-  }
-  if (prepared.stop) {
+  if (verdict === 'stopped' && prepared.stop) {
     await finishPack(packId, { ...read, status: 'stopped', stop: prepared.stop.stop, why: prepared.stop.why });
     logger.info({ packId, jobId, stop: prepared.stop.stop }, 'pack: stopped');
     return 'stopped';
   }
-  const made = prepared.resume;
-  if (!made || !prepared.match) return fail(t('pack.why.noResumeMade'));
+  if (verdict !== 'ready' || !made || !match) {
+    await finishPack(packId, { ...read, status: 'failed', why: prepared.error ?? t('pack.why.noResumeMade') });
+    return 'failed';
+  }
 
   const edits: PackEdits = {
     applied: made.checks.length === 0 ? made.outcome.done.length : 0,
@@ -155,7 +157,7 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
     why: prepared.unchecked ? t('pack.why.companyUnchecked', { reason: prepared.unchecked }) : null,
     tailoredMatchId: made.tailored?.id ?? null,
     coverLetterId: prepared.letterId,
-    baseText: prepared.match.resumeText,
+    baseText: match.resumeText,
     text: made.text,
     edits: edits as unknown as Prisma.InputJsonValue,
     // The judged score of the tailored text when there is one, else the live floor.
