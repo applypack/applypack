@@ -202,6 +202,11 @@ model SourceFile {
   detail    String?
   // Rows of it handed to the pipeline as jobs.
   jobCount  Int       @default(0)
+  // Rows of it read so far. A file longer than one look takes waits with this
+  // short of its end, and a file that only grew is read on from here
+  // (folder-scan.ts:judgeFile). 0 unless `sha256` is the hash of the bytes
+  // those rows were read from.
+  rowsRead  Int       @default(0)
   // The last look that listed it, and the last one that read it.
   seenAt    DateTime
   readAt    DateTime?

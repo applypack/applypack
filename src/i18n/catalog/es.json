@@ -3623,7 +3623,7 @@
   "datasets.file.unreadable": "El sistema no pudo leer este archivo ({code}). Se volverá a intentar en la próxima comprobación.",
   "datasets.file.sameContent": "El mismo contenido que {file}, que ya se leyó.",
   "datasets.file.misfit": "Sus columnas no encajan con el mapeo: {jobs, number} de {rows, plural, one {# fila} many {# de filas} other {# filas}} se leen como oferta.",
-  "datasets.file.firstRows": "Las primeras {first, number} de {total, plural, one {# fila} many {# de filas} other {# filas}}.",
+  "datasets.file.partRows": "Leídas {read, number} de {total, plural, one {# fila} many {# de filas} other {# filas}} hasta ahora. La próxima comprobación seguirá desde ahí.",
   "datasets.posting.tooShort": "Menos de {n} caracteres de texto: una nota o una página vacía, no una oferta.",
   "datasets.posting.pdf": "No se pudo leer texto de este PDF: es una imagen escaneada, tiene contraseña o el archivo está dañado. Guarda la página como HTML, o imprímela en PDF con su texto.",
   "datasets.posting.docx": "No es un .docx legible.",

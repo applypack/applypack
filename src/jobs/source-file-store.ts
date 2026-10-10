@@ -20,9 +20,9 @@ const FILES_SHOWN = 500;
 export async function loadLedger(companyId: number): Promise<LedgerEntry[]> {
   const rows = await prisma.sourceFile.findMany({
     where: { companyId },
-    select: { relPath: true, size: true, mtime: true, sha256: true, status: true },
+    select: { relPath: true, size: true, mtime: true, sha256: true, status: true, rowsRead: true, jobCount: true },
   });
-  return rows.map((r) => ({ relPath: r.relPath, size: r.size, mtimeMs: r.mtime.getTime(), sha256: r.sha256, status: r.status as FileStatus }));
+  return rows.map(({ mtime, status, ...r }) => ({ ...r, mtimeMs: mtime.getTime(), status: status as FileStatus }));
 }
 
 /**
@@ -48,6 +48,7 @@ async function keepLook(look: FolderLook): Promise<void> {
         status: change.status,
         detail: change.detail,
         jobCount: change.jobCount,
+        rowsRead: change.rowsRead,
         seenAt: look.at,
         // A file whose bytes were read, whatever became of them.
         ...(change.sha256 !== null && { readAt: look.at }),

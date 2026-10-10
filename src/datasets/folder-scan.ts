@@ -1,14 +1,16 @@
 /*
  * One look at a folder a tool writes into (ADR 0062): which files are read
  * now, which wait and which the ledger already answers for. A file is read
- * once; a changed file is read again; a file still being written waits.
+ * once, a look's worth of rows at a time; a changed file is read again, from
+ * its old end when it only grew; a file still being written waits.
  * Nothing here touches the disk — the listing and the ledger are handed in.
  * Pure — tested in folder-scan.test.ts.
  */
 
+import { createHash } from 'node:crypto';
 import { t } from '../i18n/t';
 import { mapRows, type Mapping } from './map';
-import { MAX_BODY_MB, MAX_ROWS, decodeBody, findRows, type RowFormat } from './rows';
+import { MAX_BODY_MB, decodeBody, findRows, type RowFormat } from './rows';
 import type { NormalizedJob } from '../types';
 
 /** A row file's state in the ledger (`source_file.status`). */
@@ -25,6 +27,9 @@ export interface ListedFile {
 export interface LedgerEntry extends ListedFile {
   sha256: string | null;
   status: FileStatus;
+  /** Rows of it read so far, and the jobs they gave: where a long file, or one that only grew, is taken up again. */
+  rowsRead: number;
+  jobCount: number;
 }
 
 /** What a look learned about one file: the row the ledger keeps for it. */
@@ -32,10 +37,12 @@ export interface FileChange extends ListedFile {
   kind: FileKind;
   sha256: string | null;
   status: FileStatus;
-  /** Why it waits, was skipped or failed — or a note on a read ("the first 2,000 of 3,500 rows"). */
+  /** Why it waits, was skipped or failed — or how far a long file was read ("5,000 of 12,000 rows read so far"). */
   detail: string | null;
   /** Rows of it handed to the pipeline as jobs. */
   jobCount: number;
+  /** Rows of it read so far; 0 unless `sha256` is the hash of the bytes they were read from. */
+  rowsRead: number;
 }
 
 /** A file as the reader found it (folder-io.ts): its bytes, or why there are none. */
@@ -51,7 +58,7 @@ export const MAX_DEPTH = 3;
 export const MAX_ENTRIES = 20_000;
 /** Files read in one look; the rest wait for the next one. */
 export const MAX_FILES_PER_LOOK = 20;
-/** Rows handed over in one look: every one past the filter is an AI call, and the tick asks the database about them in one query. */
+/** Rows read in one look, from one long file or from many: every one past the filter is an AI call, and the tick asks the database about them in one query. */
 export const MAX_ROWS_PER_LOOK = 5_000;
 /** A file changed more recently than this may still be written. */
 export const SETTLE_MS = 10_000;
@@ -289,7 +296,7 @@ export function planScan(
 /** A file the plan could not read now, as the ledger row that says why. */
 export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge', kindOf: (relPath: string) => FileKind | null = rowFileKind): FileChange {
   const kind = kindOf(file.relPath)!;
-  return { ...file, kind, sha256: null, status: why === 'fresh' ? 'waiting' : 'skipped', detail: why === 'fresh' ? FILE_NOTES.fresh : tooLargeNote(kind), jobCount: 0 };
+  return { ...file, kind, sha256: null, status: why === 'fresh' ? 'waiting' : 'skipped', detail: why === 'fresh' ? FILE_NOTES.fresh : tooLargeNote(kind), jobCount: 0, rowsRead: 0 };
 }
 
 /**
@@ -297,7 +304,7 @@ export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge', kindOf
  * vanished between the listing and the read. Shared by both kinds of folder.
  */
 export function unreadVerdict(file: ListedFile, kind: FileKind, got: Exclude<FileRead, { ok: true }>): FileChange | null {
-  const note = (status: FileStatus, detail: string): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0 });
+  const note = (status: FileStatus, detail: string): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0 });
   if (got.why === 'gone') return null;
   if (got.why === 'changing') return note('waiting', FILE_NOTES.changing);
   if (got.why === 'refused') return note('failed', FILE_NOTES.refused);
@@ -329,6 +336,22 @@ export interface FileVerdict {
   jobs: NormalizedJob[];
   /** Whether its rows were read at all, and whether they fit the mapping: what tells a tool that changed its output. */
   rows: 'none' | 'fit' | 'misfit';
+  /** Rows of it handed over this look: what the look's ceiling counts. */
+  taken: number;
+}
+
+/**
+ * The row a file is taken up at. After the rows already read when its bytes
+ * are the ones read then (a long file, a look's worth at a time), or when it
+ * only grew — a tool that appends: the bytes read then still open it. Any
+ * other change is a file written anew, read from its start: what is already
+ * stored comes back as duplicates, which cost no AI.
+ */
+function resumeAt(known: LedgerEntry | undefined, got: Extract<FileRead, { ok: true }>): number {
+  if (!known || known.sha256 === null || known.rowsRead === 0) return 0;
+  if (known.sha256 === got.sha256) return known.rowsRead;
+  const grew = got.size > known.size && createHash('sha256').update(got.bytes.subarray(0, known.size)).digest('hex') === known.sha256;
+  return grew ? known.rowsRead : 0;
 }
 
 /**
@@ -337,24 +360,46 @@ export interface FileVerdict {
  * a copy or a rename brings nothing new. A row that names no date takes the
  * file's — when the tool wrote it. A file where fewer than half the rows read
  * as a job no longer fits the mapping, and none of it is handed over.
+ *
+ * At most `maxRows` rows are read, from where `known` — the ledger's row for
+ * this file — says the last look stopped. A file with more waits, and the
+ * next look reads on, so every row of it is read once.
  */
-export function judgeFile(file: ListedFile, got: FileRead, mapping: Mapping, companyId: number, readAs: ReadonlyMap<string, string>): FileVerdict {
+export function judgeFile(
+  file: ListedFile,
+  got: FileRead,
+  mapping: Mapping,
+  companyId: number,
+  readAs: ReadonlyMap<string, string>,
+  known: LedgerEntry | undefined = undefined,
+  maxRows: number = MAX_ROWS_PER_LOOK,
+): FileVerdict {
   const kind = rowFileKind(file.relPath)!;
-  const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, ...extra });
-  if (!got.ok) return { change: unreadVerdict(file, kind, got), jobs: [], rows: 'none' };
+  const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0, ...extra });
+  const none = (change: FileChange | null): FileVerdict => ({ change, jobs: [], rows: 'none', taken: 0 });
+  if (!got.ok) return none(unreadVerdict(file, kind, got));
   const measured = { size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256 };
   const twin = readAs.get(got.sha256);
-  if (twin !== undefined && twin !== file.relPath) {
-    return { change: note('skipped', t('datasets.file.sameContent', { file: twin }), measured), jobs: [], rows: 'none' };
+  if (twin !== undefined && twin !== file.relPath) return none(note('skipped', t('datasets.file.sameContent', { file: twin }), measured));
+  const text = decodeBody(got.bytes);
+  let from = resumeAt(known, got);
+  let found = findRows(text, maxRows, from);
+  // Fewer rows than were read: not the file read then, whatever its first bytes say.
+  if (found.ok && from > found.total) {
+    from = 0;
+    found = findRows(text, maxRows);
   }
-  const found = findRows(decodeBody(got.bytes));
-  if (!found.ok) return { change: note('skipped', FILE_NOTES.notRows, measured), jobs: [], rows: 'none' };
+  if (!found.ok) return none(note('skipped', FILE_NOTES.notRows, measured));
+  const before = from > 0 ? known!.jobCount : 0;
   const mapped = mapRows(found.rows, mapping, companyId, new Date(got.mtimeMs));
   const judged = found.rows.length - mapped.dropped.closed - mapped.repeated;
   if (mapped.jobs.length * 2 < judged) {
     const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: found.rows.length });
-    return { change: note('failed', detail, measured), jobs: [], rows: 'misfit' };
+    // What was read before these rows stands: a mapping saved again reads on from there.
+    return { change: note('failed', detail, { ...measured, rowsRead: from, jobCount: before }), jobs: [], rows: 'misfit', taken: 0 };
   }
-  const detail = found.over > 0 ? t('datasets.file.firstRows', { first: MAX_ROWS, total: MAX_ROWS + found.over }) : null;
-  return { change: note('done', detail, { ...measured, jobCount: mapped.jobs.length }), jobs: mapped.jobs, rows: 'fit' };
+  const rowsRead = from + found.rows.length;
+  const progress = { ...measured, rowsRead, jobCount: before + mapped.jobs.length };
+  const change = found.over > 0 ? note('waiting', t('datasets.file.partRows', { read: rowsRead, total: found.total }), progress) : note('done', null, progress);
+  return { change, jobs: mapped.jobs, rows: 'fit', taken: found.rows.length };
 }

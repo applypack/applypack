@@ -13,14 +13,16 @@ export type RowFormat = 'json' | 'jsonl' | 'csv' | 'tsv';
 /** The largest body read as rows: a file past it is refused whole, never read in part. */
 export const MAX_BODY_MB = 5;
 
-/** The most rows one body gives: every row past the base filter is an AI call, and the whole list waits in memory for its preview. */
+/** The most rows an imported file gives: every row past the base filter is an AI call, and the whole list waits in memory for its preview. A folder's file is read past it, a look's worth at a time (folder-scan.ts). */
 export const MAX_ROWS = 2000;
 
 export interface FoundRows {
   format: RowFormat;
   rows: Row[];
-  /** Rows the body holds past `MAX_ROWS`: counted and said, never read. */
+  /** Rows the body holds past the ones given: counted and said, never read. */
   over: number;
+  /** Every row the body holds: the ones before `from`, the ones given and the ones past them. */
+  total: number;
   /** Entries that are not rows: a bare value in the array, a line that is not JSON. */
   notRows: number;
 }
@@ -78,26 +80,34 @@ function unwrapRecord(row: Row): Row {
   return row.id === undefined ? fields : { id: row.id, ...fields };
 }
 
-function fromList(list: readonly unknown[], format: RowFormat, maxRows: number): RowsResult {
+/** Which rows of a body are given: `max` of them, starting at row `from`. */
+interface Page {
+  from: number;
+  max: number;
+}
+
+function fromList(list: readonly unknown[], format: RowFormat, page: Page): RowsResult {
   const rows = list.filter(isRow);
   if (rows.length === 0) return noRows();
+  const given = rows.slice(page.from, page.from + page.max);
   return {
     ok: true,
     format,
-    rows: rows.slice(0, maxRows).map(unwrapRecord),
-    over: Math.max(0, rows.length - maxRows),
+    rows: given.map(unwrapRecord),
+    over: Math.max(0, rows.length - page.from - given.length),
+    total: rows.length,
     notRows: list.length - rows.length,
   };
 }
 
-function fromJson(parsed: unknown, maxRows: number): RowsResult {
-  if (Array.isArray(parsed)) return fromList(parsed, 'json', maxRows);
+function fromJson(parsed: unknown, page: Page): RowsResult {
+  if (Array.isArray(parsed)) return fromList(parsed, 'json', page);
   if (!isRow(parsed)) return noRows();
   // An object with no list inside is one row: a tool that writes a file per posting.
-  return fromList(rowsInside(parsed, 1) ?? [parsed], 'json', maxRows);
+  return fromList(rowsInside(parsed, 1) ?? [parsed], 'json', page);
 }
 
-function fromJsonLines(text: string, maxRows: number): RowsResult {
+function fromJsonLines(text: string, page: Page): RowsResult {
   const parsed: unknown[] = [];
   for (const line of text.split(/\r?\n/)) {
     if (line.trim().length === 0) continue;
@@ -107,7 +117,7 @@ function fromJsonLines(text: string, maxRows: number): RowsResult {
       parsed.push(null);
     }
   }
-  return fromList(parsed, 'jsonl', maxRows);
+  return fromList(parsed, 'jsonl', page);
 }
 
 /** Header names as the selects show them: trimmed, an empty one numbered, a repeat told apart. */
@@ -125,7 +135,7 @@ function headerNames(cells: readonly string[]): string[] {
 /** `sep=;` on a line of its own: how a spreadsheet says which delimiter the file uses. */
 const SEPARATOR_LINE_RE = /^sep=([,;\t])\r?\n/i;
 
-function fromDelimited(body: string, maxRows: number): RowsResult {
+function fromDelimited(body: string, page: Page): RowsResult {
   const hint = SEPARATOR_LINE_RE.exec(body);
   const text = hint ? body.slice(hint[0].length) : body;
   const delimiter = (hint?.[1] as Delimiter | undefined) ?? sniffDelimiter(text);
@@ -135,8 +145,8 @@ function fromDelimited(body: string, maxRows: number): RowsResult {
   if (head.length > MAX_COLUMNS) return { ok: false, error: t('datasets.rows.tooManyColumns', { n: head.length, max: MAX_COLUMNS }) };
   const names = headerNames(head);
   // A row keeps the cells it has: a short row is not padded out to the header's width.
-  const rows = lines.slice(0, maxRows).map((cells) => Object.fromEntries(cells.slice(0, names.length).map((cell, i) => [names[i]!, cell])));
-  return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - maxRows), notRows: 0 };
+  const rows = lines.slice(page.from, page.from + page.max).map((cells) => Object.fromEntries(cells.slice(0, names.length).map((cell, i) => [names[i]!, cell])));
+  return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - page.from - rows.length), total: lines.length, notRows: 0 };
 }
 
 /** A file's bytes as text: UTF-8, or UTF-16 when its byte-order mark says so (a spreadsheet's "Unicode text"). */
@@ -145,19 +155,24 @@ export function decodeBody(bytes: Uint8Array): string {
   return new TextDecoder(utf16 ?? 'utf-8').decode(bytes);
 }
 
-export function findRows(body: string, maxRows: number = MAX_ROWS): RowsResult {
+/**
+ * The rows of a body: at most `maxRows` of them, starting at row `from` — a
+ * folder's long file is read a look's worth at a time (folder-scan.ts).
+ */
+export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0): RowsResult {
+  const page: Page = { from, max: maxRows };
   const text = (body.startsWith(BOM) ? body.slice(1) : body).trim();
   if (text.length === 0) return { ok: false, error: t('datasets.rows.empty') };
   // A NUL is a binary file (a spreadsheet's own format, an archive) read as text.
   if (text.includes('\u0000')) return noRows();
-  if (text[0] !== '[' && text[0] !== '{') return fromDelimited(text, maxRows);
+  if (text[0] !== '[' && text[0] !== '{') return fromDelimited(text, page);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
     // Not one JSON value: a line of JSON each, or a table whose first cell happens to open with a bracket.
-    const lines = fromJsonLines(text, maxRows);
-    return lines.ok ? lines : fromDelimited(text, maxRows);
+    const lines = fromJsonLines(text, page);
+    return lines.ok ? lines : fromDelimited(text, page);
   }
-  return fromJson(parsed, maxRows);
+  return fromJson(parsed, page);
 }

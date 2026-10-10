@@ -93,14 +93,17 @@ async function lookAtRows(
   const plan = planScan(listing, ledger, now.getTime(), include);
   const changes: FileChange[] = [...plan.waiting.map((f) => unreadChange(f, 'fresh')), ...plan.tooLarge.map((f) => unreadChange(f, 'tooLarge'))];
   const readAs = readHashes(ledger);
+  const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const jobs: NormalizedJob[] = [];
+  let left = MAX_ROWS_PER_LOOK;
   let read = 0;
   let misfits = 0;
   for (const file of plan.read) {
     // Past the ceiling the rest waits, unnoted: the next look plans it again.
-    if (jobs.length >= MAX_ROWS_PER_LOOK) break;
-    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), mapping, companyId, readAs);
+    if (left <= 0) break;
+    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), mapping, companyId, readAs, known.get(file.relPath), left);
     if (verdict.change) changes.push(verdict.change);
+    left -= verdict.taken;
     if (verdict.rows === 'none') continue;
     read++;
     if (verdict.rows === 'misfit') misfits++;
@@ -164,7 +167,7 @@ async function lookAtPostings(
       if (change) changes.push(change);
       continue;
     }
-    const measured = { ...file, kind, size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256, jobCount: 0 };
+    const measured = { ...file, kind, size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256, jobCount: 0, rowsRead: 0 };
     const twin = readAs.get(got.sha256);
     if (twin !== undefined && twin !== file.relPath) {
       changes.push({ ...measured, status: 'skipped', detail: t('datasets.file.sameContent', { file: twin }) });
