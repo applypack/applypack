@@ -187,16 +187,31 @@ function isRefusedField(value: unknown): value is RefusedField {
   return typeof form === 'string' && FORM_ACTION.test(form) && typeof name === 'string' && FIELD_NAME.test(name);
 }
 
+/** Any host does: only whether the value leaves it matters. `.invalid` never resolves (RFC 2606). */
+const HERE = 'http://here.invalid';
+
 /**
  * A redirect target from a form field, kept local — an absolute or
  * protocol-relative URL would be an open redirect, and a control character
  * would be a header split: `Location: /jobs\r\nSet-Cookie: …` is two headers
  * to anything that does not encode it for us.
+ *
+ * The value is read the way a browser reads a Location, not as a string: a
+ * browser takes a backslash for a slash, so `/\host` is `//host`, and it
+ * folds `/.//host` to the same. Both start with one slash, and both left the
+ * site (#354). What comes back is the parser's own spelling, percent-encoded,
+ * so a `back` with Cyrillic in its query is a header and not a 500.
  */
 export function safeBack(back: unknown, fallback: string): string {
-  if (typeof back !== 'string') return fallback;
-  if (!back.startsWith('/') || back.startsWith('//')) return fallback;
-  return CONTROL_CHARS.test(back) ? fallback : back;
+  if (typeof back !== 'string' || !back.startsWith('/') || CONTROL_CHARS.test(back)) return fallback;
+  let url: URL;
+  try {
+    url = new URL(back, HERE);
+  } catch {
+    return fallback;
+  }
+  if (url.origin !== HERE || url.pathname.startsWith('//')) return fallback;
+  return url.pathname + url.search + url.hash;
 }
 
 // C0, DEL and C1. Not just CR/LF: a bare \n splits a header for some clients
