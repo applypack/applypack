@@ -64,7 +64,11 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   });
   // A folder set to "No alerts" is left out here as well: its match was never
   // sent and never held, which made it exactly the row this query finds (#391).
-  const jobs = found.filter((j) => !alertsOff(j.company));
+  const loud = found.filter((j) => !alertsOff(j.company));
+  // A row stored while fetching was paused has no score yet: it is news, in
+  // one line, and not a match — the recap used to list each as "fit 0/100" (#392).
+  const jobs = loud.filter((j) => j.fitScore !== null);
+  const unscored = loud.length - jobs.length;
 
   const alerts: AlertJob[] = jobs.map((j) => ({
     title: j.title,
@@ -90,7 +94,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   // Broadcast, not routed: the digest spans every search, so it goes to every
   // active target rather than to any one search's chat. A send every chat
   // refused throws, and the failed run keeps the mark where it was.
-  const delivery = await sendDigest(alerts, undefined, await quietSources());
+  const delivery = await sendDigest(alerts, undefined, await quietSources(), undefined, 0, unscored);
   const durationMs = Date.now() - started;
   if (delivery.skipped !== null) {
     // Alerts off, or no chat: nothing to recap into. The matches found
@@ -98,8 +102,8 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     logger.info({ reason: delivery.skipped, durationMs }, 'digest-job: nothing sent');
     return { stats: { skipped: 1, reason: delivery.skipped, durationMs } };
   }
-  logger.info({ count: alerts.length, durationMs }, 'digest-job: done');
-  return { stats: { count: alerts.length, durationMs } };
+  logger.info({ count: alerts.length, unscored, durationMs }, 'digest-job: done');
+  return { stats: { count: alerts.length, unscored, durationMs } };
 }
 
 /**

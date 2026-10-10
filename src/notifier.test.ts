@@ -80,6 +80,21 @@ describe('formatTelegramDigest', () => {
     assert.match(parts[0]!, /^\*Daily digest — 1 match\*/);
     assert.ok(!parts.join('').includes('more on the Jobs page'));
   });
+
+  it('says unscored jobs in one line and never counts them as matches', () => {
+    // The live case (#392): forty rows stored while paused opened the recap as "40 matches", each "fit 0/100".
+    const parts = formatTelegramDigest([job], [], 'Daily digest', 0, 40);
+    assert.match(parts[0]!, /^\*Daily digest — 1 match\*/);
+    assert.ok(parts.at(-1)!.endsWith('40 new jobs are stored without a score and are not listed as a match — see the Jobs page, under New\\.'), parts.at(-1));
+    assert.ok(!parts.join('').includes('fit 0/100'));
+  });
+
+  it('a recap of unscored jobs alone says there is no match, then how many wait', () => {
+    const [only, ...rest] = formatTelegramDigest([], [], 'Daily digest', 0, 1);
+    assert.deepEqual(rest, []);
+    assert.equal(only, 'No new matches since the last digest\\.\n\n1 new job is stored without a score and is not listed as a match — see the Jobs page, under New\\.');
+    assert.equal(formatTelegramDigest([], [], 'Daily digest')[0], 'No new matches since the last digest\\.');
+  });
 });
 
 describe('formatSalary', () => {
@@ -393,6 +408,13 @@ describe('a message in the language of the run (ADR 0061)', () => {
     assert.match(parts[0]!, /^\*Поки вас не було — 6 збігів\*\n⚠️ \*1 тихе джерело\* — Pleo \\\(LEVER, ліміт запитів ×3\\\)/);
     assert.ok(parts.at(-1)!.endsWith('у вкладці «Нова»\\.'), parts.at(-1));
     for (const part of parts) assert.deepEqual([...bareReserved(part)].sort(), ['*', '[', ']']);
+  });
+
+  it('writes the unscored line in Ukrainian with its plural forms', () => {
+    const line = (n: number) => withLocale('uk', () => formatTelegramDigest([], [], 'x', 0, n))[0]!;
+    assert.match(line(1), /1 нова вакансія збережена без оцінки й не показана серед збігів/);
+    assert.match(line(3), /3 нові вакансії збережені без оцінки й не показані серед збігів/);
+    assert.match(line(40), /40 нових вакансій збережено без оцінки й не показано серед збігів/);
   });
 
   it('stays English outside a run, as the tests above assert', () => {

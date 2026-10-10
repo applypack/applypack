@@ -50,6 +50,7 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   // Bare words a second job could reuse for something else: worded for the job that writes them.
   { key: 'found', job: 'stale-applications', words: 'runs.fact.staleFound', always: true },
   { key: 'count', job: 'digest', words: 'runs.fact.digestCount', always: true },
+  { key: 'unscored', job: 'digest', words: 'runs.fact.digestUnscored' },
   { key: 'deleted', job: 'cleanup', words: 'runs.fact.jobsDeleted', always: true },
   { key: 'screeningsDeleted', words: 'runs.fact.screeningsDeleted' },
   { key: 'runsDeleted', words: 'runs.fact.runsDeleted' },

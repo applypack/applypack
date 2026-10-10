@@ -72,15 +72,22 @@ export function formatDiscordHealthLine(quiet: readonly QuietSourceAlert[]): str
 }
 
 /** The digest, packed under Discord's 2000-character limit. `more` = matches counted in the header and not listed. */
-export function formatDiscordDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string, more = 0): string[] {
+export function formatDiscordDigest(
+  jobs: readonly AlertJob[],
+  quiet: readonly QuietSourceAlert[],
+  title: string,
+  more = 0,
+  unscored = 0,
+): string[] {
   const health = formatDiscordHealthLine(quiet);
+  const waiting = unscored > 0 ? discordText('digest.unscored', { n: unscored }) : '';
   if (jobs.length === 0) {
-    const empty = discordText('digest.empty');
-    return [health ? `${empty}\n\n${health}` : empty];
+    return [[discordText('digest.empty'), waiting, health].filter((part) => part !== '').join('\n\n')];
   }
   const header = `**${discordText('digest.header', { title, n: jobs.length + more })}**${health ? `\n${health}` : ''}`;
   const blocks = jobs.map(formatDiscordAlert);
   if (more > 0) blocks.push(discordText('digest.more', { n: more }));
+  if (waiting) blocks.push(waiting);
   return packMessages(header, blocks, '\n\n———\n\n', DISCORD_MAX_LENGTH);
 }
 
