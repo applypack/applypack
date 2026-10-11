@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.31] — 2026-10-11
+
+### Fixed
+- **Application packs are no longer prepared for postings that only look
+  new.** "Published within N days" read the posting's date, and a source
+  that gives none had it set to the moment the posting was read. A row
+  imported with no date column, a row of a folder's file, and every role of
+  a board that publishes no dates (BambooHR, Pinpoint, often Rippling) all
+  counted as published today: a file of last month's postings queued packs
+  up to the day's limit, and with no limit set, every one of them. A posting
+  whose source gives no date is now never prepared on its own; you can still
+  prepare any job by hand on its Application pack tab. A posting you saved
+  yourself counts from when you saved it, as before. The settings say so
+  (#379).
+- Left for later: such a date is still shown and filtered as "Posted"
+  (#458), and a board that never publishes dates gets no automatic pack even
+  for a role that appeared since it was last read (#459).
+
 ## [2.55.30] — 2026-10-11
 
 ### Fixed

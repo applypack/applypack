@@ -8,7 +8,7 @@ const daysAgo = (n: number): Date => new Date(NOW.getTime() - n * 24 * 60 * 60 *
 const on = parsePackSettings({ enabled: true });
 
 const ask = (over: Partial<Parameters<typeof autoPack>[0]> = {}) =>
-  autoPack({ settings: on, fit: 92, postedAt: daysAgo(1), now: NOW, queuedToday: 0, ...over });
+  autoPack({ settings: on, fit: 92, postedAt: daysAgo(1), dated: true, now: NOW, queuedToday: 0, ...over });
 
 test('switched off, nothing is ever queued — the state of every fresh install', () => {
   assert.equal(ask({ settings: parsePackSettings(null), fit: 100 }), 'off');
@@ -32,6 +32,20 @@ test('the daily limit stops the sixth, and zero is no limit at all', () => {
   assert.equal(ask({ queuedToday: 4 }), 'queue');
   assert.equal(ask({ queuedToday: 5 }), 'limit');
   assert.equal(ask({ settings: parsePackSettings({ enabled: true, dailyLimit: 0 }), queuedToday: 500 }), 'queue');
+});
+
+test('a date nobody gave is no evidence that a posting is recent (#379)', () => {
+  // An imported row with no date, a board that publishes none: `postedAt` is the moment it was read.
+  assert.equal(ask({ postedAt: NOW, dated: false }), 'undated');
+  assert.equal(ask({ postedAt: daysAgo(1), dated: false, fit: 100 }), 'undated');
+  // The same posting with a date its source gave is prepared, and an old one is still old.
+  assert.equal(ask({ postedAt: NOW, dated: true }), 'queue');
+  assert.equal(ask({ postedAt: daysAgo(30), dated: true }), 'old');
+  // Said before the limit is: an undated posting never took a slot.
+  assert.equal(ask({ dated: false, queuedToday: 5 }), 'undated');
+  // And after what would have stopped it anyway.
+  assert.equal(ask({ dated: false, fit: 60 }), 'low-fit');
+  assert.equal(ask({ dated: false, settings: parsePackSettings(null) }), 'off');
 });
 
 test('the day the limit counts is the UTC day', () => {

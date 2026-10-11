@@ -9,7 +9,7 @@ import type { PackSettings } from './settings';
  * A person can still ask for any posting by hand; none of this applies then.
  */
 
-export type AutoPack = 'queue' | 'off' | 'low-fit' | 'old' | 'limit';
+export type AutoPack = 'queue' | 'off' | 'low-fit' | 'undated' | 'old' | 'limit';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -18,6 +18,12 @@ export function autoPack(input: {
   /** The classifier's fit for the search that scored the posting best. */
   fit: number | null;
   postedAt: Date;
+  /**
+   * Whether `postedAt` is a date the source gave. One the clock or a file
+   * supplied — an imported row with no date, a board that publishes none —
+   * shows nothing about the posting's age (#379).
+   */
+  dated: boolean;
   now: Date;
   /** Packs the worker has queued on its own since the UTC day began. */
   queuedToday: number;
@@ -25,6 +31,10 @@ export function autoPack(input: {
   const { settings } = input;
   if (!settings.enabled) return 'off';
   if (input.fit === null || input.fit < settings.minFit) return 'low-fit';
+  // "Published recently" is what keeps the backlog out, and a date nobody
+  // gave would let it all in: a file of last month's postings, or every role
+  // on a board that has just been added, would each read as published today.
+  if (!input.dated) return 'undated';
   // A first fetch brings postings that have been up for weeks; those are the
   // ones an application is least likely to still matter for.
   if (input.now.getTime() - input.postedAt.getTime() > settings.maxAgeDays * DAY_MS) return 'old';

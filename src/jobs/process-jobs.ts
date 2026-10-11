@@ -231,6 +231,7 @@ export async function processNormalizedJobs(
     if (Number.isNaN(item.job.postedAt.getTime())) {
       logger.warn({ title: item.job.title, companyName: item.companyName }, 'process-jobs: posting date unreadable, using now');
       item.job.postedAt = validDate(item.job.postedAt);
+      item.job.undated = true;
     }
     const place = parseLocation(item.job.location, item.job.locationHints);
     // A posting is admitted when ANY active search admits it (ADR 0028).
@@ -424,7 +425,7 @@ export async function processNormalizedJobs(
     if (
       !skipsAlert &&
       item.quiet !== true &&
-      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, now: new Date(), queuedToday: packsToday }) === 'queue'
+      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday: packsToday }) === 'queue'
     ) {
       // A pack is an extra: failing to queue one must never cost the match its alert.
       try {

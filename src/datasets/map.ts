@@ -574,6 +574,7 @@ export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date,
     place.text.length === 0 ? label : ownCountry !== null && !place.text.toLowerCase().includes(label.toLowerCase()) ? `${place.text}, ${label}` : place.text;
   const workplace = readWorkplace(at('workplace'));
   const hints: LocationHints = { ...(country !== null && { countries: [country] }), ...(workplace !== null && { workplace }) };
+  const stated = readDate(at('postedAt'), now);
 
   return {
     thin,
@@ -586,7 +587,9 @@ export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date,
       url: apply !== null && !isBlockedPostingHost(new URL(apply).hostname) ? apply : (listing ?? apply ?? ''),
       location: clipText(location, MAX_LOCATION_CHARS).trim(),
       description: [salaryLine(at), body, note].filter((part) => part !== null && part.length > 0).join('\n\n'),
-      postedAt: readDate(at('postedAt'), now) ?? undated,
+      postedAt: stated ?? undated,
+      // The import's time or the file's is not when the posting was published: nothing reads it as recent (#379).
+      ...(stated === null && { undated: true }),
       employer: readEmployer(at('employer')),
       ...(Object.keys(hints).length > 0 && { locationHints: hints }),
     },

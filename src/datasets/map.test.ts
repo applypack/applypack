@@ -313,6 +313,20 @@ describe('mapRows: hostile rows', () => {
     assert.deepEqual(mapRows(dated, mapping, 1, NOW, fileTime).jobs.map((j) => j.postedAt.toISOString().slice(0, 10)), ['2026-09-25', '2026-08-01', '2026-08-01']);
   });
 
+  // #379: the import's time, or the file's, is not when a posting was published, and the row says so.
+  it('marks the rows that state no date, whatever date they were handed', () => {
+    const fileTime = new Date('2026-08-01T00:00:00Z');
+    const dated = [{ title: 'A', url: 'https://rows.example/a', posted: '2026-09-25' }, { title: 'B', url: 'https://rows.example/b' }, { title: 'C', url: 'https://rows.example/c', posted: '2031-01-01' }];
+    const mapping = { ...detectMapping(dated, NOW).mapping, postedAt: 'posted' };
+    // A stated date; none; one ahead of the clock, which is none.
+    assert.deepEqual(mapRows(dated, mapping, 1, NOW, fileTime).jobs.map((j) => j.undated === true), [false, true, true]);
+    assert.deepEqual(mapRows(dated, mapping, 1, NOW).jobs.map((j) => j.undated === true), [false, true, true]);
+    // A dated row carries no mark at all, as every job did before.
+    assert.equal('undated' in mapRows(dated, mapping, 1, NOW).jobs[0]!, false);
+    // No date column: every row.
+    assert.deepEqual(mapRows(dated, { ...mapping, postedAt: null }, 1, NOW).jobs.map((j) => j.undated), [true, true, true]);
+  });
+
   // #395: what tells a posting that holds a list from a wrapper around rows, and a stats file from a posting.
   it('postingFields: counts what of a posting an object names, and nothing without a title', () => {
     assert.equal(postingFields({ '@type': 'JobPosting', title: 'Backend Developer', url: 'https://jobs.example/1', description: 'x', hiringOrganization: { name: 'Acme' }, datePosted: '2026-10-01', jobLocation: [] }), 6);
