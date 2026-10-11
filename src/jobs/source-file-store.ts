@@ -94,6 +94,8 @@ export interface FolderSummary {
   fresh: number;
   waiting: number;
   failed: number;
+  /** Files of rows read with a part lost: a quote never closed, characters that could not be read (datasets/read-notes.ts). */
+  partial: number;
 }
 
 /**
@@ -107,7 +109,8 @@ export async function folderSummaries(): Promise<Map<number, FolderSummary>> {
            count(*) FILTER (WHERE f."seenAt" = l.last)::int AS files,
            count(*) FILTER (WHERE f."readAt" = l.last AND f.status = 'done')::int AS fresh,
            count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'waiting')::int AS waiting,
-           count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'failed')::int AS failed
+           count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'failed')::int AS failed,
+           count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'done' AND f.detail IS NOT NULL AND f.kind IN ('json', 'jsonl', 'csv', 'tsv'))::int AS partial
     FROM source_file f
     JOIN (SELECT "companyId", max("seenAt") AS last FROM source_file GROUP BY "companyId") l ON l."companyId" = f."companyId"
     GROUP BY f."companyId", l.last`;

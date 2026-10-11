@@ -196,6 +196,8 @@ export interface RowsPreviewProps extends PreviewBase {
   sample: NormalizedJob[];
   /** Files of the first check whose rows do not fit the mapping. */
   misfits: number;
+  /** What the first check could not read of a file, or had to assume about it (datasets/read-notes.ts). */
+  fileNotes: { file: string; note: string }[];
   counts: PreviewCounts;
 }
 
@@ -208,7 +210,7 @@ function blocker({ rows, mapping, sample }: RowsPreviewProps): string | null {
 }
 
 const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
-  const { path, name, include, existing, alerts, kinds, other, newest, plan, rows, columns, mapping, guessed, sample, misfits, counts, scoring, searches, cost, flash } = props;
+  const { path, name, include, existing, alerts, kinds, other, newest, plan, rows, columns, mapping, guessed, sample, misfits, fileNotes, counts, scoring, searches, cost, flash } = props;
   const blocked = blocker(props);
   const rowFiles = Object.values(kinds).reduce((sum, n) => sum + (n ?? 0), 0);
   const byKind = (Object.keys(KIND_NAME) as RowFormat[]).filter((k) => (kinds[k] ?? 0) > 0).map((k) => `${kinds[k]} ${KIND_NAME[k]}`);
@@ -228,6 +230,14 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
             {newest.length > 0 && <li>{t('folders.newest', { files: newest.join(', ') })}</li>}
             {rowFiles > 0 && <li>{t('folders.rows.plan', { ...plan, perCheck: MAX_FILES_PER_LOOK, mb: MAX_BODY_MB })}</li>}
           </ul>
+          {fileNotes.map(({ file, note }) => (
+            <Notice tone="warn" class="mt-3">
+              <span class="font-mono" translate="no">
+                {file}
+              </span>{' '}
+              {note}
+            </Notice>
+          ))}
         </Card>
 
         <form method="post" action="/companies/folder" class="contents">

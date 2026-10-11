@@ -225,6 +225,73 @@ describe('judgeFile', () => {
     assert.equal(withClosed.change?.jobCount, 1);
   });
 
+  describe('a file that cannot be read whole (#394)', () => {
+    const csv = file('export.csv');
+    const columns: Mapping = { ...emptyMapping(), id: 'id', title: 'title', url: 'url' };
+    const read = (body: string | Uint8Array): Extract<FileRead, { ok: true }> => {
+      const bytes = Buffer.from(body);
+      return { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length, mtimeMs: csv.mtimeMs };
+    };
+    const look = (body: string | Uint8Array, known?: LedgerEntry, maxRows?: number) => judgeFile(csv, read(body), columns, 9, new Map(), known, maxRows);
+    const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
+      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
+      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+    };
+    const cut = ['id,title,url', '1,One,https://rows.example/1', '2,Two,https://rows.example/2', '3,"Three,https://rows.example/3', '4,Four,https://rows.example/4', ''].join('\n');
+
+    it('hands over the rows above a quote that never closes, and the ledger says what was lost', () => {
+      const verdict = look(cut);
+      assert.deepEqual([verdict.rows, verdict.jobs.map((j) => j.title), verdict.taken], ['fit', ['One', 'Two'], 2]);
+      assert.deepEqual([verdict.change?.status, verdict.change?.rowsRead, verdict.change?.jobCount], ['done', 2, 2]);
+      assert.match(verdict.change?.detail ?? '', /^A quote opened on line 4 is never closed, so nothing from that line on could be read\./);
+      assert.deepEqual(verdict.notes, [verdict.change!.detail]);
+    });
+
+    it('reads a file that was cut while being written on from the rows it had, once it is whole', () => {
+      const head = 'id,title,url\n1,One,https://rows.example/1\n2,"Two, the';
+      const first = look(head);
+      assert.deepEqual([first.jobs.map((j) => j.title), first.change?.status, first.change?.rowsRead], [['One'], 'done', 1]);
+      const second = look(`${head} second",https://rows.example/2\n3,Three,https://rows.example/3\n`, kept(first));
+      assert.deepEqual(second.jobs.map((j) => j.title), ['Two, the second', 'Three']);
+      assert.deepEqual([second.change?.status, second.change?.detail, second.change?.rowsRead, second.notes], ['done', null, 3, []]);
+    });
+
+    it('lets a long cut file wait like any long file, and says the cut when its last sound row is read', () => {
+      const first = look(cut, undefined, 1);
+      assert.equal(first.change?.status, 'waiting');
+      assert.match(first.change?.detail ?? '', /^1 of 2 rows read so far/);
+      const second = look(cut, kept(first), 1);
+      assert.deepEqual([second.jobs.map((j) => j.title), second.change?.status, second.change?.rowsRead], [['Two'], 'done', 2]);
+      assert.match(second.change?.detail ?? '', /line 4/);
+    });
+
+    it('sets aside JSON that stops short in its own words, and a table with no sound row in its own', () => {
+      const json = judgeFile(listed, bytesOf('[{"title":"a","url":"u1"},\n{"title":"b","ur'), mapping, 9, new Map());
+      assert.deepEqual([json.change?.status, json.change?.detail, json.rows, json.notes], ['skipped', FILE_NOTES.brokenJson, 'none', [FILE_NOTES.brokenJson]]);
+      const table = look('id,title,url\n1,"One');
+      assert.equal(table.change?.status, 'skipped');
+      assert.match(table.change?.detail ?? '', /^A quote opened on line 2 is never closed, and there is no row above/);
+      // A file that simply holds no rows has nothing the Check page needs to say.
+      assert.deepEqual(look('just some notes\nabout nothing').notes, []);
+    });
+
+    it('reads a file that is not UTF-8, and notes the encoding it took without calling anything lost', () => {
+      const verdict = look(Buffer.from('id,title,url\n1,Entwickler Z\u00fcrich,https://rows.example/1\n', 'latin1'));
+      assert.equal(verdict.jobs[0]!.title, 'Entwickler Zürich');
+      assert.deepEqual([verdict.change?.status, verdict.change?.detail], ['done', null]);
+      assert.equal(verdict.notes.length, 1);
+      assert.match(verdict.notes[0]!, /read as Windows-1252/);
+    });
+
+    it('counts characters that could not be read as a part of the file lost', () => {
+      const bytes = Buffer.from('id,title,url\n1,Розробник,https://rows.example/1\n2,Тестувальник,https://rows.example/2\n', 'utf8');
+      bytes[bytes.indexOf(0xd0) + 1] = 0x20;
+      const verdict = look(bytes);
+      assert.deepEqual([verdict.jobs.length, verdict.change?.status], [2, 'done']);
+      assert.match(verdict.change?.detail ?? '', /^1 character could not be read and shows as \uFFFD\./);
+    });
+  });
+
   describe('a file longer than one look takes', () => {
     const role = (i: number) => ({ title: `Role ${i}`, url: `https://rows.example/${i}` });
     const lines = (from: number, to: number): string => Array.from({ length: to - from }, (_, i) => `${JSON.stringify(role(from + i))}\n`).join('');
@@ -312,7 +379,7 @@ describe('judgeFile', () => {
   });
 
   it('turns each way a read can fail into what the ledger should say', () => {
-    assert.deepEqual(judge({ ok: false, why: 'gone' }), { change: null, jobs: [], rows: 'none', taken: 0 });
+    assert.deepEqual(judge({ ok: false, why: 'gone' }), { change: null, jobs: [], rows: 'none', taken: 0, notes: [] });
     assert.deepEqual([judge({ ok: false, why: 'changing' }).change?.status, judge({ ok: false, why: 'changing' }).change?.detail], ['waiting', FILE_NOTES.changing]);
     assert.deepEqual([judge({ ok: false, why: 'refused' }).change?.status, judge({ ok: false, why: 'refused' }).change?.detail], ['failed', FILE_NOTES.refused]);
     assert.equal(judge({ ok: false, why: 'too-large' }).change?.detail, tooLargeNote('json'));

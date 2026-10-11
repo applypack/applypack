@@ -2,6 +2,7 @@
 import type { FC } from 'hono/jsx';
 import { DROP_REASONS, usableMapping, type DropReason, type MappedRows } from '../../datasets/map';
 import { importBlock, type PreviewCounts } from '../../datasets/preview';
+import { assumedNote, lossNotes } from '../../datasets/read-notes';
 import { MAX_BODY_MB, MAX_ROWS, type RowFormat } from '../../datasets/rows';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import type { MessageKey } from '../../i18n/catalog';
@@ -11,7 +12,7 @@ import type { FlashMessage } from '../flash';
 import type { ImportStash } from '../import-stash';
 import { importBlockText } from '../import-summary';
 import { Layout } from '../layout';
-import { MappedRowsList, MappingFields, MappingNote } from './mapping-fields';
+import { MappedRowsList, MappingFields, MappingNote, ReadingNotes } from './mapping-fields';
 import {
   Button,
   Card,
@@ -168,6 +169,7 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
           })}
         </PageHeader>
         <Flash flash={flash} />
+        <ReadingNotes lost={lossNotes(stash.reading)} assumed={assumedNote(stash.reading)} />
 
         <Card>
           <SectionTitle>{t('import.whichColumn')}</SectionTitle>

@@ -6,7 +6,7 @@ import type { NormalizedJob } from '../../types';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { formatDateShort } from '../format';
-import { Disclosure, Field, Hint, Select } from '../ui';
+import { Disclosure, Field, Hint, Notice, Select } from '../ui';
 
 /*
  * The two halves of a preview every source of rows shares (ADR 0062): which
@@ -14,6 +14,21 @@ import { Disclosure, Field, Hint, Select } from '../ui';
  * rows as they would be stored. The selects are named after the fields, so
  * the form they sit in posts a mapping (datasets/map.ts:MappingSchema).
  */
+
+/**
+ * How the file was read, said before anything the preview shows of it
+ * (datasets/read-notes.ts): a part that was lost, a warning each, and an
+ * encoding that had to be assumed.
+ */
+export const ReadingNotes: FC<{ lost: readonly string[]; assumed: string | null }> = ({ lost, assumed }) => (
+  <>
+    {[...lost, ...(assumed ? [assumed] : [])].map((note) => (
+      <Notice tone="warn" class="mb-4">
+        {note}
+      </Notice>
+    ))}
+  </>
+);
 
 /** What a column can be, in the user's words. The first eight are what most files have; the rest fold. */
 const FIELD_LABEL: Record<MappingField, MessageKey> = {

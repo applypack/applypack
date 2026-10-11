@@ -9,6 +9,7 @@ const fields = (fileName: string) => ({
   rows: [{ title: fileName }],
   over: 0,
   notRows: 0,
+  reading: { cutAt: null, unreadable: 0, assumed: null },
   source: { id: null, name: 'Test source' },
   mapping: emptyMapping(),
   guessed: [],

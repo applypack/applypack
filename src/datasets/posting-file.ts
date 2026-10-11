@@ -15,8 +15,8 @@ import { docxToText } from '../resume/docx-text';
 import { ZipLimitError } from '../resume/zip';
 import { clipText, hashShortId, normalizeUrlKey, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
+import { decodeText } from './decode';
 import type { PostingKind } from './folder-scan';
-import { decodeBody } from './rows';
 import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts } from './saved-page';
 
 /** As `jobs/manual-job.ts:MIN_DESCRIPTION_CHARS`: less than this is not a posting, it is a note. */
@@ -63,7 +63,8 @@ const plain = (body: string): Extract<PostingRead, { ok: true }> => {
 export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now: Date = new Date()): Promise<PostingRead> {
   let read: Exclude<PostingRead, { ok: false }>;
   if (kind === 'html') {
-    read = { ok: true, ...readSavedPage(decodeBody(bytes), now) };
+    // A page off an older board is in its language's own encoding, and says which in its head (#394).
+    read = { ok: true, ...readSavedPage(decodeText(bytes, { page: true }).text, now) };
   } else if (kind === 'pdf') {
     try {
       const { pdfToText } = await import('../resume/pdf-text.js');
@@ -78,7 +79,7 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
       return { ok: false, why: err instanceof ZipLimitError ? POSTING_NOTES.docxTooLarge : POSTING_NOTES.docx };
     }
   } else {
-    read = plain(decodeBody(bytes).replace(/^\uFEFF/, ''));
+    read = plain(decodeText(bytes).text.replace(/^\uFEFF/, ''));
   }
   return read.text.length < MIN_POSTING_CHARS ? { ok: false, why: POSTING_NOTES.tooShort } : read;
 }

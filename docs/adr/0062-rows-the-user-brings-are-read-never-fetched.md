@@ -35,6 +35,30 @@ and a table is at most 200 columns wide; rows past the ceiling are counted
 and said, never read and never dropped in silence. A row is built from the
 cells it has, so what a file costs in memory follows its size.
 
+*Amended 2026-10-11 (v2.55.23, #394).* A file that is damaged, or not
+UTF-8, was read wrong with nothing said. Four rules now hold for every
+reader of rows, and the first for saved postings too:
+
+- **Bytes that are not UTF-8** (`datasets/decode.ts`). A file that is
+  neither UTF-8 nor marked UTF-16 is in the one-byte encoding of its
+  language. A saved page says which in its head, and is believed; a table
+  says nothing, so it is read as Windows-1251 when most of its letters past
+  ASCII stand in runs of three or more (words), else as Windows-1252, and
+  the preview says the encoding was assumed. UTF-8 with a few bytes damaged
+  stays UTF-8, and the characters that could not be read are counted.
+- **A quote that never closes** (`delimited.ts`) used to run to the end of
+  the file as one cell, so every row after it became part of one row and the
+  file was counted as read. The rows before that quote's row are read, the
+  line is named, and the caller is told (`FoundRows.cutAt`).
+- **JSON that stops short** is refused as that. It was handed to the table
+  reader, which made columns out of its first line.
+- **An object that holds its rows by key** (`{ "a1": {…}, "a2": {…} }`) is
+  those rows when they are alike; a tab that opens the first line of a table
+  is an empty first header, not a blank to trim.
+
+What was lost is said where the file is judged: on the import's preview, on
+a folder's Check page, and in the folder's ledger (addendum below).
+
 **The mapping is detected, shown, corrected and kept.** `datasets/map.ts`
 decides which column is which from the names (an alias table, with case,
 spaces and punctuation set aside) and, where the names say nothing, from the
@@ -187,6 +211,16 @@ dashboard. `datasets/folder-path.ts` bounds it, on real paths:
   changes or the mapping is saved again. When every file a look reads
   misfits, the look fails as `bad_payload`, which is how a tool that changed
   its output shows on the source's row.
+- *Amended 2026-10-11 (v2.55.23, #394).* A file read to the end of what
+  can be read, with a part lost — a quote never closed, characters that
+  could not be read — is `done` and its ledger row says what was lost: the
+  per-file list calls it "Read in part" and the folder's row counts it
+  ("1 read in part"). It is settled like any file that was read: read again
+  when it changes, from its old end when it only grew, which is how a file
+  caught half-written is completed. JSON that stops short is set aside with
+  those words rather than as "no rows in it". Files read before this version
+  keep the row they have; nothing is read again on the upgrade, because a
+  second reading would also score rows an older search turned away.
 
 **The ledger advances only after the jobs are stored.** The fetcher never
 touches the database. It stages what the look learned

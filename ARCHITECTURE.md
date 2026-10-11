@@ -331,8 +331,10 @@ src/
     suggest.ts                 ← pure: suggestSources / packsForSearches, what a search's places and stack call for
 
   datasets/                    ← rows the user brings (ADR 0062): pure, the reader and the mapper every such source shares
-    delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, a BOM, the delimiter read off the first line)
-    rows.ts                    ← pure: findRows — a JSON array, a wrapper object, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings
+    decode.ts                  ← pure: a file's bytes → text — UTF-8, UTF-16 behind its mark, a page's declared charset, else Windows-1251 or -1252 told apart by the letters
+    delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, the delimiter read off the first line; a quote never closed is reported by its line)
+    rows.ts                    ← pure: findRows — a JSON array, a wrapper object, rows held by key, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings; JSON that stops short is refused as that
+    read-notes.ts              ← pure: what a reader is told about how a file was read — the part that was lost, an encoding that was assumed
     map.ts                     ← pure: detectMapping (names, then values), mapRow / mapRows → NormalizedJob, the stored mapping's zod schema
     preview.ts                 ← pure: previewCounts — rows already stored, and new rows the running searches' base filter admits
     fixtures/                  ← hand-written rows: four shapes, a spreadsheet with its own headers, hostile rows

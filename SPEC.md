@@ -710,9 +710,17 @@ and the next comparison's keyword frame read afresh (ADR 0043).
 ## Imported rows (ADR 0062)
 
 `/jobs/import` takes a file of jobs the user already has: a JSON array, an
-object holding one list, JSON Lines, CSV or TSV, up to 5 MB and 2 000 rows.
-Nothing is requested from anywhere, and the file is never stored: its rows
-wait in the web process's memory between the two steps.
+object holding one list or its rows by key, JSON Lines, CSV or TSV, up to
+5 MB and 2 000 rows. Nothing is requested from anywhere, and the file is
+never stored: its rows wait in the web process's memory between the two
+steps.
+
+A file that cannot be read whole says so (since v2.55.23, #394). A file
+that is not UTF-8 is read in the encoding of its language — Windows-1251
+or Windows-1252, told apart by its letters — and the preview says the
+encoding was assumed. A quote that never closes ends the reading at its
+line: the rows above it are read and the preview names the line. JSON that
+stops short is refused as cut off, never read as a table.
 
 1. **Preview, no AI.** `datasets/map.ts:detectMapping` decides which column
    is the title, the link, the company, the text, the place, the date and
@@ -748,7 +756,10 @@ reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
   far") and the next check reads on from there; a file that only grew is
   read from its old end, one written anew from its start;
 - what became of each file is kept in `source_file`, written only after the
-  check stored its jobs, and shown on the folder's **Files** page;
+  check stored its jobs, and shown on the folder's **Files** page; a file
+  that lost a part in reading (a quote never closed, characters that could
+  not be read) is "Read in part" there with the reason, and the folder's
+  row counts it;
 - nothing in the folder is ever written, moved, renamed or deleted.
 
 Which folders may be read: on a local install, one inside the home folder
