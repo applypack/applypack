@@ -10,6 +10,7 @@ import { scanInBackground, scanResume } from '../../resume/scan';
 import type { ResumeScan } from '../../resume/prompts';
 import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
+import { postingForPrompt } from '../../employer';
 import {
   createResume,
   findResumeWithText,
@@ -241,7 +242,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
   const jobId = idParam(form.jobId);
   const job = Number.isFinite(jobId)
-    ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true } } } })
+    ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true, atsType: true } } } })
     : null;
 
   // Claimed BEFORE the save, not after: this route's side effect is a new
@@ -289,11 +290,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     // the scan runs behind it as the re-upload route's does — it was 63 % of
     // a six-minute wait on a CLI engine (#168).
     scanInBackground(resume);
-    const match = await matchResumeToJob(
-      resume,
-      { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
-      { onError: noteReason },
-    );
+    const match = await matchResumeToJob(resume, postingForPrompt(job), { onError: noteReason });
     updateRun(run.id, match
       ? {
           stage: 'done',

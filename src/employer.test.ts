@@ -12,6 +12,7 @@ import {
   hiringKey,
   hiringName,
   isReapplyChoice,
+  postingForPrompt,
   sourceIsEmployer,
   withoutMuted,
 } from './employer';
@@ -120,6 +121,20 @@ test('a row that names no company has none to state: a prompt and a message neve
     assert.equal(companyForMessage(null, { atsType, name: 'Acme' }), 'Acme', atsType);
   }
   assert.match(COMPANY_NOT_NAMED, /not named/);
+});
+
+test('a stored posting is handed to a prompt in one shape, with who hires as a prompt states it (#444)', () => {
+  const row = { id: 7, title: 'Backend Engineer', location: 'Remote', description: 'The role.', url: 'https://rows.example/1', fitScore: 80 };
+  // Seen on the dashboard's own presses: Compare, Rewrite and a screening all read "Company: September export".
+  for (const [atsType, name] of [['IMPORT', 'September export'], ['FOLDER', 'Saved postings'], ['REMOTEOK', 'RemoteOK Feed']] as const) {
+    assert.deepEqual(postingForPrompt({ ...row, employer: null, company: { name, atsType } }), { id: 7, title: 'Backend Engineer', companyName: COMPANY_NOT_NAMED, location: 'Remote', description: 'The role.' }, atsType);
+    assert.equal(postingForPrompt({ ...row, employer: 'Fennel Works', company: { name, atsType } }).companyName, 'Fennel Works', atsType);
+  }
+  // A pasted posting and a company's own board: the source is who hires.
+  assert.equal(postingForPrompt({ ...row, employer: null, company: { name: 'Quince Labs', atsType: 'MANUAL' } }).companyName, 'Quince Labs');
+  assert.equal(postingForPrompt({ ...row, employer: null, company: { name: 'Acme', atsType: 'GREENHOUSE' } }).companyName, 'Acme');
+  // Nothing of the row rides along but what a prompt reads.
+  assert.deepEqual(Object.keys(postingForPrompt({ ...row, employer: null, company: { name: 'Acme', atsType: 'LEVER' } })), ['id', 'title', 'companyName', 'location', 'description']);
 });
 
 test('a fetched row says who hires by its own sign: an employer left out is the source, null is nobody', () => {

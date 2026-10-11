@@ -70,7 +70,10 @@
   message read `companyForPrompt` / `companyForMessage` (a stored row) or
   `fetchedHiringName` (the tick), which say "not named" for a row from an
   aggregator, an import or a folder that names no company — never the
-  source's own name.
+  source's own name. A call about a stored job takes the posting whole from
+  `postingForPrompt(job)`, never built by hand: its type asks for the
+  source's `atsType`, so a handler that did not load it does not compile
+  (#444). A screening's calls read `screening/store.ts:postingOf`.
 - `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
   row, and the company name is deliberately not an input (ADR 0023).
   `withApplyLinkFlags` is called at every site that persists `redFlags`.

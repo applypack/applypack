@@ -28,6 +28,7 @@ import path from 'node:path';
 import { JobStatus, type Prisma } from '@prisma/client';
 import { createLimiter } from '../concurrency';
 import { prisma } from '../db';
+import { companyForPrompt } from '../employer';
 import { dryReport, readDryRecords, type DryRecord, type DrySettings } from '../pack/dry-report';
 import { DEFAULT_MIN_CEILING } from '../pack/gate';
 import { DEFAULT_POLICY } from '../pack/policy';
@@ -84,7 +85,8 @@ async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | 
     {
       id: job.id,
       title: job.title,
-      companyName: company,
+      // What the worker's own run tells the model (pack/store.ts): never a folder's or a feed's name for a company.
+      companyName: companyForPrompt(job.employer, job.company),
       location: job.location,
       description: job.description,
       url: job.url,

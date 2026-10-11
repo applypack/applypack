@@ -107,6 +107,25 @@ export function companyForPrompt(employer: string | null | undefined, source: { 
   return hiringName(employer ?? null, source) ?? COMPANY_NOT_NAMED;
 }
 
+/**
+ * A stored posting as a prompt reads it: its own fields, and who hires as
+ * `companyForPrompt` states it. Every call a press on the dashboard starts
+ * about a stored job is handed this (#444): a handler that wrote
+ * `employer ?? company.name` by hand told the model `Company: Saved postings`,
+ * and the type asks for the source's `atsType`, so the compiler names a
+ * handler that did not load it.
+ */
+export function postingForPrompt(job: {
+  id: number;
+  title: string;
+  employer: string | null;
+  location: string;
+  description: string;
+  company: { name: string; atsType: string };
+}): { id: number; title: string; companyName: string; location: string; description: string } {
+  return { id: job.id, title: job.title, companyName: companyForPrompt(job.employer, job.company), location: job.location, description: job.description };
+}
+
 /** The same for a message a person reads, in the language of the run: "company not named". */
 export function companyForMessage(employer: string | null | undefined, source: { name: string; atsType: string }): string {
   return hiringName(employer ?? null, source) ?? t('notify.companyNotNamed');
