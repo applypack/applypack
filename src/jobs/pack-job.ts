@@ -35,7 +35,8 @@ import { t } from '../i18n/t';
  *
  * It beats every minute and does nothing at all on a beat that finds no
  * pack to take and no message owed, so an install that never switched the
- * feature on pays one indexed lookup a minute and no AI, ever.
+ * feature on pays two small indexed reads a minute — is a pack waiting, is
+ * a message owed — and no AI, ever.
  */
 
 const PACK_LOCK_KEY = 0x41504b50; // "APKP" — the fetch lock's neighbour (fetch-lock.ts)
