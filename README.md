@@ -105,6 +105,13 @@ install, unchanged.
 
 **Send it and track it**
 
+- **📦 The application, prepared before you wake.** Switch it on and a
+  strong new match gets its evening's work done by the worker: the posting
+  checked as still open, compared with your resume, the company looked
+  into, the resume tailored lightly and kept as a file you can download
+  months later. It stops, and says why, when the posting is closed or the
+  company does not check out. Off by default; nothing is ever submitted for
+  you ([ADR 0063](./docs/adr/0063-the-worker-prepares-an-application-pack.md)).
 - **💌 A cover letter that cannot invent.** Drafted from the posting, your
   resume and the facts you confirmed, nothing else. A fact gate reads every
   claim back against that evidence; a number that is not in your resume

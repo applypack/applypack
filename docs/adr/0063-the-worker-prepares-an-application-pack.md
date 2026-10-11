@@ -31,6 +31,12 @@ Before a line of the feature was written, the pipeline was run dry over those
   the tailored text 23 s. A whole pack: about 170 s at the median.
 - **Money**, at API prices: about $0.35 for a pack that reaches the end and
   $0.10 for one that stops at the comparison.
+  *Amended 2026-10-11 (#388).* That is the dry run's figure, and the dry
+  run writes no letter. Read off the ledger in the live check of 2026-10-06,
+  a ready pack with a cover letter — the brief, the comparison, the company
+  check, the re-judge and the letter — came to about $0.86 at API prices,
+  the company check most of it. The Settings hint (three to five AI calls,
+  about three minutes) holds; this is the figure to quote for money.
 - **The edits are light and they land.** 3 to 7 lines of a 60-line resume;
   76 operations applied, 1 could not be placed.
 - **Two things "Apply all" does that nobody should send unread.** Three of
@@ -81,8 +87,9 @@ Before a line of the feature was written, the pipeline was run dry over those
    running → ready | stopped | failed. The dashboard only inserts the row;
    the worker's runner (`jobs/pack-job.ts`) beats every minute, takes an
    advisory lock, and prepares the queued rows one at a time, oldest first. A
-   beat with nothing queued and no message owed is one indexed lookup and
-   writes no run row. No broker (ADR 0003).
+   beat with nothing queued and no message owed is two small indexed reads
+   (is a pack waiting; is a message owed) and writes no run row. No broker
+   (ADR 0003).
    *Amended 2026-10-10 (v2.55.15, #376).* A queue can lag by hours, and the
    runner used to spend on a row without asking again whether it should.
    Now a pack the tick queued is asked once more when the runner takes it
