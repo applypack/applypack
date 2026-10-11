@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.38] — 2026-10-11
+
+### Fixed
+- **An import's numbers are all written the same way.** After a large file
+  the summary read "2,000 rows, 1480 new stored … The filter set aside 2000:
+  2,000 without a title keyword", and the preview "12,000 rows read from the
+  file … left out: 1034 without a title". Every count in the import's summary
+  and in the preview's "left out" list now takes the language's own grouping,
+  in all four languages (#367).
+
 ## [2.55.37] — 2026-10-11
 
 ### Fixed
