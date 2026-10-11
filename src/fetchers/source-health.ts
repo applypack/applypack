@@ -75,6 +75,8 @@ const FOLDER_FAULT_STATUS: Record<string, FetchStatus> = {
   'not-allowed': 'auth',
   unmapped: 'bad_payload',
   'too-many': 'bad_payload',
+  // Its disk did not answer: unreachable, as a board whose server does not answer is.
+  stalled: 'network',
 };
 
 export function classifyFetchError(err: unknown): FetchStatus {

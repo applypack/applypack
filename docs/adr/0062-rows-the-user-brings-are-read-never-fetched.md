@@ -290,6 +290,17 @@ revisited:
   than "Posted" for such a date needs the row to know whose date it is
   (#379).
 
+*Amended 2026-10-11 (v2.55.28, #397).* **A folder's disk is given 30
+seconds to answer** (`datasets/folder-deadline.ts`, `FOLDER_ANSWER_MS`). A
+folder on a sleeping NAS or a hard NFS mount never settled a file call, and
+the fetch that asked held the fetch lock for ever: every source stopped
+until the worker was restarted. Every call the reader makes now has a time
+to answer in; a look whose folder does not answer fails as unreachable
+(`network`, counted in the failure streak) and the lock is given back. The
+call that was left behind cannot be cancelled and holds a thread, so while
+it is out the folder is asked nothing more: the next looks fail at once,
+and the folder is read again when the disk comes back.
+
 **ApplyPack never writes into the folder.** No "processed" subfolder, no
 rename, no delete. `datasets/folder-io.ts` is the one module that touches
 such a folder, it opens files for reading only and without following a
@@ -445,7 +456,10 @@ deeper than a look goes. Changes that arrive while a look waits add
 nothing. It runs outside the search hours — the user has just saved it — and
 never while fetching is paused. A look that meets another fetch tries again
 a minute later, and the hourly tick that meets a folder look does the same,
-so a saved posting never costs the hour its search. A folder deleted, or
+so a saved posting never costs the hour its search. *(Amended 2026-10-11,
+v2.55.28, #397: the tick waits for whoever holds the lock, up to 50 minutes,
+and a look that only met another fetch leaves no row on /runs —
+[ADR 0003](./0003-no-queue-just-node-cron.md).)* A folder deleted, or
 deleted and made again, is watched again at the next minute's refresh. A server stays on the hourly tick: a
 change seen through a Docker bind mount is not reliable. The watcher only
 notices; it reads nothing and writes nothing.

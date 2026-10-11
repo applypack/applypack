@@ -277,6 +277,8 @@ describe('classifyFetchError — a folder source', () => {
     assert.equal(classifyFetchError(fault('not-allowed')), 'auth');
     assert.equal(classifyFetchError(fault('unmapped')), 'bad_payload');
     assert.equal(classifyFetchError(fault('too-many')), 'bad_payload');
+    // #397: a disk that stopped answering is a source that cannot be reached, and it counts toward the failure streak.
+    assert.equal(classifyFetchError(fault('stalled')), 'network');
     assert.equal(classifyFetchError(fault('something-new')), 'unknown');
   });
 });

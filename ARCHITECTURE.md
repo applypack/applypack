@@ -340,7 +340,8 @@ src/
     fixtures/                  ← hand-written rows: four shapes, a spreadsheet with its own headers, hostile rows
     folder-path.ts             ← pure: which folder a source may read (home on a local install, named roots elsewhere), a typed path made absolute
     folder-scan.ts             ← pure: planScan — read, wait, leave alone — the ceilings, the name filter, judgeFile → jobs + the ledger row
-    folder-io.ts               ← the one module that touches a user's folder, and it only reads: listFolder, readFolderFile, realFolder
+    folder-io.ts               ← the one module that touches a user's folder, and it only reads: listFolder, readFolderFile, realFolder; every call has a time to answer in
+    folder-deadline.ts         ← pure: a time for a folder's disk to answer in; a folder with a call still out is asked nothing more
     mhtml.ts                   ← pure: a page saved as one file (.mhtml, .mht) → its first text/html part as bytes, and where the browser says it came from
     saved-page.ts              ← pure: a saved web page → its text, its own address, its JobPosting block; never rendered, never followed
     posting-file.ts            ← pure: a saved posting's bytes → text by kind (pages, text, the resume module's PDF/.docx readers) → the job
@@ -485,7 +486,9 @@ src/
 
   jobs/
     fetch-job.ts                ← runFetchJob (cron entry; {manual:true} from "Fetch now"), under the fetch lock
-    fetch-lock.ts               ← tryFetchLock: the Postgres advisory lock that keeps one fetch running across processes
+    fetch-lock.ts               ← tryFetchLock / waitForFetchLock: the Postgres advisory lock that keeps one fetch running across processes
+    lock-wait.ts                ← pure: asking for a lock again until it is free, a time is up or the worker stops
+    fetch-tick.ts               ← the worker's own two fetch starters: the hourly tick (waits for the lock) and a folder check (asks once); the lock first, the run row after
     funnel-store.ts             ← addToFunnel (the fetch + HN wrappers) into funnel_day; loadFunnel, loadSourceYield for the pages
     employer-store.ts           ← the mute list, the tick's employer rules, the one-time fill of older rows' keys (ADR 0056)
     fetch-pause.ts              ← makeFetchPauseProbe: a pause on /settings stops a running tick within seconds

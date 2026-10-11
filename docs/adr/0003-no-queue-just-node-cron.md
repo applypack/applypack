@@ -85,3 +85,18 @@ connection, and Postgres releases the lock. A run that cannot take the lock
 records `overlap` and reads, sends and classifies nothing, so no posting is
 paid for twice. There is still no time cap on a tick. The route smoke holds
 the lock and checks that "Fetch now" stands down.
+
+*Amended 2026-10-11 (v2.55.28, #397).* "Cannot take the lock, so does
+nothing" was right for a press and wrong for the worker's own tick: it asked
+once, so an import scoring its rows or a look at a folder at that minute
+cost the hour its search, its held alerts and its licence re-check, though
+the lock was free again seconds later. The hourly tick now waits for
+whoever holds the lock, asking every minute for up to 50 minutes
+(`jobs/fetch-tick.ts`, `jobs/lock-wait.ts`), and stops waiting when the
+worker stops. A press ("Fetch now", an import, `fetch-once.js`) still stands
+down at once and says so. The worker asks for the lock before it records a
+run, so a tick or a folder check that only met another fetch leaves no row
+on /runs; an hour in which the lock never came free leaves one. One thing
+could hold the lock for ever and now cannot: a folder on a disk that stopped
+answering (ADR 0062, amended the same day). What an import that scores for
+hours should let run beside it is open in #454.
