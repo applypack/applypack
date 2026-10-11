@@ -11,7 +11,7 @@
 import { hamming64, simhash64 } from '../fingerprint';
 import { t } from '../i18n/t';
 import type { WorkplaceCode } from '../location';
-import { docxToText } from '../resume/docx-text';
+import { docxToText, ResumeTextError } from '../resume/docx-text';
 import { ZipLimitError } from '../resume/zip';
 import { clipText, hashShortId, normalizeUrlKey, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -85,8 +85,8 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
     try {
       const { pdfToText } = await import('../resume/pdf-text.js');
       read = plain(await pdfToText(Buffer.from(bytes)));
-    } catch {
-      return { ok: false, why: POSTING_NOTES.pdf };
+    } catch (err) {
+      return { ok: false, why: pdfNote(err) };
     }
   } else if (kind === 'docx') {
     try {
@@ -98,6 +98,18 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
     read = plain(decodeText(bytes).text.replace(/^\uFEFF/, ''));
   }
   return read.text.length < MIN_POSTING_CHARS ? { ok: false, why: POSTING_NOTES.tooShort } : read;
+}
+
+/**
+ * Why a PDF gave no posting. The reader refuses three things with one kind
+ * of error — not a PDF, a password, too little text — and only the last has
+ * text at all. A PDF with some is too short, as a text file of that length
+ * is; it is not "a scanned image", and saving it another way would not help
+ * (#362). One with none is what a scan is.
+ */
+function pdfNote(err: unknown): string {
+  const hasSomeText = err instanceof ResumeTextError && err.failure === 'pdfNoText' && Number(err.params.n) > 0;
+  return hasSomeText ? POSTING_NOTES.tooShort : POSTING_NOTES.pdf;
 }
 
 /** What a model read off the text: `jobs/posting-extract.ts:PostingFacts`, the fields this needs. */

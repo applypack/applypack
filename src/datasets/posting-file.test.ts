@@ -90,6 +90,18 @@ describe('readPostingFile', () => {
     assert.deepEqual(await readPostingFile('docx', bytes('PK not a zip'), NOW), { ok: false, why: POSTING_NOTES.docx });
   });
 
+  // #362: the reader refuses "too little text" as it refuses a scan, and both were reported as a scan.
+  it('tells a PDF with too little text from one with none', async () => {
+    const note = 'Backend Engineer at Fennel Works. Remote, EU. Node.js and PostgreSQL; you own the payments ledger with one other engineer.';
+    assert.deepEqual(await readPostingFile('pdf', buildLetterPdf(note), NOW), { ok: false, why: POSTING_NOTES.tooShort });
+    // The same words as a text file say the same thing.
+    assert.deepEqual(await readPostingFile('txt', bytes(note), NOW), { ok: false, why: POSTING_NOTES.tooShort });
+    // A single word is still text; a page with none is what a scan is, and saving it another way is the advice.
+    assert.deepEqual(await readPostingFile('pdf', buildLetterPdf('Hello'), NOW), { ok: false, why: POSTING_NOTES.tooShort });
+    assert.deepEqual(await readPostingFile('pdf', buildLetterPdf(''), NOW), { ok: false, why: POSTING_NOTES.pdf });
+    assert.notEqual(POSTING_NOTES.tooShort, POSTING_NOTES.pdf);
+  });
+
   it('does not unpack a .docx that is megabytes inside: such a file is no posting, and reading it is the cost (#400)', async () => {
     // 111 KB on disk inflated to 32 MB, 3.4 s and 2.2 GB in the worker; here 3 MB of paragraphs, refused at the inflater.
     const paragraph = 'Senior engineer wanted for a platform team; remote in Europe. ';

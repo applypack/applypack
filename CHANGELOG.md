@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.32] — 2026-10-11
+
+### Fixed
+- **A saved PDF with only a little text is no longer called a scanned
+  image.** A PDF posting of under 200 characters — a short note, a page that
+  is mostly a picture — was listed on the folder's Files page as "No text
+  could be read from this PDF: a scanned image, a password, or a damaged
+  file", with the advice to save it another way, which would not have
+  helped. It now says what a text file of that length says: less than 200
+  characters, a note or an empty page, not a posting. A PDF with no text at
+  all, a locked one and a damaged one keep their note. PDFs already set
+  aside are looked at once more after the upgrade, so the ones with some
+  text get the right sentence; no AI is asked for that (#362).
+
 ## [2.55.31] — 2026-10-11
 
 ### Fixed
