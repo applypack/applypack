@@ -9,8 +9,10 @@
 
 import { createHash } from 'node:crypto';
 import { t } from '../i18n/t';
+import { decodeText } from './decode';
 import { mapRows, type Mapping } from './map';
-import { MAX_BODY_MB, decodeBody, findRows, type RowFormat } from './rows';
+import { assumedNote, lossNotes, readingOf } from './read-notes';
+import { MAX_BODY_MB, findRows, type RowFormat } from './rows';
 import type { NormalizedJob } from '../types';
 
 /** A row file's state in the ledger (`source_file.status`). */
@@ -37,7 +39,12 @@ export interface FileChange extends ListedFile {
   kind: FileKind;
   sha256: string | null;
   status: FileStatus;
-  /** Why it waits, was skipped or failed — or how far a long file was read ("5,000 of 12,000 rows read so far"). */
+  /**
+   * Why it waits, was skipped or failed — or how far a long file was read
+   * ("5,000 of 12,000 rows read so far"). On a file of rows that is `done`:
+   * what of it could not be read (read-notes.ts:lossNotes), null when it was
+   * read whole.
+   */
   detail: string | null;
   /** Rows of it handed to the pipeline as jobs. */
   jobCount: number;
@@ -84,6 +91,9 @@ export const FILE_NOTES = {
   },
   get notRows(): string {
     return t('datasets.file.notRows');
+  },
+  get brokenJson(): string {
+    return t('datasets.file.brokenJson');
   },
 };
 
@@ -338,6 +348,8 @@ export interface FileVerdict {
   rows: 'none' | 'fit' | 'misfit';
   /** Rows of it handed over this look: what the look's ceiling counts. */
   taken: number;
+  /** What a person should know about how it was read — what was lost, an encoding that was assumed — a sentence each; the Check page lists them. */
+  notes: string[];
 }
 
 /**
@@ -376,12 +388,13 @@ export function judgeFile(
 ): FileVerdict {
   const kind = rowFileKind(file.relPath)!;
   const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0, ...extra });
-  const none = (change: FileChange | null): FileVerdict => ({ change, jobs: [], rows: 'none', taken: 0 });
+  const none = (change: FileChange | null, notes: string[] = []): FileVerdict => ({ change, jobs: [], rows: 'none', taken: 0, notes });
   if (!got.ok) return none(unreadVerdict(file, kind, got));
   const measured = { size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256 };
   const twin = readAs.get(got.sha256);
   if (twin !== undefined && twin !== file.relPath) return none(note('skipped', t('datasets.file.sameContent', { file: twin }), measured));
-  const text = decodeBody(got.bytes);
+  const decoded = decodeText(got.bytes);
+  const { text } = decoded;
   let from = resumeAt(known, got);
   let found = findRows(text, maxRows, from);
   // Fewer rows than were read: not the file read then, whatever its first bytes say.
@@ -389,17 +402,26 @@ export function judgeFile(
     from = 0;
     found = findRows(text, maxRows);
   }
-  if (!found.ok) return none(note('skipped', FILE_NOTES.notRows, measured));
+  if (!found.ok) {
+    // A damaged file is worth a word on the Check page; one that simply holds no rows is not.
+    const damage = found.why === 'broken-json' ? FILE_NOTES.brokenJson : found.why === 'unclosed-quote' ? found.error : null;
+    return damage === null ? none(note('skipped', FILE_NOTES.notRows, measured)) : none(note('skipped', damage, measured), [damage]);
+  }
+  const reading = readingOf(decoded, found.cutAt);
+  const lost = lossNotes(reading);
+  const notes = [...lost, ...[assumedNote(reading)].filter((n) => n !== null)];
   const before = from > 0 ? known!.jobCount : 0;
   const mapped = mapRows(found.rows, mapping, companyId, new Date(got.mtimeMs));
   const judged = found.rows.length - mapped.dropped.closed - mapped.repeated;
   if (mapped.jobs.length * 2 < judged) {
     const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: found.rows.length });
     // What was read before these rows stands: a mapping saved again reads on from there.
-    return { change: note('failed', detail, { ...measured, rowsRead: from, jobCount: before }), jobs: [], rows: 'misfit', taken: 0 };
+    return { change: note('failed', detail, { ...measured, rowsRead: from, jobCount: before }), jobs: [], rows: 'misfit', taken: 0, notes };
   }
   const rowsRead = from + found.rows.length;
   const progress = { ...measured, rowsRead, jobCount: before + mapped.jobs.length };
-  const change = found.over > 0 ? note('waiting', t('datasets.file.partRows', { read: rowsRead, total: found.total }), progress) : note('done', null, progress);
-  return { change, jobs: mapped.jobs, rows: 'fit', taken: found.rows.length };
+  // Read to the end of what can be read: a file that lost a part is done, and says which part.
+  const change =
+    found.over > 0 ? note('waiting', t('datasets.file.partRows', { read: rowsRead, total: found.total }), progress) : note('done', lost.length > 0 ? lost.join(' ') : null, progress);
+  return { change, jobs: mapped.jobs, rows: 'fit', taken: found.rows.length, notes };
 }

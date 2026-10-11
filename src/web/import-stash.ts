@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Mapping, MappingField } from '../datasets/map';
+import type { Reading } from '../datasets/read-notes';
 import type { FoundRows } from '../datasets/rows';
 
 /*
@@ -9,9 +10,11 @@ import type { FoundRows } from '../datasets/rows';
  * handful at most, so a few megabytes of rows cannot pile up.
  */
 
-export interface ImportStash extends Omit<FoundRows, 'total'> {
+export interface ImportStash extends Omit<FoundRows, 'total' | 'cutAt'> {
   id: string;
   fileName: string;
+  /** What of the file was lost in reading, and an encoding that had to be assumed: the preview says both. */
+  reading: Reading;
   /** Where the rows go: an import source that exists (`id`), or the name of one to create. */
   source: { id: number | null; name: string };
   mapping: Mapping;

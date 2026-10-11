@@ -17,6 +17,7 @@ export function folderLine(summary: FolderSummary | undefined): string {
   const parts = [t('folders.line.files', { files: summary.files, fresh: summary.fresh })];
   if (summary.waiting > 0) parts.push(t('folders.line.waiting', { n: summary.waiting }));
   if (summary.failed > 0) parts.push(t('folders.line.failed', { n: summary.failed }));
+  if (summary.partial > 0) parts.push(t('folders.line.partial', { n: summary.partial }));
   return parts.join(' · ');
 }
 
@@ -40,6 +41,8 @@ export function fileLine(file: { status: string; detail: string | null; jobCount
   const say = (...sentences: (string | null)[]): string => sentences.filter((s) => s).join(' ');
   if (file.status === 'done') {
     if (posting) return { label: t('folders.file.read'), tone: 'ok', text: say(file.detail ?? t('folders.file.readAsPosting'), gone) };
+    // A file of rows carries a note only for what of it could not be read (datasets/read-notes.ts).
+    if (file.detail) return { label: t('folders.file.readInPart'), tone: 'warn', text: say(t('folders.file.rowsRead', { n: file.jobCount }), file.detail, gone) };
     return { label: t('folders.file.read'), tone: 'ok', text: say(t('folders.file.rowsRead', { n: file.jobCount }), gone) };
   }
   if (file.status === 'waiting') return { label: t('folders.file.waiting'), tone: 'neutral', text: say(file.detail ?? t('folders.file.nextCheckReads'), gone) };

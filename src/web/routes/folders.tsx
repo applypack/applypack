@@ -193,18 +193,21 @@ async function previewRows(
   const readAs = new Map(ledger.filter((e) => e.status === 'done' && e.sha256 !== null).map((e) => [e.sha256!, e.relPath]));
   const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const jobs: NormalizedJob[] = [];
+  // How each file read, whatever the mapping: a part that was lost is said before the folder is added.
+  const fileNotes: { file: string; note: string }[] = [];
+  const usable = usableMapping(detected.mapping);
   let left = MAX_ROWS_PER_LOOK;
   let misfits = 0;
-  if (usableMapping(detected.mapping)) {
-    for (const file of plan.read) {
-      if (left <= 0) break;
-      const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs, known.get(file.relPath), left);
-      left -= verdict.taken;
-      if (verdict.rows === 'misfit') misfits++;
-      if (verdict.rows === 'fit') {
-        readAs.set(verdict.change!.sha256!, file.relPath);
-        jobs.push(...verdict.jobs);
-      }
+  for (const file of plan.read) {
+    if (left <= 0) break;
+    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs, known.get(file.relPath), left);
+    fileNotes.push(...verdict.notes.map((note) => ({ file: file.relPath, note })));
+    if (!usable) continue;
+    left -= verdict.taken;
+    if (verdict.rows === 'misfit') misfits++;
+    if (verdict.rows === 'fit') {
+      readAs.set(verdict.change!.sha256!, file.relPath);
+      jobs.push(...verdict.jobs);
     }
   }
 
@@ -230,6 +233,7 @@ async function previewRows(
     // The sample as jobs: what the page shows, and what says the mapping reads these files at all.
     sample: mapRows(rows, detected.mapping, 0, now).jobs,
     misfits,
+    fileNotes,
     counts,
     scoring,
     searches: { running: active.length, usable: roster.length },

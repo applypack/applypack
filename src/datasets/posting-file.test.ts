@@ -41,6 +41,25 @@ describe('readPostingFile', () => {
     assert.equal(needsModel(got), false);
   });
 
+  // #394: read as UTF-8, a page off a Ukrainian board was stored as "Node.js ���������" and scored as unreadable.
+  it('reads a page and a text file that are not UTF-8 in their own encoding', async () => {
+    const cp1251 = (text: string): Uint8Array => {
+      const decoder = new TextDecoder('windows-1251');
+      const byteOf = new Map<string, number>();
+      for (let b = 0x80; b <= 0xff; b++) byteOf.set(decoder.decode(Uint8Array.of(b)), b);
+      return Uint8Array.from([...text].map((ch) => (ch.charCodeAt(0) < 0x80 ? ch.charCodeAt(0) : (byteOf.get(ch) ?? 0x3f))));
+    };
+    const body = 'Шукаємо розробника у продуктову команду: сервіси на Node.js і TypeScript, PostgreSQL, рев’ю коду, планування. '.repeat(3).trim();
+    const block = JSON.stringify({ '@type': 'JobPosting', title: 'Node.js розробник', hiringOrganization: { name: 'Київстар' }, description: body });
+    const page = `<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1251"><script type="application/ld+json">${block}</script></head><body><main>${body}</main></body></html>`;
+    const read = ok(await readPostingFile('html', cp1251(page), NOW));
+    assert.deepEqual([read.facts?.title, read.facts?.company], ['Node.js розробник', 'Київстар']);
+    assert.ok(read.text.includes('Шукаємо розробника') && !read.text.includes('\uFFFD'));
+    // A text file names no encoding: Cyrillic is told by its letters coming in words.
+    const note = ok(await readPostingFile('txt', cp1251(`Node.js розробник\n\n${body}`), NOW));
+    assert.ok(note.text.startsWith('Node.js розробник') && !note.text.includes('\uFFFD'));
+  });
+
   it('reads a PDF with a text layer and a .docx', async () => {
     assert.match(ok(await readPostingFile('pdf', buildLetterPdf(`Backend Engineer\n\n${BODY}`), NOW)).text, /payments ledger/);
     assert.match(ok(await readPostingFile('docx', docx(['Backend Engineer', BODY]), NOW)).text, /^Backend Engineer\n/);

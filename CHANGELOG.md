@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.23] — 2026-10-11
+
+### Fixed
+- **A damaged or non-UTF-8 file no longer loses rows or letters in
+  silence.** The import and both kinds of folder share their readers, and
+  four things went wrong without a word:
+  - A CSV row that opens a quote and never closes it swallowed every row
+    after it into one cell, and the file was counted as read: an 8-row file
+    gave 3 "rows", the third holding the rest of the file as its title. The
+    rows above that line are now read, and the preview, the folder's Check
+    page and its Files page name the line ("Read in part"; the folder's row
+    on Companies counts such files).
+  - A file that is not UTF-8 — a Windows spreadsheet's plain "CSV", a page
+    saved off an older board — came out as `Z�rich` and `Node.js ���������`.
+    It is now read in the encoding of its language: a saved page's own
+    `<meta charset>`, else Windows-1251 or Windows-1252, told apart by the
+    letters. Where the encoding had to be assumed, the preview says so.
+  - A JSON file cut short was read as a CSV with columns named
+    `[{"title":"a"`. It is now refused as cut off or not valid JSON.
+  - A TSV whose header starts with an empty cell (pandas with its index)
+    lost that cell, so every column shifted one to the left and no select
+    could put it right. An object that holds its rows by key
+    (`{"a1": {…}, "a2": {…}}`) was one row; it is now its rows.
+
+  Files a folder read before this version keep the row they have: nothing
+  is read again on the upgrade (#394).
+
 ## [2.55.22] — 2026-10-11
 
 ### Fixed
@@ -5350,6 +5377,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.23]: https://github.com/applypack/applypack/compare/v2.55.22...v2.55.23
 [2.55.22]: https://github.com/applypack/applypack/compare/v2.55.21...v2.55.22
 [2.55.21]: https://github.com/applypack/applypack/compare/v2.55.20...v2.55.21
 [2.55.20]: https://github.com/applypack/applypack/compare/v2.55.19...v2.55.20
