@@ -32,6 +32,14 @@ export interface NormalizedJob {
    * search's base filter and no employer gate turns it away — they chose it.
    */
   handPicked?: boolean;
+  /**
+   * The source gave no date this posting was published on, so `postedAt` is
+   * the clock's or a file's (#379). It still orders and shows the posting; it
+   * is no evidence that the posting is recent, and nothing is prepared on its
+   * own for it (pack/trigger.ts). Set by the row mapper, and for every other
+   * source by `fetchers/dates.ts:markClockDated` where its read ends.
+   */
+  undated?: boolean;
 }
 
 export interface ClaudeClassification {

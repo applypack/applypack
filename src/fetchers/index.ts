@@ -60,6 +60,7 @@ import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
 import { dueCutoff, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
 import type { NormalizedJob } from '../types';
 import { forgetListing, wasListedInFull } from './listing';
+import { markClockDated } from './dates';
 import { DELISTED_CODE, delistPlan, RELISTED_CODE } from './delisted';
 
 export interface FetcherResult {
@@ -195,6 +196,8 @@ export async function runAllFetchers(
       }
       forgetListing(company.id);
       const jobs = await fetchOne(company, context);
+      // A date written while this answer was mapped is the clock's, not the posting's (#379).
+      markClockDated(jobs, startedAt);
       count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
       // that matches nothing is not a broken board (ADR 0019).

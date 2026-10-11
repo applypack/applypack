@@ -993,7 +993,11 @@ vendor's admin key never enters ApplyPack.
 Off by default. With **Settings → Automation → Application packs** switched on,
 a new posting the tick stores with a fit at or above the threshold (90),
 published within the last N days (7), gets a pack — up to a daily number the
-worker starts on its own (5; 0 = no limit, counted per UTC day). The trigger
+worker starts on its own (5; 0 = no limit, counted per UTC day). "Published"
+is a date the source gave: a posting dated by the clock or by a file of rows
+(`NormalizedJob.undated` — an imported row with no date, a board that
+publishes none) is not prepared on its own, while one the person saved
+themselves counts from the time they saved it (#379). The trigger
 is asked only where a new match is inserted (`process-jobs.ts` →
 `pack/trigger.ts`), so jobs already stored are never walked and a
 re-classify queues nothing. Any job can be prepared by hand on its

@@ -61,6 +61,22 @@ Before a line of the feature was written, the pipeline was run dry over those
    inserted, and nowhere else. So the backlog is never walked — not when the
    feature is switched on, not by "Save & re-classify" — and a fresh install
    spends nothing. Any single job can be prepared by hand on its tab.
+   *Amended 2026-10-11 (v2.55.31, #379).* "Published within N days" is the
+   other half of keeping the backlog out, and it read `postedAt` — which
+   every mapper sets to now when its source gives no date. A row imported
+   with no date column, a row of a folder's file, and every role of a board
+   that publishes none (BambooHR, Pinpoint, often Rippling) passed as
+   published today: a file of last month's postings queued packs up to the
+   day's limit, and with no limit, all of them. A posting now knows whether
+   its date came from its source (`NormalizedJob.undated`: the row mapper
+   says so, and `fetchers/dates.ts:markClockDated` marks, where a read ends,
+   every date written at or after the moment that read began), and the
+   trigger answers `undated` for one that did not. A posting the person
+   saved themselves keeps its file's time, which is when they saved it. The
+   fact is not stored: the trigger is asked once, while the posting is in
+   hand. Two things are left: the date is still shown and filtered as
+   "Posted" (#458), and a board that never publishes dates gets no automatic
+   pack even for a role that appeared between two reads (#459).
 3. **The row is the queue.** `application_pack`, one per posting: queued →
    running → ready | stopped | failed. The dashboard only inserts the row;
    the worker's runner (`jobs/pack-job.ts`) beats every minute, takes an
