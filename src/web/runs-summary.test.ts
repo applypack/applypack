@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { failedRunLine, summarizeRun } from './runs-summary';
+import { failedRunLine, summarizeRun, unscoredRun } from './runs-summary';
 
 describe('summarizeRun', () => {
   it('reads a fetch tick as its facts, in a fixed order', () => {
@@ -187,4 +187,22 @@ describe('failedRunLine (TASKS U6)', () => {
   it('a long reason is cut to one sentence', () => {
     assert.ok(failedRunLine('cleanup', 'x'.repeat(400)).includes('…'));
   });
+});
+
+// #366: a run that scored nothing it tried to finished "OK", and a dead engine stayed green for a night.
+it('a run that scored nothing it tried to is not an OK to the reader', () => {
+  // The line the issue quotes: "1 fetched · 0 new · 1 failed to classify".
+  assert.equal(unscoredRun('OK', { fetched: 1, persisted: 0, classifyFailed: 1, classified: 0 }), true);
+  assert.equal(unscoredRun('OK', { fetched: 40, classifyFailed: 12 }), true);
+  // Some were scored, or the prefilter answered: the engine works, and the count says the rest.
+  assert.equal(unscoredRun('OK', { classifyFailed: 2, classified: 9 }), false);
+  assert.equal(unscoredRun('OK', { classifyFailed: 1, classified: 0, preFiltered: 5 }), false);
+  // Nothing reached the classifier: an uneventful tick, a pause, a run of another kind.
+  assert.equal(unscoredRun('OK', { fetched: 30, persisted: 0, classifyFailed: 0 }), false);
+  assert.equal(unscoredRun('OK', { deleted: 3 }), false);
+  assert.equal(unscoredRun('OK', null), false);
+  assert.equal(unscoredRun('OK', 'not stats'), false);
+  // A run that failed or is still running says so itself.
+  assert.equal(unscoredRun('FAILED', { classifyFailed: 3 }), false);
+  assert.equal(unscoredRun('RUNNING', { classifyFailed: 3 }), false);
 });

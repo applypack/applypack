@@ -50,6 +50,7 @@ import type { Tone } from '../format';
 import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { unscoredRun } from '../runs-summary';
 
 interface JobRow {
   id: number;
@@ -257,15 +258,15 @@ export const OverviewPage: FC<OverviewProps> = ({
               {latestRuns.map(({ name, run }) => (
                 <li class="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                   <span
-                    class={`h-2 w-2 shrink-0 rounded-full ${run ? TONE_FILL[runTone(run.status)] : 'bg-line-strong'}`}
+                    class={`h-2 w-2 shrink-0 rounded-full ${run ? TONE_FILL[runBadge(run).tone] : 'bg-line-strong'}`}
                     aria-hidden="true"
                   />
                   <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" translate="no">
                     {name}
                   </span>
                   {/* The word, not the dot alone: said aloud for a healthy run, shown for one that is not. */}
-                  {run && run.status === 'OK' && <span class="sr-only">{t('run.status.ok')}</span>}
-                  {run && run.status !== 'OK' && <Badge tone={runTone(run.status)}>{runLabel(run.status)}</Badge>}
+                  {run && runBadge(run).ok && <span class="sr-only">{t('run.status.ok')}</span>}
+                  {run && !runBadge(run).ok && <Badge tone={runBadge(run).tone}>{runBadge(run).label}</Badge>}
                   <span class="shrink-0 text-note tabular-nums text-ink-faint">
                     {run
                       ? `${formatRelative(run.startedAt)} · ${formatDuration(
@@ -483,16 +484,22 @@ function mapCounts(rows: { status: string; count: number }[]): Record<string, nu
   return out;
 }
 
-export function runTone(status: CronRunStatus): Tone {
+function runTone(status: CronRunStatus): Tone {
   if (status === 'OK') return 'ok';
   if (status === 'FAILED') return 'danger';
   return 'info';
 }
 
-export function runLabel(status: CronRunStatus): string {
+function runLabel(status: CronRunStatus): string {
   if (status === 'OK') return t('run.status.ok');
   if (status === 'FAILED') return t('run.status.failed');
   return t('run.status.running');
+}
+
+/** A run's badge. A run that finished and scored nothing it tried to is not "OK" to a reader, whatever its status (runs-summary.ts:unscoredRun). */
+export function runBadge(run: { status: CronRunStatus; stats: unknown }): { tone: Tone; label: string; ok: boolean } {
+  if (unscoredRun(run.status, run.stats)) return { tone: 'warn', label: t('run.status.unscored'), ok: false };
+  return { tone: runTone(run.status), label: runLabel(run.status), ok: run.status === 'OK' };
 }
 
 /** The loop the product is for, in three steps, until the user has walked it once (TASKS N11). */

@@ -8,10 +8,11 @@ import { formatDate, formatDuration, formatStamp } from '../format';
 import { displayZoneLabel } from '../display-zone';
 import type { FetchRun } from '../fetch-runs';
 import type { CronStats, SourceStat } from '../../jobs/cron-run';
-import { failedRunLine, summarizeRun } from '../runs-summary';
+import { tRich } from '../rich';
+import { failedRunLine, summarizeRun, unscoredRun } from '../runs-summary';
 import { FetchNowButton } from './fetch-run';
 import { FunnelCard } from './funnel-card';
-import { runLabel, runTone } from './overview';
+import { runBadge } from './overview';
 import type { FunnelView } from '../../funnel';
 import type { SourceYield } from '../../jobs/funnel-store';
 import { t } from '../../i18n/t';
@@ -108,7 +109,7 @@ const RunsTable: FC<{ runs: RunRow[]; caption: string }> = ({ runs, caption }) =
                 {r.finishedAt ? formatDuration(r.finishedAt.getTime() - r.startedAt.getTime()) : '—'}
               </Td>
               <Td>
-                <Badge tone={runTone(r.status)}>{runLabel(r.status)}</Badge>
+                <Badge tone={runBadge(r).tone}>{runBadge(r).label}</Badge>
               </Td>
               <Td>
                 {r.errorMessage ? (
@@ -120,7 +121,14 @@ const RunsTable: FC<{ runs: RunRow[]; caption: string }> = ({ runs, caption }) =
                     </details>
                   </div>
                 ) : r.stats ? (
-                  <StatsCell name={r.name} stats={r.stats} />
+                  <>
+                    <StatsCell name={r.name} stats={r.stats} />
+                    {unscoredRun(r.status, r.stats) && (
+                      <p class="mt-1 text-note leading-5 text-warn">
+                        {tRich('runs.unscored', {}, { a: (words) => <a href="/settings?tab=ai" class="underline">{words}</a> })}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <span class="text-meta text-ink-faint">—</span>
                 )}
