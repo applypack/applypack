@@ -3569,7 +3569,6 @@
   "import.nameSource": "Nommez la source de ces lignes — n'importe quels mots qui distinguent ce fichier du suivant.",
   "import.columnNotInFile": "L'une des colonnes choisies n'est pas dans ce fichier. Choisissez les colonnes dans les listes et mettez à jour l'aperçu à nouveau.",
   "import.flash.noTitle": "Rien n'a été importé. Choisissez la colonne qui contient l'intitulé du poste, et une qui contient un lien ou un identifiant, puis importez à nouveau.",
-  "import.flash.noJob": "Rien n'a été importé : avec ces colonnes, aucune ligne du fichier n'est une offre. Vérifiez l'intitulé et le lien.",
   "import.flash.sourceGone": "Rien n'a été importé : cette source a été supprimée entre-temps. Choisissez à nouveau le fichier et donnez-lui une source.",
   "import.run.running": "Importation",
   "import.run.failed": "Échec de l'importation",

@@ -15,7 +15,7 @@ import {
   type Mapping,
   type SourceConfig,
 } from '../../datasets/map';
-import { previewCounts } from '../../datasets/preview';
+import { importBlock, previewCounts } from '../../datasets/preview';
 import { MAX_BODY_MB, decodeBody, findRows } from '../../datasets/rows';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
 import { runImportJob } from '../../jobs/import-job';
@@ -29,7 +29,7 @@ import { t } from '../../i18n/t';
 import { spendHint } from '../cost-hint';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { dropImport, getImport, stashImport, type ImportStash } from '../import-stash';
-import { summarizeImport } from '../import-summary';
+import { importBlockText, summarizeImport } from '../import-summary';
 import { logger } from '../../logger';
 import { JobImportPage, JobImportPreviewPage, type ImportSourceRow } from '../pages/job-import';
 import { idParam } from '../params';
@@ -139,9 +139,12 @@ function mappingFromForm(form: Record<string, unknown>, stash: ImportStash): Map
   return MAPPING_FIELDS.every((f) => parsed.data[f] === null || columns.includes(parsed.data[f])) ? parsed.data : null;
 }
 
-jobsImportRoute.get('/jobs/import/:token', async (c) => {
-  const stash = getImport(c.req.param('token'));
-  if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
+/**
+ * What an import of the stashed rows would do, as things stand now: the rows
+ * as jobs, how many are new and wanted, and whether anything is scored. The
+ * preview shows it, and the import asks it again before it writes anything.
+ */
+async function previewFacts(stash: ImportStash) {
   const now = new Date();
   const mapped = mapRows(stash.rows, stash.mapping, stash.source.id ?? 0, now);
   const [settings, active, employers, stored] = await Promise.all([
@@ -160,6 +163,13 @@ jobsImportRoute.get('/jobs/import/:token', async (c) => {
   const roster = scoring ? active.filter((p) => !isBlankProfile(p)) : active;
   // The employer gate as the tick applies it: these rows always name their own employer, or nobody (ADR 0056).
   const counts = previewCounts(mapped.jobs, roster, new Set(stored.map((s) => s.externalId)), (job) => employerGate(hiringKey(job.employer, stash.source.name, true), employers) !== null);
+  return { mapped, counts, scoring, searches: { running: active.length, usable: roster.length } };
+}
+
+jobsImportRoute.get('/jobs/import/:token', async (c) => {
+  const stash = getImport(c.req.param('token'));
+  if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
+  const { mapped, counts, scoring, searches } = await previewFacts(stash);
   return c.html(
     <JobImportPreviewPage
       stash={stash}
@@ -167,7 +177,7 @@ jobsImportRoute.get('/jobs/import/:token', async (c) => {
       mapped={mapped}
       counts={counts}
       scoring={scoring}
-      searches={{ running: active.length, usable: roster.length }}
+      searches={searches}
       cost={scoring && counts.passing > 0 ? await spendHint('classifier') : ''}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -201,13 +211,17 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     return flashRedirect(back, 'err', t('import.flash.noTitle'));
   }
   stash.mapping = mapping;
-  // Before a source row is written: a file with no job in it leaves nothing behind.
-  const mapped = mapRows(stash.rows, mapping, 0, new Date());
-  if (mapped.jobs.length === 0) return flashRedirect(back, 'err', t('import.flash.noJob'));
+  // Before a source row is written: what the preview refuses, the import refuses, for the same reason —
+  // a form posted anyway (an old tab, a double press) leaves nothing behind (#364).
+  const { mapped, counts, scoring, searches } = await previewFacts(stash);
+  const block = importBlock({ mappingUsable: true, jobs: mapped.jobs.length, searches, scoring, passing: counts.passing });
+  if (block) return flashRedirect(back, 'err', importBlockText(block));
 
   const config: SourceConfig = { holds: 'rows', mapping, include: null, alerts: 'matches' };
   const sourceConfig = config as Prisma.InputJsonValue;
   let source: { id: number; name: string };
+  // A source this press makes is taken back if the run stores nothing in it (a fetch was running, a search switched off meanwhile).
+  const created = stash.source.id === null;
   if (stash.source.id !== null) {
     const kept = await prisma.company.updateMany({ where: { id: stash.source.id, atsType: AtsType.IMPORT }, data: { sourceConfig } });
     if (kept.count === 0) return flashRedirect('/jobs/import', 'err', t('import.flash.sourceGone'));
@@ -250,6 +264,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
       logger.error({ err, runId: run.id }, 'web: import run failed');
       return updateRun(run.id, { stage: 'error', error: t(IMPORT_FAILED) });
     }
+    if (created && (await dropEmptySource(source.id))) stash.source = { id: null, name: source.name };
     const { kind, text } = summarizeImport(stats, stash.fileName, source.name);
     if (kind === 'err') return updateRun(run.id, { stage: 'error', error: text });
     // Stored: the rows have done their job. Not stored (a fetch was running): they wait for the second press.
@@ -258,6 +273,12 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });
+
+/** An import source that holds no job is no source: removed, and true when it was. One that holds a job is never touched. */
+async function dropEmptySource(id: number): Promise<boolean> {
+  const { count } = await prisma.company.deleteMany({ where: { id, atsType: AtsType.IMPORT, jobs: { none: {} } } });
+  return count > 0;
+}
 
 /** One press removes a source and every job it brought — the cascade every source has. */
 jobsImportRoute.post('/jobs/import/sources/:id/delete', async (c) => {

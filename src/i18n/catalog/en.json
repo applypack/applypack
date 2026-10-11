@@ -3569,7 +3569,6 @@
   "import.nameSource": "Name the source these rows belong to — any words that tell this file from the next one.",
   "import.columnNotInFile": "One of the chosen columns is not in this file. Pick the columns from the lists and update the preview again.",
   "import.flash.noTitle": "Nothing was imported. Choose the column that holds the job title, and one that holds a link or an id, then import again.",
-  "import.flash.noJob": "Nothing was imported: with these columns no row of the file is a job. Check the title and the link.",
   "import.flash.sourceGone": "Nothing was imported: that source was deleted meanwhile. Choose the file again and name a source for it.",
   "import.run.running": "Importing",
   "import.run.failed": "Import failed",

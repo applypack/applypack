@@ -37,3 +37,30 @@ export function previewCounts(
   const turnedAway = admitted.filter(turnsAway).length;
   return { usable: jobs.length, stored: jobs.length - fresh.length, turnedAway, passing: admitted.length - turnedAway };
 }
+
+/** Why an import is not offered. */
+export type ImportBlock = 'mapping' | 'no-job' | 'no-search' | 'blank-searches' | 'nothing';
+
+/**
+ * Why an import is not offered, or null when it is: one reason, the first
+ * that holds. The page's button and the route that runs the import both ask
+ * here, so a form posted anyway — an old tab, a double press, a script — is
+ * refused for the reason the page gives, and leaves no empty source behind.
+ */
+export function importBlock(input: {
+  /** The mapping names a title and something to tell rows apart (map.ts:usableMapping). */
+  mappingUsable: boolean;
+  /** Rows of the file that map to a job. */
+  jobs: number;
+  searches: { running: number; usable: number };
+  /** Fetching is on: the rows are scored, and a blank search scores nothing. */
+  scoring: boolean;
+  /** New rows a running search would keep (`PreviewCounts.passing`). */
+  passing: number;
+}): ImportBlock | null {
+  if (!input.mappingUsable) return 'mapping';
+  if (input.jobs === 0) return 'no-job';
+  if (input.searches.running === 0) return 'no-search';
+  if (input.scoring && input.searches.usable === 0) return 'blank-searches';
+  return input.passing === 0 ? 'nothing' : null;
+}
