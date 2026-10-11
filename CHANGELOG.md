@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.37] — 2026-10-11
+
+### Fixed
+- **`npm run stop` no longer says "ApplyPack is not running" while it is.**
+  The stop command recognises a running ApplyPack by asking the system what
+  the process in its lock file is — PowerShell on Windows, `ps` elsewhere —
+  and took "no answer within 15 seconds" for "no such process". On a busy
+  Windows machine that happens: stop then reported nothing to stop and left
+  ApplyPack running. It now asks twice, and when the process is there and
+  still cannot be named it asks it to stop anyway and waits.
+- **A start never takes over from a process it could not identify.** The
+  same wrong answer could let a second `npm start` remove a running
+  ApplyPack's lock, or delete the pid file of a database that was still
+  running; `npm run db:import` could go ahead beside a worker. Each now
+  stops and says which file to remove if nothing is in fact running (#470).
+
 ## [2.55.36] — 2026-10-11
 
 ### Fixed

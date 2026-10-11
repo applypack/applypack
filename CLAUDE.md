@@ -148,7 +148,12 @@
   `postgres.ts` runs the built-in Postgres 16 through `pg_ctl` (own session,
   UTF-8 + `C.UTF-8`, UTC, loopback, no socket); `launcher.ts` takes the data
   folder's lock, starts the database, then the worker, then the dashboard,
-  and stops them in reverse. The launcher never imports `config.ts` or
+  and stops them in reverse. Who a pid file names is asked of the system
+  (`postgres.ts:commandLineOf`: PowerShell on Windows, `ps` elsewhere) and
+  has three answers — a command line, no such process, `NO_ANSWER` when it
+  said nothing in time; the last is never read as the second
+  (`supervise.ts:lockHolder`, `postgres-setup.ts:leftoverAction`, #470).
+  The launcher never imports `config.ts` or
   `db.ts` — the URL does not exist until it has started the database. The
   worker and the dashboard only call `child.ts` (`announceReady`,
   `onLauncherStop`, `underLauncher`), a no-op without a launcher; the

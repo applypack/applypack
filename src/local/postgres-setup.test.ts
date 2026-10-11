@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  NO_ANSWER,
   CONF_LINES,
   binaries,
   initdbArgs,
@@ -72,6 +73,10 @@ test('a leftover server is stopped only when that PID really serves this folder'
   // After a reboot the number can belong to anything — a host Postgres included.
   assert.equal(leftoverAction(87795, '/opt/homebrew/bin/postgres -D /opt/homebrew/var/postgresql@16', pgdata), 'remove');
   assert.equal(leftoverAction(87795, null, pgdata), 'remove');
+  // No answer in time about a process that is there: the file may be a live server's, and is not removed.
+  assert.equal(leftoverAction(87795, NO_ANSWER, pgdata, true), 'unsure');
+  assert.equal(leftoverAction(87795, NO_ANSWER, pgdata, false), 'remove');
+  assert.equal(leftoverAction(null, NO_ANSWER, pgdata, true), 'remove');
   assert.equal(
     leftoverAction(4242, '"C:\\Apps\\native\\bin\\postgres.exe" -D "C:\\Users\\Jane\\AppData\\Roaming\\ApplyPack\\postgres"', 'C:\\Users\\Jane\\AppData\\Roaming\\ApplyPack\\postgres'),
     'stop',
