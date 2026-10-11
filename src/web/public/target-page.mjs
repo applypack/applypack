@@ -23,6 +23,7 @@ import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, invers
 import { applyAll, applyAllSummary, addKeywords } from './apply-all.mjs';
 import { mountDocPane, fileNameFrom } from './doc-pane.mjs';
 import { t } from './i18n.mjs';
+import { isTitleKeyword } from './title-keyword.mjs';
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
@@ -64,20 +65,17 @@ export function keywordGaps(rows) {
   return rows.filter((r) => r.weight > 0 && !r.found);
 }
 
-/** Letters and digits only, in one case: "Sr. Software Engineer II" is "sr software engineer ii". */
-const wordsOf = (s) => String(s ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-
 /**
  * The gaps a skills line can take: every one but the posting's own title. The
  * brief carries the title as a must-level keyword so the title line can take
  * it (ADR 0044) — it stays a gap, a chip and a part of the score, and its own
  * card offers it where it belongs. On a skills line it is nonsense: measured
  * over 17 comparisons, three of the seven `add` keywords were the title
- * ("Frameworks/Libraries: …, Senior Software Engineer, Backend").
+ * ("Frameworks/Libraries: …, Senior Software Engineer, Backend"). What counts
+ * as the title, the model's shortening of it included, is title-keyword.mjs.
  */
 export function skillGaps(gaps, jobTitle) {
-  const title = wordsOf(jobTitle);
-  return title === '' ? gaps : gaps.filter((r) => wordsOf(r.term) !== title);
+  return gaps.filter((r) => !isTitleKeyword(r, jobTitle));
 }
 
 /** Why an edit did not happen — every error the text operations can return, as the key that words it. */

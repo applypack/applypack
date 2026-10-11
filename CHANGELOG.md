@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.35] — 2026-10-11
+
+### Fixed
+- **A posting's title, shortened, is no longer offered as a skill.** The
+  title is kept off your skills lines, but only when the keyword spelled it
+  in full. When the analysis shortened it — "Product Lead" for "Product Lead
+  (Strategy + Full Stack)", "Backend PHP Developer" for "Backend PHP
+  Developer – AWS / Serverless" — it stood first under **Add missing
+  keywords to your skills**, went in with **Apply all**, and an application
+  pack prepared on its own would write it onto a skills line with nobody
+  reading. The shortened title is recognised now, on the Tailor page and in
+  packs alike. It still counts in the score and is still offered for the
+  title line, where it belongs (#347).
+
 ## [2.55.34] — 2026-10-11
 
 ### Fixed
