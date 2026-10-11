@@ -890,8 +890,9 @@ model ApplicationPack {
   job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
   // queued | running | ready | stopped | failed (src/pack/store.ts)
   status          String    @default("queued")
-  // auto (the tick queued it) | manual (the person asked). Only auto counts
-  // toward the daily limit.
+  // Who asked for the preparing this row holds: auto (the tick queued it) |
+  // manual (the person asked — also for a pack the tick queued, once they
+  // start it over). Only auto counts toward the daily limit.
   trigger         String
   // The step a running pack is on (src/pack/gate.ts:PREPARE_STEPS) — what
   // the page says while it waits.

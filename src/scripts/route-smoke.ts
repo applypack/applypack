@@ -35,6 +35,7 @@ import { draftRubric } from '../screening/rubric';
 import { fingerprintText } from '../screening/intake';
 import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
+import { autoPacksToday, listUnnotifiedPacks } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
 import { getRun } from '../web/target-runs';
 import { parseFlashCookie } from '../web/flash';
@@ -733,6 +734,7 @@ async function main(): Promise<void> {
 
   rows.push(...(await importChecks()));
   rows.push(...(await folderChecks()));
+  rows.push(await packAgainCheck(f.jobId));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -797,6 +799,33 @@ const IMPORT_CSV = [
 const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job link', location: 'Where', description: 'About the role' };
 
 type Check = { route: string; url: string; status: number; ok: boolean };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * #382: "Prepare again" pressed on a pack the tick queued. The new preparing
+ * is the person's: it takes no slot of the day's limit, and once it has
+ * finished no message is owed for it. The pack is left queued, as it was.
+ */
+async function packAgainCheck(jobId: number): Promise<Check> {
+  const url = `/jobs/${jobId}/pack`;
+  const yesterday = new Date(Date.now() - DAY_MS);
+  // As the worker leaves a pack it queued on its own: finished, and carried by a message.
+  await prisma.applicationPack.update({ where: { jobId }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
+  const res = await app.request(url, form({}));
+  // Only the trigger is asked: under `npm start` the worker may have taken the pack already.
+  const again = await prisma.applicationPack.findUnique({ where: { jobId }, select: { trigger: true } });
+  const counted = await autoPacksToday(new Date());
+  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'stopped' } });
+  const owed = (await listUnnotifiedPacks()).length;
+  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'queued' } });
+  return {
+    route: "POST /jobs/:id/pack on a pack the tick queued (the person's now: no slot of today's limit, no message)",
+    url,
+    status: res.status,
+    ok: res.status === 303 && again?.trigger === 'manual' && counted === 0 && owed === 0,
+  };
+}
 
 /**
  * ADR 0062: a file of rows through its preview and its import, with fetching

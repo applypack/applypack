@@ -998,6 +998,9 @@ is asked only where a new match is inserted (`process-jobs.ts` →
 `pack/trigger.ts`), so jobs already stored are never walked and a
 re-classify queues nothing. Any job can be prepared by hand on its
 **Application pack** tab (`POST /jobs/:id/pack`), whatever the settings say.
+A pack prepared again there is the person's from then on, whoever queued the
+first one: it takes no slot of the day's number, no message announces it, and
+switching packs off or dismissing the job does not take it out of the queue.
 
 The dashboard only queues a row in `application_pack` (one per posting:
 queued → running → ready | stopped | failed). The worker's `pack` beat
