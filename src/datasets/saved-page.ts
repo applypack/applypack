@@ -45,6 +45,13 @@ export interface SavedPage {
    * are found by it (posting-file.ts:identifyPosting).
    */
   earlierKey: string;
+  /**
+   * How versions up to 2.55.38 read this page, when they read it differently:
+   * the text with the application form and the navigation its container
+   * holds, and the key above over that text. A job such a version keyed by
+   * its text is found by these. Null when nothing was left out.
+   */
+  former: { text: string; earlierKey: string } | null;
 }
 
 /** As `jobs/manual-job.ts:MAX_POSTING_CHARS`: the most a posting may run to. */
@@ -58,6 +65,16 @@ const MAX_BLOCKS = 8;
 const MAX_BLOCK_CHARS = 200_000;
 /** The tags that name the page's address sit in its head; a 2 MB body is not searched for them. */
 const HEAD_CHARS = 300_000;
+/**
+ * A form with this many fields to fill in is an application: a name, an
+ * address to write to, a file. A search box has one, and a site whose every
+ * page is one form — the posting inside it — has none.
+ */
+const APPLICATION_FIELDS = 3;
+/** What a form is filled in through. */
+const FIELD_RE = /<(?:select|textarea)(?=[\s>/])|<input(?=[\s>/])[^>]*>/gi;
+/** An `<input>` nobody types into or chooses. */
+const NOT_A_FIELD_RE = /\stype\s*=\s*["']?(?:hidden|submit|button|reset|image)\b/i;
 /** How deep a block's nesting is walked to find the posting (an array, a `@graph`, a page wrapping it). */
 const MAX_DEPTH = 4;
 /** How many postings of a page are told apart: a page with more is a list whatever else it is. */
@@ -268,18 +285,98 @@ function closes(lower: string, name: string): number {
   return -1;
 }
 
-/** The page's main text: its `<main>`, else its `<article>`, else the whole page — navigation and footers are not the posting. */
-function mainText(html: string): string {
+/**
+ * The markup without the elements of this name that `drop` names — each from
+ * its opening tag to the next closing one, forward and in one pass. The name
+ * is a whole tag's (`<nav>`, not `<nav-bar>`), and an element nobody closed
+ * stays, as does everything after it.
+ */
+function withoutElements(markup: string, name: string, drop: (element: string) => boolean = () => true): string {
+  const opener = new RegExp(`<${name}(?=[\\s>/])`, 'gi');
+  const closer = new RegExp(`</${name}\\s*>`, 'gi');
+  let out = '';
+  let from = 0;
+  let at = 0;
+  for (;;) {
+    opener.lastIndex = at;
+    const start = opener.exec(markup);
+    if (!start) break;
+    closer.lastIndex = start.index;
+    const end = closer.exec(markup);
+    if (!end) break;
+    at = end.index + end[0].length;
+    if (!drop(markup.slice(start.index, at))) continue;
+    out += `${markup.slice(from, start.index)} `;
+    from = at;
+  }
+  return out + markup.slice(from);
+}
+
+/** The markup without its comments; one nobody closed stays. */
+function withoutComments(markup: string): string {
+  let out = '';
+  let from = 0;
+  for (;;) {
+    const start = markup.indexOf('<!--', from);
+    const end = start === -1 ? -1 : markup.indexOf('-->', start + 4);
+    if (end === -1) break;
+    out += `${markup.slice(from, start)} `;
+    from = end + 3;
+  }
+  return out + markup.slice(from);
+}
+
+function isApplicationForm(form: string): boolean {
+  let fields = 0;
+  for (const control of form.matchAll(FIELD_RE)) {
+    if (!NOT_A_FIELD_RE.test(control[0])) fields++;
+    if (fields >= APPLICATION_FIELDS) return true;
+  }
+  return false;
+}
+
+/**
+ * A container's text without what stands in it and is not the posting: the
+ * application form and the navigation (#361 — a board that puts both in its
+ * `<main>` had its questions, "Select…" and "Submit application" stored as the
+ * end of the description, and read by every model after). Scripts and
+ * comments go first, so a `<form` one of them spells opens nothing. When what
+ * is left would be too short to be a posting — the page of the form alone —
+ * the text stays whole.
+ */
+function postingOnly(markup: string, whole: string): string {
+  const plain = withoutElements(withoutElements(withoutComments(markup), 'script'), 'style');
+  const bare = withoutElements(withoutElements(plain, 'form', isApplicationForm), 'nav');
+  if (bare.length === plain.length) return whole;
+  const text = stripHtml(bare);
+  return text.length >= MIN_BLOCK_TEXT_CHARS ? text : whole;
+}
+
+interface MainText {
+  /** The posting's container as text, without the application form and the navigation in it. */
+  text: string;
+  /** The same with them: what versions up to 2.55.38 read. */
+  whole: string;
+}
+
+/**
+ * The page's main text: its `<main>`, else its `<article>`, else the whole
+ * page, read as it stands — with no container to say where the posting is, a
+ * form may be all of it.
+ */
+function mainText(html: string): MainText {
   const lower = html.toLowerCase();
   for (const name of ['main', 'article']) {
     const open = opens(lower, name);
     const close = open === -1 ? -1 : closes(lower, name);
     if (close > open) {
-      const text = stripHtml(html.slice(open, close));
-      if (text.length >= MIN_BLOCK_TEXT_CHARS) return text;
+      const markup = html.slice(open, close);
+      const whole = stripHtml(markup);
+      if (whole.length >= MIN_BLOCK_TEXT_CHARS) return { text: postingOnly(markup, whole), whole };
     }
   }
-  return stripHtml(html);
+  const whole = stripHtml(html);
+  return { text: whole, whole };
 }
 
 /** `savedFrom`: the address the file's wrapper gives for the page (mhtml.ts), read as the browser's own note is. */
@@ -289,10 +386,14 @@ export function readSavedPage(html: string, now: Date = new Date(), savedFrom: s
   for (const block of structuredBlocks(html)) collectPostings(parseBlock(block), postings);
   const from = headAddresses(head, savedFrom);
   const posting = ownPosting(postings, [from.savedFrom, from.canonical, from.og]);
-  // The posting as text: its block's description when that is long enough, else the page's main text.
-  const textOf = (block: Record<string, unknown> | null): string => {
+  let main: MainText | undefined;
+  const mainOf = (): MainText => (main ??= mainText(html));
+  // The posting as text: its block's description when that is long enough, else the page's main text —
+  // `whole`: with the form and the navigation its container holds, as versions up to 2.55.38 read it.
+  const textOf = (block: Record<string, unknown> | null, whole = false): string => {
     const blockText = block && typeof block.description === 'string' ? stripHtml(storableText(block.description)) : '';
-    return clipText(storableText(blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : mainText(html)).trim(), MAX_POSTING_TEXT_CHARS).trim();
+    const body = blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : whole ? mainOf().whole : mainOf().text;
+    return clipText(storableText(body).trim(), MAX_POSTING_TEXT_CHARS).trim();
   };
   const text = textOf(posting);
   const titleTag = /<title\b[^<>]*>([^<]{1,1000})<\/title\s*>/i.exec(head)?.[1];
@@ -300,6 +401,9 @@ export function readSavedPage(html: string, now: Date = new Date(), savedFrom: s
   // As versions up to 2.55.11 read it: the first posting on the page, whichever the page was about.
   const first = postings[0] ?? null;
   const earlier = pageAddress(from, first?.url);
+  const earlierKeyOf = (whole: boolean): string => (earlier.own && earlier.address !== null ? earlier.address : first === posting ? textOf(posting, whole) : textOf(first, whole));
+  const earlierKey = earlierKeyOf(false);
+  const former = { text: textOf(posting, true), earlierKey: earlierKeyOf(true) };
   return {
     text,
     address,
@@ -307,6 +411,7 @@ export function readSavedPage(html: string, now: Date = new Date(), savedFrom: s
     addressIsOwn: own && (posting !== null || postings.length === 0),
     facts: posting ? readFacts(posting, now) : null,
     pageTitle: titleTag === undefined ? null : field(titleTag),
-    earlierKey: earlier.own && earlier.address !== null ? earlier.address : first === posting ? text : textOf(first),
+    earlierKey,
+    former: former.text === text && former.earlierKey === earlierKey ? null : former,
   };
 }

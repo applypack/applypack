@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { readSavedPage } from './saved-page';
 
 const NOW = new Date(Date.UTC(2026, 9, 6, 12));
@@ -208,6 +210,80 @@ describe('readSavedPage: what an earlier version keyed the job by', () => {
   });
 });
 
+describe('readSavedPage: what stands in the posting’s container and is not the posting (#361)', () => {
+  const FIELDS = '<label>First name</label><input name="first"><label>Email</label><input type="email" name="email"><label>Resume</label><input type="file" name="cv">';
+  const APPLY = `<form id="application-form" action="/apply"><h2>Apply for this job</h2>${FIELDS}<select name="q"><option>Select...</option></select><button type="submit">Submit application</button></form>`;
+  const main = (inside: string): string => page({ body: `<main>${inside}</main>` });
+
+  it('leaves the application form and the breadcrumbs out of a page saved from a board', () => {
+    const got = readSavedPage(readFileSync(join(__dirname, 'fixtures', 'saved-page-form.html'), 'utf8'), NOW);
+    assert.equal(got.facts, null);
+    assert.match(got.text, /^Senior Backend Engineer\n\nFennel Works · Lisbon or remote within the EU\n\nAbout the role\n/);
+    assert.match(got.text, /a team that reviews every change within a day\.$/);
+    assert.doesNotMatch(got.text, /Apply for this job|required field|First Name|Select\.\.\.|Self-Identification|Submit application|All jobs|applyForm/);
+    // What a version before read, and keyed the job by: the same page with all of it.
+    assert.match(got.former?.text ?? '', /^Home All jobs Engineering\nSenior Backend Engineer\n[\s\S]*Select\.\.\.[\s\S]*Submit application$/);
+    assert.equal(got.former?.earlierKey, got.former?.text);
+    assert.equal(got.earlierKey, got.text);
+  });
+
+  it('reads an <article> the same way', () => {
+    const got = readSavedPage(page({ body: `<article><p>${BODY}</p>${APPLY}</article>` }), NOW);
+    assert.equal(got.text, BODY);
+  });
+
+  it('keeps a form that is not one to fill in: a search box, a site whose every page is a form', () => {
+    const search = `<form action="/search"><input type="search" name="q"><input type="submit" value="Search jobs"></form>`;
+    assert.equal(readSavedPage(main(`${search}<p>${BODY}</p>`), NOW).former, null);
+    const wrapped = main(`<form id="aspnetForm" action="./Job.aspx"><input type="hidden" name="__VIEWSTATE" value="x"><input type="hidden" name="__EVENT" value="y"><input type="hidden" name="z"><p>${BODY}</p><input type="submit" value="Apply now"></form>`);
+    const got = readSavedPage(wrapped, NOW);
+    assert.equal(got.text, BODY);
+    assert.equal(got.former, null);
+  });
+
+  it('keeps the text whole when the posting is inside the form with the fields, or the page is the form alone', () => {
+    const inside = readSavedPage(main(`<h1>Backend Engineer</h1><form action="/apply"><p>${BODY}</p>${FIELDS}</form>`), NOW);
+    assert.match(inside.text, /Own the billing service end to end\./);
+    assert.equal(inside.former, null);
+    // The apply page of a board that keeps the posting on another: a title and the form.
+    const alone = readSavedPage(main(`<h1>Backend Engineer</h1><p>Acme · Berlin</p>${APPLY}${APPLY.replace('application-form', 'second')}`), NOW);
+    assert.match(alone.text, /Submit application/);
+    assert.equal(alone.former, null);
+  });
+
+  it('reads a page with no container as it stands, forms and all', () => {
+    const got = readSavedPage(page({ body: `<div><p>${BODY}</p>${APPLY}</div>` }), NOW);
+    assert.match(got.text, /Submit application/);
+    assert.equal(got.former, null);
+  });
+
+  it('takes no form or navigation a script, a comment or a longer tag name spells', () => {
+    const spelled = main(`<script>var draft = '<form><input><input><input>';</script><!-- <nav> --><p>${BODY}</p><nav-bar>Second line.</nav-bar><form-row>Third line.</form-row>${APPLY}`);
+    const got = readSavedPage(spelled, NOW);
+    assert.match(got.text, /^Own the billing service end to end\./);
+    assert.match(got.text, /Second line\. Third line\.$/);
+    assert.doesNotMatch(got.text, /Submit application|draft/);
+  });
+
+  it('leaves a form nobody closed where it is', () => {
+    const got = readSavedPage(main(`<p>${BODY}</p><form action="/apply">${FIELDS}<p>Last words of the page.</p>`), NOW);
+    assert.match(got.text, /Last words of the page\.$/);
+    assert.equal(got.former, null);
+  });
+
+  it('says nothing of a former reading when the text comes from the posting block', () => {
+    const got = readSavedPage(page({ head: block({ '@type': 'JobPosting', title: 'Backend Engineer', description: BODY }), body: `<main><p>Other words. ${BODY}</p>${APPLY}</main>` }), NOW);
+    assert.equal(got.text, BODY);
+    assert.equal(got.former, null);
+  });
+
+  it('reads the page with its form as the former text when the block is a teaser', () => {
+    const got = readSavedPage(page({ head: block({ '@type': 'JobPosting', title: 'Backend Engineer', description: 'A teaser.' }), body: `<main><p>${BODY}</p>${APPLY}</main>` }), NOW);
+    assert.equal(got.text, BODY);
+    assert.match(got.former?.text ?? '', /Submit application$/);
+  });
+});
+
 describe('readSavedPage on what a page should not be able to do', () => {
   it('never keeps markup, a script or a NUL in the text', () => {
     const got = readSavedPage(page({ body: `<main><script>steal()</script><style>p{}</style><p>${BODY}\u0000</p><img src=x onerror=alert(1)></main>` }), NOW);
@@ -220,6 +296,10 @@ describe('readSavedPage on what a page should not be able to do', () => {
       '<link'.repeat(60_000),
       '<meta'.repeat(60_000),
       `<title${'<title'.repeat(50_000)}`,
+      `<main><p>${BODY}</p>${'<form><input><input><input>'.repeat(20_000)}</main>`,
+      `<main><p>${BODY}</p>${'<nav>'.repeat(60_000)}</nav></main>`,
+      `<main><p>${BODY}</p>${'<!--'.repeat(60_000)}<form></form></main>`,
+      `<main><p>${BODY}</p>${'<form><input><input><input></form>'.repeat(20_000)}</main>`,
     ]) {
       const started = performance.now();
       readSavedPage(hostile, NOW);

@@ -782,7 +782,8 @@ Check guesses which kind a folder holds and lets the user switch it.
 
 - Code reads what it can first: a page's `JobPosting` block (title,
   company, place, date, description), its own address (canonical link,
-  `og:url`, the browser's "saved from url" note), its main text. A model
+  `og:url`, the browser's "saved from url" note), its main text without the
+  application form and the navigation a board puts beside the posting. A model
   reads the title and the company only when the page does not state them —
   one small call, none while fetching is paused (the file waits).
 - Each file becomes one job of the folder, taken as a paste: no search's

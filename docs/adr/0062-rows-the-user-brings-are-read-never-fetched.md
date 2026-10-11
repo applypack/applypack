@@ -504,3 +504,34 @@ skipped or misread, with nothing said:
 
 What is shown to the model, and a page that is no posting at all, need a
 real engine to judge and are #451.
+
+*Amended 2026-10-11 (v2.55.39, #361).* **A page's `<main>` is not all
+posting.** A board that puts the application form in the same `<main>` as
+the posting, and carries no `JobPosting` block, had the form stored as the
+end of the description — on two real pages 3,705 and 2,584 characters of
+8,211 and 10,496: every question, each "Select…", "Submit application" —
+and read by the classifier and every comparison after. Inside the page's
+`<main>` or `<article>` two things are now left out
+(`saved-page.ts:postingOnly`):
+
+- an **application form**: a `<form>` with three or more fields to fill in
+  (`APPLICATION_FIELDS`; a hidden input and a button are not fields). A
+  search box has one, and a site whose every page is one form, the posting
+  inside it, has none;
+- **navigation**: a `<nav>`.
+
+When what is left would be too short to be a posting (under 200
+characters: the page of the form alone, or a posting written inside the
+form with its fields) the text stays whole. A page with no `<main>` and
+no `<article>` is read as it stands: with no container to say where the
+posting is, a form may be all of it. `<aside>` and `<footer>` stay — a
+page may state the place and the pay there — and nothing is cut by its
+words ("Apply for this job" is also the button at the head of a page), so
+a heading the board writes outside its form is still there.
+
+A page with neither a block nor an address of its own is keyed by its
+text, so this re-keys it. `identifyPosting` asks one more question before
+the last: the id over the text as it was read before, form and all
+(`SavedPage.former`), under both earlier rules. A page saved again is the
+job it was, and no model is asked. Stored rows are never rewritten: a job
+read before keeps the text it has.

@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.39] — 2026-10-11
+
+### Fixed
+- **A saved posting no longer carries the application form in its text.**
+  A job board that puts the form on the same page as the posting had its
+  questions, every "Select…" and "Submit application" stored as the end of
+  the description — a quarter and nearly half of the text on two real pages —
+  and read by the scoring and by every comparison. A form to fill in and
+  the page's navigation are now left out of a saved page's text. A site
+  whose whole page is one form, and a page of the form alone, are read as
+  before; so is a page that states its posting in a `JobPosting` block.
+  Postings saved before keep the text they have, and a page saved again is
+  still the job it was (#361).
+
 ## [2.55.38] — 2026-10-11
 
 ### Fixed
