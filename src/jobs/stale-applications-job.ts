@@ -1,4 +1,5 @@
 import { prisma } from '../db';
+import { companyForMessage } from '../employer';
 import { logger } from '../logger';
 import { sendDigest } from '../notifier';
 import { t } from '../i18n/t';
@@ -39,7 +40,7 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
       recruiterContact: null,
     },
     include: {
-      company: { select: { name: true } },
+      company: { select: { name: true, atsType: true } },
       appliedResume: { select: { name: true } },
     },
     orderBy: { appliedAt: 'asc' },
@@ -47,7 +48,7 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
 
   const items: StaleApplicationItem[] = rows.map((j) => ({
     title: j.title,
-    companyName: j.employer ?? j.company.name,
+    companyName: companyForMessage(j.employer, j.company),
     url: j.url,
     appliedAt: j.appliedAt as Date,
     daysSince: daysSince(j.appliedAt as Date),

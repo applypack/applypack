@@ -1,5 +1,6 @@
 import type { ApplicationPack, Prisma } from '@prisma/client';
 import { isUniqueViolation, prisma } from '../db';
+import { companyForMessage, companyForPrompt } from '../employer';
 import { preselectResume } from '../resume/pick';
 import type { PrepareStep } from './gate';
 import type { PackPosting, PackResume } from './prepare';
@@ -202,8 +203,8 @@ export async function loadPackInputs(jobId: number, primaryResumeId: number | nu
     posting: {
       id: job.id,
       title: job.title,
-      // Who hires, not who lists (ADR 0056).
-      companyName: job.employer ?? job.company.name,
+      // Who hires, not who lists (ADR 0056) — and nobody, when the row named none.
+      companyName: companyForPrompt(job.employer, job.company),
       location: job.location,
       description: job.description,
       url: job.url,
@@ -230,7 +231,7 @@ export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
       scoreBefore: true,
       scoreAfter: true,
       verificationId: true,
-      job: { select: { title: true, employer: true, company: { select: { name: true } } } },
+      job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } },
     },
   });
   const verdicts = await prisma.jobVerification.findMany({
@@ -243,7 +244,7 @@ export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
     return {
       id: r.id,
       title: r.job.title,
-      company: r.job.employer ?? r.job.company.name,
+      company: companyForMessage(r.job.employer, r.job.company),
       status: r.status,
       stop: r.stop,
       scoreBefore: r.scoreBefore,
@@ -273,12 +274,12 @@ export async function listReadyPacks(take: number): Promise<ReadyPack[]> {
     where: { status: 'ready', sentAt: null, job: { status: { in: ['NEW', 'ALERTED', 'SAVED'] } } },
     orderBy: { finishedAt: 'desc' },
     take,
-    select: { jobId: true, scoreBefore: true, scoreAfter: true, finishedAt: true, job: { select: { title: true, employer: true, company: { select: { name: true } } } } },
+    select: { jobId: true, scoreBefore: true, scoreAfter: true, finishedAt: true, job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
   });
   return rows.map((r) => ({
     jobId: r.jobId,
     title: r.job.title,
-    company: r.job.employer ?? r.job.company.name,
+    company: companyForMessage(r.job.employer, r.job.company),
     scoreBefore: r.scoreBefore,
     scoreAfter: r.scoreAfter,
     finishedAt: r.finishedAt,

@@ -2,6 +2,7 @@ import type { AtsType, Job, JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { classifyJob } from '../classifier';
+import { companyForPrompt } from '../employer';
 import { listActiveProfiles } from '../profiles';
 import { isBlankProfile } from '../profile-guards';
 import { getSettings } from '../settings';
@@ -53,7 +54,7 @@ export async function classifyExistingJob(
   const outcome = await classifyJob(
     {
       title: job.title,
-      companyName: job.employer ?? job.company.name,
+      companyName: companyForPrompt(job.employer, job.company),
       location: job.location,
       place: { workplace: job.workplace, countries: job.countries, regions: job.regions },
       description: job.description,

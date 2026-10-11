@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { companyForPrompt } from '../../employer';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { hashShortId } from '../../text-utils';
@@ -152,9 +153,9 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     if (existingJob) {
       const row = await prisma.job.findUniqueOrThrow({
         where: { id: existingJob.id },
-        include: { company: { select: { name: true } } },
+        include: { company: { select: { name: true, atsType: true } } },
       });
-      job = { id: row.id, title: row.title, companyName: row.employer ?? row.company.name, location: row.location, description: row.description, url: row.url, postedAt: row.postedAt };
+      job = { id: row.id, title: row.title, companyName: companyForPrompt(row.employer, row.company), location: row.location, description: row.description, url: row.url, postedAt: row.postedAt };
     } else {
       let location = '';
       let salaryMin: number | undefined;

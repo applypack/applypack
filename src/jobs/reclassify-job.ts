@@ -16,7 +16,7 @@ import { mergeAiLocation } from './location-merge';
 import { handPickedSource, statusAfterRescore } from './rescore-status';
 import { rankByProfileFit, SCORE_BATCH, type ScorableJob } from './score-pick';
 import type { CronStats } from './cron-run';
-import { withoutMuted } from '../employer';
+import { companyForPrompt, withoutMuted } from '../employer';
 import { mutedKeys } from './employer-store';
 
 export { SCORE_BATCH };
@@ -181,7 +181,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
               classifyJob(
                 {
                   title: j.title,
-                  companyName: j.employer ?? j.company.name,
+                  companyName: companyForPrompt(j.employer, j.company),
                   location: j.location,
                   place: { workplace: j.workplace, countries: j.countries, regions: j.regions },
                   description: j.description,

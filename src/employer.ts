@@ -6,6 +6,7 @@
  * one decision the tick asks of them. Pure — tested in employer.test.ts.
  */
 
+import { t } from './i18n/t';
 import { bringsRows, sourceFamily } from './web/source-groups';
 
 /** Longer than any company name a feed sends; a longer field is not a name. */
@@ -91,6 +92,34 @@ export function sourceIsEmployer(atsType: string): boolean {
 /** Who hires, as a page names them: the aggregator's employer, else the source when it is the employer; null when nobody said. */
 export function hiringName(employer: string | null, source: { name: string; atsType: string }): string | null {
   return employer ?? (sourceIsEmployer(source.atsType) ? source.name : null);
+}
+
+/** What a prompt is told when nobody named who hires. English, as every prompt is (ADR 0061). */
+export const COMPANY_NOT_NAMED = 'not named in the posting';
+
+/**
+ * Who hires, as a prompt states it. A row from an aggregator, an imported
+ * file or a folder that names no company has none to state: the source's own
+ * name there would tell the model that "Saved postings" is an employer, and
+ * a letter would be addressed to it.
+ */
+export function companyForPrompt(employer: string | null | undefined, source: { name: string; atsType: string }): string {
+  return hiringName(employer ?? null, source) ?? COMPANY_NOT_NAMED;
+}
+
+/** The same for a message a person reads, in the language of the run: "company not named". */
+export function companyForMessage(employer: string | null | undefined, source: { name: string; atsType: string }): string {
+  return hiringName(employer ?? null, source) ?? t('notify.companyNotNamed');
+}
+
+/**
+ * Who hires a row as its fetcher handed it over, before it is stored: an
+ * aggregator's mapper sets `employer` — a name, or null when the feed did
+ * not say — and a source that is the employer leaves it out (types.ts).
+ * Null when nobody said; `hiringKey` reads the same sign.
+ */
+export function fetchedHiringName(employer: string | null | undefined, sourceName: string): string | null {
+  return employer === undefined ? sourceName : employer;
 }
 
 /**

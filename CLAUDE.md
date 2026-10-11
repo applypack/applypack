@@ -65,8 +65,12 @@
   source that is the employer — and `employerGate` is the tick's mute /
   re-apply decision. `Job.employerKey` is written at every insert;
   `jobs/employer-store.ts` is the only file that touches `company_mute`, and
-  its `fillEmployerKeys` is the one-time fill `init.ts` runs. A page or a
-  prompt that names a posting's company reads `employer ?? company.name`.
+  its `fillEmployerKeys` is the one-time fill `init.ts` runs. A page that
+  names a posting's company reads `employer ?? company.name`; a prompt and a
+  message read `companyForPrompt` / `companyForMessage` (a stored row) or
+  `fetchedHiringName` (the tick), which say "not named" for a row from an
+  aggregator, an import or a folder that names no company — never the
+  source's own name.
 - `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
   row, and the company name is deliberately not an input (ADR 0023).
   `withApplyLinkFlags` is called at every site that persists `redFlags`.

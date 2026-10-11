@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.21] — 2026-10-11
+
+### Fixed
+- **A folder or a feed is no longer named as the company.** When an imported
+  row, a saved posting or an aggregator's posting named no company, ApplyPack
+  took the source's own name for it: the classifier's prompt read
+  `Company: Saved postings`, the alert and the daily recap said "@ Export A",
+  the company check researched the folder's name on the web, and a cover
+  letter or an application pack was written to it. A posting that names no
+  company now has none: the model is told the posting does not name one, and
+  a message says "company not named". A posting that names its employer, and
+  a company's own board, read as before. Pages still show the source in the
+  company column (#401).
+
 ## [2.55.20] — 2026-10-11
 
 ### Fixed
@@ -5324,6 +5338,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.21]: https://github.com/applypack/applypack/compare/v2.55.20...v2.55.21
 [2.55.20]: https://github.com/applypack/applypack/compare/v2.55.19...v2.55.20
 [2.55.19]: https://github.com/applypack/applypack/compare/v2.55.18...v2.55.19
 [2.55.18]: https://github.com/applypack/applypack/compare/v2.55.17...v2.55.18
