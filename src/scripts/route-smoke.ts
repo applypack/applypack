@@ -26,7 +26,7 @@ import { createManualJob } from '../jobs/manual-job';
 import { createMatch, createResume } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
-import { getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
+import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
 import { blankProfileInput, listActiveProfiles } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
@@ -566,6 +566,26 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 200,
     },
     {
+      // #383: a value the form does not offer was stored as the default and reported as saved. It stores nothing now —
+      // not the other fields, not the unticked switch — and the flash names the field for the page to mark.
+      name: 'POST /settings/pack with a fit the form does not offer (refused, the field named, nothing stored)',
+      init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'minFit=40&dailyLimit=3&maxAgeDays=14&coverLetter=asked&maxBullets=1' },
+      expect: async (res) => {
+        const flash = parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]);
+        const stored = await getPackSettings();
+        return (
+          res.status === 303 &&
+          res.headers.get('location') === '/settings?tab=automation#packs' &&
+          flash?.kind === 'err' &&
+          flash.field?.form === '/settings/pack' &&
+          flash.field.name === 'minFit' &&
+          stored.enabled &&
+          stored.minFit === 92 &&
+          stored.dailyLimit === 0
+        );
+      },
+    },
+    {
       // The dashboard only queues; the worker prepares. With no worker here the row stays queued.
       name: 'POST /jobs/:id/pack (queued for the worker)',
       init: form({}),
@@ -639,6 +659,7 @@ async function main(): Promise<void> {
     '/settings/locale',
     '/settings/pack',
     '/settings?tab=automation',
+    '/settings/pack',
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}?tab=pack`,

@@ -3034,6 +3034,7 @@
   "settingsRoute.pack.onNoLimit": "Dossiers de candidature activés : une nouvelle offre d'adéquation {fit} ou plus, publiée il y a {days, plural, one {# jour} many {# de jours} other {# jours}} au plus, en reçoit un — sans limite quotidienne. Les offres déjà enregistrées ne sont pas concernées.",
   "settingsRoute.pack.off": "Dossiers de candidature désactivés : aucun n'est préparé automatiquement. Une offre peut toujours être préparée depuis son onglet Dossier de candidature.",
   "settingsRoute.pack.offCancelled": "Dossiers de candidature désactivés : aucun n'est préparé automatiquement, et {n, plural, one {# dossier en attente a été annulé} many {# de dossiers en attente ont été annulés} other {# dossiers en attente ont été annulés}}. Une offre peut toujours être préparée depuis son onglet Dossier de candidature.",
+  "settingsRoute.pack.notSaved": "Paramètres des dossiers de candidature non enregistrés ({issue}). Rien n'a changé, y compris l'activation des dossiers ; corrigez ce champ et enregistrez à nouveau.",
   "settings.destination.noWebhook": "(aucun webhook)",
   "settings.destination.telegram": "{token} · chat {chat}",
   "browser.applyAll.change": "{n, plural, one {{n} modification} many {{n} de modifications} other {{n} modifications}}",

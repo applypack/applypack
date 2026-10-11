@@ -3034,6 +3034,7 @@
   "settingsRoute.pack.onNoLimit": "Paquetes de solicitud activados: una oferta nueva con compatibilidad de {fit} o más, publicada en {days, plural, one {el último día} many {los últimos # de días} other {los últimos # días}}, recibe uno — sin límite diario. Las ofertas ya guardadas no se tocan.",
   "settingsRoute.pack.off": "Paquetes de solicitud desactivados: ninguno se prepara automáticamente. Una oferta concreta aún se puede preparar en su pestaña Paquete de solicitud.",
   "settingsRoute.pack.offCancelled": "Paquetes de solicitud desactivados: ninguno se prepara automáticamente, y {n, plural, one {se canceló # que esperaba en la cola} many {se cancelaron # de los que esperaban en la cola} other {se cancelaron # que esperaban en la cola}}. Una oferta concreta aún se puede preparar en su pestaña Paquete de solicitud.",
+  "settingsRoute.pack.notSaved": "Configuración de los paquetes de solicitud no guardada ({issue}). No ha cambiado nada, tampoco si los paquetes están activados; corrige ese campo y guarda de nuevo.",
   "settings.destination.noWebhook": "(sin webhook)",
   "settings.destination.telegram": "{token} · chat {chat}",
   "browser.applyAll.change": "{n, plural, one {{n} cambio} many {{n} de cambios} other {{n} cambios}}",

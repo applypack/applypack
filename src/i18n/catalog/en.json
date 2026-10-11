@@ -3034,6 +3034,7 @@
   "settingsRoute.pack.onNoLimit": "Application packs on: a new posting with fit {fit} or more, published in the last {days, plural, one {# day} other {# days}}, gets one — with no daily limit. Jobs already stored are not touched.",
   "settingsRoute.pack.off": "Application packs off: none is prepared on its own. A single job can still be prepared on its Application pack tab.",
   "settingsRoute.pack.offCancelled": "Application packs off: none is prepared on its own, and {n, plural, one {the # that waited in the queue was cancelled} other {the # that waited in the queue were cancelled}}. A single job can still be prepared on its Application pack tab.",
+  "settingsRoute.pack.notSaved": "Application pack settings not saved ({issue}). Nothing changed, including whether packs are on; fix that field and save again.",
   "settings.destination.noWebhook": "(no webhook)",
   "settings.destination.telegram": "{token} · chat {chat}",
   "browser.applyAll.change": "{n, plural, one {{n} change} other {{n} changes}}",
