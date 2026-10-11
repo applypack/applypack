@@ -341,6 +341,7 @@ src/
     folder-path.ts             ← pure: which folder a source may read (home on a local install, named roots elsewhere), a typed path made absolute
     folder-scan.ts             ← pure: planScan — read, wait, leave alone — the ceilings, the name filter, judgeFile → jobs + the ledger row
     folder-io.ts               ← the one module that touches a user's folder, and it only reads: listFolder, readFolderFile, realFolder
+    mhtml.ts                   ← pure: a page saved as one file (.mhtml, .mht) → its first text/html part as bytes, and where the browser says it came from
     saved-page.ts              ← pure: a saved web page → its text, its own address, its JobPosting block; never rendered, never followed
     posting-file.ts            ← pure: a saved posting's bytes → text by kind (pages, text, the resume module's PDF/.docx readers) → the job
 

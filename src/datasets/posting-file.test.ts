@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { buildLetterPdf } from '../resume/pdf-write';
 import { buildZip } from '../resume/zip-write';
 import { simhash64 } from '../fingerprint';
@@ -58,6 +60,23 @@ describe('readPostingFile', () => {
     // A text file names no encoding: Cyrillic is told by its letters coming in words.
     const note = ok(await readPostingFile('txt', cp1251(`Node.js розробник\n\n${body}`), NOW));
     assert.ok(note.text.startsWith('Node.js розробник') && !note.text.includes('\uFFFD'));
+  });
+
+  // #399: Chrome's "Webpage, Single File" and Safari's default were passed over as "other files", with nothing said.
+  it('reads a page saved as one file: its text and where it came from, and no title, since the browser kept no block', async () => {
+    const saved = readFileSync(join(__dirname, 'fixtures', 'saved-page.mhtml'));
+    const got = ok(await readPostingFile('mhtml', saved, NOW));
+    assert.match(got.text, /^Senior Backend Engineer\n+You will own the payments ledger, .* in Zürich and Київ\./);
+    assert.doesNotMatch(got.text, /All jobs|equal opportunity/);
+    assert.deepEqual([got.address, got.addressIsOwn, got.facts, got.pageTitle], ['http://127.0.0.1:4850/posting.html', true, null, 'Senior Backend Engineer at Fennel Works | Careers']);
+    assert.equal(needsModel(got), true);
+  });
+
+  it('says how to save a page it cannot read in the form it was saved', async () => {
+    assert.deepEqual(await readPostingFile('mhtml', bytes('not a saved page at all'), NOW), { ok: false, why: POSTING_NOTES.mhtml });
+    const archive = await readPostingFile('webarchive', Uint8Array.from([0x62, 0x70, 0x6c, 0x69, 0x73, 0x74, 0x30, 0x30]), NOW);
+    assert.deepEqual(archive, { ok: false, why: POSTING_NOTES.webarchive });
+    assert.match(POSTING_NOTES.webarchive, /Page Source, or use File → Export as PDF\.$/);
   });
 
   it('reads a PDF with a text layer and a .docx', async () => {

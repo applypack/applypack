@@ -98,8 +98,9 @@ interface HeadAddresses {
   og: string | null;
 }
 
-function headAddresses(head: string): HeadAddresses {
-  const savedFrom = /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
+/** `noted`: where the browser says the page came from when it says so outside the markup — the head of a single-file save. */
+function headAddresses(head: string, noted: string | null): HeadAddresses {
+  const savedFrom = noted ?? /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
   const canonical = tags(head, 'link').find((tag) => /(^|\s)canonical(\s|$)/i.test(attribute(tag, 'rel') ?? ''));
   const og = tags(head, 'meta').find((tag) => (attribute(tag, 'property') ?? attribute(tag, 'name'))?.toLowerCase() === 'og:url');
   return { savedFrom: link(savedFrom), canonical: link(canonical && attribute(canonical, 'href')), og: link(og && attribute(og, 'content')) };
@@ -137,10 +138,49 @@ function structuredBlocks(html: string): string[] {
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined || value === null ? [] : [value]);
+
+/**
+ * A block as JSON, or null. Blocks written by hand often break a string
+ * across lines, which JSON forbids: the page then read as one with no block
+ * at all, and a model was asked for a title the page states. Such a block is
+ * read again with the line breaks inside its strings written as JSON writes
+ * them; nothing else about it is guessed.
+ */
+function parseBlock(block: string): unknown {
+  try {
+    return JSON.parse(block);
+  } catch {
+    let mended = '';
+    let inString = false;
+    for (let i = 0; i < block.length; i++) {
+      const ch = block[i]!;
+      if (inString && ch === '\\') {
+        // An escape is two characters, whatever the second is.
+        mended += ch + (block[i + 1] ?? '');
+        i++;
+      } else if (ch === '"') {
+        inString = !inString;
+        mended += ch;
+      } else if (inString && ch === '\n') mended += '\\n';
+      else if (inString && ch === '\t') mended += '\\t';
+      // The CR of a CRLF goes with its LF.
+      else if (!(inString && ch === '\r')) mended += ch;
+    }
+    try {
+      return JSON.parse(mended);
+    } catch {
+      // A block that is not JSON is the page's mistake, and the page's own text still reads.
+      return null;
+    }
+  }
+}
+
+/** `JobPosting`, however the block spells the type: bare, as an IRI (`https://schema.org/JobPosting`) or prefixed (`schema:JobPosting`). */
+const POSTING_TYPE_RE = /(?:^|[/#:])JobPosting$/;
 
 function isPosting(node: Record<string, unknown>): boolean {
-  const type = node['@type'];
-  return type === 'JobPosting' || (Array.isArray(type) && type.includes('JobPosting'));
+  return asList(node['@type']).some((type) => typeof type === 'string' && POSTING_TYPE_RE.test(type));
 }
 
 /** Every `JobPosting` in a parsed block, in the block's order: the block itself, the items of a list, of a `@graph`, or one level inside a page. */
@@ -154,10 +194,14 @@ function collectPostings(node: unknown, out: Record<string, unknown>[], depth = 
   }
 }
 
-const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined || value === null ? [] : [value]);
-
-/** A name that may come as text or as `{ name }`. */
-const named = (value: unknown): string | null => field(isObject(value) ? value.name : value);
+/** A name that may come as text, as `{ name }`, or as a list of either: the first that says one. */
+function named(value: unknown): string | null {
+  for (const one of asList(value).slice(0, 5)) {
+    const name = field(isObject(one) ? one.name : one);
+    if (name !== null) return name;
+  }
+  return null;
+}
 
 /** One place of `jobLocation`: its address as text, or its parts joined. */
 function placeOf(value: unknown): string | null {
@@ -206,12 +250,30 @@ function ownPosting(postings: readonly Record<string, unknown>[], pageAddresses:
   return null;
 }
 
+/** Where a tag of exactly this name opens, or -1: `<main>` and `<main class=…>`, not `<mainnav>` or `<main-menu>`, whose text was taken for the posting (#399). */
+function opens(lower: string, name: string): number {
+  for (let at = lower.indexOf(`<${name}`); at !== -1; at = lower.indexOf(`<${name}`, at + 1)) {
+    const next = lower[at + name.length + 1];
+    if (next === undefined || next === '>' || next === '/' || /\s/.test(next)) return at;
+  }
+  return -1;
+}
+
+/** Where the last closing tag of exactly this name starts, or -1. */
+function closes(lower: string, name: string): number {
+  for (let at = lower.lastIndexOf(`</${name}`); at !== -1; at = at === 0 ? -1 : lower.lastIndexOf(`</${name}`, at - 1)) {
+    const next = lower[at + name.length + 2];
+    if (next === undefined || next === '>' || /\s/.test(next)) return at;
+  }
+  return -1;
+}
+
 /** The page's main text: its `<main>`, else its `<article>`, else the whole page — navigation and footers are not the posting. */
 function mainText(html: string): string {
   const lower = html.toLowerCase();
   for (const name of ['main', 'article']) {
-    const open = lower.indexOf(`<${name}`);
-    const close = open === -1 ? -1 : lower.lastIndexOf(`</${name}`);
+    const open = opens(lower, name);
+    const close = open === -1 ? -1 : closes(lower, name);
     if (close > open) {
       const text = stripHtml(html.slice(open, close));
       if (text.length >= MIN_BLOCK_TEXT_CHARS) return text;
@@ -220,17 +282,12 @@ function mainText(html: string): string {
   return stripHtml(html);
 }
 
-export function readSavedPage(html: string, now: Date = new Date()): SavedPage {
+/** `savedFrom`: the address the file's wrapper gives for the page (mhtml.ts), read as the browser's own note is. */
+export function readSavedPage(html: string, now: Date = new Date(), savedFrom: string | null = null): SavedPage {
   const head = html.slice(0, HEAD_CHARS);
   const postings: Record<string, unknown>[] = [];
-  for (const block of structuredBlocks(html)) {
-    try {
-      collectPostings(JSON.parse(block), postings);
-    } catch {
-      // A block that is not JSON is the page's mistake, and the page's own text still reads.
-    }
-  }
-  const from = headAddresses(head);
+  for (const block of structuredBlocks(html)) collectPostings(parseBlock(block), postings);
+  const from = headAddresses(head, savedFrom);
   const posting = ownPosting(postings, [from.savedFrom, from.canonical, from.og]);
   // The posting as text: its block's description when that is long enough, else the page's main text.
   const textOf = (block: Record<string, unknown> | null): string => {

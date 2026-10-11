@@ -18,6 +18,7 @@ import type { NormalizedJob } from '../types';
 import { decodeText } from './decode';
 import type { PostingKind } from './folder-scan';
 import { fileDate } from './map';
+import { readMhtml } from './mhtml';
 import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts } from './saved-page';
 
 /** As `jobs/manual-job.ts:MIN_DESCRIPTION_CHARS`: less than this is not a posting, it is a note. */
@@ -52,6 +53,12 @@ export const POSTING_NOTES = {
   get needsModel(): string {
     return t('datasets.posting.needsModel');
   },
+  get mhtml(): string {
+    return t('datasets.posting.mhtml');
+  },
+  get webarchive(): string {
+    return t('datasets.posting.webarchive');
+  },
 };
 
 const text = (raw: string): string => clipText(storableText(raw.replace(/\r\n?/g, '\n')).trim(), MAX_POSTING_TEXT_CHARS).trim();
@@ -66,6 +73,14 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
   if (kind === 'html') {
     // A page off an older board is in its language's own encoding, and says which in its head (#394).
     read = { ok: true, ...readSavedPage(decodeText(bytes, { page: true }).text, now) };
+  } else if (kind === 'mhtml') {
+    // A page saved as one file: its first part is the page, and the browser's head says where it came from.
+    const page = readMhtml(bytes);
+    if (page === null) return { ok: false, why: POSTING_NOTES.mhtml };
+    read = { ok: true, ...readSavedPage(decodeText(page.html, { page: true, charset: page.charset }).text, now, page.location) };
+  } else if (kind === 'webarchive') {
+    // Safari's own archive is a binary property list: listed, and said how to save instead.
+    return { ok: false, why: POSTING_NOTES.webarchive };
   } else if (kind === 'pdf') {
     try {
       const { pdfToText } = await import('../resume/pdf-text.js');

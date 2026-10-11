@@ -46,6 +46,15 @@ describe('decodeText', () => {
     assert.deepEqual([xml.how, xml.text.includes(UK)], ['declared', true]);
   });
 
+  it('takes the charset a file’s wrapper names for the bytes, before the markup’s own word', () => {
+    const body = '<html><head><meta charset="windows-1252"></head><body>Київ</body></html>';
+    const read = decodeText(encode(body, 'windows-1251'), { page: true, charset: 'windows-1251' });
+    assert.deepEqual([read.encoding, read.how, read.text.includes('Київ')], ['windows-1251', 'declared', true]);
+    // A wrapper that says UTF-8 over bytes that are not is no better than a page that does.
+    assert.equal(decodeText(encode(UK, 'windows-1251'), { charset: 'utf-8' }).how, 'assumed');
+    assert.equal(decodeText(Buffer.from(UK, 'utf8'), { charset: 'windows-1251' }).encoding, 'utf-8');
+  });
+
   it('does not look for a declaration in a file that is not a page, nor believe one the bytes contradict', () => {
     // A CSV cell that quotes markup is not the file speaking about itself.
     const cell = encode('note,title\n"<meta charset=koi8-u>",Zürich\n', 'windows-1252');

@@ -463,3 +463,30 @@ Consequences added:
 - **Not built, and not planned yet:** mail with job alerts, links saved as
   `.url` / `.webloc`, a screenshot. Each is skipped as another file, and
   counted.
+
+*Amended 2026-10-11 (v2.55.26, #399).* Four ways a saved posting was
+skipped or misread, with nothing said:
+
+- **A page saved as one file.** Chrome and Edge offer "Webpage, Single
+  File" (`.mhtml`) and Safari saves a Web Archive by default; both were
+  "other files". `.mhtml` (and `.mht`) is read (`datasets/mhtml.ts`): a MIME
+  message whose first `text/html` part is the page, with where it was saved
+  from in its head, which is taken as the browser's own "saved from" note.
+  Measured on a file Chrome 154 wrote: the browser leaves every `<script>`
+  out, the `JobPosting` block with them, so such a file gives the text and
+  the address and always asks a model for the title and the company.
+  `.webarchive` is listed and set aside with the way to save it instead;
+  reading it is #451. Up to 10 MB, since the page's images ride inside.
+- **A subfolder beside a page.** Any folder whose name began with a page's
+  name was taken for that page's saved files, so `Acme interviews/` next to
+  `Acme.html` was never listed. Only the names a browser gives such a
+  folder count now: `_files` and its forms in other languages.
+- **`<main` matched `<mainnav>`**, and a page's navigation was stored as
+  the posting. The tag's name is matched whole, opening and closing.
+- **Three shapes of the structured block fell to a model** though the page
+  states its title: a string broken across lines (mended and read again;
+  nothing else about a block is guessed), `hiringOrganization` as a list,
+  and `@type` as an IRI.
+
+What is shown to the model, and a page that is no posting at all, need a
+real engine to judge and are #451.

@@ -87,6 +87,8 @@ export const MAX_FILE_BYTES = MAX_BODY_MB * 1024 * 1024;
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 /** A PDF or a .docx of a posting: its fonts and images weigh more than its words, and it is parsed on the event loop. */
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+/** A page saved as one file carries its images and fonts inside it; only its first part, the page, is decoded. */
+const MAX_ARCHIVE_BYTES = 10 * 1024 * 1024;
 
 /** What the per-file list says about a file that was not read, or not read as jobs: worded when read, in the language of the moment. */
 export const FILE_NOTES = {
@@ -119,11 +121,29 @@ export const FILE_NOTES = {
 /** What a folder holds (ADR 0062): the files a tool writes, many rows a file, or postings the user saved, one a file. */
 export type FolderHolds = 'rows' | 'postings';
 
-/** A saved posting by its file's name: a web page, plain text, Markdown, a PDF or a Word document. */
-export type PostingKind = 'html' | 'txt' | 'md' | 'pdf' | 'docx';
+/**
+ * A saved posting by its file's name: a web page, plain text, Markdown, a PDF
+ * or a Word document — and the two forms a browser saves a page as one file
+ * in: `mhtml` (Chrome's and Edge's "Webpage, Single File") is read, and
+ * `webarchive` (Safari's default) is listed and set aside with the way to
+ * save it instead. Both were passed over as "other files", with nothing said
+ * (#399).
+ */
+export type PostingKind = 'html' | 'txt' | 'md' | 'pdf' | 'docx' | 'mhtml' | 'webarchive';
 export type FileKind = RowFormat | PostingKind;
 
-const POSTING_KIND_BY_EXTENSION: Record<string, PostingKind> = { html: 'html', htm: 'html', txt: 'txt', md: 'md', markdown: 'md', pdf: 'pdf', docx: 'docx' };
+const POSTING_KIND_BY_EXTENSION: Record<string, PostingKind> = {
+  html: 'html',
+  htm: 'html',
+  txt: 'txt',
+  md: 'md',
+  markdown: 'md',
+  pdf: 'pdf',
+  docx: 'docx',
+  mhtml: 'mhtml',
+  mht: 'mhtml',
+  webarchive: 'webarchive',
+};
 
 const KIND_BY_EXTENSION: Record<string, RowFormat> = { json: 'json', jsonl: 'jsonl', ndjson: 'jsonl', csv: 'csv', tsv: 'tsv' };
 
@@ -169,6 +189,41 @@ export function guessHolds(listing: readonly ListedFile[], include: (relPath: st
 }
 
 /**
+ * What a browser calls the folder it saves a page's files into, after the
+ * page's own name: `_files` in English, and the words Windows knows such a
+ * folder by in other languages. A folder that merely starts like a page —
+ * `Acme interviews` beside `Acme.html` — is the user's own, and the postings
+ * in it were never listed (#399).
+ */
+const RESOURCE_SUFFIXES = new Set(
+  [
+    '_files',
+    '.files',
+    '-Dateien',
+    '_fichiers',
+    '_archivos',
+    '_file',
+    '_arquivos',
+    '_ficheiros',
+    '_bestanden',
+    '-filer',
+    '_filer',
+    '_tiedostot',
+    '_pliki',
+    '_soubory',
+    '_elemei',
+    '_dosyalar',
+    '_datoteke',
+    '_fitxers',
+    '_failid',
+    '_fails',
+    '_bylos',
+    '_fajlovi',
+    '_fitxategiak',
+  ].map((suffix) => suffix.toLowerCase()),
+);
+
+/**
  * The files a browser's "Webpage, Complete" save puts beside a page: a folder
  * named after the page (`Job_files`, or localized, `Job-Dateien`) holding its
  * images, scripts and framed documents. A framed `.html` in there is not a
@@ -188,7 +243,7 @@ export function pageResources(listing: readonly ListedFile[]): (relPath: string)
     for (let i = 0; i < parts.length - 1; i++) {
       const dir = parts[i]!;
       const beside = stems.get(parts.slice(0, i).join('/')) ?? [];
-      if (beside.some((stem) => dir.length > stem.length && dir.startsWith(stem) && /[_\- .]/.test(dir[stem.length]!))) return true;
+      if (beside.some((stem) => dir.startsWith(stem) && RESOURCE_SUFFIXES.has(dir.slice(stem.length).toLowerCase()))) return true;
     }
     return false;
   };
@@ -196,6 +251,7 @@ export function pageResources(listing: readonly ListedFile[]): (relPath: string)
 
 /** The most a file of this kind is read at. */
 export function maxBytesOf(kind: FileKind): number {
+  if (kind === 'mhtml' || kind === 'webarchive') return MAX_ARCHIVE_BYTES;
   if (kind === 'pdf' || kind === 'docx') return MAX_DOCUMENT_BYTES;
   if (kind === 'html' || kind === 'txt' || kind === 'md') return MAX_TEXT_FILE_BYTES;
   return MAX_FILE_BYTES;
@@ -203,7 +259,7 @@ export function maxBytesOf(kind: FileKind): number {
 
 /** Why a file of this kind was not read, in the per-file list's words. */
 export function tooLargeNote(kind: FileKind): string {
-  const what = kind === 'pdf' || kind === 'docx' ? 'document' : kind === 'html' || kind === 'txt' || kind === 'md' ? 'posting' : 'rows';
+  const what = kind === 'pdf' || kind === 'docx' ? 'document' : rowFileKind(`file.${kind}`) === null ? 'posting' : 'rows';
   return t('datasets.file.tooLarge', { mb: maxBytesOf(kind) / (1024 * 1024), kind: what });
 }
 

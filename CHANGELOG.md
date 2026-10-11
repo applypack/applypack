@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.26] — 2026-10-11
+
+### Fixed
+- **A page saved as a single file is read.** Chrome's and Edge's "Webpage,
+  Single File" (`.mhtml`) sat in a folder of saved postings and was counted
+  among the "other files left alone", with nothing said. It is now read: its
+  text, and the address the browser noted. A browser leaves the page's
+  structured data out of such a file, so the title and the company are read
+  by the AI engine, as for a PDF. Safari's Web Archive (`.webarchive`) is
+  listed on the Files page with the way to save the page instead.
+- **A folder beside a saved page is no longer hidden.** `Acme interviews/`
+  next to `Acme.html` was taken for that page's own saved files, and the
+  postings in it were never listed. Only the folder a browser makes for a
+  page (`Acme_files`, and its names in other languages) is passed over.
+- **A page's navigation is no longer stored as the posting.** A page with a
+  `<mainnav>` element had its menu read as the posting's text.
+- **Fewer pages ask the AI engine for a title they state.** A structured
+  block with a line break inside a string, with its company as a list, or
+  with its type written as a web address was not read, so the engine was
+  asked for the title and the company; while fetching was paused such a
+  page waited instead of being stored (#399).
+
 ## [2.55.25] — 2026-10-11
 
 ### Fixed
@@ -5433,6 +5455,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.26]: https://github.com/applypack/applypack/compare/v2.55.25...v2.55.26
 [2.55.25]: https://github.com/applypack/applypack/compare/v2.55.24...v2.55.25
 [2.55.24]: https://github.com/applypack/applypack/compare/v2.55.23...v2.55.24
 [2.55.23]: https://github.com/applypack/applypack/compare/v2.55.22...v2.55.23
