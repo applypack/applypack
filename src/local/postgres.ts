@@ -9,6 +9,7 @@ import { localPaths } from './data-dir';
 import { LOCAL_DB_USER, PREFERRED_PORT, databaseUrl, parseDbState, type DbState } from './db-state';
 import {
   CONF_LINES,
+  NO_ANSWER,
   binaries,
   firstLinePid,
   initdbArgs,
@@ -18,6 +19,7 @@ import {
   pgCtlStopArgs,
   platformPackage,
   type PgBinaries,
+  type ProcessLookup,
 } from './postgres-setup';
 
 /*
@@ -30,6 +32,9 @@ const execFileAsync = promisify(execFile);
 const PASSWORD_BYTES = 32;
 const LOG_LINES_ON_FAILURE = 15;
 const COMMAND_LOOKUP_TIMEOUT_MS = 15_000;
+const COMMAND_LOOKUP_ATTEMPTS = 2;
+/** `ps -p <pid>` exits with this when there is no such process. */
+const PS_NO_SUCH_PROCESS = 1;
 const REACH_TIMEOUT_MS = 5_000;
 const DEFAULT_POSTGRES_PORT = 5432;
 
@@ -89,8 +94,8 @@ export async function startLocalDatabase(dataDir: string): Promise<LocalDatabase
   };
 }
 
-/** The command line of a running process, or null when there is none. */
-export async function commandLineOf(pid: number): Promise<string | null> {
+/** One look at a process: its command line, null when the system says there is none, `NO_ANSWER` when it said nothing in time. */
+async function lookOnce(pid: number): Promise<ProcessLookup> {
   try {
     const { stdout } =
       process.platform === 'win32'
@@ -102,9 +107,35 @@ export async function commandLineOf(pid: number): Promise<string | null> {
         : await execFileAsync('ps', ['-o', 'command=', '-p', String(pid)], { timeout: COMMAND_LOOKUP_TIMEOUT_MS });
     const line = stdout.trim();
     return line.length > 0 ? line : null;
-  } catch {
-    // ps exits 1 when no such process exists.
-    return null;
+  } catch (err) {
+    // `ps` exits 1 when no such process exists: that is an answer. A look that was killed at its limit, or
+    // a tool that could not be run at all, is not.
+    const failure = err as { code?: unknown; killed?: boolean };
+    return process.platform !== 'win32' && failure.code === PS_NO_SUCH_PROCESS && failure.killed !== true ? null : NO_ANSWER;
+  }
+}
+
+/**
+ * The command line of a running process, null when there is none, or
+ * `NO_ANSWER` when two looks in a row got nothing in time — PowerShell on a
+ * busy Windows machine can take longer than its limit, and "no answer" is not
+ * "no process" (postgres-setup.ts).
+ */
+export async function commandLineOf(pid: number): Promise<ProcessLookup> {
+  for (let attempt = 1; ; attempt++) {
+    const found = await lookOnce(pid);
+    if (found !== NO_ANSWER || attempt >= COMMAND_LOOKUP_ATTEMPTS) return found;
+  }
+}
+
+/** Whether a process with this number exists at all: no tool is asked, the system call answers. */
+export function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // No permission to signal it means it is there.
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 
@@ -180,7 +211,13 @@ async function clearLeftover(pgCtl: string, pgdata: string): Promise<void> {
   const text = readText(pidFile);
   if (!text) return;
   const pid = firstLinePid(text);
-  const action = leftoverAction(pid, pid === null ? null : await commandLineOf(pid), pgdata);
+  const action = leftoverAction(pid, pid === null ? null : await commandLineOf(pid), pgdata, pid !== null && pidAlive(pid));
+  if (action === 'unsure') {
+    throw new LocalDatabaseError(
+      `Could not tell whether process ${pid}, named in ${pidFile}, is this folder's database: the system did not answer in time. ` +
+        'Try again in a moment. If nothing of ApplyPack is running, delete that file and start again.',
+    );
+  }
   if (action === 'stop') await run(pgCtl, pgCtlStopArgs(pgdata));
   else fs.rmSync(pidFile, { force: true });
 }

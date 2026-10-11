@@ -4,8 +4,8 @@ import path from 'node:path';
 import { prisma } from '../db';
 import { importPlan, splitSql } from '../sql-dump';
 import { dataDirFor, localPaths } from '../local/data-dir';
-import { firstLinePid } from '../local/postgres-setup';
-import { commandLineOf } from '../local/postgres';
+import { NO_ANSWER, firstLinePid } from '../local/postgres-setup';
+import { commandLineOf, pidAlive } from '../local/postgres';
 
 /*
  * `npm run db:import -- <file> [--yes]` (TASKS S7): the rows of a Docker
@@ -33,6 +33,8 @@ async function workerRunning(): Promise<boolean> {
   const pid = fs.existsSync(paths.lock) ? firstLinePid(fs.readFileSync(paths.lock, 'utf8')) : null;
   if (pid === null) return false;
   const command = await commandLineOf(pid);
+  // No answer in time about a process that is there: an import must not run beside a worker it could not rule out.
+  if (command === NO_ANSWER) return pidAlive(pid);
   return command !== null && /launcher\.js(\s+start)?\s*$/.test(command);
 }
 
