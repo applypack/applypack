@@ -1,7 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { AI_PROVIDER_IDS, resolveAiEngine, type AiProviderId } from '../../ai-engine';
-import { billedThisMonth, loadSpendGroups } from '../../ai-ledger';
+import { engineTroubles } from '../../ai-health';
+import { billedThisMonth, loadRecentAttempts, loadSpendGroups } from '../../ai-ledger';
 import { billingFacts, getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
 import { isSpendPeriod, periodRange, spendView, usageByModel, type SpendPeriod } from '../../ai-spend';
 import { AI_TASKS } from '../../ai-tasks';
@@ -31,11 +32,12 @@ aiUsageRoute.get('/ai', async (c) => {
   const range = periodRange(period, now);
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const keys = await getAiKeys();
-  const [settings, statuses, groups, billedMonth] = await Promise.all([
+  const [settings, statuses, groups, billedMonth, recent] = await Promise.all([
     getSettings(),
     probeAiProviders(keys),
     loadSpendGroups(range.from, range.to),
     billedThisMonth(now),
+    loadRecentAttempts(now),
   ]);
   const billing = billingFacts(keys, settings.openAiBaseUrl);
   const billingFor = (id: AiProviderId) => billingOf(id, billing);
@@ -49,6 +51,7 @@ aiUsageRoute.get('/ai', async (c) => {
       models={usageByModel(view.rows)}
       hints={usageHints({
         groups,
+        troubles: engineTroubles(recent),
         period: t(PERIOD_WORDS[period]),
         engines: AI_PROVIDER_IDS.map((id) => ({
           id,

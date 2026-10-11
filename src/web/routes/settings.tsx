@@ -89,7 +89,9 @@ import { isReapplyChoice } from '../../employer';
 import { forgetUpdateNotice } from '../update-notice';
 import { billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
 import { billingNotes } from '../../ai-spend';
-import { billedThisMonth } from '../../ai-ledger';
+import { engineTroubles } from '../../ai-health';
+import { troubleLine } from '../usage-hints';
+import { billedThisMonth, loadRecentAttempts } from '../../ai-ledger';
 import {
   AI_KEY_ENV_VARS,
   aiKeySource,
@@ -252,7 +254,7 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
-  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth] =
+  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
     await Promise.all([
       getSettings(),
       listNotificationTargets(),
@@ -266,7 +268,10 @@ async function loadSettingsProps() {
         where: { pipelineStage: { not: null } },
       }),
       billedThisMonth(),
+      loadRecentAttempts(),
     ]);
+  // "available" is what the probe found on disk; whether calls get through is what the ledger's last rows say (#413).
+  const troubles = new Map(engineTroubles(recentAttempts).map((trouble) => [trouble.engine, troubleLine(trouble)]));
   const check = await loadNextCheck(settings.schedule);
   const scheduleView = {
     schedule: check.schedule,
@@ -320,6 +325,7 @@ async function loadSettingsProps() {
       desc: t(AI_PROVIDER_DESCS[id]),
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
+      trouble: troubles.get(id) ?? null,
       ...aiEngineCard(engine, id, aiEnv.provider),
       tasks: AI_TASKS.filter((task) => taskShown(task, settings.employerMode)).map((task) => ({
         id: task,

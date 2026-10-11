@@ -42,6 +42,18 @@ Three facts decided the shape, each read on the vendors' own pages on
   (`ok · rate_limited · timeout · cut_off · refused · empty · error`), the
   tokens by kind, the searches, the posting and the resume it served where
   the caller knows. Never a prompt, never a reply.
+  *Amended 2026-10-11 (v2.55.33, #413).* Two failures that never reach a
+  model were both `error`, and the advice for either was "try another
+  model": no server answering at the address is `unreachable` now, and a
+  prompt larger than the local model's context window — refused before it
+  is sent — is `too_large`. Rows written before keep `error`. And the
+  ledger is read for one thing more than money: each engine's last attempts
+  (`ai-ledger.ts:loadRecentAttempts`, a week back, twenty an engine) say
+  whether it is failing *now* — one refused sign-in, or three failures in a
+  row with no answer between (`ai-health.ts`, pure). The engine's card and
+  the AI usage page say so before anything else; the probe behind
+  "available" reads what is on disk and cannot. A reply that does not parse
+  is still `ok` here (#463).
 - **What the vendor did not report is NULL, never 0.** A timeout has no
   usage; a local server has usage and no price. `AiProvider.complete()`
   returns an attempt `{ text, outcome, spend }` instead of a string, and

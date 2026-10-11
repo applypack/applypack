@@ -1,4 +1,5 @@
 import { AI_PROVIDER_LABELS, PROVIDER_MODEL_OPTIONS, isAiProviderId, offeredTasks, type AiProviderId } from '../ai-engine';
+import type { EngineTrouble, TroubleKind } from '../ai-health';
 import { PRICES_AS_OF, priceOf } from '../ai-prices';
 import { featureLabel, formatUsd, joinNames, type SpendGroup } from '../ai-spend';
 import { taskLabel, taskOf, type AiTask } from '../ai-tasks';
@@ -23,6 +24,8 @@ export interface UsageHint {
 
 export interface HintFacts {
   groups: readonly SpendGroup[];
+  /** Engines whose last attempts all failed, whatever the period shown (ai-health.ts). Absent = not read. */
+  troubles?: readonly EngineTrouble[];
   /** The period as it reads inside a sentence: "in the last 7 days", "this month". */
   period: string;
   /**
@@ -74,13 +77,44 @@ const STEPS: Record<'tick' | 'only' | 'none', Partial<Record<'enable' | 'above' 
 };
 
 const label = (id: string): string => (isAiProviderId(id) ? AI_PROVIDER_LABELS[id] : id);
+/** The advice for failures that have a cause of their own; every other ending gets "try another model, or press Test". */
+const FAILED_ADVICE: Record<string, MessageKey> = {
+  unauthorized: 'usage.failed.signIn',
+  unreachable: 'usage.failed.unreachable',
+  too_large: 'usage.failed.window',
+};
 const percent = (part: number, whole: number): number => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 const taskOfGroup = (g: SpendGroup): AiTask | null => taskOf(g.feature as AiFeature) ?? null;
 
+const TROUBLE_WORDS = {
+  signin: 'usage.trouble.signIn',
+  unreachable: 'usage.trouble.unreachable',
+  window: 'usage.trouble.window',
+  limited: 'usage.trouble.limited',
+  failing: 'usage.trouble.failing',
+} as const satisfies Record<TroubleKind, MessageKey>;
+
+/** What is wrong with an engine that is failing now, and what to do about that — never "try another model" for a closed port. */
+export function troubleLine(trouble: EngineTrouble): string {
+  return t(TROUBLE_WORDS[trouble.kind], { engine: label(trouble.engine), n: trouble.failed });
+}
+
+/**
+ * An engine in trouble that calls still go to: one in the list, or the one
+ * that answers a task first today (a last resort is not in the list). An
+ * engine the person has since disabled is no longer theirs to fix.
+ */
+function troubled(facts: HintFacts): UsageHint[] {
+  const asked = new Set<string>([...facts.engines.filter((e) => e.position !== -1).map((e) => e.id), ...Object.values(facts.first)]);
+  return (facts.troubles ?? []).filter((trouble) => asked.has(trouble.engine)).map((trouble) => ({ tone: 'warn', text: troubleLine(trouble), action: enginesLink() }));
+}
+
 export function usageHints(facts: HintFacts): UsageHint[] {
+  // Said first and whatever the period holds: a week of answers must not bury an engine that fails every call today (#413).
+  const failing = troubled(facts);
   const groups = facts.groups.filter((g) => g.feature !== 'engine-test');
-  if (groups.length === 0) return [];
-  const hints = [budgetPace(facts, groups), billedTask(facts, groups), billedFallback(facts, groups), failures(facts, groups), priceyScoring(facts, groups), volumeOnPlan(facts, groups)].filter(
+  if (groups.length === 0) return failing;
+  const hints = [...failing, budgetPace(facts, groups), billedTask(facts, groups), billedFallback(facts, groups), failures(facts, groups), priceyScoring(facts, groups), volumeOnPlan(facts, groups)].filter(
     (h): h is UsageHint => h !== null,
   );
   // Any call on a billed engine — an engine test, one the table cannot price — and "nothing was billed" is not ours to say.
@@ -175,13 +209,27 @@ function billedFallback(facts: HintFacts, groups: readonly SpendGroup[]): UsageH
  * model, and would sit apart from the successes it belongs with.
  */
 function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | null {
-  const pairs = new Map<string, { feature: string; engine: string; billing: AiBilling; calls: number; failed: number; rateLimited: number; answered: Set<string>; asked: Set<string> }>();
+  const pairs = new Map<
+    string,
+    { feature: string; engine: string; billing: AiBilling; calls: number; failed: number; rateLimited: number; answered: Set<string>; asked: Set<string>; endings: Map<string, number> }
+  >();
   for (const g of groups) {
     const key = `${g.feature}\n${g.engine}\n${g.billing}`;
-    const p = pairs.get(key) ?? { feature: g.feature, engine: g.engine, billing: g.billing, calls: 0, failed: 0, rateLimited: 0, answered: new Set<string>(), asked: new Set<string>() };
+    const p = pairs.get(key) ?? {
+      feature: g.feature,
+      engine: g.engine,
+      billing: g.billing,
+      calls: 0,
+      failed: 0,
+      rateLimited: 0,
+      answered: new Set<string>(),
+      asked: new Set<string>(),
+      endings: new Map<string, number>(),
+    };
     p.calls += g.calls;
     p.failed += g.failed;
     p.rateLimited += g.rateLimited;
+    if (g.failedAs) p.endings.set(g.failedAs, (p.endings.get(g.failedAs) ?? 0) + g.failed);
     p.asked.add(g.model);
     if (g.calls > g.failed) p.answered.add(g.model);
     pairs.set(key, p);
@@ -194,8 +242,10 @@ function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | 
   const limited = worst.rateLimited * 2 >= worst.failed;
   const task = taskOf(worst.feature as AiFeature) ?? null;
   const local = task ? freeEngineFor(facts, task, ['local']) : undefined;
+  // How most of them ended decides the advice: a closed port or a prompt too large is not the model's doing (#413).
+  const ending = [...worst.endings].sort((a, b) => b[1] - a[1])[0]?.[0];
   const advice = !limited
-    ? t('usage.failed.tryModel')
+    ? t(FAILED_ADVICE[ending ?? ''] ?? 'usage.failed.tryModel')
     : local && task && facts.first[task] !== local.id
       ? `${t('usage.failed.giveLocal', { local: label(local.id), task: taskLabel(task) })} ${t('usage.unmeasured')}`
       : t('usage.failed.secondEngine');
