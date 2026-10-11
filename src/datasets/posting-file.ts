@@ -19,7 +19,7 @@ import { decodeText } from './decode';
 import type { PostingKind } from './folder-scan';
 import { fileDate } from './map';
 import { readMhtml } from './mhtml';
-import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts } from './saved-page';
+import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts, type SavedPage } from './saved-page';
 
 /** As `jobs/manual-job.ts:MIN_DESCRIPTION_CHARS`: less than this is not a posting, it is a note. */
 const MIN_POSTING_CHARS = 200;
@@ -33,7 +33,7 @@ const MAX_POSTING_DOCX_BYTES = 2 * 1024 * 1024;
 const MAX_TITLE_CHARS = 200;
 
 export type PostingRead =
-  | { ok: true; text: string; address: string | null; addressIsOwn: boolean; facts: PageFacts | null; pageTitle: string | null; earlierKey: string }
+  | { ok: true; text: string; address: string | null; addressIsOwn: boolean; facts: PageFacts | null; pageTitle: string | null; earlierKey: string; former: SavedPage['former'] }
   | { ok: false; why: string };
 
 /** What the per-file list says about a saved posting that gave no job: worded when read, in the language of the moment. */
@@ -64,7 +64,7 @@ export const POSTING_NOTES = {
 const text = (raw: string): string => clipText(storableText(raw.replace(/\r\n?/g, '\n')).trim(), MAX_POSTING_TEXT_CHARS).trim();
 const plain = (body: string): Extract<PostingRead, { ok: true }> => {
   const read = text(body);
-  return { ok: true, text: read, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: read };
+  return { ok: true, text: read, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: read, former: null };
 };
 
 /** A saved file as text and what it says about itself. Never throws for what a file holds. */
@@ -235,6 +235,8 @@ export interface PostingIdentity {
  * `savedPostingId`. A stored job is this file's when it carries the same id;
  * or the id versions up to 2.55.11 gave it and the title the page states —
  * that id was shared by different postings, which is why the title is asked;
+ * or either of those over the text as versions up to 2.55.38 read it, with
+ * the page's application form in it;
  * or when it came from this very file and is still the posting it was: the
  * same stated title and company, or for a file that states none the text it
  * had with a note under or over it, or a text that barely moved (a page
@@ -246,6 +248,9 @@ export function identifyPosting(relPath: string, read: Extract<PostingRead, { ok
   const title = read.facts?.title ?? null;
   const sameTitle = (job: StoredPosting): boolean => title === null || job.title === title;
   const earlierId = textId(read.earlierKey);
+  // A page read with its application form in the text (up to 2.55.38) was keyed by that text.
+  const formerId = read.former && savedPostingId({ ...read, text: read.former.text });
+  const formerEarlierId = read.former && textId(read.former.earlierKey);
   const company = read.facts?.company ?? null;
   const fingerprint = title === null ? simhash64(read.text) : null;
   const unchanged = (job: StoredPosting): boolean =>
@@ -255,6 +260,7 @@ export function identifyPosting(relPath: string, read: Extract<PostingRead, { ok
   const known =
     stored.find((job) => job.externalId === externalId) ??
     stored.find((job) => job.externalId === earlierId && sameTitle(job)) ??
+    stored.find((job) => job.externalId === formerId || (job.externalId === formerEarlierId && sameTitle(job))) ??
     stored.find((job) => job.sourceFile === relPath && unchanged(job)) ??
     null;
   return { externalId: known?.externalId ?? externalId, known };

@@ -117,7 +117,7 @@ describe('readPostingFile', () => {
 
 describe('savedPostingJob', () => {
   const file = { companyId: 7, relPath: 'saved/Senior_PHP_Developer at Acme.pdf', mtimeMs: Date.UTC(2026, 9, 5) };
-  const plain = { ok: true as const, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY };
+  const plain = { ok: true as const, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY, former: null };
 
   it('takes what the page said first, a model’s reading second', () => {
     const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true, facts: { title: 'Page Title', company: 'Page Co', location: null, workplace: 'REMOTE' as const, postedAt: null } };
@@ -159,7 +159,7 @@ describe('savedPostingJob', () => {
 
 describe('identifyPosting', () => {
   type Read = Extract<PostingRead, { ok: true }>;
-  const plain: Read = { ok: true, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY };
+  const plain: Read = { ok: true, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY, former: null };
   const says = (title: string, location: string | null = null) => ({ title, company: 'Acme', location, workplace: null, postedAt: null });
   const idOf = (read: Read, relPath = 'a.html'): string => identifyPosting(relPath, read, []).externalId;
   const stored = (externalId: string, more: Partial<StoredPosting> = {}): StoredPosting => ({ externalId, title: 'Backend Engineer', employer: 'Acme', url: '', sourceFile: 'first.html', fingerprint: null, ...more });
@@ -271,6 +271,26 @@ describe('identifyPosting', () => {
     // The same title at another company, saved over the same name, is another posting.
     assert.equal(identifyPosting('page.html', { ...again, facts: { ...says('Backend Engineer'), company: 'Globex' } }, [before]).known, null);
     assert.equal(identifyPosting('page.html', { ...again, facts: { ...says('Backend Engineer'), company: null } }, [before]).known, before);
+  });
+
+  it('knows a job that was keyed by the page’s text with its application form in it (#361)', () => {
+    const WITH_FORM = `${BODY}\n\nApply for this job\nFirst Name * Email * Select... Submit application`;
+    const page: Read = { ...plain, former: { text: WITH_FORM, earlierKey: WITH_FORM } };
+    const before = stored(idOf({ ...plain, text: WITH_FORM, earlierKey: WITH_FORM }), { sourceFile: 'page.html' });
+    assert.notEqual(idOf(page), before.externalId);
+    // Saved again over itself, and a second time under another name: the job it was, under the id it has.
+    assert.deepEqual(identifyPosting('page.html', page, [before]), { externalId: before.externalId, known: before });
+    assert.equal(identifyPosting('copy.html', page, [before]).known, before);
+    // A page that states its title and place was keyed by them beside the text.
+    const stating: Read = { ...page, facts: says('Backend Engineer', 'Berlin') };
+    const keyed = stored(idOf({ ...stating, text: WITH_FORM, former: null }));
+    assert.equal(identifyPosting('x.html', stating, [keyed]).known, keyed);
+    // Up to 2.55.11 the text alone was the key, shared by postings: the title is asked.
+    const older = stored(earlierId(WITH_FORM));
+    assert.equal(identifyPosting('x.html', stating, [older]).known, older);
+    assert.equal(identifyPosting('x.html', { ...stating, facts: says('Staff Engineer', 'Berlin') }, [older]).known, null);
+    // A page nothing was left out of is found by its own text only.
+    assert.equal(identifyPosting('other.html', plain, [before]).known, null);
   });
 
   it('prefers the newest of the jobs one file became', () => {
