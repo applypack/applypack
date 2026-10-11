@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.27] — 2026-10-11
+
+### Fixed
+- **Comparing, rewriting and screening no longer tell the model a folder or
+  a feed is the company.** For a posting that names no company — a row of an
+  imported file, a saved posting, an aggregator's posting with no employer —
+  the prompts started from the dashboard still read `Company: September
+  export` or `Company: RemoteOK Feed`: the posting brief, Compare (on the
+  job page, from Tailor resume, with a new file, and Save as vN with a
+  posting), Rewrite all, Rewrite on one suggestion, and a screening's rubric
+  and scoring. They now say the posting does not name one, as the worker's
+  prompts have since 2.55.21. A posting that names its employer, a pasted
+  posting and a company's own board read as before. Pages still show the
+  source in the company's place; what they should say instead is laid out
+  in #444.
+
 ## [2.55.26] — 2026-10-11
 
 ### Fixed
@@ -5455,6 +5471,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.27]: https://github.com/applypack/applypack/compare/v2.55.26...v2.55.27
 [2.55.26]: https://github.com/applypack/applypack/compare/v2.55.25...v2.55.26
 [2.55.25]: https://github.com/applypack/applypack/compare/v2.55.24...v2.55.25
 [2.55.24]: https://github.com/applypack/applypack/compare/v2.55.23...v2.55.24

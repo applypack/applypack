@@ -4,6 +4,7 @@ import { getAiRuntime } from '../../ai-runtime';
 import { laneOf, type Lane } from '../lane';
 import { z } from 'zod';
 import { prisma } from '../../db';
+import { postingForPrompt } from '../../employer';
 import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
@@ -111,13 +112,13 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   if (f.jobMode === 'existing') {
     if (!f.jobId) return flashRedirect('/target', 'err', t('target.flash.pickJob'));
     const back = `/target?job=${f.jobId}`;
-    const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true } } } });
+    const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true, atsType: true } } } });
     if (!job) return flashRedirect('/target', 'err', t('target.flash.jobGone'));
     const resume = await resolveResumeSource(form, f);
     if ('error' in resume) return flashRedirect(back, 'err', resume.error);
     return startComparison(c, {
       jobId: job.id,
-      job: { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+      job: postingForPrompt(job),
       resume,
       text: resume.text,
       mode: f.mode,

@@ -87,6 +87,21 @@ where the employer should be.
   The list and the job page write "Acme · via Remotive". No prompt grew: the
   field that said "Remotive" now says "Acme".
 
+  *Amended 2026-10-11 (v2.55.21, #401; v2.55.27, #444).* `employer ??
+  company.name` is right only where the source is the employer. For a row
+  from an aggregator, an imported file or a folder that names no company it
+  gave the source's own name: the classifier read `Company: Saved postings`,
+  an alert said "@ Export A", the company check researched a folder's name
+  on the web, and a letter was addressed to it. The prompts and the messages
+  read `employer.ts:companyForPrompt` / `companyForMessage` instead, which
+  say the posting names no company; a call about a stored job takes the
+  posting whole from `postingForPrompt`, whose type asks for the source's
+  kind. v2.55.21 did the worker's prompts, the messages, the letter and the
+  company check; v2.55.27 did the calls a press on the dashboard starts
+  (the brief, Compare, Rewrite, a screening). The pages still read
+  `employer ?? company.name`, and what they should say for such a row is
+  open in #444.
+
 ## Consequences
 
 - **Tokens saved, never spent.** A muted posting costs nothing, not even

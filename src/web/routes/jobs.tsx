@@ -95,7 +95,7 @@ import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
-import { companyForPrompt, employerKey, hiringName, withoutMuted } from '../../employer';
+import { companyForPrompt, employerKey, hiringName, postingForPrompt, withoutMuted } from '../../employer';
 import { preferredPlaces } from '../place-line';
 import { t } from '../../i18n/t';
 
@@ -821,7 +821,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
 
   const baseId = idParam(form.matchId);
   const [job, row, base] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(resumeId),
     Number.isFinite(baseId) ? getMatch(baseId) : null,
   ]);
@@ -839,7 +839,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const toTarget = form.next === 'target' || form.next === 'editor';
   return startComparison(c, {
     jobId: id,
-    job: { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+    job: postingForPrompt(job),
     resume,
     text,
     // The quick check unless the form asked for the full report (ADR 0029).
@@ -864,7 +864,7 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text(t('http.badId'), 400);
   const form = await c.req.parseBody();
   const [job, match] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getMatch(matchId),
   ]);
   if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
@@ -882,8 +882,7 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   if (form.rewrite !== '1' && readMatchMode(match.breakdown) === 'full') {
     return flashRedirect(resultUrl, 'warn', t('jobRoute.suggestions.already'));
   }
-  const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
-  return c.redirect(startSuggestionsRun({ match, job: jobInput, resumeName: resume.name, resultUrl }), 303);
+  return c.redirect(startSuggestionsRun({ match, job: postingForPrompt(job), resumeName: resume.name, resultUrl }), 303);
 });
 
 /**
@@ -903,7 +902,7 @@ jobsRoute.post(
     return c.text(t('http.badId'), 400);
   }
   const [job, match] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getMatch(matchId),
   ]);
   if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
@@ -913,7 +912,7 @@ jobsRoute.post(
   let reason = '';
   const row = await rewriteAction(
     match,
-    { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+    postingForPrompt(job),
     index,
     (r) => {
       reason = r;
@@ -1142,7 +1141,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   if (!Number.isFinite(resumeId)) return c.text(t('http.badResumeId'), 400);
   const baseId = idParam(form.matchId);
   const [job, resume, base] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(resumeId),
     Number.isFinite(baseId) ? getMatch(baseId) : null,
   ]);
@@ -1160,7 +1159,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // own snapshot of the text (`draft`), and the resume row is untouched.
   return startComparison(c, {
     jobId: id,
-    job: { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+    job: postingForPrompt(job),
     // A one-off comparison is named after its file, and the file as uploaded is not a draft (match-name.ts).
     resume: resume.hidden ? { ...resume, name: nameFromFilename(upload.sourceFilename) } : resume,
     ...(resume.hidden ? { draft: false } : {}),
