@@ -3569,7 +3569,6 @@
   "import.nameSource": "Ponle nombre a la fuente de estas filas: cualquier palabra que distinga este archivo del siguiente.",
   "import.columnNotInFile": "Una de las columnas elegidas no está en este archivo. Elige las columnas de las listas y vuelve a actualizar la vista previa.",
   "import.flash.noTitle": "No se importó nada. Elige la columna que contiene el título de la oferta y otra que contenga un enlace o un id, y vuelve a importar.",
-  "import.flash.noJob": "No se importó nada: con estas columnas ninguna fila del archivo es una oferta. Revisa el título y el enlace.",
   "import.flash.sourceGone": "No se importó nada: esa fuente se eliminó mientras tanto. Vuelve a elegir el archivo y ponle nombre a su fuente.",
   "import.run.running": "Importando",
   "import.run.failed": "La importación falló",

@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.22] — 2026-10-11
+
+### Fixed
+- **An import that stores nothing no longer leaves an empty source.** The
+  preview disables Import when nothing in the file is both new and wanted
+  by a running search, but the server ran the same form when it was posted
+  anyway (an old tab, a double press): nothing was stored, and an empty
+  source appeared under "Sources you imported". The import now refuses for
+  the reason the page gives, before it writes anything. A source made by a
+  press that could store nothing — a fetch was running at that moment — is
+  taken back too, and comes with the second press (#364).
+
 ## [2.55.21] — 2026-10-11
 
 ### Fixed
@@ -5338,6 +5350,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.22]: https://github.com/applypack/applypack/compare/v2.55.21...v2.55.22
 [2.55.21]: https://github.com/applypack/applypack/compare/v2.55.20...v2.55.21
 [2.55.20]: https://github.com/applypack/applypack/compare/v2.55.19...v2.55.20
 [2.55.19]: https://github.com/applypack/applypack/compare/v2.55.18...v2.55.19

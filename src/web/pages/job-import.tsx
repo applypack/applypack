@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { DROP_REASONS, usableMapping, type DropReason, type MappedRows } from '../../datasets/map';
-import type { PreviewCounts } from '../../datasets/preview';
+import { importBlock, type PreviewCounts } from '../../datasets/preview';
 import { MAX_BODY_MB, MAX_ROWS, type RowFormat } from '../../datasets/rows';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import type { MessageKey } from '../../i18n/catalog';
@@ -9,6 +9,7 @@ import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import type { FlashMessage } from '../flash';
 import type { ImportStash } from '../import-stash';
+import { importBlockText } from '../import-summary';
 import { Layout } from '../layout';
 import { MappedRowsList, MappingFields, MappingNote } from './mapping-fields';
 import {
@@ -142,14 +143,10 @@ export interface ImportPreviewProps {
   flash?: FlashMessage | null;
 }
 
-/** Why Import is not offered, or null when it is. One reason, the first that holds. */
+/** Why Import is not offered, or null when it is: the reason the route refuses the same form for (datasets/preview.ts). */
 function blocker({ stash, mapped, counts, scoring, searches }: ImportPreviewProps): string | null {
-  if (!usableMapping(stash.mapping)) return t('import.block.mapping');
-  if (mapped.jobs.length === 0) return t('import.block.noJob');
-  if (searches.running === 0) return t('import.block.noSearch');
-  if (scoring && searches.usable === 0) return t('import.allSearchesBlank');
-  if (counts.passing === 0) return t('import.block.nothing');
-  return null;
+  const block = importBlock({ mappingUsable: usableMapping(stash.mapping), jobs: mapped.jobs.length, searches, scoring, passing: counts.passing });
+  return block && importBlockText(block);
 }
 
 export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {

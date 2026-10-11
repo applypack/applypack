@@ -885,9 +885,17 @@ async function importChecks(): Promise<Check[]> {
       source.jobs.every((j) => j.fitScore === null && j.employer !== null),
   );
 
+  // The same file again holds nothing new: its preview offers no Import, and the form posted anyway is refused
+  // for that reason before anything is written (#364) — back to the preview, with the sentence.
   const again = await upload();
-  const second = await pressImport(again.headers.get('location') ?? '');
-  check('POST /jobs/import with the same file again (nothing new)', '/jobs/import', second.res, second.run?.stage === 'done' && (await imported()) === 3);
+  const againPreview = again.headers.get('location') ?? '';
+  const second = await pressImport(againPreview);
+  check(
+    'POST /jobs/import/:token with the same file again (refused: nothing new, no run, nothing written)',
+    '/jobs/import',
+    second.res,
+    second.res.status === 303 && second.res.headers.get('location') === againPreview && (second.res.headers.get('set-cookie') ?? '').includes('flash=') && (await imported()) === 3,
+  );
   const list = await app.request('/jobs/import', { headers: ORIGIN });
   check('GET /jobs/import with a source imported', '/jobs/import', list, list.status === 200 && (await list.text()).includes('Smoke export'));
   const removed = await app.request(`/jobs/import/sources/${source?.id ?? 0}/delete`, form({}));

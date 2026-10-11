@@ -1,5 +1,7 @@
+import type { ImportBlock } from '../datasets/preview';
 import type { CronStats } from '../jobs/cron-run';
 import { filteredReasons, funnelCounts, reasonsText } from '../funnel';
+import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
 import type { FlashKind } from './flash';
 
@@ -14,6 +16,19 @@ function num(stats: CronStats, key: string): number {
 }
 
 const say = (...sentences: (string | null)[]): string => sentences.filter((s) => s).join(' ');
+
+const BLOCK_WORDS = {
+  mapping: 'import.block.mapping',
+  'no-job': 'import.block.noJob',
+  'no-search': 'import.block.noSearch',
+  'blank-searches': 'import.allSearchesBlank',
+  nothing: 'import.block.nothing',
+} as const satisfies Record<ImportBlock, MessageKey>;
+
+/** Why Import is not offered (datasets/preview.ts:importBlock), as the sentence the preview shows and the route refuses with. */
+export function importBlockText(block: ImportBlock): string {
+  return t(BLOCK_WORDS[block]);
+}
 
 export function summarizeImport(stats: CronStats, fileName: string, source: string): { kind: FlashKind; text: string } {
   if (stats.reason === 'overlap') return { kind: 'warn', text: t('import.summary.overlap') };
