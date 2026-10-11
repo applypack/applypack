@@ -2,6 +2,7 @@ import { proposalOf, suggestionKey } from '../resume/change-sheet';
 import { effectiveKeywords } from '../resume/keyword-overrides';
 import type { ACTION_SECTIONS, MatchAction, MatchKeyword, MatchRemoval } from '../resume/prompts';
 import { hasCheckNote, instructionIn } from '../resume/replacement-gate';
+import { isTitleKeyword } from '../resume/title-keyword';
 
 /*
  * What an unattended tailoring may do to a resume, and the plan that holds a
@@ -72,8 +73,6 @@ export interface EditPlan {
 
 const PRIORITY_RANK: Record<MatchAction['priority'], number> = { high: 0, medium: 1, low: 2 };
 
-/** Letters and digits alone: how two spellings of one phrase are told to be the same. */
-const wordsOf = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 /** A number with what makes it one figure and not another: "$10M" is not the "10" of "10+ years". */
 const figuresOf = (s: string): string[] =>
   (s.match(/[$€£]?\d+(?:[.,]\d+)*(?:\s?%|[kKmMbB]\b)?/g) ?? []).map((n) => n.toLowerCase().replace(/[,\s]/g, ''));
@@ -162,10 +161,9 @@ export function planEdits(
   // resume backs and does not spell. A term nothing backs is never written,
   // and neither is the posting's own title — on the dry run three of the seven
   // terms written onto a skills line were "Senior Product Engineer (…)".
-  const title = wordsOf(report.postingTitle ?? '');
   const terms = policy.keywords
     ? effectiveKeywords(report.keywords)
-        .filter((k) => k.status === 'add' && k.requirement !== 'context' && wordsOf(k.term) !== title)
+        .filter((k) => k.status === 'add' && k.requirement !== 'context' && !isTitleKeyword(k, report.postingTitle))
         .map((k) => (k.where ? { term: k.term, where: k.where } : { term: k.term }))
     : [];
   return { ops, terms, held };
