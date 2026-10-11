@@ -335,7 +335,7 @@ src/
     delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, the delimiter read off the first line; a quote never closed is reported by its line)
     rows.ts                    ← pure: findRows — a JSON array, a wrapper object, rows held by key, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings; JSON that stops short is refused as that
     read-notes.ts              ← pure: what a reader is told about how a file was read — the part that was lost, an encoding that was assumed
-    map.ts                     ← pure: detectMapping (names, then values), mapRow / mapRows → NormalizedJob, the stored mapping's zod schema
+    map.ts                     ← pure: detectMapping (names, then values), mapRow / mapRows → NormalizedJob, the stored mapping's zod schema; findJobRows / postingFields — a posting that holds a list is one row
     preview.ts                 ← pure: previewCounts — rows already stored, and new rows the running searches' base filter admits
     fixtures/                  ← hand-written rows: four shapes, a spreadsheet with its own headers, hostile rows
     folder-path.ts             ← pure: which folder a source may read (home on a local install, named roots elsewhere), a typed path made absolute

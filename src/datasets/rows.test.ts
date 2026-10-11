@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { postingFields } from './map';
 import { MAX_COLUMNS, MAX_ROWS, NOT_ROWS, decodeBody, findRows, type FoundRows } from './rows';
 
 const fixture = (name: string): string => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
@@ -219,6 +220,56 @@ describe('findRows: damaged and odd files (#394)', () => {
     // One object under a key is not a list of rows, and neither are values that share nothing.
     assert.equal(rowsOf('{"only":{"title":"a","url":"u"}}').rows.length, 1);
     assert.equal(rowsOf('{"a":{"title":"x"},"b":{"count":3}}').rows.length, 1);
+  });
+});
+
+describe('findRows: one JSON object (#395)', () => {
+  // With the mapper's own count of what a posting names, as every caller that reads jobs brings it (map.ts:findJobRows).
+  const find = (body: string): FoundRows => {
+    const found = findRows(body, undefined, undefined, postingFields);
+    if (!found.ok) throw new Error(found.error);
+    return found;
+  };
+  const places = [{ '@type': 'Place', address: { addressLocality: 'Lisbon' } }, { '@type': 'Place', address: { addressLocality: 'Porto' } }];
+  const posting = { '@type': 'JobPosting', title: 'Backend Developer', url: 'https://jobs.example/1', description: 'The role.', hiringOrganization: { name: 'Fennel Works' }, jobLocation: places };
+
+  it('takes a posting that holds a list as one row, not as that list', () => {
+    const found = find(JSON.stringify(posting));
+    assert.deepEqual([found.rows.length, found.rows[0]!.title, found.single], [1, 'Backend Developer', true]);
+    // A place with a name of its own names much less of a posting than the posting does.
+    const named = { ...posting, jobLocation: [{ '@type': 'Place', name: 'Lisbon office', address: { addressLocality: 'Lisbon' } }] };
+    assert.equal(find(JSON.stringify(named)).rows[0]!.title, 'Backend Developer');
+    // So do the things a posting lists about itself, under whatever key.
+    const withBenefits = { title: 'Backend Developer', url: 'https://jobs.example/1', description: 'The role.', company: 'Fennel Works', benefits: [{ name: 'Health cover' }, { name: 'Learning budget' }] };
+    assert.equal(find(JSON.stringify(withBenefits)).rows[0]!.title, 'Backend Developer');
+    // And a list inside the posting's company is the company's.
+    const withOffices = { title: 'Backend Developer', url: 'https://jobs.example/1', description: 'The role.', location: 'Lisbon', hiringOrganization: { name: 'Fennel Works', offices: [{ city: 'Lisbon' }, { city: 'Porto' }] } };
+    assert.deepEqual([find(JSON.stringify(withOffices)).rows.length, find(JSON.stringify(withOffices)).rows[0]!.title], [1, 'Backend Developer']);
+  });
+
+  it('still takes the list when its entries are the postings, whatever the wrapper carries', () => {
+    const openings = [{ title: 'A', url: 'https://jobs.example/a' }, { title: 'B', url: 'https://jobs.example/b' }];
+    // A company with its openings; a saved search with its results: metadata that reads like a posting's, and sparse rows.
+    const company = find(JSON.stringify({ name: 'Fennel Works', url: 'https://fennel.example', description: 'We build ledgers.', openings }));
+    assert.deepEqual([company.rows.map((r) => r.title), company.single], [['A', 'B'], false]);
+    // A key that says "rows" is believed outright: a feed's own title, link, text and date sit beside its items.
+    const feed = { title: 'Jobs', link: 'https://feed.example', description: 'A feed of jobs', date: '2026-10-06', company: 'Board', location: 'Remote', items: openings };
+    assert.equal(find(JSON.stringify(feed)).rows.length, 2);
+    // A wrapper that names no posting at all keeps the one list it holds, as before.
+    assert.equal(find('{"count":2,"vacancies":[{"Position":"a"},{"Position":"b"}]}').rows.length, 2);
+    assert.equal(find('{"result":{"capturedLists":{"Open roles":[{"Position":"a"},{"Position":"b"}]}}}').rows.length, 2);
+  });
+
+  it('says a body is one object only when it is', () => {
+    assert.equal(find('{"startedAt":"2026-10-06","rows":2}').single, true);
+    assert.equal(find('[{"title":"a"}]').single, false);
+    assert.equal(find('{"data":[{"title":"a"}]}').single, false);
+    assert.equal(find('{"title":"a"}\n{"title":"b"}').single, false);
+    assert.equal(find('title,url\nA,u').single, false);
+  });
+
+  it('with nobody to say what a posting is, takes the one list as it always did', () => {
+    assert.equal(rowsOf(JSON.stringify(posting)).rows.length, 2);
   });
 });
 

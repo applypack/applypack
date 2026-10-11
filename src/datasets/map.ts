@@ -16,7 +16,7 @@ import { workplaceFromText, type LocationHints, type WorkplaceCode } from '../lo
 import { clipText, feedItemKey, hashShortId, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { safeHref } from '../web/format';
-import { MAX_COLUMNS, isRow, type Row } from './rows';
+import { MAX_COLUMNS, findRows, isRow, type Row, type RowsResult } from './rows';
 
 /** What a column can be mapped to, in the order detection claims columns and the preview lists them. */
 export const MAPPING_FIELDS = [
@@ -512,6 +512,34 @@ export type MappedRow = { job: NormalizedJob; thin: boolean } | { dropped: DropR
  * these rows carry many employers, and the source's own name is never one
  * (ADR 0056). `now` stands in for a date the row does not state.
  */
+/** What a posting has, by the mapper's own fields: its title first, then what tells it from any other thing with a name. */
+const POSTING_FIELDS: readonly MappingField[] = ['title', 'url', 'applyUrl', 'description', 'employer', 'location', 'postedAt'];
+
+/**
+ * How much of a posting an object names: how many of a posting's own fields
+ * it carries under a name the mapper knows, and 0 when it names no title.
+ * Read off the names alone, as a mapping is detected. Two is a posting — a
+ * title and one more thing; a stats file or a place with a name is less.
+ */
+export function postingFields(row: Row): number {
+  const names = new Set(
+    Object.keys(row)
+      .filter((key) => row[key] !== null && row[key] !== undefined && row[key] !== '')
+      .map(norm),
+  );
+  const has = (field: MappingField): boolean => ALIASES[field].some((alias) => names.has(alias));
+  return has('title') ? POSTING_FIELDS.filter(has).length : 0;
+}
+
+/**
+ * `findRows` for a caller that reads jobs: with the mapper's word on what a
+ * posting is, so a posting that holds a list (its places, its skills) is one
+ * row and not that list (#395).
+ */
+export function findJobRows(body: string, maxRows?: number, from?: number): RowsResult {
+  return findRows(body, maxRows, from, postingFields);
+}
+
 /**
  * The date a row with none takes from its file: the file's own time, when
  * that can be a posting's date. A time ahead of the clock (a drive, a machine

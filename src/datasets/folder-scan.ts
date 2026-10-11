@@ -10,9 +10,9 @@
 import { createHash } from 'node:crypto';
 import { t } from '../i18n/t';
 import { decodeText } from './decode';
-import { fileDate, mapRows, type Mapping } from './map';
+import { fileDate, findJobRows, mapRows, postingFields, type Mapping } from './map';
 import { assumedNote, lossNotes, readingOf } from './read-notes';
-import { MAX_BODY_MB, findRows, type RowFormat } from './rows';
+import { MAX_BODY_MB, type RowFormat } from './rows';
 import type { NormalizedJob } from '../types';
 
 /** A row file's state in the ledger (`source_file.status`). */
@@ -110,6 +110,9 @@ export const FILE_NOTES = {
   },
   get openRow(): string {
     return t('datasets.file.openRow', { minutes: OPEN_ROW_SETTLE_MS / 60_000 });
+  },
+  get notAPosting(): string {
+    return t('datasets.file.notAPosting');
   },
 };
 
@@ -420,11 +423,11 @@ export function judgeFile(
   const decoded = decodeText(got.bytes);
   const { text } = decoded;
   let from = resumeAt(known, got);
-  let found = findRows(text, maxRows, from);
+  let found = findJobRows(text, maxRows, from);
   // Fewer rows than were read: not the file read then, whatever its first bytes say.
   if (found.ok && from > found.total) {
     from = 0;
-    found = findRows(text, maxRows);
+    found = findJobRows(text, maxRows);
   }
   if (!found.ok) {
     // A damaged file is worth a word on the Check page; one that simply holds no rows is not.
@@ -441,6 +444,9 @@ export function judgeFile(
   // A stated date is held against the look's clock, never the file's: a file stamped 1980 turned every later date away as "in the future".
   const mapped = mapRows(rows, mapping, companyId, new Date(now), fileDate(got.mtimeMs, new Date(now)));
   const judged = rows.length - mapped.dropped.closed - mapped.repeated;
+  // One object that names no posting — a tool's stats, a manifest — beside the files of rows: set aside, not a
+  // sign the tool changed its columns. Called a misfit, it failed every look that read nothing newer (#395).
+  if (found.single && mapped.jobs.length === 0 && postingFields(rows[0] ?? {}) < 2) return none(note('skipped', FILE_NOTES.notAPosting, measured));
   if (mapped.jobs.length * 2 < judged) {
     const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: rows.length });
     // What was read before these rows stands: a mapping saved again reads on from there.

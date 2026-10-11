@@ -11,9 +11,11 @@ import {
   detectMapping,
   emptyMapping,
   fileDate,
+  findJobRows,
   mapRow,
   mapRows,
   mappingFits,
+  postingFields,
   readDate,
   alertsOff,
   readSourceConfig,
@@ -309,6 +311,33 @@ describe('mapRows: hostile rows', () => {
     const dated = [{ title: 'A', url: 'https://rows.example/a', posted: '2026-09-25' }, { title: 'B', url: 'https://rows.example/b' }, { title: 'C', url: 'https://rows.example/c', posted: '2031-01-01' }];
     const mapping = { ...detectMapping(dated, NOW).mapping, postedAt: 'posted' };
     assert.deepEqual(mapRows(dated, mapping, 1, NOW, fileTime).jobs.map((j) => j.postedAt.toISOString().slice(0, 10)), ['2026-09-25', '2026-08-01', '2026-08-01']);
+  });
+
+  // #395: what tells a posting that holds a list from a wrapper around rows, and a stats file from a posting.
+  it('postingFields: counts what of a posting an object names, and nothing without a title', () => {
+    assert.equal(postingFields({ '@type': 'JobPosting', title: 'Backend Developer', url: 'https://jobs.example/1', description: 'x', hiringOrganization: { name: 'Acme' }, datePosted: '2026-10-01', jobLocation: [] }), 6);
+    assert.equal(postingFields({ 'Job Title': 'Backend Developer', link: 'https://jobs.example/1' }), 2);
+    assert.equal(postingFields({ '@type': 'Place', name: 'Lisbon office', address: { addressLocality: 'Lisbon' } }), 2);
+    assert.equal(postingFields({ '@type': 'Place', address: { addressLocality: 'Lisbon' } }), 0);
+    assert.equal(postingFields({ startedAt: '2026-10-06T10:00:00Z', pages: 14, rowsWritten: 2, errors: 0 }), 0);
+    assert.equal(postingFields({ name: 'run-12', rows: 5 }), 1);
+    // A field that is there and empty is not there.
+    assert.equal(postingFields({ title: 'Backend Developer', url: '', description: null }), 1);
+  });
+
+  it('findJobRows: a posting saved as JSON, with its places and its company inside, is one row that maps', () => {
+    const body = JSON.stringify({
+      '@type': 'JobPosting',
+      title: 'Backend Developer',
+      url: 'https://jobs.example/1',
+      description: 'You will own the payments ledger.',
+      hiringOrganization: { '@type': 'Organization', name: 'Fennel Works' },
+      jobLocation: [{ '@type': 'Place', address: { addressLocality: 'Lisbon', addressCountry: 'PT' } }, { '@type': 'Place', address: { addressLocality: 'Porto', addressCountry: 'PT' } }],
+    });
+    const found = findJobRows(body);
+    assert.ok(found.ok);
+    const { jobs } = mapRows(found.rows, detectMapping(found.rows, NOW).mapping, 1, NOW);
+    assert.deepEqual(jobs.map((j) => [j.title, j.employer, j.url]), [['Backend Developer', 'Fennel Works', 'https://jobs.example/1']]);
   });
 
   it('fileDate: a file’s time is a date unless it is ahead of the clock or before any posting', () => {
