@@ -1,4 +1,5 @@
 import { effectiveRequirement } from '../resume/keyword-overrides';
+import { isTitleKeyword } from '../resume/title-keyword';
 import type { MatchAction, MatchHardRequirement, MatchKeyword } from '../resume/prompts';
 import { clipWords } from '../text-utils';
 import { SCORING, type ScoreBreakdown } from '../resume/score';
@@ -226,6 +227,8 @@ const shownAtWork = (k: MatchKeyword): boolean => k.status === 'present' && (k.e
 export interface AdviceInput extends LinesInput {
   /** The report's suggested edits, in the order it wrote them. */
   actions: MatchAction[];
+  /** The posting's title: carried as a keyword for the title line, and not a must to write, back or show at work (#348). */
+  postingTitle?: string | null;
 }
 
 /** Longest an action's own sentence may run before it stops being a glance. */
@@ -277,7 +280,7 @@ export function mainAdvice(input: AdviceInput): Advice | null {
 const said = (key: MessageKey, params: MessageParams): AdviceMessage => ({ key, params });
 
 /** Every rung but the last: the ones this file words itself, from verdicts already stored. */
-function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): AdviceMessage | null {
+function ruledAdvice({ breakdown, keywords, hard, postingTitle }: AdviceInput): AdviceMessage | null {
   const failed = hard.find((h) => h.status === 'fail');
   if (failed) return said('score.advice.gateFailed', { gate: clipWords(failed.requirement, MAX_GATE_CHARS) });
 
@@ -301,7 +304,9 @@ function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): AdviceMessage 
   const unanswered = hard.find((h) => h.status === 'unknown');
   if (unanswered) return said('score.advice.gateUnknown', { gate: clipWords(unanswered.requirement, MAX_GATE_CHARS) });
 
-  const musts = keywords.filter((k) => effectiveRequirement(k) === 'must');
+  // The posting's title is a must-level keyword and no skill: "confirm Sr. Software Engineer where it is true"
+  // asks a person whether they have a job title. The title line and its own card answer it.
+  const musts = keywords.filter((k) => effectiveRequirement(k) === 'must' && !isTitleKeyword(k, postingTitle));
 
   // "add" means the resume's own facts already evidence the term and the word
   // itself is missing — the cheapest points on the page, and the only rung

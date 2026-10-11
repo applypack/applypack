@@ -4,6 +4,7 @@ import { withTableAliases } from './keyword-aliases';
 import type { KeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
 import type { RequirementLevel } from './score';
+import { isTitleKeyword } from './title-keyword';
 import { t } from '../i18n/t';
 
 /*
@@ -295,11 +296,15 @@ export function carryOverrides(
  *
  * Out: a term the user already denied or said they are not sure of (those
  * ARE their answers), and a context term, which the score does not count
- * either way.
+ * either way. And the posting's own title (#348): a title is not something a
+ * person has or lacks, and a stored "I have it" would let a rewrite put the
+ * title into a work bullet, where it reads as having held the role. The title
+ * line answers it (ADR 0044).
  */
-export function confirmable(keywords: MatchKeyword[]): { asks: MatchKeyword[]; unproven: MatchKeyword[] } {
-  const asks = keywords.filter((k) => k.status === 'ask_user');
-  const unproven = keywords.filter(
+export function confirmable(keywords: MatchKeyword[], postingTitle?: string | null): { asks: MatchKeyword[]; unproven: MatchKeyword[] } {
+  const askable = keywords.filter((k) => !isTitleKeyword(k, postingTitle));
+  const asks = askable.filter((k) => k.status === 'ask_user');
+  const unproven = askable.filter(
     (k) => k.status === 'cannot_claim' && k.note !== DENIED_NOTE && k.note !== UNSURE_NOTE && effectiveRequirement(k) !== 'context',
   );
   return { asks, unproven };

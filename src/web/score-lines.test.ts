@@ -262,3 +262,19 @@ test('a must in an either/or group another member answers asks for nothing (Fern
   assert.equal(advice({ keywords: listed }), null);
   assert.equal(readyToApply({ ...input({ keywords: listed }), score: 95, threshold: 85, edits: 0 }), true);
 });
+
+// #348: the line once read "Sr. Software Engineer, Marine is a must here and nothing backs it yet — confirm it where it is true."
+test('the one move never asks to confirm, write or prove the posting\'s own title', () => {
+  const title = 'Sr. Software Engineer, Marine';
+  const titleKw = (status: MatchKeyword['status'], extra: Partial<MatchKeyword> = {}) => kw({ term: title, priority: 2, status, ...extra });
+  // Nothing else is open: the title alone is no move at all.
+  assert.equal(advice({ keywords: [titleKw('cannot_claim'), kw({ term: 'Go', evidence: 'measured' })], postingTitle: title }), null);
+  assert.equal(advice({ keywords: [titleKw('add'), kw({ term: 'Go', evidence: 'measured' })], postingTitle: title }), null);
+  assert.equal(advice({ keywords: [titleKw('present', { evidence: 'listed' }), kw({ term: 'Go', evidence: 'measured' })], postingTitle: title }), null);
+  // A shortening of it is read the same way.
+  assert.equal(advice({ keywords: [kw({ term: 'Software Engineer', priority: 2, status: 'cannot_claim' }), kw({ term: 'Go', evidence: 'measured' })], postingTitle: title }), null);
+  // The next real gap is what the line names instead.
+  assert.match(advice({ keywords: [titleKw('cannot_claim'), kw({ term: 'Kubernetes', status: 'cannot_claim' })], postingTitle: title }) ?? '', /^Kubernetes is a must here/);
+  // Without the title, the caller gets what it got before.
+  assert.match(advice({ keywords: [titleKw('cannot_claim')] }) ?? '', /^Sr\. Software Engineer, Marine is a must here/);
+});

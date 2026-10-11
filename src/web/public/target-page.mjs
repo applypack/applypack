@@ -218,7 +218,8 @@ export function init(data) {
     paintBulk(bulkRows(skills));
     // Hardest requirement first, then the words the posting keeps repeating.
     for (const r of gaps) {
-      const unproven = r.status === 'cannot_claim';
+      // The posting's title is never a question to confirm (#348): its chip leads to the title line, as any written gap does.
+      const unproven = r.status === 'cannot_claim' && !isTitleKeyword(r, data.sheet.jobTitle);
       // The user's own "I don't" or "Not sure" is a cannot_claim too, carrying
       // the note the answer left. Still a gap, so still a chip — but not an
       // offer to confirm: the card stopped asking about it.
