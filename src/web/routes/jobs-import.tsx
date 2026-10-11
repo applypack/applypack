@@ -7,6 +7,7 @@ import {
   MappingSchema,
   columnsOf,
   detectMapping,
+  findJobRows,
   mapRows,
   mappingFits,
   readSourceConfig,
@@ -18,7 +19,7 @@ import {
 import { decodeText } from '../../datasets/decode';
 import { importBlock, previewCounts } from '../../datasets/preview';
 import { readingOf } from '../../datasets/read-notes';
-import { MAX_BODY_MB, findRows } from '../../datasets/rows';
+import { MAX_BODY_MB } from '../../datasets/rows';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
 import { runImportJob } from '../../jobs/import-job';
 import { employerGate, hiringKey } from '../../employer';
@@ -115,7 +116,7 @@ jobsImportRoute.post(
     // A file name is the sender's text: cut before it rides in a flash cookie or is shown.
     const fileName = file.name.slice(0, MAX_FILE_NAME_CHARS);
     const decoded = decodeText(new Uint8Array(await file.arrayBuffer()));
-    const found = findRows(decoded.text);
+    const found = findJobRows(decoded.text);
     if (!found.ok) return flashRedirect('/jobs/import', 'err', `${fileName}: ${found.error}`);
 
     // The mapping the source was last imported with, when this file still has those columns.

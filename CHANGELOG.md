@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.25] — 2026-10-11
+
+### Fixed
+- **One posting saved as a JSON file is read as that posting.** A file
+  holding a single posting with a list inside it — a schema.org
+  `JobPosting` with two places in `jobLocation`, a scraper's posting with
+  its skills — was read as that list: the import said "2 rows read from the
+  file, 0 of them jobs; left out: 2 without a title", and a folder of one
+  posting a file ended up failing as "Files do not fit the mapping". A list
+  inside an object that is itself a posting is now the posting's own. A
+  feed with its items, or a company with its openings, reads as before.
+- **A tool's stats file no longer makes its folder fail between runs.** A
+  JSON file holding one object that names no posting (a `stats.json`, a
+  manifest) was judged a file that does not fit the mapping. Written after
+  the rows, it was the newest file, so every check that found nothing new
+  reported the folder as failing until the tool ran again. It is now set
+  aside with a note on the Files page (#395).
+
+  On the upgrade, JSON files a folder had recorded as not fitting are judged
+  once more at the next check: a posting among them is read and scored like
+  any new file, a stats file is set aside, and a file that truly does not
+  fit says so again.
+
 ## [2.55.24] — 2026-10-11
 
 ### Fixed
@@ -5410,6 +5433,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.25]: https://github.com/applypack/applypack/compare/v2.55.24...v2.55.25
 [2.55.24]: https://github.com/applypack/applypack/compare/v2.55.23...v2.55.24
 [2.55.23]: https://github.com/applypack/applypack/compare/v2.55.22...v2.55.23
 [2.55.22]: https://github.com/applypack/applypack/compare/v2.55.21...v2.55.22

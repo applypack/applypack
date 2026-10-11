@@ -710,8 +710,9 @@ and the next comparison's keyword frame read afresh (ADR 0043).
 ## Imported rows (ADR 0062)
 
 `/jobs/import` takes a file of jobs the user already has: a JSON array, an
-object holding one list or its rows by key, JSON Lines, CSV or TSV, up to
-5 MB and 2 000 rows. Nothing is requested from anywhere, and the file is
+object holding one list or its rows by key, one posting as an object of its
+own (whatever lists it holds: its places, its skills), JSON Lines, CSV or
+TSV, up to 5 MB and 2 000 rows. Nothing is requested from anywhere, and the file is
 never stored: its rows wait in the web process's memory between the two
 steps.
 

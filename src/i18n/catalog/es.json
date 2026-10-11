@@ -3644,6 +3644,7 @@
   "datasets.file.partRows": "Leídas {read, number} de {total, plural, one {# fila} many {# de filas} other {# filas}} hasta ahora. La próxima comprobación seguirá desde ahí.",
   "datasets.file.brokenJson": "Empieza como JSON y está cortado o no es JSON válido, así que no se leyó nada de él. Un archivo que aún se está escribiendo se leerá cuando esté completo.",
   "datasets.file.openRow": "Su última línea no termina con un salto de línea, así que puede que aún se esté escribiendo. Esa fila se leerá cuando el archivo lleve {minutes, plural, one {# minuto} many {# de minutos} other {# minutos}} sin cambiar.",
+  "datasets.file.notAPosting": "Un único objeto JSON que no se lee como una oferta: sin título, o sin nada más de lo que tiene una oferta. Apartado; así es un archivo de estadísticas o un manifiesto de una herramienta.",
   "datasets.posting.tooShort": "Menos de {n} caracteres de texto: una nota o una página vacía, no una oferta.",
   "datasets.posting.pdf": "No se pudo leer texto de este PDF: es una imagen escaneada, tiene contraseña o el archivo está dañado. Guarda la página como HTML, o imprímela en PDF con su texto.",
   "datasets.posting.docx": "No es un .docx legible.",

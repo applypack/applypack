@@ -40,6 +40,12 @@ export interface FoundRows {
    * short is not a row.
    */
   openRow: boolean;
+  /**
+   * The body is one JSON object taken as one row: a file per posting. Also
+   * what a stats file or a manifest looks like, which is why a caller that
+   * judges a folder's files asks (#395).
+   */
+  single: boolean;
 }
 
 /**
@@ -77,21 +83,53 @@ function holdsRows(value: unknown): value is unknown[] {
   return Array.isArray(value) && value.some(isRow);
 }
 
+/**
+ * How much of a posting an object names — its title, link, text, company,
+ * place, date — and 0 when it names no title. The mapper's to say
+ * (map.ts:postingFields): this module knows shapes, not what a job's fields
+ * are called.
+ */
+export type PostingFields = (row: Row) => number;
+
+/** A title and one more thing: less than that is no posting. */
+const POSTING_AT_LEAST = 2;
+/** How much more of a posting an object must name than its list's entries do, for the list to be its own when the entries read as postings too. */
+const RICHER_BY = 2;
+
+/**
+ * Whether a list inside an object is that object's own — a posting's places,
+ * its skills, its benefits — and not the rows it wraps. A posting is a row in
+ * itself, and its list was taken for the rows: a `JobPosting` with two places
+ * read as two rows of `@type, address` (#395). The list is the object's own
+ * when the object names a posting and the entries do not, or name much less
+ * of one (a place with a name and an address). An object that names little
+ * more than its entries is their wrapper, whatever title and link it carries.
+ */
+function ownsItsList(holder: Row, list: readonly unknown[], reads: PostingFields): boolean {
+  const own = reads(holder);
+  if (own < POSTING_AT_LEAST) return false;
+  const most = list.reduce<number>((best, entry) => (isRow(entry) ? Math.max(best, reads(entry)) : best), 0);
+  return most < POSTING_AT_LEAST || own >= most + RICHER_BY;
+}
+
 /** The one list of rows inside a wrapper object, or null when it holds none or cannot say which. */
-function rowsInside(value: Row, depth: number): unknown[] | null {
+function rowsInside(value: Row, depth: number, reads: PostingFields): unknown[] | null {
+  // A key that says "rows" is believed: a feed's own title and text sit beside its `items`.
   for (const key of ROW_KEYS) {
     const inner = Object.hasOwn(value, key) ? value[key] : undefined;
     if (holdsRows(inner)) return inner;
     if (isRow(inner) && depth < MAX_WRAPPER_DEPTH) {
-      const found = rowsInside(inner, depth + 1);
+      const found = rowsInside(inner, depth + 1, reads);
       if (found) return found;
     }
   }
   const lists = Object.values(value).filter(holdsRows);
-  if (lists.length === 1) return lists[0]!;
+  if (lists.length === 1) return ownsItsList(value, lists[0]!, reads) ? null : lists[0]!;
   if (lists.length > 1 || depth >= MAX_WRAPPER_DEPTH) return null;
   const objects = Object.values(value).filter(isRow);
-  return objects.length === 1 ? rowsInside(objects[0]!, depth + 1) : null;
+  const found = objects.length === 1 ? rowsInside(objects[0]!, depth + 1, reads) : null;
+  // A posting's company is an object too, and may hold a list of its own (its offices).
+  return found !== null && ownsItsList(value, found, reads) ? null : found;
 }
 
 /**
@@ -134,14 +172,18 @@ function fromList(list: readonly unknown[], format: RowFormat, page: Page): Rows
     notRows: list.length - rows.length,
     cutAt: null,
     openRow: false,
+    single: false,
   };
 }
 
-function fromJson(parsed: unknown, page: Page): RowsResult {
+function fromJson(parsed: unknown, page: Page, reads: PostingFields): RowsResult {
   if (Array.isArray(parsed)) return fromList(parsed, 'json', page);
   if (!isRow(parsed)) return noRows();
-  // An object with no list inside is one row: a tool that writes a file per posting.
-  return fromList(rowsInside(parsed, 1) ?? keyedRows(parsed) ?? [parsed], 'json', page);
+  const rows = rowsInside(parsed, 1, reads) ?? keyedRows(parsed);
+  if (rows !== null) return fromList(rows, 'json', page);
+  // An object with no list of rows inside is one row: a tool that writes a file per posting.
+  const one = fromList([parsed], 'json', page);
+  return one.ok ? { ...one, single: true } : one;
 }
 
 function fromJsonLines(text: string, page: Page): RowsResult {
@@ -190,7 +232,7 @@ function fromDelimited(body: string, page: Page, linesBefore: number, ended: boo
   const rows = lines.slice(page.from, page.from + page.max).map((cells) => Object.fromEntries(cells.slice(0, names.length).map((cell, i) => [names[i]!, cell])));
   // A row with a quote left open is gone already; what is left of the table ends where its rows do.
   const openRow = !ended && cutAt === null;
-  return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - page.from - rows.length), total: lines.length, notRows: 0, cutAt, openRow };
+  return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - page.from - rows.length), total: lines.length, notRows: 0, cutAt, openRow, single: false };
 }
 
 /** A file's bytes as text (decode.ts): UTF-8, UTF-16 behind its mark, or the one-byte encoding a file that is neither is likeliest in. */
@@ -206,8 +248,11 @@ const JSON_OPENING_RE = /^[[{]\s*(?:[[{"\]}]|$)/;
 /**
  * The rows of a body: at most `maxRows` of them, starting at row `from` — a
  * folder's long file is read a look's worth at a time (folder-scan.ts).
+ * `reads` tells a posting that holds a list from a wrapper around rows; with
+ * none, any one list of objects is the rows. Callers that read jobs go
+ * through `map.ts:findJobRows`, which brings it.
  */
-export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0): RowsResult {
+export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0, reads: PostingFields = () => 0): RowsResult {
   const page: Page = { from, max: maxRows };
   const unmarked = body.startsWith(BOM) ? body.slice(1) : body;
   const blank = LEADING_BLANK_LINES_RE.exec(unmarked)?.[0] ?? '';
@@ -231,5 +276,5 @@ export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0): Ro
     if (JSON_OPENING_RE.test(opening)) return { ok: false, error: t('datasets.rows.brokenJson'), why: 'broken-json' };
     return fromDelimited(text, page, linesBefore, ended);
   }
-  return fromJson(parsed, page);
+  return fromJson(parsed, page, reads);
 }

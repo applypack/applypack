@@ -3644,6 +3644,7 @@
   "datasets.file.partRows": "{read, number} of {total, plural, one {# row} other {# rows}} read so far. The next check reads on from there.",
   "datasets.file.brokenJson": "It starts as JSON and is cut off or not valid JSON, so nothing in it was read. A file still being written is read once it is whole.",
   "datasets.file.openRow": "Its last line has no line end, so it may still be written. That row is read once the file has been still for {minutes, plural, one {# minute} other {# minutes}}.",
+  "datasets.file.notAPosting": "One JSON object that does not read as a posting: no title, or nothing beside it that a posting has. Set aside; a tool’s stats or manifest file looks like this.",
   "datasets.posting.tooShort": "Less than {n} characters of text: a note or an empty page, not a posting.",
   "datasets.posting.pdf": "No text could be read from this PDF: a scanned image, a password, or a damaged file. Save the page as HTML, or print it to PDF with its text.",
   "datasets.posting.docx": "Not a readable .docx.",

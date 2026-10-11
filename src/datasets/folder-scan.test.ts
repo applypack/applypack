@@ -237,6 +237,41 @@ describe('judgeFile', () => {
     assert.equal(withClosed.change?.jobCount, 1);
   });
 
+  describe('a file that holds one JSON object (#395)', () => {
+    const one = (value: unknown) => judge(bytesOf(value));
+
+    it('reads a posting saved as JSON, its list of places inside, as one job', () => {
+      const posting = { title: 'Backend Developer', url: 'https://rows.example/1', company: 'Fennel Works', jobLocation: [{ '@type': 'Place', address: { addressLocality: 'Lisbon' } }, { '@type': 'Place', address: { addressLocality: 'Porto' } }] };
+      const verdict = one(posting);
+      assert.deepEqual([verdict.rows, verdict.jobs.map((j) => j.title), verdict.change?.status, verdict.change?.jobCount], ['fit', ['Backend Developer'], 'done', 1]);
+    });
+
+    it('sets aside a stats file instead of calling it a misfit', () => {
+      const verdict = one({ startedAt: '2026-10-06T10:00:00Z', finishedAt: '2026-10-06T10:02:11Z', pages: 14, rowsWritten: 2, errors: 0 });
+      assert.deepEqual([verdict.rows, verdict.change?.status, verdict.change?.detail], ['none', 'skipped', FILE_NOTES.notAPosting]);
+      // Settled with its hash like any file set aside: read again only when it changes.
+      assert.notEqual(verdict.change?.sha256, null);
+    });
+
+    it('still calls one posting under other column names a misfit: the tool changed what it writes', () => {
+      const verdict = one({ position: 'Backend Developer', link: 'https://rows.example/1', organisation: 'Fennel Works' });
+      assert.deepEqual([verdict.rows, verdict.change?.status], ['misfit', 'failed']);
+    });
+
+    it('and a list of things that are no postings is a misfit as before, not one object', () => {
+      assert.equal(one([{ startedAt: 'x' }, { startedAt: 'y' }]).rows, 'misfit');
+    });
+
+    it('does not let a stats file newer than the rows fail the look that reads nothing', () => {
+      const data = file('run-1.json', 30 * MINUTE);
+      const stats = file('stats.json', 20 * MINUTE);
+      const ledger: LedgerEntry[] = [seen(data), { ...seen(stats, 'skipped') }];
+      assert.equal(newestIsMisfit([data, stats], ledger, () => true), false);
+      // What it was before: the stats file judged a misfit, and newer than the data.
+      assert.equal(newestIsMisfit([data, stats], [seen(data), seen(stats, 'failed')], () => true), true);
+    });
+  });
+
   describe('a table still being written (#396)', () => {
     const columns: Mapping = { ...emptyMapping(), id: 'id', title: 'title', url: 'url' };
     const at = (ageMs: number): ListedFile => file('slow.csv', ageMs);

@@ -29,6 +29,7 @@ import {
   MappingSchema,
   columnsOf,
   detectMapping,
+  findJobRows,
   mapRows,
   readSourceConfig,
   usableMapping,
@@ -39,7 +40,7 @@ import {
 } from '../../datasets/map';
 import { needsModel, readPostingFile } from '../../datasets/posting-file';
 import { previewCounts } from '../../datasets/preview';
-import { decodeBody, findRows, type Row, type RowFormat } from '../../datasets/rows';
+import { decodeBody, type Row, type RowFormat } from '../../datasets/rows';
 import { prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
@@ -98,7 +99,7 @@ async function sampleRows(root: string, files: readonly ListedFile[]): Promise<R
   const rows: Row[] = [];
   for (const file of [...files].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, SAMPLE_FILES)) {
     const got = await readFolderFile(root, file.relPath);
-    const found = got.ok ? findRows(decodeBody(got.bytes)) : null;
+    const found = got.ok ? findJobRows(decodeBody(got.bytes)) : null;
     if (found?.ok) rows.push(...found.rows.slice(0, SAMPLE_ROWS - rows.length));
   }
   return rows;

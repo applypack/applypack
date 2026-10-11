@@ -59,6 +59,22 @@ reader of rows, and the first for saved postings too:
 What was lost is said where the file is judged: on the import's preview, on
 a folder's Check page, and in the folder's ledger (addendum below).
 
+*Amended 2026-10-11 (v2.55.25, #395).* "The only list of objects inside"
+was taken for the rows even when the object around it was itself a posting:
+a schema.org `JobPosting` saved as `.json`, with two places in
+`jobLocation`, read as two rows of `@type, address`, and a folder of one
+posting a file failed as "files do not fit the mapping". The mapper now
+says how much of a posting an object names (`map.ts:postingFields`: its
+title, link, text, company, place, date), and a list inside an object is
+that object's own — its places, its skills, its company's offices — when
+the object names a posting and the list's entries do not, or name much less
+of one. A key that says "rows" (`data`, `items`, `results`, `records`,
+`jobs`) is still believed outright, and an object that names little more
+than its entries is still their wrapper: a feed with its title and text, a
+company with its openings. In a folder, a file holding one object that names
+no posting — a tool's stats, a manifest — is set aside, not counted as a
+misfit: counted as one, it failed every look that read nothing newer.
+
 **The mapping is detected, shown, corrected and kept.** `datasets/map.ts`
 decides which column is which from the names (an alias table, with case,
 spaces and punctuation set aside) and, where the names say nothing, from the
