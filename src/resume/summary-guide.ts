@@ -3,6 +3,7 @@ import { effectiveKeywords } from './keyword-overrides';
 import { SUMMARY_FILLER, type MatchAction, type MatchKeyword, type PostingBrief } from './prompts';
 import { structureFromText } from './structure-from-text';
 import { t } from '../i18n/t';
+import { isTitleKeyword } from './title-keyword';
 
 /*
  * What this posting's first reader looks for in a summary, held against the
@@ -232,9 +233,11 @@ function summaryChecks(summary: string | null, input: SummaryGuideInput): Summar
 
   // What the resume cannot back: a must or primary term it lacks, and the other
   // half of an either/or it already meets ("PHP and/or Java" for a PHP resume).
+  // Never the posting's own title: the check above asks for it by name, and on a summary it is the role applied
+  // for, not a claim (ADR 0044 rule 6) — "name the role" and "leave the role out" once stood in one list (#348).
   const insteadOf = (k: MatchKeyword) => alternativeHeld(k, keywords, input.brief);
   const avoid = keywords.filter(
-    (k) => k.status === 'cannot_claim' && (insteadOf(k) !== undefined || k.primary || k.requirement === 'must'),
+    (k) => k.status === 'cannot_claim' && !isTitleKeyword(k, input.jobTitle) && (insteadOf(k) !== undefined || k.primary || k.requirement === 'must'),
   );
   if (avoid.length > 0) {
     const terms = avoid.slice(0, SHOW_TERMS);

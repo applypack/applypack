@@ -135,14 +135,14 @@ export const TargetPage: FC<TargetPageProps> = ({
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
   // A file judged on its own text may not be the user's: its questions are not theirs to answer (TASKS R1).
-  const { asks, unproven } = readMatchEvidence(match.breakdown) === 'text' ? { asks: [], unproven: [] } : confirmable(scored);
+  const { asks, unproven } = readMatchEvidence(match.breakdown) === 'text' ? { asks: [], unproven: [] } : confirmable(scored, job.title);
   const highActions = actions.filter((a) => a.priority === 'high').length;
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
   const breakdown = readBreakdown(match.breakdown);
   // The one move worth making next, ranked in code from the verdicts this row
   // already carries (score-lines.ts) — the editor is where it gets made.
-  const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions }) : null;
+  const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions, postingTitle: job.title }) : null;
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
     ? recent

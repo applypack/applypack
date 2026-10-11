@@ -532,7 +532,7 @@ const MatchReport: FC<{
       <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
       <MatchSignals match={match} verification={verification} />
       {/* A file judged on its own text may not be the user's: its questions are not theirs to answer (R1). */}
-      {readMatchEvidence(match.breakdown) === 'own' && <ConfirmFacts {...confirmable(keywords)} matchId={match.id} back={factsBack} />}
+      {readMatchEvidence(match.breakdown) === 'own' && <ConfirmFacts {...confirmable(keywords, job.title)} matchId={match.id} back={factsBack} />}
 
       {readMatchMode(match.breakdown) === 'fast' ? (
         <SuggestionsPrompt matchId={match.id} jobId={match.jobId} />

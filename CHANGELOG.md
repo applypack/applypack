@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.36] — 2026-10-11
+
+### Fixed
+- **The confirm card no longer asks whether you "have" the job's title.**
+  "Confirm your experience — the posting wants these" listed the posting's
+  own title among the skills, with **I have it**, and the line under the
+  score could read "Sr. Software Engineer, Marine is a must here and nothing
+  backs it yet — confirm it where it is true". A title is not something you
+  have or lack; and a stored "I have it" would have let a suggested rewrite
+  put the title into a work bullet, where it reads as having held the role.
+  The title is left out of the card and of that line, and its chip leads to
+  the title line instead of the card. It still counts in the score (#348).
+
 ## [2.55.35] — 2026-10-11
 
 ### Fixed
