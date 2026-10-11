@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { config } from '../config';
 import { singleConnectionUrl } from '../db-url';
+import { waitForLock, type LockWait } from './lock-wait';
 
 /**
  * One fetch at a time across processes (ADR 0003, addendum 2026-09-28). The
@@ -23,6 +24,11 @@ export interface FetchLock {
 /** The lock, or null when another fetch holds it. */
 export function tryFetchLock(): Promise<FetchLock | null> {
   return tryAdvisoryLock(FETCH_LOCK_KEY);
+}
+
+/** The lock, asked for again until it is free or the wait is over (lock-wait.ts): what the hourly tick does when it meets another fetch. */
+export function waitForFetchLock(wait: LockWait): Promise<FetchLock | null> {
+  return waitForLock(tryFetchLock, wait);
 }
 
 /** The same kind of lock under another key, for a job with a queue of its own to guard (jobs/pack-job.ts). */

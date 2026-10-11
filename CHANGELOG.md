@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.28] — 2026-10-11
+
+### Fixed
+- **A folder on a disk that stops answering no longer stops every source.**
+  A folder on a sleeping network drive, or a hard NFS mount in Docker, never
+  answered the read, and the check that asked kept the one fetch lock for
+  ever: every hourly search and every "Fetch now" after it said another
+  fetch was running, until the worker was restarted. A folder's disk now has
+  30 seconds to answer; the check then fails as "Unreachable" on the
+  folder's row, the lock is given back, and the folder is read again when
+  the disk comes back.
+- **The hourly search is no longer lost to something that held the lock for
+  a moment.** The tick asked for the lock once, so an import scoring its
+  rows, or a look at a folder of saved postings, at that minute cost the
+  hour its search, its held alerts and its licence re-check. It now waits
+  for whoever holds the lock, asking every minute for up to 50 minutes, and
+  runs when they are done.
+- **A folder check that meets a running fetch leaves no row on Runs.** It
+  asked again every minute and wrote "skipped: another fetch was running"
+  each time: a twenty-minute fetch left twenty rows.
+- The import's preview says that the hourly search waits while its rows are
+  scored (#397). What a long import should let run beside it is #454.
+
 ## [2.55.27] — 2026-10-11
 
 ### Fixed
@@ -5471,6 +5494,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.28]: https://github.com/applypack/applypack/compare/v2.55.27...v2.55.28
 [2.55.27]: https://github.com/applypack/applypack/compare/v2.55.26...v2.55.27
 [2.55.26]: https://github.com/applypack/applypack/compare/v2.55.25...v2.55.26
 [2.55.25]: https://github.com/applypack/applypack/compare/v2.55.24...v2.55.25

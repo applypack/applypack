@@ -23,7 +23,7 @@ import { deliverHeldAlerts } from './alert-delivery';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
-import { tryFetchLock } from './fetch-lock';
+import { tryFetchLock, type FetchLock } from './fetch-lock';
 import { addToFunnel } from './funnel-store';
 import type { CronStats, SourceStat } from './cron-run';
 
@@ -40,6 +40,12 @@ export interface FetchJobOptions {
   /** The wizard's test search: a subset of the sources, a place typed before any search exists. */
   only?: FetchWalkOptions['only'];
   places?: FetchWalkOptions['places'];
+  /**
+   * The fetch lock, already taken by the caller, who then records the run
+   * knowing it will happen (jobs/fetch-tick.ts): a run that only met another
+   * fetch leaves no row behind. Released here, as one taken here is.
+   */
+  lock?: FetchLock;
 }
 
 /**
@@ -48,7 +54,7 @@ export interface FetchJobOptions {
  * `overlap` and does nothing — no source read, no alert sent, no AI spent.
  */
 export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: CronStats }> {
-  const lock = await tryFetchLock();
+  const lock = opts.lock ?? (await tryFetchLock());
   if (!lock) {
     logger.warn({ manual: opts.manual === true }, 'fetch-job: another fetch is running; skipped');
     return { stats: { skipped: 1, reason: 'overlap' } };
