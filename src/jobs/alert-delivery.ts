@@ -1,4 +1,5 @@
 import { JobStatus } from '@prisma/client';
+import { companyForMessage } from '../employer';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { alertChannel, sendDigest, type Delivery } from '../notifier';
@@ -77,7 +78,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
       title: j.title,
       // The ★ is on the row, not on the send: a held posting from a watched
       // company must read the same as one sent on the spot (ADR 0036).
-      companyName: starred(j.employer ?? j.company.name, watchRules(j.company)),
+      companyName: starred(companyForMessage(j.employer, j.company), watchRules(j.company)),
       watched: j.company.watched,
       attribution: sourceLine(j.sourceFile, j.company.name, j.company),
       location: j.location,

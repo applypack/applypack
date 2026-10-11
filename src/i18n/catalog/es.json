@@ -2942,6 +2942,7 @@
   "notify.alert.flags": "Señales de alerta: {list}",
   "notify.alert.alsoListed": "También publicada en {where} — envía la solicitud por un solo canal",
   "notify.alert.apply": "Enviar solicitud →",
+  "notify.companyNotNamed": "empresa sin nombre",
   "notify.place.withArrangement": "{place} · {workplace, select, REMOTE {remoto} HYBRID {híbrido} ONSITE {presencial} other {desconocido}}",
   "notify.discordTest": "Prueba de ApplyPack — este webhook está bien configurado.",
   "digest.title": "Resumen diario",

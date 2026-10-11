@@ -2942,6 +2942,7 @@
   "notify.alert.flags": "Застереження: {list}",
   "notify.alert.alsoListed": "Також розміщено: {where} — подавайте заявку лише через один канал",
   "notify.alert.apply": "Подати заявку →",
+  "notify.companyNotNamed": "компанію не вказано",
   "notify.place.withArrangement": "{place} · {workplace, select, REMOTE {віддалено} HYBRID {гібридно} ONSITE {в офісі} other {невідомо}}",
   "notify.discordTest": "Перевірка ApplyPack — вебхук налаштовано правильно.",
   "digest.title": "Щоденний дайджест",

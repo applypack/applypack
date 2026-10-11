@@ -2,9 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cleanEmployer,
+  COMPANY_NOT_NAMED,
+  companyForMessage,
+  companyForPrompt,
   employerFromDescription,
   employerGate,
   employerKey,
+  fetchedHiringName,
   hiringKey,
   hiringName,
   isReapplyChoice,
@@ -98,4 +102,29 @@ test('the re-apply window takes its listed choices only', () => {
 test('withoutMuted keeps the rows that name nobody', () => {
   assert.equal(withoutMuted([]), null);
   assert.deepEqual(withoutMuted(['acme']), { OR: [{ employerKey: null }, { employerKey: { notIn: ['acme'] } }] });
+});
+
+test('a row that names no company has none to state: a prompt and a message never take the source for one (#401)', () => {
+  // Seen live: the classifier read "Company: Saved postings", and the alert said "@ Export A".
+  for (const [atsType, name] of [['IMPORT', 'Export A'], ['FOLDER', 'Saved postings'], ['REMOTEOK', 'RemoteOK'], ['HN_HIRING', 'HN Who is hiring']] as const) {
+    assert.equal(companyForPrompt(null, { atsType, name }), COMPANY_NOT_NAMED, atsType);
+    assert.equal(companyForMessage(null, { atsType, name }), 'company not named', atsType);
+    // The employer the row named is who hires, whatever brought it.
+    assert.equal(companyForPrompt('Globex', { atsType, name }), 'Globex', atsType);
+    assert.equal(companyForMessage('Globex', { atsType, name }), 'Globex', atsType);
+  }
+  // A company's own board, feed or careers page, and a pasted posting: the source is the employer.
+  for (const atsType of ['GREENHOUSE', 'LEVER', 'FEED', 'CAREER_PAGE', 'MANUAL']) {
+    assert.equal(companyForPrompt(null, { atsType, name: 'Acme' }), 'Acme', atsType);
+    assert.equal(companyForPrompt(undefined, { atsType, name: 'Acme' }), 'Acme', atsType);
+    assert.equal(companyForMessage(null, { atsType, name: 'Acme' }), 'Acme', atsType);
+  }
+  assert.match(COMPANY_NOT_NAMED, /not named/);
+});
+
+test('a fetched row says who hires by its own sign: an employer left out is the source, null is nobody', () => {
+  assert.equal(fetchedHiringName(undefined, 'Acme Board'), 'Acme Board');
+  assert.equal(fetchedHiringName('Globex', 'RemoteOK'), 'Globex');
+  assert.equal(fetchedHiringName(null, 'RemoteOK'), null);
+  assert.equal(fetchedHiringName(null, 'Saved postings'), null);
 });

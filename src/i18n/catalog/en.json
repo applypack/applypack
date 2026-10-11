@@ -2942,6 +2942,7 @@
   "notify.alert.flags": "Flags: {list}",
   "notify.alert.alsoListed": "Also listed at {where} — apply through one channel only",
   "notify.alert.apply": "Apply →",
+  "notify.companyNotNamed": "company not named",
   "notify.place.withArrangement": "{place} · {workplace, select, REMOTE {remote} HYBRID {hybrid} ONSITE {on-site} other {unknown}}",
   "notify.discordTest": "ApplyPack test — this webhook is configured correctly.",
   "digest.title": "Daily digest",

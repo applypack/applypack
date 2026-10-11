@@ -95,7 +95,7 @@ import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
-import { employerKey, hiringName, withoutMuted } from '../../employer';
+import { companyForPrompt, employerKey, hiringName, withoutMuted } from '../../employer';
 import { preferredPlaces } from '../place-line';
 import { t } from '../../i18n/t';
 
@@ -779,7 +779,8 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
       {
         id: job.id,
         title: job.title,
-        companyName: job.employer ?? job.company.name,
+        // The web check researches this name: a folder's or a feed's own is not a company to look up (#401).
+        companyName: companyForPrompt(job.employer, job.company),
         location: job.location,
         url: job.url,
         description: job.description,
@@ -959,7 +960,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
     : readCoverAngles((await getSettings()).coverAngles);
 
   const [job, resume] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(resumeId),
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
@@ -978,7 +979,8 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   startRun(run.id, async () => {
     const outcome = await generateCoverLetter(
       { id: resume.id, text: resume.text, version: resume.version, hidden: resume.hidden },
-      { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+      // The letter goes to an employer: never addressed to a folder's or a feed's own name (#401).
+      { id: job.id, title: job.title, companyName: companyForPrompt(job.employer, job.company), location: job.location, description: job.description },
       { tone, angles, addressee },
     );
     if (outcome.kind === 'ok') {

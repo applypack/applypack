@@ -4,7 +4,8 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { anyBaseFilterReason } from '../filter';
-import { employerGate, hiringKey } from '../employer';
+import { COMPANY_NOT_NAMED, employerGate, fetchedHiringName, hiringKey } from '../employer';
+import { t } from '../i18n/t';
 import { loadEmployerRules } from './employer-store';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { withApplyLinkFlags } from '../apply-link';
@@ -295,8 +296,8 @@ export async function processNormalizedJobs(
     outcome: limit(async (): Promise<ClassifyOutcome> => {
       if (cancelled) return { results: new Map(), location: null, preFiltered: false };
       return classifyJob(
-        // The employer an aggregator named, not the feed's own name (ADR 0056).
-        buildClassifyInput(item.job, item.job.employer ?? item.companyName, item.place),
+        // The employer an aggregator named — and when it named none, nobody: never the feed's or the folder's own name (ADR 0056).
+        buildClassifyInput(item.job, fetchedHiringName(item.job.employer, item.companyName) ?? COMPANY_NOT_NAMED, item.place),
         profiles,
         classifierMode,
         (reason) => {
@@ -465,7 +466,7 @@ export async function processNormalizedJobs(
       delivery = await sendAlert(
         {
           title: created.title,
-          companyName: starred(job.employer ?? companyName, item.watch),
+          companyName: starred(fetchedHiringName(job.employer, companyName) ?? t('notify.companyNotNamed'), item.watch),
           watched: item.watch?.watched === true,
           attribution: sourceLine(job.sourceFile, companyName, item.source),
           location: created.location,

@@ -1,4 +1,5 @@
 import { JobStatus } from '@prisma/client';
+import { companyForMessage } from '../employer';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sendDigest, type QuietSourceAlert } from '../notifier';
@@ -72,7 +73,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
 
   const alerts: AlertJob[] = jobs.map((j) => ({
     title: j.title,
-    companyName: j.employer ?? j.company.name,
+    companyName: companyForMessage(j.employer, j.company),
     location: j.location,
     attribution: sourceLine(j.sourceFile, j.company.name, j.company),
     countries: j.countries,
