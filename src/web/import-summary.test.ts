@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { withLocale, type Locale } from '../i18n/locale';
+import { t } from '../i18n/t';
 import { summarizeImport } from './import-summary';
 
 const base = { fetched: 250, persisted: 37, duplicate: 0, durationMs: 9_000 };
@@ -51,4 +53,33 @@ test('a pause mid-run and a failing engine both say the file can be imported aga
   const failed = say({ ...base, classified: 30, alerted: 1, classifyFailed: 7 });
   assert.equal(failed.kind, 'warn');
   assert.match(failed.text, /7 rows could not be scored — the AI engine failed — and were not stored; import the file again to retry\.$/);
+});
+
+// #367: "2,000 rows, 1480 new stored … The filter set aside 2000: 2,000 without a title keyword."
+const LANGUAGES: Locale[] = ['en', 'uk', 'es', 'fr'];
+/** Spanish groups from 10,000, so the counts here are past it: no sentence may then hold five digits in a row. */
+const UNGROUPED = /\d{5}/;
+
+test('every count of a large import is written in the language\'s grouping, not only the rows', () => {
+  const large = { fetched: 20_000, persisted: 14_800, duplicate: 3_200, filterRejected: 12_000, rejectedTitle: 12_000 };
+  assert.equal(
+    say({ fetched: 2_000, persisted: 1_480, classified: 1_480, alerted: 1_012, filterRejected: 2_000, rejectedTitle: 2_000 }).text,
+    'Imported jobs.json into "September export": 2,000 rows, 1,480 new stored, 1,480 scored, 1,012 alerted. The filter set aside 2,000: 2,000 without a title keyword.',
+  );
+  for (const language of LANGUAGES) {
+    for (const stats of [{ ...large, classified: 14_800, alerted: 10_120 }, { ...large, classify: false }, { ...large, abortedMidRun: 1 }]) {
+      const text = withLocale(language, () => say(stats).text);
+      assert.doesNotMatch(text, UNGROUPED, `${language}: ${text}`);
+    }
+  }
+});
+
+test('what the preview left out is counted the same way', () => {
+  for (const language of LANGUAGES) {
+    for (const key of ['import.dropped.closed', 'import.dropped.noTitle', 'import.dropped.noIdentity', 'import.dropped.repeated'] as const) {
+      const text = withLocale(language, () => t(key, { n: 12_000 }));
+      assert.doesNotMatch(text, UNGROUPED, `${language}: ${text}`);
+    }
+  }
+  assert.equal(t('import.dropped.noTitle', { n: 1_034 }), '1,034 without a title');
 });
