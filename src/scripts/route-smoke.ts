@@ -756,6 +756,7 @@ async function main(): Promise<void> {
   rows.push(...(await importChecks()));
   rows.push(...(await folderChecks()));
   rows.push(await packAgainCheck(f.jobId));
+  rows.push(...(await engineTroubleChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -822,6 +823,26 @@ const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job 
 type Check = { route: string; url: string; status: number; ok: boolean };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * #413: an engine whose last calls all failed says so on AI usage and on its
+ * card, whatever the probe finds installed. Three calls that found no server
+ * are written for the engine this run asks first; both pages are then read.
+ */
+async function engineTroubleChecks(): Promise<Check[]> {
+  const at = new Date();
+  for (let i = 0; i < 3; i++) {
+    await recordAiCall({ at, durationMs: 1, feature: 'classifier', viaFallback: false, engine: 'claude_code', model: '', outcome: 'unreachable', billing: 'plan', spend: null });
+  }
+  const usage = await app.request('/ai', { headers: ORIGIN });
+  const tab = await app.request('/settings?tab=ai', { headers: ORIGIN });
+  const usageHtml = usage.status === 200 ? await usage.text() : '';
+  const tabHtml = tab.status === 200 ? await tab.text() : '';
+  return [
+    { route: 'GET /ai with an engine whose last calls all failed (said first, no all-clear)', url: '/ai', status: usage.status, ok: usageHtml.includes('found no server answering') && !usageHtml.includes('Nothing was billed') },
+    { route: 'GET /settings?tab=ai with that engine (its card says calls failing)', url: '/settings?tab=ai', status: tab.status, ok: tabHtml.includes('calls failing') && tabHtml.includes('found no server answering') },
+  ];
+}
 
 /**
  * #382: "Prepare again" pressed on a pack the tick queued. The new preparing

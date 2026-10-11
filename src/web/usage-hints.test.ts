@@ -201,3 +201,66 @@ test('no sentence calls a model good enough, and warnings come first', () => {
   assert.deepEqual(hints.map((h) => h.tone), ['warn', 'neutral']);
   for (const h of hints) assert.doesNotMatch(h.text, /good enough|meant for|well suited|can handle/);
 });
+
+// #413: an engine refusing every call sat under a week of answers, and the page said "nothing was billed".
+const trouble = (over: Partial<NonNullable<HintFacts['troubles']>[number]> = {}): NonNullable<HintFacts['troubles']>[number] => ({
+  engine: 'claude_code',
+  kind: 'signin',
+  failed: 21,
+  since: new Date('2026-10-10T09:00:00Z'),
+  ...over,
+});
+
+test('an engine failing every call now is said first, and no all-clear stands beside it', () => {
+  // The numbers of the issue: 21 refusals among 296 calls is 7 %, under the 20 % a failure hint needs.
+  const week = [group({ calls: 296, failed: 21, failedAs: 'unauthorized' })];
+  const before = usageHints(facts({ groups: week }));
+  assert.deepEqual(before.map((h) => h.tone), ['ok']);
+  const hints = usageHints(facts({ groups: week, troubles: [trouble()] }));
+  assert.equal(hints[0]!.tone, 'warn');
+  assert.match(hints[0]!.text, /^Claude Code CLI turned its sign-in or its key away, and is not asked again until that changes/);
+  assert.equal(hints[0]!.action?.href, '/settings?tab=ai');
+  assert.equal(find(hints, /Nothing was billed/), undefined);
+});
+
+test('the trouble is said whatever the period holds, even nothing', () => {
+  const hints = usageHints(facts({ groups: [], troubles: [trouble({ engine: 'local_api', kind: 'unreachable', failed: 3 })], engines: [engine('local_api', 'local', 0)] }));
+  assert.equal(hints.length, 1);
+  assert.match(hints[0]!.text, /its last 3 calls found no server answering\. Check that it is running/);
+});
+
+test('each kind of trouble says what to do about that kind, and none blames the model for a closed port', () => {
+  const said = (kind: NonNullable<HintFacts['troubles']>[number]['kind'], failed = 4) =>
+    usageHints(facts({ troubles: [trouble({ engine: 'local_api', kind, failed })], engines: [engine('local_api', 'local', 0)] }))[0]!.text;
+  assert.match(said('unreachable'), /found no server answering/);
+  assert.match(said('window'), /larger than the model's context window\. Raise the window on its card, or untick the tasks/);
+  assert.match(said('limited'), /hit a rate limit\. It is left alone for ten minutes/);
+  assert.match(said('failing'), /its last 4 calls failed\. Press Test on its card/);
+  assert.match(said('failing', 1), /its last call failed/);
+  for (const kind of ['unreachable', 'window', 'limited', 'signin'] as const) assert.doesNotMatch(said(kind), /another model/);
+});
+
+test('an engine the person has disabled since is not theirs to fix, and a last resort that answers is', () => {
+  const off = [engine('claude_code', 'plan', 0), engine('local_api', 'local', -1)];
+  const local = trouble({ engine: 'local_api', kind: 'unreachable', failed: 5 });
+  assert.deepEqual(usageHints(facts({ engines: off, troubles: [local] })), []);
+  // Not in the list, yet the one that answers scoring first today: a last resort.
+  const hints = usageHints(facts({ engines: off, first: { scoring: 'local_api' }, troubles: [local] }));
+  assert.equal(hints.length, 1);
+});
+
+test('a failure hint gives the advice of how most of the calls ended', () => {
+  const advice = (failedAs: string | undefined) =>
+    find(usageHints(facts({ groups: [group({ feature: 'resume-match', engine: 'local_api', billing: 'local', calls: 10, failed: 4, failedAs })], engines: [engine('local_api', 'local', 0)] })), /did not answer/)!.text;
+  assert.match(advice('too_large'), /never sent: raise the window on the engine's card, or untick this task there\.$/);
+  assert.match(advice('unreachable'), /No server answered those calls: check that it is running/);
+  assert.match(advice('unauthorized'), /sign in again or paste a new key on its card, then press Test\.$/);
+  // An ending with no cause of its own, a row from before the two outcomes, a group built without it: as before.
+  for (const other of ['empty', 'error', undefined]) assert.match(advice(other), /Try another model in that slot, or press Test on the engine\.$/);
+  // Two models of one engine: the ending most of the failures share.
+  const mixed = [
+    group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'a', calls: 6, failed: 5, failedAs: 'too_large' }),
+    group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'b', calls: 6, failed: 1, failedAs: 'empty' }),
+  ];
+  assert.match(find(usageHints(facts({ groups: mixed, engines: [engine('local_api', 'local', 0)] })), /did not answer/)!.text, /raise the window/);
+});

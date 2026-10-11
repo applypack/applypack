@@ -12,6 +12,7 @@ import {
   type SpendGroup,
 } from './ai-spend';
 import type { AiBilling, AiFeature } from './ai-usage';
+import type { RecentAttempt } from './ai-health';
 
 /*
  * The AI spend ledger's I/O (ADR 0055): one `ai_call` row per attempt, the
@@ -83,6 +84,28 @@ async function warnOnBudget(now: Date): Promise<void> {
 }
 
 /** The ledger between two instants, grouped the way the AI usage page reads it: a feature on a model, on one kind of money. */
+/** How far back an engine's last attempts are read, and how many of them: enough to see a run of failures, cheap by the `at` index. */
+const RECENT_DAYS = 7;
+const RECENT_ATTEMPTS = 20;
+
+/**
+ * Each engine's last attempts of the past week, newest first — what
+ * `ai-health.ts:engineTroubles` reads to say an engine is failing now (#413).
+ * Engine tests are in: a Test that answers is how a person sees the trouble
+ * end.
+ */
+export async function loadRecentAttempts(now = new Date()): Promise<RecentAttempt[]> {
+  const since = new Date(now.getTime() - RECENT_DAYS * 24 * 60 * 60 * 1000);
+  return prisma.$queryRaw<RecentAttempt[]>`
+    SELECT "engine", "outcome", "at" FROM (
+      SELECT "engine", "outcome", "at", "id", row_number() OVER (PARTITION BY "engine" ORDER BY "at" DESC, "id" DESC) AS "n"
+      FROM "ai_call"
+      WHERE "at" >= ${since}
+    ) recent
+    WHERE "n" <= ${RECENT_ATTEMPTS}
+    ORDER BY "engine", "n"`;
+}
+
 export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[]> {
   const rows = await prisma.$queryRaw<
     {
@@ -92,6 +115,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
       billing: AiBilling;
       calls: number;
       failed: number;
+      failedAs: string | null;
       noUsage: number;
       unpriced: number;
       tokensIn: bigint;
@@ -107,6 +131,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
     SELECT "feature", "engine", COALESCE("resolvedModel", "model") AS "model", "billing",
       count(*)::int AS "calls",
       count(*) FILTER (WHERE "outcome" <> 'ok')::int AS "failed",
+      mode() WITHIN GROUP (ORDER BY "outcome") FILTER (WHERE "outcome" <> 'ok') AS "failedAs",
       count(*) FILTER (WHERE "outcome" <> 'ok' AND "inputTokens" IS NULL AND "outputTokens" IS NULL
         AND "cacheReadTokens" IS NULL AND "cacheWriteTokens" IS NULL AND "cacheWrite1hTokens" IS NULL)::int AS "noUsage",
       count(*) FILTER (WHERE "billing" <> 'local' AND "costMicroUsd" IS NULL AND "reportedMicroUsd" IS NULL

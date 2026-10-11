@@ -113,6 +113,8 @@ export interface AiEngineRow {
   desc: string;
   ok: boolean;
   detail: string;
+  /** What its last calls say is wrong with it, worded — the probe behind `ok` cannot know (#413). Null while calls get through. */
+  trouble: string | null;
   enabled: boolean;
   /** Index in the priority chain; -1 when disabled. */
   position: number;
@@ -1863,6 +1865,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
         {e.label}
       </span>
       <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? t('settings.available') : t('settings.notDetected')}</Badge>
+      {e.trouble && (e.enabled || e.lastResort) && <Badge tone="danger">{t('settings.callsFailing')}</Badge>}
       {e.lastResort && <Badge tone="warn">{t('settings.lastResort')}</Badge>}
       <Badge tone={BILLING_TONE[e.billing]}>{billingWords(e.billing)}</Badge>
       <div class="ml-auto flex flex-wrap justify-end gap-2">
@@ -1889,6 +1892,11 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
     </div>
     {/* The live state stays in sight; what the engine is sits one press away. */}
     <Hint class="mt-1.5">{e.detail}</Hint>
+    {e.trouble && (e.enabled || e.lastResort) && (
+      <Notice tone="warn" role="status" class="mt-2">
+        {e.trouble}
+      </Notice>
+    )}
     <More summary={t('settings.whatThisEngineIs')} class="mt-1">
       {e.desc}
     </More>

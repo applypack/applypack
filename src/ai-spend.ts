@@ -68,6 +68,8 @@ export interface SpendGroup {
   calls: number;
   /** Calls that did not end `ok` (a retry, a cut-off, a timeout). */
   failed: number;
+  /** How most of the failed ones ended (`AiOutcome`, as stored); absent when none failed, or on a group built by hand. */
+  failedAs?: string | null;
   /** Calls the vendor reported no usage for — a timeout, a crash: it may still have billed. */
   noUsage: number;
   /** Calls with usage and no price: a model the table does not know, and no vendor figure. */

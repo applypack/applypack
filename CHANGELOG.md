@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.33] — 2026-10-11
+
+### Fixed
+- **An AI engine that refuses every call no longer looks healthy.** With a
+  sign-in turned away, or a local server that had stopped, the engine's
+  card on Settings → AI & costs went on saying "available" and AI usage
+  showed its green "nothing was billed": the card reads what is installed,
+  and the usage page weighed twenty refusals against a week of answers.
+  Scoring was dead and nothing said so. An engine whose last calls all
+  failed now carries a **calls failing** badge and a line on its card, and
+  the same line stands first under **Worth a look** on AI usage: one refused
+  sign-in is enough, anything else from three failures in a row.
+- **The advice follows the cause.** A closed port and a prompt too large for
+  the local model's context window were both recorded as a plain error and
+  both answered with "try another model". They are told apart now: check
+  that the server is running; raise the context window or untick the task;
+  sign in again or paste a new key (#413).
+- Left for later: a reply that does not parse is still recorded as
+  answered, and an engine with a task unticked is never that task's last
+  resort (#463).
+
 ## [2.55.32] — 2026-10-11
 
 ### Fixed

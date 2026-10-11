@@ -13,9 +13,13 @@ import { t } from './i18n/t';
 
 /**
  * How an attempt ended. A cut-off, refused or empty reply was still billed;
- * `unauthorized` is a key or a sign-in the vendor turned away (H40).
+ * `unauthorized` is a key or a sign-in the vendor turned away (H40). Two
+ * failures that never reached a model have names of their own, because what
+ * to do about them differs (#413): `unreachable` — no server answered at the
+ * address — and `too_large` — the prompt was bigger than the model's context
+ * window and was not sent. Rows written before them say `error` for both.
  */
-const AI_OUTCOMES = ['ok', 'rate_limited', 'timeout', 'cut_off', 'refused', 'empty', 'unauthorized', 'error'] as const;
+const AI_OUTCOMES = ['ok', 'rate_limited', 'timeout', 'cut_off', 'refused', 'empty', 'unauthorized', 'unreachable', 'too_large', 'error'] as const;
 export type AiOutcome = (typeof AI_OUTCOMES)[number];
 
 /** Tokens as the vendor counted them; input is the UNCACHED part. */
