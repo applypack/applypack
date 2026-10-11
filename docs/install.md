@@ -108,7 +108,9 @@ or `Copy-Item .env.example .env` in PowerShell) and set:
   built-in database is then never started.
 - `APPLYPACK_INBOX_ROOTS=/path/one:/path/two` — folders ApplyPack may read
   job files from when they are outside your home folder (an external disk).
-  A folder inside your home folder needs no entry. See
+  Several are separated the way your system separates paths: `:` on macOS
+  and Linux, `;` on Windows (`D:\jobs;E:\exports`). A folder inside your
+  home folder needs no entry. See
   [A folder of job files](#a-folder-of-job-files).
 
 Everything else — AI keys, models, Telegram or Discord, the search profile —

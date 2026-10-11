@@ -856,7 +856,8 @@ All notable changes to this project are documented here. The format follows
   same filter, scoring and alerts as every other job, with a row on Runs.
   While fetching is paused they are stored unscored and no AI is spent. A
   newer export into the same source adds only what is new, and each company
-  in the file is named on its own rows, so a mute works on it.
+  in the file is named on its own rows, so a mute works on it — for the rows
+  that name one: with no company column mapped there is nobody to mute.
 - ApplyPack reads the file and requests nothing. Columns about people (who
   posted, who recruits, an email, a phone) are never read, a link is kept
   only when it is http(s), and the file itself is never stored
