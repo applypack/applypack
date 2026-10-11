@@ -57,7 +57,71 @@ describe('readSavedPage: the posting block', () => {
   });
 });
 
+describe('readSavedPage: blocks written by hand (#399)', () => {
+  const posting = { '@context': 'https://schema.org', '@type': 'JobPosting', title: 'QA Engineer', hiringOrganization: { name: 'Acme GmbH' }, description: `${BODY} PARA Second paragraph.` };
+
+  it('reads a block whose string runs over a line break', () => {
+    // JSON forbids it; the page then read as one with no block, and a model was asked for a title the page states.
+    const raw = JSON.stringify(posting).replace(' PARA ', '\r\n\r\n\t');
+    assert.throws(() => JSON.parse(raw));
+    const got = readSavedPage(page({ head: `<script type="application/ld+json">\n${raw}\n</script>` }), NOW);
+    assert.deepEqual([got.facts?.title, got.facts?.company], ['QA Engineer', 'Acme GmbH']);
+    // The description is markup, where a line break is a blank: the words on both sides of it are there, one blank between.
+    assert.match(got.text, /end to end\. Second paragraph\.$/);
+  });
+
+  it('mends nothing but that: an escaped quote stays a quote, and what is no JSON stays no block', () => {
+    const quoted = JSON.stringify({ ...posting, title: 'QA "Lead"\\Engineer', description: BODY }).replace(BODY, `${BODY}\nMore.`);
+    assert.equal(readSavedPage(page({ head: `<script type="application/ld+json">${quoted}</script>` }), NOW).facts?.title, 'QA "Lead"\\Engineer');
+    assert.equal(readSavedPage(page({ head: '<script type="application/ld+json">{ not json\n at all</script>' }), NOW).facts, null);
+  });
+
+  it('takes the first company of a list of them', () => {
+    const got = readSavedPage(page({ head: block({ ...posting, hiringOrganization: [{ '@type': 'Organization', name: 'Acme GmbH' }, { name: 'Acme Holding' }] }) }), NOW);
+    assert.equal(got.facts?.company, 'Acme GmbH');
+    assert.equal(readSavedPage(page({ head: block({ ...posting, hiringOrganization: ['Acme GmbH'] }) }), NOW).facts?.company, 'Acme GmbH');
+    assert.equal(readSavedPage(page({ head: block({ ...posting, hiringOrganization: [] }) }), NOW).facts?.company, null);
+  });
+
+  it('knows a JobPosting by its type however the block spells it', () => {
+    for (const type of ['JobPosting', 'https://schema.org/JobPosting', 'http://schema.org/JobPosting', 'schema:JobPosting', ['Thing', 'https://schema.org/JobPosting']]) {
+      assert.equal(readSavedPage(page({ head: block({ ...posting, '@type': type }) }), NOW).facts?.title, 'QA Engineer', String(type));
+    }
+    for (const type of ['Organization', 'NotAJobPosting', 'https://schema.org/JobPostingList', 42]) {
+      assert.equal(readSavedPage(page({ head: block({ ...posting, '@type': type }) }), NOW).facts, null, String(type));
+    }
+  });
+});
+
+describe('readSavedPage: the page’s main text (#399)', () => {
+  const NAV = 'Home · All jobs · Engineering · Design · Sales · Support · About us · Our values · Benefits · Offices · Press · Blog · Investors · Privacy · Terms · Cookie settings · Sign in · Create a job alert · Follow us on every network there is';
+
+  it('does not take <mainnav> or <main-menu> for <main>', () => {
+    for (const tag of ['mainnav', 'main-menu']) {
+      const got = readSavedPage(page({ body: `<${tag}><p>${NAV}</p></${tag}><main class="job"><h1>QA</h1><p>${BODY}</p></main>` }), NOW);
+      assert.match(got.text, /^QA\n/, tag);
+      assert.doesNotMatch(got.text, /Cookie settings/, tag);
+    }
+    // The closing tag is held to the same: a `</mainnav>` after the posting does not stretch it.
+    const after = readSavedPage(page({ body: `<main><h1>QA</h1><p>${BODY}</p></main><mainnav><p>${NAV}</p></mainnav>` }), NOW);
+    assert.doesNotMatch(after.text, /Cookie settings/);
+  });
+
+  it('still reads <MAIN>, a main with attributes, and an <article> when there is no main', () => {
+    assert.match(readSavedPage(page({ body: `<MAIN\n id="x"><h1>QA</h1><p>${BODY}</p></MAIN>` }), NOW).text, /^QA\n/);
+    const article = readSavedPage(page({ body: `<articles-list><p>${NAV}</p></articles-list><article><h1>QA</h1><p>${BODY}</p></article>` }), NOW);
+    assert.match(article.text, /^QA\n/);
+    assert.doesNotMatch(article.text, /Cookie settings/);
+  });
+});
+
 describe('readSavedPage: the page’s address', () => {
+  it('takes the address a single-file save’s own head gives, as it takes the browser’s note', () => {
+    const got = readSavedPage(page({ head: '<link rel="canonical" href="https://acme.example/careers">' }), NOW, 'https://acme.example/jobs/42?utm_source=x');
+    assert.deepEqual([got.address, got.addressIsOwn], ['https://acme.example/jobs/42?utm_source=x', true]);
+    assert.equal(readSavedPage(page(), NOW, 'file:///Users/me/job.html').address, null);
+  });
+
   it('takes the posting’s own url and the browser’s saved-from note before the canonical link and og:url', () => {
     const canonical = '<link rel="canonical" href="https://jobs.example/acme/123?ref=a&amp;b=1">';
     const og = '<meta property="og:url" content="https://og.example/123">';

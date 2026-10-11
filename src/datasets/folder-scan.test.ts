@@ -554,6 +554,9 @@ describe('unreadChange', () => {
 describe('saved postings in a folder', () => {
   it('knows a saved posting by its extension, and keeps the kinds of a folder apart', () => {
     assert.deepEqual(['a.html', 'a.HTM', 'b.txt', 'c.md', 'c.markdown', 'd.pdf', 'e.docx'].map(postingFileKind), ['html', 'html', 'txt', 'md', 'md', 'pdf', 'docx']);
+    // #399: what a browser saves a page as in one file is a saved posting too, not "another file".
+    assert.deepEqual(['Job.mhtml', 'Job.MHT', 'Job.webarchive'].map(postingFileKind), ['mhtml', 'mhtml', 'webarchive']);
+    assert.equal(kindsFor('rows')('Job.mhtml'), null);
     for (const name of ['a.json', 'a.doc', 'a.png', 'a.eml', '.html']) assert.equal(postingFileKind(name), null, name);
     assert.equal(kindsFor('postings')('a.json'), null);
     assert.equal(kindsFor('rows')('a.html'), null);
@@ -563,6 +566,10 @@ describe('saved postings in a folder', () => {
     assert.equal(maxBytesOf('json'), MAX_FILE_BYTES);
     assert.ok(maxBytesOf('html') < maxBytesOf('pdf'));
     assert.match(tooLargeNote('pdf'), /5 MB, which is more than a document/);
+    // A page saved as one file carries its images inside it.
+    assert.ok(maxBytesOf('mhtml') > maxBytesOf('pdf'));
+    assert.match(tooLargeNote('mhtml'), /10 MB, which is more than a saved posting/);
+    assert.match(tooLargeNote('csv'), /a file of rows/);
     const page = file('big.html', 10 * MINUTE, maxBytesOf('html') + 1);
     const plan = planScan([page, file('ok.pdf', 10 * MINUTE, maxBytesOf('html') + 1)], [], NOW, undefined, postingFileKind);
     assert.deepEqual([names(plan.tooLarge), names(plan.read)], [['big.html'], ['ok.pdf']]);
@@ -582,5 +589,12 @@ describe('pageResources', () => {
     const listing = [file('Job at Acme.html'), file('Job at Acme_files/frame.html'), file('Job at Acme_files/deep/x.html'), file('sub/Role.htm'), file('sub/Role-Dateien/a.html'), file('old_files/real.html'), file('Job at Acme Two.html')];
     const isResource = pageResources(listing);
     assert.deepEqual(listing.map((f) => f.relPath).filter(isResource), ['Job at Acme_files/frame.html', 'Job at Acme_files/deep/x.html', 'sub/Role-Dateien/a.html']);
+  });
+
+  // #399: any folder that started like a page's name was taken for that page's files, and the postings in it were never listed.
+  it('leaves a folder of the user’s own alone, however it is named after a page', () => {
+    const listing = [file('Acme.html'), file('Acme interviews/backend-posting.txt'), file('Acme-2026/role.pdf'), file('Acme_notes/a.html'), file('Acme.old/b.html'), file('Acme_FILES/frame.html'), file('Acme_fichiers/x.html'), file('Acme.files/y.html')];
+    const isResource = pageResources(listing);
+    assert.deepEqual(listing.map((f) => f.relPath).filter(isResource), ['Acme_FILES/frame.html', 'Acme_fichiers/x.html', 'Acme.files/y.html']);
   });
 });

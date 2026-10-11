@@ -317,7 +317,7 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
 };
 
 
-const POSTING_KIND_NAME: Record<PostingKind, string> = { html: '.html', txt: '.txt', md: '.md', pdf: '.pdf', docx: '.docx' };
+const POSTING_KIND_NAME: Record<PostingKind, string> = { html: '.html', txt: '.txt', md: '.md', pdf: '.pdf', docx: '.docx', mhtml: '.mhtml', webarchive: '.webarchive' };
 
 /** One of the newest saved files, as code reads it with no model. */
 export interface PostingSample {

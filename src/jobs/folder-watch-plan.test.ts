@@ -32,7 +32,7 @@ it('lets a change settle longer than a look waits for a fresh file, so the look 
 
 describe('worthALook', () => {
   it('looks for a saved posting, its rename into place, and a new folder', () => {
-    for (const name of ['job.pdf', 'sub/Job at Acme.html', 'Role.DOCX', 'new folder', null]) assert.equal(worthALook(name), true, String(name));
+    for (const name of ['job.pdf', 'sub/Job at Acme.html', 'Role.DOCX', 'Job.mhtml', 'Job.webarchive', 'new folder', null]) assert.equal(worthALook(name), true, String(name));
   });
 
   it('passes over what a look never reads', () => {

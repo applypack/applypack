@@ -66,14 +66,17 @@ function decoderFor(label: string): Decoder | null {
   }
 }
 
+/** A decoder for a charset something named for these bytes, unless it names UTF-8 or UTF-16: the bytes have said they are neither, so that word is worth nothing and they are weighed instead. */
+function named(label: string | null | undefined): Decoder | null {
+  const decoder = label ? decoderFor(label) : null;
+  return decoder && decoder.encoding !== 'utf-8' && !decoder.encoding.startsWith('utf-16') ? decoder : null;
+}
+
 /** The charset a page (or an XML document) says it is in, when it says one other than UTF-8. */
 function declaredCharset(bytes: Uint8Array): Decoder | null {
   // latin1 keeps every byte a character, so the markup is readable whatever the letters are.
   const head = new TextDecoder('latin1').decode(bytes.subarray(0, DECLARATION_BYTES));
-  const label = /<meta[^>]+charset\s*=\s*["']?\s*([\w.:-]+)/i.exec(head)?.[1] ?? /<\?xml[^>]*\sencoding\s*=\s*["']([\w.:-]+)/i.exec(head)?.[1];
-  const decoder = label ? decoderFor(label) : null;
-  // A page that says UTF-8 and is not: its word is worth nothing, so the bytes are weighed instead.
-  return decoder && decoder.encoding !== 'utf-8' && !decoder.encoding.startsWith('utf-16') ? decoder : null;
+  return named(/<meta[^>]+charset\s*=\s*["']?\s*([\w.:-]+)/i.exec(head)?.[1] ?? /<\?xml[^>]*\sencoding\s*=\s*["']([\w.:-]+)/i.exec(head)?.[1]);
 }
 
 const isLetterByte = (byte: number): boolean => byte >= FIRST_LETTER_BYTE || CYRILLIC_BELOW.has(byte);
@@ -116,9 +119,11 @@ function startsCharacter(tail: Uint8Array): boolean {
 
 /**
  * The text of a file. `page` says the bytes are markup that may name its own
- * charset (a saved page): asked only when they are not UTF-8.
+ * charset (a saved page); `charset` is one the file's wrapper named for them
+ * (a part of a single-file save). Either is asked only when the bytes are not
+ * UTF-8, the wrapper's word first.
  */
-export function decodeText(bytes: Uint8Array, opts: { page?: boolean } = {}): Decoded {
+export function decodeText(bytes: Uint8Array, opts: { page?: boolean; charset?: string | null } = {}): Decoded {
   const utf16 = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf-16le' : bytes[0] === 0xfe && bytes[1] === 0xff ? 'utf-16be' : null;
   if (utf16) return { text: new TextDecoder(utf16).decode(bytes), encoding: utf16, how: 'bytes', unreadable: 0 };
   const whole = strict(bytes);
@@ -139,7 +144,7 @@ export function decodeText(bytes: Uint8Array, opts: { page?: boolean } = {}): De
   for (const ch of loose) if (ch > '\u007F' && ch !== REPLACEMENT) read++;
   if (read > unreadable * UTF8_MAJORITY) return { text: loose, encoding: 'utf-8', how: 'bytes', unreadable };
 
-  const declared = opts.page ? declaredCharset(bytes) : null;
+  const declared = named(opts.charset) ?? (opts.page ? declaredCharset(bytes) : null);
   const decoder = declared ?? decoderFor(looksCyrillic(bytes) ? 'windows-1251' : 'windows-1252');
   // A runtime built without these tables has only the Unicode decoders: the marks stay, and are counted.
   if (!decoder) return { text: loose, encoding: 'utf-8', how: 'bytes', unreadable };
