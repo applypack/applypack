@@ -2859,6 +2859,7 @@
   "pack.card.onStep": "{step}…",
   "pack.card.preparing": "Готуємо",
   "pack.card.refreshes": "Сторінка оновлюється сама; її можна закрити.",
+  "pack.card.finishedUnsaved": "Пакет готовий. Збережіть те, що вводите, а потім оновіть сторінку, щоб його побачити.",
   "pack.card.was": "Було",
   "pack.card.takenOut": "Прибрано",
   "pack.card.now": "Стало",

@@ -1,9 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import type { DiffOp } from '../../resume/line-diff';
-import type { PrepareStep } from '../../pack/gate';
 import type { PackRow } from '../../pack/store';
-import { HELD_WORDS, STEP_WORDS, stopTitle, type PackEdits } from '../../pack/view';
+import { HELD_WORDS, packBusy, preparingLine, stopTitle, type PackEdits } from '../../pack/view';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, ConfirmAction, Hint, Notice, SectionTitle, When } from '../ui';
@@ -37,16 +36,15 @@ export interface ApplicationPackProps {
 const LABEL = 'text-meta font-medium uppercase tracking-wide text-ink-faint';
 const QUOTE = 'mt-0.5 whitespace-pre-wrap break-words border-l-2 pl-2 text-sm leading-6';
 
+/** The id of the progress sentence: public/pack-tab.mjs rewrites it as the pack moves on. */
+export const PACK_LINE_ID = 'pack-line';
+
 /** The pack in flight: the step it is on, and nothing to press. */
-const Preparing: FC<{ pack: PackRow }> = ({ pack }) => {
-  const step = STEP_WORDS[pack.step as PrepareStep];
-  return (
-    <Notice tone="ok" role="status">
-      {pack.status === 'queued' ? t('pack.card.queued') : t('pack.card.onStep', { step: step ? t(step) : t('pack.card.preparing') })}{' '}
-      {t('pack.card.refreshes')}
-    </Notice>
-  );
-};
+const Preparing: FC<{ pack: PackRow }> = ({ pack }) => (
+  <Notice tone="ok" role="status">
+    <span id={PACK_LINE_ID}>{preparingLine(pack)}</span>
+  </Notice>
+);
 
 const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
   <ul class="divide-y divide-line">
@@ -85,7 +83,7 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
       </Card>
     );
   }
-  const busy = pack.status === 'queued' || pack.status === 'running';
+  const busy = packBusy(pack);
   // What "I sent this file" posts: the same answer the rail's picker offers.
   const sentValue = packChoiceValue(pack);
   const tailorHref = pack.tailoredMatchId ?? pack.matchId ? `/jobs/${jobId}/target?match=${pack.tailoredMatchId ?? pack.matchId}` : null;

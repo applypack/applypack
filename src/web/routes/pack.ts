@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
 import { t } from '../../i18n/t';
 import { getPack, getPackFile, packFiles, packIsKept, queuePack } from '../../pack/store';
-import { readPackEdits } from '../../pack/view';
+import { packBusy, preparingLine, readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { contentDisposition } from '../../resume/draft-document';
 import { loadLineDiff } from '../../resume/line-diff';
@@ -33,6 +33,21 @@ packRoute.post('/jobs/:id/pack', async (c) => {
     return flashRedirect(tab, 'warn', t(outcome === 'sent' ? 'pack.flash.sent' : 'pack.flash.kept'));
   }
   return flashRedirect(tab, 'ok', outcome === 'busy' ? t('pack.flash.busy') : t('pack.flash.queued'));
+});
+
+/**
+ * What the pack tab asks while a pack is queued or in flight (public/
+ * pack-tab.mjs): whether it still is, the sentence that says where, and the
+ * one to show when it has finished and the page holds an unsaved edit. The
+ * words are made here, in the page's own language.
+ */
+packRoute.get('/jobs/:id/pack/state', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ gone: true }, 400);
+  const pack = await getPack(id);
+  if (!pack) return c.json({ gone: true }, 404);
+  const busy = packBusy(pack);
+  return c.json({ busy, line: busy ? preparingLine(pack) : '', wait: t('pack.card.finishedUnsaved') }, 200, { 'Cache-Control': 'no-store' });
 });
 
 /** The file as the pack kept it — the same bytes on every download, whatever happened to the resume since. */

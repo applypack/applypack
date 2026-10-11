@@ -44,7 +44,8 @@ import { wordedStage, type StageDef } from '../stage-config';
 import type { AiBilling } from '../../ai-usage';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
-import { ApplicationPackCard, type ApplicationPackProps } from './application-pack-card';
+import { ApplicationPackCard, PACK_LINE_ID, type ApplicationPackProps } from './application-pack-card';
+import { packBusy } from '../../pack/view';
 
 interface JobDetail {
   id: number;
@@ -195,12 +196,14 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   tabs,
   flash,
 }) => (
-  // A pack in the queue or in flight is the one thing on this page that changes by itself.
+  // A pack in the queue or in flight is the one thing on this page that changes by itself. The tab asks
+  // for its state (public/pack-tab.mjs) rather than reloading: the rail beside it holds forms, and a
+  // reload every few seconds threw away whatever was being typed into them (#378).
   <Layout
     title={job.title}
     titleIsData
     active="jobs"
-    refresh={tab === 'pack' && (applicationPack.pack?.status === 'queued' || applicationPack.pack?.status === 'running') ? PACK_REFRESH_SECONDS : undefined}
+    refreshWithoutScript={tab === 'pack' && packBusy(applicationPack.pack) ? PACK_REFRESH_SECONDS : undefined}
   >
     {/* One solid button a tab: the comparison and the letter bring their own
         ("Tailor resume", "Copy letter"), so the header's steps back on those. */}
@@ -424,8 +427,15 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     {/* Copy on the suggestion cards and the change sheet; the card itself is
         server-rendered, so this is all the JavaScript this page needs. */}
     <script type="module" dangerouslySetInnerHTML={{ __html: COPY_BOOT }} />
+    {tab === 'pack' && packBusy(applicationPack.pack) && <script type="module" dangerouslySetInnerHTML={{ __html: packBoot(job.id) }} />}
   </Layout>
 );
+
+/** The pack tab while a pack is queued or in flight: its state is asked for, the page is not reloaded. */
+const packBoot = (jobId: number): string => `
+import { init } from '/static/pack-tab.mjs';
+init({ url: '/jobs/${jobId}/pack/state', line: document.getElementById('${PACK_LINE_ID}') });
+`;
 
 const COPY_BOOT = `
 import { wireCopy } from '/static/copy.mjs';
