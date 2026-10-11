@@ -425,8 +425,9 @@ export async function fetchOne(
       // A folder a tool writes into, or one the user saves postings into
       // (ADR 0062): read from the disk, no request. What it learns about each
       // file is staged in `folder-ledger.ts` and kept once the tick stored the jobs.
+      // The look's own clock, not the walk's: a file written minutes into a long walk is younger than the walk (#396).
       return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS), {
-        now: context.now,
+        now: new Date(),
         scoring: context.scoring !== false,
         stored: () => loadStoredPostings(company.id),
       });

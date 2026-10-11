@@ -117,6 +117,25 @@ export async function folderSummaries(): Promise<Map<number, FolderSummary>> {
   return new Map(rows.map(({ companyId, ...summary }) => [companyId, summary]));
 }
 
+/**
+ * "Read every file again" (#396): every file of a folder that a look read, in
+ * whole or in part, waits for the next look and is read from its first row.
+ * The file itself is not touched, only what the ledger says of it. Rows
+ * already stored come back as duplicates, which cost nothing; rows a search
+ * or a mute turned away the first time are judged as the rules stand now.
+ * Only the files the last look listed: one that has left the folder cannot
+ * be read, and its row would say "waiting" for ever. Returns how many wait.
+ */
+export async function readFilesAgain(companyId: number): Promise<number> {
+  const last = await prisma.sourceFile.aggregate({ where: { companyId }, _max: { seenAt: true } });
+  if (last._max.seenAt === null) return 0;
+  const { count } = await prisma.sourceFile.updateMany({
+    where: { companyId, seenAt: last._max.seenAt, status: { in: ['done', 'waiting'] }, sha256: { not: null } },
+    data: { status: 'waiting', sha256: null, rowsRead: 0, detail: null },
+  });
+  return count;
+}
+
 /** A folder's files for its per-file list: the ones seen last first, then the newest. */
 export async function listSourceFiles(companyId: number) {
   return prisma.sourceFile.findMany({

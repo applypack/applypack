@@ -10,7 +10,7 @@ import type { FoundRows } from '../datasets/rows';
  * handful at most, so a few megabytes of rows cannot pile up.
  */
 
-export interface ImportStash extends Omit<FoundRows, 'total' | 'cutAt'> {
+export interface ImportStash extends Omit<FoundRows, 'total' | 'cutAt' | 'openRow'> {
   id: string;
   fileName: string;
   /** What of the file was lost in reading, and an encoding that had to be assumed: the preview says both. */

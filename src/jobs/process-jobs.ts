@@ -157,6 +157,13 @@ export interface ProcessOptions {
    * existed.
    */
   schedule?: Schedule;
+  /**
+   * Filled with the source (`companyId`) of every posting that passed the
+   * filter and was not stored because no verdict came for it: what
+   * `classifyFailed` counts, by where it came from. A folder not named here
+   * had every row of its look stored (fetchers/folder-ledger.ts:looksToKeep).
+   */
+  unstored?: Set<number>;
 }
 
 /** How far back the cross-listing scan looks. */
@@ -347,6 +354,7 @@ export async function processNormalizedJobs(
     }
     if (results.size === 0) {
       stats.classifyFailed++;
+      opts.unstored?.add(job.companyId);
       continue;
     }
     stats.classified++;
@@ -358,6 +366,7 @@ export async function processNormalizedJobs(
     const merged = mergeVerdicts(verdicts);
     if (!merged) {
       stats.classifyFailed++;
+      opts.unstored?.add(job.companyId);
       continue;
     }
     const { winner, scoreLine } = merged;

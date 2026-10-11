@@ -10,6 +10,7 @@ import {
   columnsOf,
   detectMapping,
   emptyMapping,
+  fileDate,
   mapRow,
   mapRows,
   mappingFits,
@@ -300,6 +301,22 @@ describe('mapRows: hostile rows', () => {
 
   it('takes the time of the read for a date in words', () => {
     assert.equal(mapRows(rows, detected, 1, NOW).jobs[1]!.postedAt, NOW);
+  });
+
+  // #396: a folder's file has a time of its own, which an undated row takes — and which a stated date is never held against.
+  it('gives an undated row the date it is handed, and still holds a stated one against the clock', () => {
+    const fileTime = new Date('2026-08-01T00:00:00Z');
+    const dated = [{ title: 'A', url: 'https://rows.example/a', posted: '2026-09-25' }, { title: 'B', url: 'https://rows.example/b' }, { title: 'C', url: 'https://rows.example/c', posted: '2031-01-01' }];
+    const mapping = { ...detectMapping(dated, NOW).mapping, postedAt: 'posted' };
+    assert.deepEqual(mapRows(dated, mapping, 1, NOW, fileTime).jobs.map((j) => j.postedAt.toISOString().slice(0, 10)), ['2026-09-25', '2026-08-01', '2026-08-01']);
+  });
+
+  it('fileDate: a file’s time is a date unless it is ahead of the clock or before any posting', () => {
+    const past = Date.UTC(2026, 7, 1);
+    assert.equal(fileDate(past, NOW).getTime(), past);
+    assert.equal(fileDate(NOW.getTime() + 60_000, NOW), NOW);
+    assert.equal(fileDate(Date.UTC(1980, 0, 1), NOW), NOW);
+    assert.equal(fileDate(NOW.getTime(), NOW).getTime(), NOW.getTime());
   });
 
   it('keeps nothing of a person even when their columns sit beside a real posting', () => {

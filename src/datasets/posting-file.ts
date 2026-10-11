@@ -17,6 +17,7 @@ import { clipText, hashShortId, normalizeUrlKey, storableText } from '../text-ut
 import type { NormalizedJob } from '../types';
 import { decodeText } from './decode';
 import type { PostingKind } from './folder-scan';
+import { fileDate } from './map';
 import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts } from './saved-page';
 
 /** As `jobs/manual-job.ts:MIN_DESCRIPTION_CHARS`: less than this is not a posting, it is a note. */
@@ -117,9 +118,10 @@ export interface SavedFile {
  * The job a saved posting becomes. What the page said itself comes first, a
  * model's reading second, the file's name last for the title. Its id is the
  * one `identifyPosting` gave: nothing a model said. Flagged `handPicked`: the
- * user chose it, so no base filter and no employer gate turns it away.
+ * user chose it, so no base filter and no employer gate turns it away. A page
+ * that states no date takes its file's, when that can be one (map.ts:fileDate).
  */
-export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok: true }>, model: ModelFacts | null, externalId: string): NormalizedJob {
+export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok: true }>, model: ModelFacts | null, externalId: string, now: Date = new Date()): NormalizedJob {
   const facts = read.facts;
   const title = facts?.title ?? model?.title ?? nameOf(file.relPath);
   const workplace = facts?.workplace ?? (model?.workplace ? WORKPLACE[model.workplace] : null);
@@ -130,7 +132,7 @@ export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok
     url: read.address ?? '',
     location: facts?.location ?? model?.location ?? '',
     description: read.text,
-    postedAt: facts?.postedAt ?? new Date(file.mtimeMs),
+    postedAt: facts?.postedAt ?? fileDate(file.mtimeMs, now),
     ...(workplace && { locationHints: { workplace } }),
     employer: facts?.company ?? model?.company ?? null,
     sourceFile: file.relPath,

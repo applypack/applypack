@@ -750,7 +750,12 @@ optional name filter and the column mapping. Switched on, the hourly check
 reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
 
 - a file is read again only when its size or time changes; one changed in
-  the last ten seconds waits; a copy of a file already read is set aside;
+  the last ten seconds waits, and so does the last row of a table that has
+  no line end, until the file has been still for two minutes; a copy of a
+  file already read is set aside;
+- **Read every file again** on the Files page puts the read files back to
+  waiting: a row a search or a mute turned away the first time is judged as
+  things stand now, and rows already stored are skipped;
 - 20 files and 5 000 rows a check, 5 MB a file, three folders deep. A file
   with more rows than a check has left waits ("5,000 of 12,000 rows read so
   far") and the next check reads on from there; a file that only grew is

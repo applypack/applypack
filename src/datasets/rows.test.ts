@@ -222,6 +222,24 @@ describe('findRows: damaged and odd files (#394)', () => {
   });
 });
 
+describe('findRows: a table’s last row with no line end (#396)', () => {
+  it('says when a table does not end its last row, and only then', () => {
+    assert.equal(rowsOf('id,title\n1,One\n2,Tw').openRow, true);
+    assert.equal(rowsOf('id\ttitle\n1\tOne').openRow, true);
+    assert.equal(rowsOf('id,title\n1,One\n2,Two\n').openRow, false);
+    assert.equal(rowsOf('id,title\r\n1,One\r\n').openRow, false);
+    // Blanks after the last line break are no line of their own.
+    assert.equal(rowsOf('id,title\n1,One\n  \t').openRow, false);
+  });
+
+  it('never says it of JSON, whose cut line is not a row, nor of a table that lost its end to an open quote', () => {
+    assert.equal(rowsOf('[{"title":"a"}]').openRow, false);
+    assert.equal(rowsOf('{"title":"a"}\n{"title":"b"}').openRow, false);
+    const cut = rowsOf('id,title\n1,One\n2,"open');
+    assert.deepEqual([cut.cutAt, cut.openRow], [3, false]);
+  });
+});
+
 describe('findRows: the ceiling', () => {
   it('reads up to the ceiling and counts the rest', () => {
     const body = JSON.stringify(Array.from({ length: 12 }, (_, i) => ({ title: `row ${i}` })));

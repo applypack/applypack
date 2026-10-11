@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.24] — 2026-10-11
+
+### Fixed
+- **A folder's file is no longer read while it is still being written.** A
+  check measured a file's age against the time the whole fetch started, so a
+  file a tool wrote minutes into a long fetch counted as settled and was
+  read half-written: the last row was stored with half a title and no link,
+  and the finished row was never read, because the next check read on after
+  it. A check now takes its own time. The last row of a CSV or TSV that has
+  no line end is left until the file has been still for two minutes (the
+  Files page says so); a whole file that simply ends without a line break
+  has that row read one check later.
+- **One posting that no engine will score no longer stalls every folder.**
+  A check's notes on a folder's files were kept only when the whole fetch
+  stored everything, so a single posting on any source that failed to score
+  every hour made every folder read its first twenty files again every hour
+  and never reach the rest. A folder now keeps its notes unless one of its
+  own postings went without a score.
+- **A row's date no longer comes out as 1980, or in the future.** A date a
+  row states was compared with the file's time instead of the clock, so a
+  file extracted from an archive (stamped 1980) gave every row 1980,
+  whatever it said. A row with no date takes the file's time only when that
+  can be a date; a file dated ahead of the clock gives today.
+
+### Added
+- **Read every file again**, on the Files page of a folder of rows. A file
+  is read once, so a row a search or a muted company turned away was never
+  looked at again after you changed the search or unmuted the company. The
+  button puts the folder's files back to waiting: the next checks read them
+  from their first row, skip what is already stored at no cost, and score
+  what your searches admit now (#396). Doing this by itself when a search
+  changes is #448.
+
 ## [2.55.23] — 2026-10-11
 
 ### Fixed
@@ -5377,6 +5410,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.24]: https://github.com/applypack/applypack/compare/v2.55.23...v2.55.24
 [2.55.23]: https://github.com/applypack/applypack/compare/v2.55.22...v2.55.23
 [2.55.22]: https://github.com/applypack/applypack/compare/v2.55.21...v2.55.22
 [2.55.21]: https://github.com/applypack/applypack/compare/v2.55.20...v2.55.21

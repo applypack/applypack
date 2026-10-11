@@ -973,6 +973,18 @@ async function folderChecks(): Promise<Check[]> {
     check('GET /companies/:id/files (the per-file list)', `/companies/${folder.id}/files`, files, files.status === 200 && (await files.text()).includes('2 rows read as jobs'));
     const list = await app.request('/companies', { headers: ORIGIN });
     check('GET /companies with a folder among the sources', '/companies', list, list.status === 200 && (await list.text()).includes('1 file · 0 new at the last check'));
+    // #396: "Read every file again" puts the read file back to waiting; the next check reads it from its first row and stores nothing twice.
+    const reread = await app.request(`/companies/${folder.id}/files/reread`, form({}));
+    const waiting = await prisma.sourceFile.findFirst({ where: { companyId: folder.id } });
+    check(
+      'POST /companies/:id/files/reread (the read file waits again, nothing in the folder touched)',
+      `/companies/${folder.id}/files/reread`,
+      reread,
+      reread.status === 303 && reread.headers.get('location') === `/companies/${folder.id}/files` && waiting?.status === 'waiting' && waiting.sha256 === null && waiting.rowsRead === 0,
+    );
+    const third = await checkNow(folder.id);
+    const again = await prisma.sourceFile.findFirst({ where: { companyId: folder.id } });
+    check('POST /companies/:id/check-now after it (read again, its rows already stored)', `/companies/${folder.id}/check-now`, third, third.status === 303 && (await stored()) === 2 && again?.status === 'done' && again.rowsRead === 2);
     const removed = await app.request(`/companies/${folder.id}/delete`, form({}));
     check('POST /companies/:id/delete on a folder (its jobs and its ledger go, its files stay)', `/companies/${folder.id}/delete`, removed, removed.status === 303 && (await stored()) === 0 && (await prisma.sourceFile.count()) === 0 && (await fs.readdir(inbox)).length === 1);
     out.push(...(await savedPostingChecks(path.join(inbox, 'saved'), checkNow, stored)));

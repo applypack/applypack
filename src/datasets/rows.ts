@@ -32,6 +32,14 @@ export interface FoundRows {
    * before it: the caller says so, and never calls such a file read whole.
    */
   cutAt: number | null;
+  /**
+   * A table whose last row is not ended by a line break. Nothing about a
+   * whole file — many tools write none — but in a file still being written
+   * that row may be cut short, and read as it is it would be stored with
+   * half a title and no link (#396). Never set for JSON: a line of JSON cut
+   * short is not a row.
+   */
+  openRow: boolean;
 }
 
 /**
@@ -125,6 +133,7 @@ function fromList(list: readonly unknown[], format: RowFormat, page: Page): Rows
     total: rows.length,
     notRows: list.length - rows.length,
     cutAt: null,
+    openRow: false,
   };
 }
 
@@ -163,8 +172,8 @@ function headerNames(cells: readonly string[]): string[] {
 /** `sep=;` on a line of its own: how a spreadsheet says which delimiter the file uses. */
 const SEPARATOR_LINE_RE = /^sep=([,;\t])\r?\n/i;
 
-/** `linesBefore`: the lines of the file above `body`, so a line is named as an editor numbers it. */
-function fromDelimited(body: string, page: Page, linesBefore: number): RowsResult {
+/** `linesBefore`: the lines of the file above `body`, so a line is named as an editor numbers it. `ended`: the file's last line ends in a line break. */
+function fromDelimited(body: string, page: Page, linesBefore: number, ended: boolean): RowsResult {
   const hint = SEPARATOR_LINE_RE.exec(body);
   const text = hint ? body.slice(hint[0].length) : body;
   const delimiter = (hint?.[1] as Delimiter | undefined) ?? sniffDelimiter(text);
@@ -179,7 +188,9 @@ function fromDelimited(body: string, page: Page, linesBefore: number): RowsResul
   const names = headerNames(head);
   // A row keeps the cells it has: a short row is not padded out to the header's width.
   const rows = lines.slice(page.from, page.from + page.max).map((cells) => Object.fromEntries(cells.slice(0, names.length).map((cell, i) => [names[i]!, cell])));
-  return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - page.from - rows.length), total: lines.length, notRows: 0, cutAt };
+  // A row with a quote left open is gone already; what is left of the table ends where its rows do.
+  const openRow = !ended && cutAt === null;
+  return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - page.from - rows.length), total: lines.length, notRows: 0, cutAt, openRow };
 }
 
 /** A file's bytes as text (decode.ts): UTF-8, UTF-16 behind its mark, or the one-byte encoding a file that is neither is likeliest in. */
@@ -206,7 +217,9 @@ export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0): Ro
   // A NUL is a binary file (a spreadsheet's own format, an archive) read as text.
   if (text.includes('\u0000')) return noRows();
   const linesBefore = blank.split('\n').length - 1;
-  if (opening[0] !== '[' && opening[0] !== '{') return fromDelimited(text, page, linesBefore);
+  // Blanks after the last line break are no line of their own.
+  const ended = /[\r\n][ \t]*$/.test(unmarked);
+  if (opening[0] !== '[' && opening[0] !== '{') return fromDelimited(text, page, linesBefore, ended);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -216,7 +229,7 @@ export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0): Ro
     if (lines.ok) return lines;
     // JSON that stops short or is damaged is said to be that: read as a table it gave columns named `[{"title":"a"` (#394).
     if (JSON_OPENING_RE.test(opening)) return { ok: false, error: t('datasets.rows.brokenJson'), why: 'broken-json' };
-    return fromDelimited(text, page, linesBefore);
+    return fromDelimited(text, page, linesBefore, ended);
   }
   return fromJson(parsed, page);
 }

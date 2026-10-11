@@ -465,7 +465,7 @@ src/
     feed.ts                    ← a generic RSS / Atom job feed; the atsToken is the feed URL (ADR 0036)
     career-page.ts             ← the change watch: hashes a careers page and never returns a job (ADR 0036)
     folder.ts                  ← a folder source: one look — a tool's row files, or saved postings one a file (a model only for what a page does not say) → jobs, no request (ADR 0062)
-    folder-ledger.ts           ← what a look learned about the folder's files, staged until the tick stored its jobs
+    folder-ledger.ts           ← what a look learned about the folder's files, staged until the tick stored its jobs; looksToKeep (pure): a folder at a time
     {larajobs,golangprojects}.ts ← single RSS feed
     weworkremotely.ts          ← per-category RSS (atsToken = category slug)
     {remoteok,remotive,arbeitnow}.ts ← aggregator JSON
@@ -517,7 +517,7 @@ src/
                                   (used by /jobs/new, /target, /letter and /screen/new; the last three pass it,
                                   and /target classifies a new job in the background instead)
     import-job.ts               ← runImportJob: imported rows through processNormalizedJobs under the fetch lock (ADR 0062)
-    source-file-store.ts        ← a folder source's ledger (source_file): loadLedger, keepFolderLooks, folderSummaries, listSourceFiles
+    source-file-store.ts        ← a folder source's ledger (source_file): loadLedger, keepFolderLooks, folderSummaries, listSourceFiles, readFilesAgain
     folder-watch.ts             ← under the launcher: watches the folders of saved postings, runs the scoped fetch once a change settled
     folder-watch-plan.ts        ← pure: which folders to watch, and how long a burst of changes settles
     blocked-hosts.ts            ← pure: isBlockedPostingHost — the hosts ADR 0005 names, for posting-url.ts and the dataset mapper

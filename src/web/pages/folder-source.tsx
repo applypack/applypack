@@ -491,7 +491,7 @@ export interface FileJob {
   sourceFile: string | null;
 }
 
-export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[]; jobs: FileJob[] }> = ({ folder, files, jobs }) => {
+export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[]; jobs: FileJob[]; flash?: FlashMessage | null }> = ({ folder, files, jobs, flash }) => {
   const lastLook = folder.summary?.lastLookAt?.getTime() ?? null;
   const byFile = new Map<string, FileJob[]>();
   for (const job of jobs) if (job.sourceFile) byFile.set(job.sourceFile, [...(byFile.get(job.sourceFile) ?? []), job]);
@@ -505,6 +505,7 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
             { path: () => <Code>{folder.path}</Code> },
           )}
         </PageHeader>
+        <Flash flash={flash} />
         {files.length === 0 ? (
           <Empty title={t('folders.files.empty')}>{t(folder.active ? 'folders.files.emptyActive' : 'folders.files.emptyOff')}</Empty>
         ) : (
@@ -536,6 +537,15 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
                 );
               })}
             </Table>
+          </Card>
+        )}
+        {/* A saved posting is never turned away by a search, so only a folder of rows has anything to read again. */}
+        {folder.holds === 'rows' && files.length > 0 && (
+          <Card class="mt-6">
+            <ActionForm action={`/companies/${folder.id}/files/reread`} once>
+              <Button variant="secondary">{t('folders.files.reread')}</Button>
+            </ActionForm>
+            <Hint class="mt-3">{t('folders.files.rereadHint')}</Hint>
           </Card>
         )}
       </div>

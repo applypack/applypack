@@ -2,9 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
+  CLOCK_SLACK_MS,
   FILE_NOTES,
   MAX_FILES_PER_LOOK,
   MAX_FILE_BYTES,
+  OPEN_ROW_SETTLE_MS,
   SETTLE_MS,
   guessHolds,
   includeMatcher,
@@ -153,8 +155,18 @@ describe('planScan', () => {
     assert.deepEqual(names(plan.later), ['stuck-19.json']);
   });
 
-  it('reads a file dated in the future instead of waiting for it forever', () => {
+  it('reads a file dated far in the future instead of waiting for it forever', () => {
     assert.deepEqual(names(planScan([file('ahead.json', -10 * MINUTE)], [], NOW).read), ['ahead.json']);
+    assert.deepEqual(names(planScan([file('edge.json', -CLOCK_SLACK_MS)], [], NOW).read), ['edge.json']);
+  });
+
+  // #396: against a walk's clock, a file written minutes into the walk was dated ahead and read half-written.
+  it('lets a file dated a little ahead of the clock wait, like one just written', () => {
+    const plan = planScan([file('ahead.json', -3 * MINUTE), file('skew.json', -1_000), file('old.json')], [], NOW);
+    assert.deepEqual(names(plan.waiting), ['ahead.json', 'skew.json']);
+    assert.deepEqual(names(plan.read), ['old.json']);
+    // Once the clock has passed it by the settle time, it is read.
+    assert.deepEqual(names(planScan([file('ahead.json', -3 * MINUTE)], [], NOW + 3 * MINUTE + SETTLE_MS).read), ['ahead.json']);
   });
 
   it('is not troubled by a file that disappeared: the ledger keeps its row and the plan says nothing', () => {
@@ -174,7 +186,7 @@ describe('judgeFile', () => {
     { title: 'Backend Developer', url: 'https://rows.example/1', company: 'Fennel Works', posted: '2026-09-25' },
     { title: 'Mobile Developer', url: 'https://rows.example/2', company: 'Fennel Works' },
   ];
-  const judge = (got: FileRead, readAs: ReadonlyMap<string, string> = new Map()) => judgeFile(listed, got, mapping, 9, readAs);
+  const judge = (got: FileRead, readAs: ReadonlyMap<string, string> = new Map()) => judgeFile(listed, got, mapping, 9, readAs, undefined, undefined, NOW);
 
   it('hands over the rows of a file that fits, and records it as read with its hash', () => {
     const got = bytesOf(rows);
@@ -225,6 +237,85 @@ describe('judgeFile', () => {
     assert.equal(withClosed.change?.jobCount, 1);
   });
 
+  describe('a table still being written (#396)', () => {
+    const columns: Mapping = { ...emptyMapping(), id: 'id', title: 'title', url: 'url' };
+    const at = (ageMs: number): ListedFile => file('slow.csv', ageMs);
+    const read = (listedAs: ListedFile, body: string): Extract<FileRead, { ok: true }> => {
+      const bytes = Buffer.from(body);
+      return { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length, mtimeMs: listedAs.mtimeMs };
+    };
+    const look = (listedAs: ListedFile, body: string, known?: LedgerEntry) => judgeFile(listedAs, read(listedAs, body), columns, 9, new Map(), known, undefined, NOW);
+    const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
+      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
+      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+    };
+    const head = 'id,title,url\n1,One,https://rows.example/1\n2,Two,https://rows.example/2\n3,Thr';
+    const rest = 'ee,https://rows.example/3\n4,Four,https://rows.example/4\n';
+
+    it('leaves a last row with no line end for a later look while the file is young', () => {
+      const young = at(30_000);
+      const verdict = look(young, head);
+      assert.deepEqual(verdict.jobs.map((j) => j.title), ['One', 'Two']);
+      assert.deepEqual([verdict.change?.status, verdict.change?.detail, verdict.change?.rowsRead, verdict.taken], ['waiting', FILE_NOTES.openRow, 2, 2]);
+      assert.match(FILE_NOTES.openRow, /still for 2 minutes\.$/);
+    });
+
+    it('reads the row whole once the tool has ended it, and every later row once', () => {
+      const first = look(at(30_000), head);
+      const second = look(at(20 * MINUTE), head + rest, kept(first));
+      assert.deepEqual(second.jobs.map((j) => [j.title, j.url]), [['Three', 'https://rows.example/3'], ['Four', 'https://rows.example/4']]);
+      assert.deepEqual([second.change?.status, second.change?.rowsRead, second.change?.jobCount], ['done', 4, 4]);
+    });
+
+    it('reads a whole file that simply ends without a line break, one look later', () => {
+      const whole = 'id,title,url\n1,One,https://rows.example/1\n2,Two,https://rows.example/2';
+      const first = look(at(30_000), whole);
+      assert.deepEqual([first.jobs.map((j) => j.title), first.change?.status], [['One'], 'waiting']);
+      // The same bytes, still for long enough: its last row is a row.
+      const second = look(at(OPEN_ROW_SETTLE_MS), whole, kept(first));
+      assert.deepEqual([second.jobs.map((j) => j.title), second.change?.status, second.change?.detail, second.change?.rowsRead], [['Two'], 'done', null, 2]);
+      // And a file found already still is read in one look.
+      assert.deepEqual(look(at(10 * MINUTE), whole).jobs.map((j) => j.title), ['One', 'Two']);
+    });
+
+    it('holds nothing back from a file that ends its last row, or from one whose rows are JSON', () => {
+      assert.equal(look(at(30_000), `${head}\n`).change?.status, 'done');
+      const lines = judgeFile(file('run.jsonl', 30_000), read(file('run.jsonl', 30_000), '{"id":"1","title":"One","url":"https://rows.example/1"}\n{"id":"2","title":"Two","url":"https://rows.example/2"}'), columns, 9, new Map(), undefined, undefined, NOW);
+      assert.deepEqual([lines.jobs.length, lines.change?.status], [2, 'done']);
+    });
+
+    it('waits with a young file of one row rather than calling it a misfit', () => {
+      const verdict = look(at(30_000), 'id,title,url\n1,One');
+      assert.deepEqual([verdict.rows, verdict.jobs.length, verdict.change?.status], ['fit', 0, 'waiting']);
+    });
+  });
+
+  describe('the date a row takes (#396)', () => {
+    const rowsOf = [
+      { title: 'Backend Developer', url: 'https://rows.example/1', company: 'Fennel Works', posted: '2026-09-25' },
+      { title: 'Mobile Developer', url: 'https://rows.example/2', company: 'Fennel Works' },
+    ];
+    const dated = (mtimeMs: number) => {
+      const bytes = Buffer.from(JSON.stringify(rowsOf));
+      const listedAs = { relPath: 'run-1.json', size: bytes.length, mtimeMs };
+      const got: FileRead = { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length, mtimeMs };
+      return judgeFile(listedAs, got, mapping, 9, new Map(), undefined, undefined, NOW).jobs.map((j) => j.postedAt.toISOString());
+    };
+
+    it('holds a stated date against the clock, not against the file: a file stamped 1980 keeps its rows’ dates', () => {
+      // The file's time was the "now" a date could not be after, so 2026-09-25 was "in the future" and became 1980.
+      assert.deepEqual(dated(Date.UTC(1980, 0, 1, 12)), ['2026-09-25T00:00:00.000Z', new Date(NOW).toISOString()]);
+    });
+
+    it('dates an undated row now when the file’s time is ahead of the clock', () => {
+      assert.deepEqual(dated(NOW + 2 * 24 * 60 * MINUTE), ['2026-09-25T00:00:00.000Z', new Date(NOW).toISOString()]);
+    });
+
+    it('still gives an undated row the time of a file written in the past', () => {
+      assert.deepEqual(dated(NOW - 40 * 24 * 60 * MINUTE)[1], new Date(NOW - 40 * 24 * 60 * MINUTE).toISOString());
+    });
+  });
+
   describe('a file that cannot be read whole (#394)', () => {
     const csv = file('export.csv');
     const columns: Mapping = { ...emptyMapping(), id: 'id', title: 'title', url: 'url' };
@@ -232,7 +323,7 @@ describe('judgeFile', () => {
       const bytes = Buffer.from(body);
       return { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length, mtimeMs: csv.mtimeMs };
     };
-    const look = (body: string | Uint8Array, known?: LedgerEntry, maxRows?: number) => judgeFile(csv, read(body), columns, 9, new Map(), known, maxRows);
+    const look = (body: string | Uint8Array, known?: LedgerEntry, maxRows?: number) => judgeFile(csv, read(body), columns, 9, new Map(), known, maxRows, NOW);
     const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
       const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
       return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };

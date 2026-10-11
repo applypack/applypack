@@ -512,7 +512,18 @@ export type MappedRow = { job: NormalizedJob; thin: boolean } | { dropped: DropR
  * these rows carry many employers, and the source's own name is never one
  * (ADR 0056). `now` stands in for a date the row does not state.
  */
-export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date): MappedRow {
+/**
+ * The date a row with none takes from its file: the file's own time, when
+ * that can be a posting's date. A time ahead of the clock (a drive, a machine
+ * set wrong) or before any posting (a file out of an archive, stamped 1980)
+ * is no date, and such a row is dated now, as an uploaded one is.
+ */
+export function fileDate(mtimeMs: number, now: Date): Date {
+  return mtimeMs > now.getTime() || mtimeMs < EARLIEST_POSTING ? now : new Date(mtimeMs);
+}
+
+/** `now` is the clock a stated date is held against; `undated` is what a row that states none takes — the same, unless the rows come from a file with a time of its own. */
+export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date, undated: Date = now): MappedRow {
   const at = (field: MappingField): unknown => (mapping[field] === null ? undefined : valueAt(row, mapping[field]));
   if (isTrue(at('closed'))) return { dropped: 'closed' };
   const title = clipText(oneLine(cellText(at('title'))), MAX_TITLE_CHARS).trim();
@@ -547,7 +558,7 @@ export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date)
       url: apply !== null && !isBlockedPostingHost(new URL(apply).hostname) ? apply : (listing ?? apply ?? ''),
       location: clipText(location, MAX_LOCATION_CHARS).trim(),
       description: [salaryLine(at), body, note].filter((part) => part !== null && part.length > 0).join('\n\n'),
-      postedAt: readDate(at('postedAt'), now) ?? now,
+      postedAt: readDate(at('postedAt'), now) ?? undated,
       employer: readEmployer(at('employer')),
       ...(Object.keys(hints).length > 0 && { locationHints: hints }),
     },
@@ -563,11 +574,11 @@ export interface MappedRows {
   thin: number;
 }
 
-export function mapRows(rows: readonly Row[], mapping: Mapping, companyId: number, now: Date): MappedRows {
+export function mapRows(rows: readonly Row[], mapping: Mapping, companyId: number, now: Date, undated: Date = now): MappedRows {
   const out: MappedRows = { jobs: [], dropped: { closed: 0, 'no-title': 0, 'no-identity': 0 }, repeated: 0, thin: 0 };
   const seen = new Set<string>();
   for (const row of rows) {
-    const mapped = mapRow(row, mapping, companyId, now);
+    const mapped = mapRow(row, mapping, companyId, now, undated);
     if ('dropped' in mapped) out.dropped[mapped.dropped]++;
     else if (seen.has(mapped.job.externalId)) out.repeated++;
     else {

@@ -104,7 +104,7 @@ async function lookAtRows(
   for (const file of plan.read) {
     // Past the ceiling the rest waits, unnoted: the next look plans it again.
     if (left <= 0) break;
-    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), mapping, companyId, readAs, known.get(file.relPath), left);
+    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), mapping, companyId, readAs, known.get(file.relPath), left, now.getTime());
     if (verdict.change) changes.push(verdict.change);
     left -= verdict.taken;
     if (verdict.rows === 'none') continue;
@@ -205,7 +205,7 @@ async function lookAtPostings(
       }
       model = await readWithModel(got.sha256, read.text);
     }
-    const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model, externalId);
+    const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model, externalId, now);
     changes.push({ ...measured, status: 'done', detail: savedPostingNote(job), jobCount: 1 });
     readAs.set(got.sha256, file.relPath);
     jobs.push(job);

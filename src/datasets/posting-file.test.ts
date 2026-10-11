@@ -100,8 +100,16 @@ describe('savedPostingJob', () => {
     assert.equal(job.companyId, 7);
   });
 
+  // #396: a file dated ahead of the clock, or out of an archive stamped 1980, gave the posting that date.
+  it('dates a page that states no date now when its file’s time cannot be a date', () => {
+    const ahead = savedPostingJob({ ...file, mtimeMs: NOW.getTime() + 2 * 86_400_000 }, plain, null, 'saved-1', NOW);
+    assert.equal(ahead.postedAt.getTime(), NOW.getTime());
+    assert.equal(savedPostingJob({ ...file, mtimeMs: Date.UTC(1980, 0, 1) }, plain, null, 'saved-1', NOW).postedAt.getTime(), NOW.getTime());
+    assert.equal(savedPostingJob({ ...file, mtimeMs: NOW.getTime() - 86_400_000 }, plain, null, 'saved-1', NOW).postedAt.getTime(), NOW.getTime() - 86_400_000);
+  });
+
   it('falls back to the file’s name for a title and to its time for a date; names no employer nobody named', () => {
-    const job = savedPostingJob(file, plain, null, 'saved-1');
+    const job = savedPostingJob(file, plain, null, 'saved-1', NOW);
     assert.equal(job.title, 'Senior PHP Developer at Acme');
     assert.equal(job.employer, null);
     assert.equal(job.postedAt.getTime(), file.mtimeMs);

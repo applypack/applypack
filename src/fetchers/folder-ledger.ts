@@ -10,6 +10,11 @@
  * them, and the next look reads the same files again: rows already stored are
  * duplicates, which cost nothing, and a saved posting's model reading is
  * remembered by its file's hash (fetchers/folder.ts), so it is not paid twice.
+ *
+ * "Everything" is asked a folder at a time (`looksToKeep`): a posting no
+ * model would score, on any other source, failed every tick and so dropped
+ * every folder's look every tick — each folder read its first twenty files
+ * again each hour and never reached the twenty-first (#396).
  */
 
 import type { FileChange } from '../datasets/folder-scan';
@@ -20,6 +25,23 @@ export interface FolderLook {
   /** Every file of the folder's kind the look listed: what "N files" counts. */
   seen: string[];
   changes: FileChange[];
+}
+
+/**
+ * The looks a tick may keep. All of them when it stored everything it
+ * fetched. None when it stopped before its end — a pause mid-run, no usable
+ * search — because which postings were left then is not known source by
+ * source. Otherwise the tick ran to its end and the only postings not stored
+ * are those no verdict came for: a folder none of them came from has every
+ * row of its look stored, and keeps it.
+ */
+export function looksToKeep(
+  looks: readonly FolderLook[],
+  stats: { abortedMidRun: number; skippedBlankProfile: number },
+  unstored: ReadonlySet<number>,
+): FolderLook[] {
+  if (stats.abortedMidRun !== 0 || stats.skippedBlankProfile !== 0) return [];
+  return looks.filter((look) => !unstored.has(look.companyId));
 }
 
 const staged = new Map<number, FolderLook>();
