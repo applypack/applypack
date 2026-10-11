@@ -58,9 +58,12 @@ export async function packIsKept(jobId: number): Promise<boolean> {
  * Put a posting in the queue. A posting has one pack: asking again starts it
  * over, except while it is being prepared (`busy`), once the person has said
  * its file went out (`sent`) — that row is the record of what they sent — and
- * while a ready pack belongs to a job they applied to (`kept`). A row keeps
- * the trigger it was born with, so preparing one again by hand does not hand
- * the day's limit a free slot.
+ * while a ready pack belongs to a job they applied to (`kept`). A pack
+ * started over belongs to whoever asked this time (#382): the trigger says
+ * who asked for the preparing the row holds, not who asked for the first
+ * one. So a pack the tick queued and the person prepared again is theirs —
+ * it takes no slot of the day's limit, no message announces it, and neither
+ * the switch nor what became of the job takes it out of the queue.
  */
 export async function queuePack(jobId: number, trigger: PackTrigger): Promise<QueueOutcome> {
   const existing = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true, sentAt: true } });
@@ -79,7 +82,7 @@ export async function queuePack(jobId: number, trigger: PackTrigger): Promise<Qu
   if (await packIsKept(jobId)) return 'kept';
   const reset = await prisma.applicationPack.updateMany({
     where: { jobId, sentAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
-    data: { ...BLANK, status: 'queued', queuedAt: new Date() },
+    data: { ...BLANK, trigger, status: 'queued', queuedAt: new Date() },
   });
   return reset.count > 0 ? 'queued' : 'busy';
 }

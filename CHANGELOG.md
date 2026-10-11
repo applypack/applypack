@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.29] — 2026-10-11
+
+### Fixed
+- **Prepare again on a pack ApplyPack prepared by itself is now your own
+  run.** Pressing **Prepare again** (or **Try again**) on such a pack
+  started another automatic one: it took one of today's packs, so a strong
+  match later in the day could go without; it came back in the next "packs
+  ready" message although you had its page open; and pressed with packs
+  switched off, or for a job you had dismissed since, the pack was taken out
+  of the queue and deleted instead of prepared. A pack you start over is now
+  yours, whoever started the first one: it counts toward no limit, no
+  message announces it, and it is prepared whatever the settings say (#382).
+
 ## [2.55.28] — 2026-10-11
 
 ### Fixed

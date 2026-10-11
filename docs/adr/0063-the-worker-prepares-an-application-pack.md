@@ -69,6 +69,19 @@ Before a line of the feature was written, the pipeline was run dry over those
    gets its slot back. Switching packs off deletes the queued automatic rows
    at once and says how many. A pack asked for by hand is prepared whatever
    became of the job: the person asked.
+   *Amended 2026-10-11 (v2.55.29, #382).* A row kept the trigger it was born
+   with, so **Prepare again** on a pack the tick had queued started an
+   automatic pack: it took a slot of today's limit, was announced a second
+   time (rule 8), and — pressed with packs switched off, or for a job since
+   dismissed — was deleted by the question above instead of prepared. The
+   trigger now says who asked for the preparing the row holds: a pack the
+   person starts over is theirs, whoever queued the first one. The price is
+   one slot: a pack the tick queued today and the person prepared again no
+   longer counts for today, so the worker may start one more on its own that
+   day. A column that remembers the first asker would close that; one slot
+   the person frees by their own press did not earn it. Rows written before
+   this cannot be told apart from packs nobody pressed and are left as they
+   are: one such pack may still be announced once.
 4. **The worker calls the resume module.** A pack is the chain of calls the
    dashboard's buttons make, with nobody there to press them, and the worker
    is the process with the clock. Both run the same image; nothing else about
