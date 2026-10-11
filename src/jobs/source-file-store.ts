@@ -118,6 +118,15 @@ export async function folderSummaries(): Promise<Map<number, FolderSummary>> {
 }
 
 /**
+ * A folder's mapping was saved again: the files the old one could not read
+ * may fit the new one, so they wait for the next look. A file that was read
+ * is left alone — its jobs are stored.
+ */
+export async function misfitsWaitAgain(companyId: number): Promise<void> {
+  await prisma.sourceFile.updateMany({ where: { companyId, status: 'failed', sha256: { not: null } }, data: { status: 'waiting' } });
+}
+
+/**
  * "Read every file again" (#396): every file of a folder that a look read, in
  * whole or in part, waits for the next look and is read from its first row.
  * The file itself is not touched, only what the ledger says of it. Rows

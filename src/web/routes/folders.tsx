@@ -44,7 +44,7 @@ import { decodeBody, type Row, type RowFormat } from '../../datasets/rows';
 import { prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
-import { folderSummaries, listSourceFiles, loadLedger, readFilesAgain } from '../../jobs/source-file-store';
+import { folderSummaries, listSourceFiles, loadLedger, misfitsWaitAgain, readFilesAgain } from '../../jobs/source-file-store';
 import { underLauncher } from '../../local/child';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
@@ -359,9 +359,7 @@ foldersRoute.post('/companies/folder', async (c) => {
     select: { id: true },
   });
   // A new mapping may read what the old one could not: files that misfit wait for the next look.
-  if (preview.existing && preview.holds === 'rows') {
-    await prisma.sourceFile.updateMany({ where: { companyId: saved.id, status: 'failed', sha256: { not: null } }, data: { status: 'waiting' } });
-  }
+  if (preview.existing && preview.holds === 'rows') await misfitsWaitAgain(saved.id);
   logger.info({ companyId: saved.id, existing: preview.existing !== null }, 'web: folder source saved');
   return flashRedirect(
     `${BACK}#folders`,
