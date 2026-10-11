@@ -231,6 +231,49 @@ paused mid-run, or lost a classification, drops the staged look; the next
 one reads the same files again, and rows already stored are duplicates that
 cost nothing.
 
+*Amended 2026-10-11 (v2.55.24, #396).* The folder's ledger decided once,
+from the moment of a look, and four of those decisions were wrong or never
+revisited:
+
+- **The look's own clock.** A look measured a file's age against the time
+  the walk started, so a file written minutes into a long walk was dated
+  ahead, counted as settled and read half-written. A look now takes its own
+  time; a file dated up to five minutes ahead of it waits like one just
+  written, and one dated further ahead (a clock set wrong) is read, since
+  waiting for it would never end.
+- **A table's last row with no line end** is left for a later look until
+  the file has been still for two minutes (`OPEN_ROW_SETTLE_MS`). A tool
+  that writes through a buffer leaves half a row at a file's end long after
+  the ten seconds above; read at once it was stored with half a title and
+  no link, and the whole row never, because the next look read on after it.
+  A whole file that simply ends without a line break has its last row read
+  one look later. JSON Lines needs no such rule: a cut line is not a row.
+- **"Everything stored" is asked a folder at a time**
+  (`folder-ledger.ts:looksToKeep`). One posting no model would score, on any
+  source, failed every tick and so dropped every folder's look every tick:
+  each folder read its first twenty files again each hour and never reached
+  the twenty-first. A tick that ran to its end keeps the look of every
+  folder none of whose postings went without a verdict; a tick that stopped
+  early still keeps none. Validators keep the stricter rule: a full read is
+  all it costs them.
+- **"Read every file again"** on the Files page of a folder of rows. A file
+  is read once, so a row a search or a mute turned away was never looked at
+  again when the search changed or the company was unmuted, which
+  [ADR 0056](./0056-mute-an-employer-and-a-reapply-window.md) promises ("the next tick meets
+  the posting as new"). The button puts the files the last look listed back
+  to waiting; the next looks read them from their first row, twenty a look,
+  behind any new file. Rows already stored are duplicates; rows admitted now
+  are scored. Doing this by itself when a search or a mute changes is not
+  built (#448).
+- **A row's date.** A stated date was held against the *file's* time, so a
+  file stamped 1980 (out of an archive) turned every later date away as "in
+  the future" and gave all its rows 1980. It is held against the clock. A
+  row that states none takes the file's time only when that can be a date:
+  not ahead of the clock, not before 2000 — else now, as an uploaded row
+  does. A saved posting's file follows the same rule. Saying "Saved" rather
+  than "Posted" for such a date needs the row to know whose date it is
+  (#379).
+
 **ApplyPack never writes into the folder.** No "processed" subfolder, no
 rename, no delete. `datasets/folder-io.ts` is the one module that touches
 such a folder, it opens files for reading only and without following a

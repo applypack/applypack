@@ -43,7 +43,7 @@ import { decodeBody, findRows, type Row, type RowFormat } from '../../datasets/r
 import { prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
-import { folderSummaries, listSourceFiles, loadLedger } from '../../jobs/source-file-store';
+import { folderSummaries, listSourceFiles, loadLedger, readFilesAgain } from '../../jobs/source-file-store';
 import { underLauncher } from '../../local/child';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
@@ -53,7 +53,7 @@ import { getSettings } from '../../settings';
 import { t } from '../../i18n/t';
 import type { NormalizedJob } from '../../types';
 import { spendHint } from '../cost-hint';
-import { flashRedirect } from '../flash';
+import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { explainFolderFault } from '../folder-words';
 import { createInbox } from '../inbox-folder';
 import { FolderFilesPage, FolderPreviewPage, type PostingSample, type PostingsPreviewProps, type RowsPreviewProps } from '../pages/folder-source';
@@ -200,7 +200,7 @@ async function previewRows(
   let misfits = 0;
   for (const file of plan.read) {
     if (left <= 0) break;
-    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs, known.get(file.relPath), left);
+    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs, known.get(file.relPath), left, now.getTime());
     fileNotes.push(...verdict.notes.map((note) => ({ file: file.relPath, note })));
     if (!usable) continue;
     left -= verdict.taken;
@@ -388,6 +388,26 @@ foldersRoute.get('/companies/:id/files', async (c) => {
       folder={{ id, name: company.name, path: company.atsToken, active: company.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(id) }}
       files={files}
       jobs={jobs}
+      flash={parseFlashCookie(c.req.header('cookie'))}
     />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
   );
+});
+
+/**
+ * "Read every file again" (#396). A file of rows is read once, and a row a
+ * search or a mute turned away then was never looked at again, whatever
+ * changed. This puts the folder's read files back to waiting; the next look
+ * reads them from their first row, twenty a look, behind any new file.
+ */
+foldersRoute.post('/companies/:id/files/reread', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const company = await prisma.company.findFirst({ where: { id, atsType: AtsType.FOLDER }, select: { name: true, sourceConfig: true } });
+  // A saved posting is never turned away by a search or a mute: reading one again changes nothing.
+  if (!company || readSourceConfig(company.sourceConfig)?.holds !== 'rows') return c.text(t('http.notFound'), 404);
+  const n = await readFilesAgain(id);
+  logger.info({ companyId: id, files: n }, 'web: folder files put back to be read again');
+  return flashRedirect(`/companies/${id}/files`, n > 0 ? 'ok' : 'warn', t(n > 0 ? 'folders.flash.reread' : 'folders.flash.rereadNone', { n, name: company.name }));
 });

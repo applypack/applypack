@@ -10,7 +10,7 @@
 import { createHash } from 'node:crypto';
 import { t } from '../i18n/t';
 import { decodeText } from './decode';
-import { mapRows, type Mapping } from './map';
+import { fileDate, mapRows, type Mapping } from './map';
 import { assumedNote, lossNotes, readingOf } from './read-notes';
 import { MAX_BODY_MB, findRows, type RowFormat } from './rows';
 import type { NormalizedJob } from '../types';
@@ -69,6 +69,19 @@ export const MAX_FILES_PER_LOOK = 20;
 export const MAX_ROWS_PER_LOOK = 5_000;
 /** A file changed more recently than this may still be written. */
 export const SETTLE_MS = 10_000;
+/**
+ * How far ahead of this clock a file's time may be and still be a file just
+ * written: a drive, or a machine, a few minutes off. One dated further ahead
+ * has a clock that is simply wrong, and waiting for it would never end.
+ */
+export const CLOCK_SLACK_MS = 5 * 60_000;
+/**
+ * How long a table must have been still before a last row with no line end
+ * is read. A tool that writes through a buffer leaves a file for a while
+ * with half a row at its end, long after the ten seconds above; a whole
+ * file that simply ends without a line break is read one look later.
+ */
+export const OPEN_ROW_SETTLE_MS = 2 * 60_000;
 export const MAX_FILE_BYTES = MAX_BODY_MB * 1024 * 1024;
 /** A saved page or a text file: a posting is a few kilobytes, and a page drags its markup along. */
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
@@ -94,6 +107,9 @@ export const FILE_NOTES = {
   },
   get brokenJson(): string {
     return t('datasets.file.brokenJson');
+  },
+  get openRow(): string {
+    return t('datasets.file.openRow', { minutes: OPEN_ROW_SETTLE_MS / 60_000 });
   },
 };
 
@@ -269,8 +285,11 @@ function sameFile(a: ListedFile, b: ListedFile): boolean {
  * The files to read now, the oldest change first — new and changed files
  * before the ones looked at again (a file that waited, one the system would
  * not open), so a heap of the latter cannot keep what is new from being read.
- * A file dated in the future (a clock, a synced drive) counts as settled: the
- * read itself measures it twice.
+ * `now` is the moment of this look, not of the walk it is part of: against a
+ * walk's start a file written minutes into it was dated ahead, counted as
+ * settled and read half-written (#396). A file dated a little ahead waits like
+ * one just written; one dated far ahead (a clock set wrong) counts as settled,
+ * and the read itself measures it twice.
  */
 export function planScan(
   listing: readonly ListedFile[],
@@ -293,7 +312,7 @@ export function planScan(
     const age = now - file.mtimeMs;
     if (entry && sameFile(entry, file) && settled(entry)) plan.unchanged++;
     else if (file.size > maxBytesOf(kind)) plan.tooLarge.push(file);
-    else if (age >= 0 && age < SETTLE_MS) plan.waiting.push(file);
+    else if (age < SETTLE_MS && age > -CLOCK_SLACK_MS) plan.waiting.push(file);
     else (entry && sameFile(entry, file) ? again : fresh).push(file);
   }
   const oldestFirst = (a: ListedFile, b: ListedFile): number => a.mtimeMs - b.mtimeMs || a.relPath.localeCompare(b.relPath);
@@ -376,6 +395,10 @@ function resumeAt(known: LedgerEntry | undefined, got: Extract<FileRead, { ok: t
  * At most `maxRows` rows are read, from where `known` — the ledger's row for
  * this file — says the last look stopped. A file with more waits, and the
  * next look reads on, so every row of it is read once.
+ *
+ * `now` is the look's clock. A table's last row with no line end is left for
+ * a later look until the file has been still for `OPEN_ROW_SETTLE_MS`: read
+ * at once it was stored cut short, and the whole row never (#396).
  */
 export function judgeFile(
   file: ListedFile,
@@ -385,6 +408,7 @@ export function judgeFile(
   readAs: ReadonlyMap<string, string>,
   known: LedgerEntry | undefined = undefined,
   maxRows: number = MAX_ROWS_PER_LOOK,
+  now: number = Date.now(),
 ): FileVerdict {
   const kind = rowFileKind(file.relPath)!;
   const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0, ...extra });
@@ -411,17 +435,25 @@ export function judgeFile(
   const lost = lossNotes(reading);
   const notes = [...lost, ...[assumedNote(reading)].filter((n) => n !== null)];
   const before = from > 0 ? known!.jobCount : 0;
-  const mapped = mapRows(found.rows, mapping, companyId, new Date(got.mtimeMs));
-  const judged = found.rows.length - mapped.dropped.closed - mapped.repeated;
+  // The file's last row, when it is among these and may still be written: left where it is for now.
+  const held = found.openRow && found.over === 0 && found.rows.length > 0 && now - got.mtimeMs < OPEN_ROW_SETTLE_MS;
+  const rows = held ? found.rows.slice(0, -1) : found.rows;
+  // A stated date is held against the look's clock, never the file's: a file stamped 1980 turned every later date away as "in the future".
+  const mapped = mapRows(rows, mapping, companyId, new Date(now), fileDate(got.mtimeMs, new Date(now)));
+  const judged = rows.length - mapped.dropped.closed - mapped.repeated;
   if (mapped.jobs.length * 2 < judged) {
-    const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: found.rows.length });
+    const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: rows.length });
     // What was read before these rows stands: a mapping saved again reads on from there.
     return { change: note('failed', detail, { ...measured, rowsRead: from, jobCount: before }), jobs: [], rows: 'misfit', taken: 0, notes };
   }
-  const rowsRead = from + found.rows.length;
+  const rowsRead = from + rows.length;
   const progress = { ...measured, rowsRead, jobCount: before + mapped.jobs.length };
   // Read to the end of what can be read: a file that lost a part is done, and says which part.
   const change =
-    found.over > 0 ? note('waiting', t('datasets.file.partRows', { read: rowsRead, total: found.total }), progress) : note('done', lost.length > 0 ? lost.join(' ') : null, progress);
-  return { change, jobs: mapped.jobs, rows: 'fit', taken: found.rows.length, notes };
+    found.over > 0
+      ? note('waiting', t('datasets.file.partRows', { read: rowsRead, total: found.total }), progress)
+      : held
+        ? note('waiting', FILE_NOTES.openRow, progress)
+        : note('done', lost.length > 0 ? lost.join(' ') : null, progress);
+  return { change, jobs: mapped.jobs, rows: 'fit', taken: rows.length, notes };
 }
