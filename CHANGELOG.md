@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.30] — 2026-10-11
+
+### Fixed
+- **Application pack settings no longer swap a value you typed for the
+  default.** A number outside what a field takes — a fit of 40, 60 packs a
+  day, 0 days, 10 bullets, 91.5 — or an emptied field was stored as the
+  default, and the message said the settings were saved: a fit of 40 came
+  back as 90, the opposite of what was asked. Such a press now saves
+  nothing, the on/off box included; the message says which field and what it
+  takes, and the field is marked on the page. A browser stops most of these
+  before they are sent; a pasted value or a script got the silent swap
+  (#383).
+
 ## [2.55.29] — 2026-10-11
 
 ### Fixed

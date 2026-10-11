@@ -1019,12 +1019,18 @@ settingsRoute.post('/settings/locale', async (c) => {
 
 /** ADR 0063: application packs — the whole form at once, as the schedule is saved. */
 settingsRoute.post('/settings/pack', async (c) => {
-  const pack = packSettingsFromForm(await c.req.parseBody({ all: true }));
+  const back = '/settings?tab=automation#packs';
+  const form = packSettingsFromForm(await c.req.parseBody({ all: true }));
+  // A value the form does not offer stores nothing — not even the switch — and the flash names the field (#383).
+  if (!form.ok) {
+    return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues) }), refusedField(c.req.path, form.issues));
+  }
+  const pack = form.settings;
   await setPackSettings(pack);
   // Off means off for what already waits: the flash says none is prepared on its own, and the queue may hold a day of them.
   const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks();
   return flashRedirect(
-    '/settings?tab=automation#packs',
+    back,
     'ok',
     pack.enabled
       ? t(pack.dailyLimit === 0 ? 'settingsRoute.pack.onNoLimit' : 'settingsRoute.pack.on', {

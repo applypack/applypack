@@ -49,6 +49,13 @@ Before a line of the feature was written, the pipeline was run dry over those
    packs a day the worker starts on its own (5; 0 = no limit), how recently
    the posting must have been published (7 days), the cover letter (never ·
    when the posting's text asks · always) and the tailoring policy.
+   *Amended 2026-10-11 (v2.55.30, #383).* The form was read as leniently as
+   the stored value: a number outside its range, text, or a letter mode
+   nobody offers was replaced by the default and reported as saved — a fit of
+   40 came back as 90. The form is now refused whole, with the field named
+   (`packSettingsFromForm`), and a refused press changes nothing, the switch
+   included. Falling back to a default is kept for reading what is already
+   stored, which is what it was for.
 2. **Asked once, about a posting the tick has just stored.** The trigger
    (`pack/trigger.ts`) is called in `process-jobs.ts` where a new match is
    inserted, and nowhere else. So the backlog is never walked — not when the
