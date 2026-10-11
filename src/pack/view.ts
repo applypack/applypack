@@ -43,7 +43,7 @@ export const HELD_WORDS = {
 } as const satisfies Record<HeldReason, MessageKey>;
 
 /** The step a pack is on, as catalog keys: "Reading the posting". */
-export const STEP_WORDS = {
+const STEP_WORDS = {
   liveness: 'pack.step.liveness',
   brief: 'pack.step.brief',
   match: 'pack.step.match',
@@ -53,6 +53,18 @@ export const STEP_WORDS = {
   document: 'pack.step.document',
   letter: 'pack.step.letter',
 } as const satisfies Record<PrepareStep, MessageKey>;
+
+/** Whether a pack is still in the queue or being prepared: the one state of the tab that changes by itself. */
+export function packBusy(pack: { status: string } | null): boolean {
+  return pack?.status === 'queued' || pack?.status === 'running';
+}
+
+/** The sentence a pack in the queue or in flight is told by: where it waits, or the step it is on. */
+export function preparingLine(pack: { status: string; step: string | null }): string {
+  const step = STEP_WORDS[pack.step as PrepareStep] as MessageKey | undefined;
+  const now = pack.status === 'queued' ? t('pack.card.queued') : t('pack.card.onStep', { step: step ? t(step) : t('pack.card.preparing') });
+  return `${now} ${t('pack.card.refreshes')}`;
+}
 
 /**
  * Why a pack stopped, as the case the catalog's stop messages select on

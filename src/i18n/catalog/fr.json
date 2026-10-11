@@ -2859,6 +2859,7 @@
   "pack.card.onStep": "{step}…",
   "pack.card.preparing": "Préparation",
   "pack.card.refreshes": "Cette page se met à jour toute seule ; vous pouvez la quitter.",
+  "pack.card.finishedUnsaved": "Le dossier est terminé. Enregistrez ce que vous saisissez, puis rechargez la page pour le voir.",
   "pack.card.was": "Avant",
   "pack.card.takenOut": "Retiré",
   "pack.card.now": "Après",

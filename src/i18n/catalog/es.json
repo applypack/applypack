@@ -2859,6 +2859,7 @@
   "pack.card.onStep": "{step}…",
   "pack.card.preparing": "Preparando",
   "pack.card.refreshes": "Esta página se actualiza sola; puedes salir de ella.",
+  "pack.card.finishedUnsaved": "El paquete ha terminado. Guarda lo que estás escribiendo y recarga la página para verlo.",
   "pack.card.was": "Antes",
   "pack.card.takenOut": "Quitado",
   "pack.card.now": "Ahora",

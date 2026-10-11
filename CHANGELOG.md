@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.20] — 2026-10-11
+
+### Fixed
+- **The Application pack tab no longer wipes what you type.** While a pack
+  was queued or being prepared the page reloaded itself every 8 seconds, and
+  the rail beside the card holds the application's forms: a note typed into
+  Notes was gone with the next reload, for as long as the company check ran
+  (up to ten minutes). The tab now asks for the pack's state and rewrites
+  its one line of progress in place. The page is loaded again only when the
+  pack has finished, and never over an unsaved edit: then the card says the
+  pack has finished and to save first. A browser with scripts off still gets
+  the reload (#378).
+
 ## [2.55.19] — 2026-10-10
 
 ### Fixed
@@ -5311,6 +5324,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.20]: https://github.com/applypack/applypack/compare/v2.55.19...v2.55.20
 [2.55.19]: https://github.com/applypack/applypack/compare/v2.55.18...v2.55.19
 [2.55.18]: https://github.com/applypack/applypack/compare/v2.55.17...v2.55.18
 [2.55.17]: https://github.com/applypack/applypack/compare/v2.55.16...v2.55.17

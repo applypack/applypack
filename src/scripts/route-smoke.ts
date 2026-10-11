@@ -56,6 +56,8 @@ const MAY_404 = new Set([
   // A pack keeps a file only once the worker has prepared it (ADR 0063); nothing here runs one.
   '/jobs/:id/pack/resume.docx',
   '/jobs/:id/pack/resume.pdf',
+  // Nor a state to ask for until a pack is queued; the queued one is asked below.
+  '/jobs/:id/pack/state',
   // The fixture company is a pasted job's, not a folder; the folder walk below asks a real one.
   '/companies/:id/files',
 ]);
@@ -574,9 +576,21 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
     },
     {
-      name: 'GET /jobs/:id?tab=pack (a queued pack, the page refreshing itself)',
+      // The tab asks for the pack's state instead of reloading; a browser with no script gets the reload.
+      name: 'GET /jobs/:id?tab=pack (a queued pack: the tab polls, a refresh only without script)',
       init: { headers: ORIGIN },
-      expect: (res) => res.status === 200,
+      expect: async (res) => {
+        const html = res.status === 200 ? await res.text() : '';
+        return html.includes('/static/pack-tab.mjs') && html.includes('<noscript><meta http-equiv="refresh"') && !/<head>(?:(?!<noscript>)[\s\S])*?<meta http-equiv="refresh"/.test(html.slice(0, html.indexOf('</head>')));
+      },
+    },
+    {
+      name: 'GET /jobs/:id/pack/state (a queued pack: busy, with its line)',
+      init: { headers: ORIGIN },
+      expect: async (res) => {
+        const state = res.status === 200 ? ((await res.json()) as { busy?: unknown; line?: unknown; wait?: unknown }) : {};
+        return state.busy === true && typeof state.line === 'string' && state.line.length > 0 && typeof state.wait === 'string';
+      },
     },
     {
       // "I sent this file" from a page whose pack is no longer ready: nothing is recorded or frozen, and the pack tab says why.
@@ -627,6 +641,7 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}?tab=pack`,
+    `/jobs/${f.jobId}/pack/state`,
     `/jobs/${f.jobId}/status`,
   ];
   for (const [i, p] of posts.entries()) {

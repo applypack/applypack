@@ -2859,6 +2859,7 @@
   "pack.card.onStep": "{step}…",
   "pack.card.preparing": "Preparing",
   "pack.card.refreshes": "This page refreshes itself; you can leave it.",
+  "pack.card.finishedUnsaved": "The pack has finished. Save what you are typing, then reload the page to see it.",
   "pack.card.was": "Was",
   "pack.card.takenOut": "Taken out",
   "pack.card.now": "Now",

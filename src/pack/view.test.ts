@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { packFact, packLine, packNoticeLines, readPackEdits, type PackNotice } from './view';
+import { packBusy, packFact, packLine, packNoticeLines, preparingLine, readPackEdits, type PackNotice } from './view';
 
 const notice = (over: Partial<PackNotice> = {}): PackNotice => ({
   title: 'Senior Laravel Engineer',
@@ -73,4 +73,13 @@ test('a long wait lists the first eight and counts the rest', () => {
   assert.equal(lines[0], '11 application packs are ready:');
   assert.equal(lines.filter((l) => l.startsWith('• ')).length, 8);
   assert.equal(lines[9], '…and 3 more.');
+});
+
+test('a pack in the queue or in flight says where it is, in one sentence', () => {
+  assert.equal(preparingLine({ status: 'queued', step: null }), 'Queued — the worker starts it within a minute. This page refreshes itself; you can leave it.');
+  assert.match(preparingLine({ status: 'running', step: 'verify' }), /… This page refreshes itself; you can leave it\.$/);
+  // A step this version does not know is still "Preparing".
+  assert.equal(preparingLine({ status: 'running', step: 'something-new' }), 'Preparing… This page refreshes itself; you can leave it.');
+  assert.deepEqual(['queued', 'running', 'ready', 'stopped', 'failed'].map((status) => packBusy({ status })), [true, true, false, false, false]);
+  assert.equal(packBusy(null), false);
 });
