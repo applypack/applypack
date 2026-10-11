@@ -139,6 +139,23 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
   return out;
 }
 
+/**
+ * A run that finished and scored nothing it tried to (#366): postings reached
+ * the classifier, and not one came back with a verdict — neither scored nor
+ * set aside by the prefilter. The run itself did not fail, so its status is
+ * OK, and a row of green badges is how a dead engine stayed out of sight for
+ * a night. A run where some were scored is the engine having a bad moment,
+ * and its "N failed to classify" says so already.
+ */
+export function unscoredRun(status: string, stats: unknown): boolean {
+  if (status !== 'OK' || typeof stats !== 'object' || stats === null) return false;
+  const n = (key: string): number => {
+    const value = (stats as Record<string, unknown>)[key];
+    return typeof value === 'number' ? value : 0;
+  };
+  return n('classifyFailed') > 0 && n('classified') === 0 && n('preFiltered') === 0;
+}
+
 /** What is safe after a failed run of each job, and what comes next — the second and third parts of the sentence. */
 const AFTER_FAILURE: Record<string, MessageKey> = {
   fetch: 'runs.after.fetch',

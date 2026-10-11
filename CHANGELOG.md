@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.34] — 2026-10-11
+
+### Fixed
+- **A search that scored nothing no longer shows as OK.** When the AI engine
+  gave no verdict for any posting of a run — every one "failed to classify"
+  — the run still finished with a green OK on Runs and a green dot under
+  Pipeline health on the Overview, because nothing had crashed. A night of
+  such runs looked like a healthy night with no matches. Such a run now
+  reads **nothing scored**, in the warning colour on both pages, with a line
+  that points at the engine's card on Settings → AI & costs. A run where
+  some postings were scored keeps its OK and its count of the ones that
+  failed (#366).
+
 ## [2.55.33] — 2026-10-11
 
 ### Fixed
