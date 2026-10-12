@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { packBusy, packFact, packLine, packNoticeLines, preparingLine, readPackEdits, type PackNotice } from './view';
+import { packBusy, packFact, packLine, packNoticeLines, preparingLine, readPackEdits, unplacedLines, type PackNotice } from './view';
 
 const notice = (over: Partial<PackNotice> = {}): PackNotice => ({
   title: 'Senior Laravel Engineer',
@@ -82,4 +82,17 @@ test('a pack in the queue or in flight says where it is, in one sentence', () =>
   assert.equal(preparingLine({ status: 'running', step: 'something-new' }), 'Preparing… This page refreshes itself; you can leave it.');
   assert.deepEqual(['queued', 'running', 'ready', 'stopped', 'failed'].map((status) => packBusy({ status })), [true, true, false, false, false]);
   assert.equal(packBusy(null), false);
+});
+
+test('unplacedLines: an edit that was not made says its own reason (#384)', () => {
+  assert.deepEqual(unplacedLines([]), []);
+  // The one sentence the card had is true of one error only.
+  assert.deepEqual(unplacedLines(['not-found', 'not-found']), ['2 edits could not be placed: the text it quoted is not in the resume as written.']);
+  assert.deepEqual(unplacedLines(['not-found', 'protected', 'no-replacement', 'protected']), [
+    '1 edit could not be placed: the text it quoted is not in the resume as written.',
+    '2 edits were not made: their lines carry your email or phone.',
+    '1 edit was not made: it had no wording to paste.',
+  ]);
+  // An error this file has never heard of is still counted, without a reason it cannot give.
+  assert.deepEqual(unplacedLines(['moved-on', 'something-new']), ['2 edits could not be made.']);
 });

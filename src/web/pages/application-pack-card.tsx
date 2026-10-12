@@ -2,7 +2,7 @@
 import type { FC } from 'hono/jsx';
 import type { DiffOp } from '../../resume/line-diff';
 import type { PackRow } from '../../pack/store';
-import { HELD_WORDS, packBusy, preparingLine, stopTitle, type PackEdits } from '../../pack/view';
+import { HELD_WORDS, packBusy, preparingLine, stopTitle, unplacedLines, type PackEdits } from '../../pack/view';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, ConfirmAction, Hint, Notice, SectionTitle, When } from '../ui';
@@ -269,9 +269,9 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
           ) : (
             <Changes changes={changes} />
           )}
-          {edits.unplaced.length > 0 && (
-            <Hint class="mt-2">{t('pack.card.unplaced', { n: edits.unplaced.length })}</Hint>
-          )}
+          {unplacedLines(edits.unplaced).map((line) => (
+            <Hint class="mt-2">{line}</Hint>
+          ))}
         </Card>
       )}
 

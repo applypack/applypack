@@ -102,6 +102,8 @@ export interface OverviewProps {
   next: NextThing[] | null;
   /** Application packs prepared and not yet sent (ADR 0063); empty on an install that never asked for one. */
   readyPacks: ReadyPack[];
+  /** How many are ready in all: the card lists only the newest few. */
+  readyPacksTotal: number;
   flash?: FlashMessage | null;
 }
 
@@ -133,6 +135,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   finishSetup,
   next,
   readyPacks,
+  readyPacksTotal,
   flash,
 }) => {
   const byStatus = mapCounts(counts);
@@ -237,7 +240,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       </p>
 
       {next && <NextThingsCard steps={next} />}
-      {readyPacks.length > 0 && <ReadyPacksCard packs={readyPacks} />}
+      {readyPacks.length > 0 && <ReadyPacksCard packs={readyPacks} total={readyPacksTotal} />}
 
       <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,27%)]">
         <div class="min-w-0 space-y-4">
@@ -504,9 +507,9 @@ export function runBadge(run: { status: CronRunStatus; stats: unknown }): { tone
 
 /** The loop the product is for, in three steps, until the user has walked it once (TASKS N11). */
 /** What the worker prepared while nobody watched: read the edits, download the file, apply. */
-const ReadyPacksCard: FC<{ packs: ReadyPack[] }> = ({ packs }) => (
+const ReadyPacksCard: FC<{ packs: ReadyPack[]; total: number }> = ({ packs, total }) => (
   <Card class="mb-4">
-    <SectionTitle>{t('overview.packs.title', { n: packs.length })}</SectionTitle>
+    <SectionTitle>{t('overview.packs.title', { n: Math.max(total, packs.length) })}</SectionTitle>
     <ul class="mt-2 divide-y divide-line">
       {packs.map((p) => {
         const when = { when: () => <When at={p.finishedAt} /> };

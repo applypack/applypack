@@ -204,3 +204,12 @@ test("the posting's own title is never written as a skill, however it is punctua
   assert.deepEqual(plan({ keywords, postingTitle: 'Senior Product Engineer (Laravel – Remote)' }).terms, [{ term: 'Redis' }]);
   assert.deepEqual(plan({ keywords }).terms.length, 2);
 });
+
+test('keywords go onto skills lines, so a policy that closes Skills writes none (#384)', () => {
+  const keywords = [keyword('Redis', { where: 'Skills · Backend' }), keyword('Horizon')];
+  assert.deepEqual(plan({ keywords }).terms.map((k) => k.term), ['Redis', 'Horizon']);
+  // Skills unticked, the keywords box left as it was: nothing is written into the closed section.
+  assert.deepEqual(plan({ keywords }, { sections: ['title', 'summary', 'experience'] }).terms, []);
+  // The box alone still switches them off.
+  assert.deepEqual(plan({ keywords }, { keywords: false }).terms, []);
+});

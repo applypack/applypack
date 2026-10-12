@@ -40,7 +40,8 @@ export async function getPackFile(jobId: number, kind: 'docx' | 'pdf'): Promise<
   return { bytes: Buffer.from(bytes), fileName: name };
 }
 
-export type QueueOutcome = 'queued' | 'busy' | 'sent' | 'kept';
+/** `waiting`: already in the queue; `busy`: the runner has it. Both mean nothing was queued by this press. */
+export type QueueOutcome = 'queued' | 'waiting' | 'busy' | 'sent' | 'kept';
 
 /** A posting the person applied to, by any road: marked applied, or put on the applications board. */
 const APPLIED_TO = { OR: [{ status: 'APPLIED' }, { appliedAt: { not: null } }, { pipelineStage: { not: null } }] } satisfies Prisma.JobWhereInput;
@@ -73,18 +74,20 @@ export async function queuePack(jobId: number, trigger: PackTrigger): Promise<Qu
       return 'queued';
     } catch (err) {
       // Two presses at once: the other one queued it.
-      if (isUniqueViolation(err)) return 'busy';
+      if (isUniqueViolation(err)) return 'waiting';
       throw err;
     }
   }
   if (existing.sentAt) return 'sent';
-  if (existing.status === 'queued' || existing.status === 'running') return 'busy';
+  if (existing.status === 'queued') return 'waiting';
+  if (existing.status === 'running') return 'busy';
   if (await packIsKept(jobId)) return 'kept';
   const reset = await prisma.applicationPack.updateMany({
     where: { jobId, sentAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
     data: { ...BLANK, trigger, status: 'queued', queuedAt: new Date() },
   });
-  return reset.count > 0 ? 'queued' : 'busy';
+  // No row reset: another press started it over meanwhile, so it is in the queue.
+  return reset.count > 0 ? 'queued' : 'waiting';
 }
 
 /** Everything a run writes, cleared: a pack started over says nothing of the last attempt. */
@@ -138,10 +141,18 @@ export async function requeueOrphans(): Promise<number> {
   return count;
 }
 
-/** The oldest queued pack, taken: the update only lands while the row is still queued. */
+/**
+ * The next queued pack, taken: one the person asked for before the ones the
+ * tick queued, the oldest first among each. Somebody is waiting on the page
+ * for a pack asked for by hand, and behind five automatic ones it waited a
+ * quarter of an hour under "the worker starts it within a minute" (#384).
+ * The update only lands while the row is still queued.
+ */
 export async function claimNextPack(): Promise<{ id: number; jobId: number; trigger: string } | null> {
+  const oldest = (trigger?: PackTrigger) =>
+    prisma.applicationPack.findFirst({ where: { status: 'queued', trigger }, orderBy: { queuedAt: 'asc' }, select: { id: true, jobId: true, trigger: true } });
   for (;;) {
-    const next = await prisma.applicationPack.findFirst({ where: { status: 'queued' }, orderBy: { queuedAt: 'asc' }, select: { id: true, jobId: true, trigger: true } });
+    const next = (await oldest('manual')) ?? (await oldest());
     if (!next) return null;
     const taken = await prisma.applicationPack.updateMany({ where: { id: next.id, status: 'queued' }, data: { status: 'running', startedAt: new Date() } });
     if (taken.count > 0) return next;
@@ -272,9 +283,25 @@ export interface ReadyPack {
 }
 
 /** Packs prepared and not yet sent, newest first — the Overview's "ready to send". */
+/**
+ * A pack worth opening to send: ready, not sent, its job still undecided —
+ * and its posting not found closed since (#384). `liveness` is NULL until a
+ * check runs, and NULL is not "expired".
+ */
+const READY_TO_SEND = {
+  status: 'ready',
+  sentAt: null,
+  job: { status: { in: ['NEW', 'ALERTED', 'SAVED'] }, OR: [{ liveness: null }, { liveness: { not: 'expired' } }] },
+} satisfies Prisma.ApplicationPackWhereInput;
+
+/** How many packs are ready to send: the card lists the newest few and says how many there are. */
+export function countReadyPacks(): Promise<number> {
+  return prisma.applicationPack.count({ where: READY_TO_SEND });
+}
+
 export async function listReadyPacks(take: number): Promise<ReadyPack[]> {
   const rows = await prisma.applicationPack.findMany({
-    where: { status: 'ready', sentAt: null, job: { status: { in: ['NEW', 'ALERTED', 'SAVED'] } } },
+    where: READY_TO_SEND,
     orderBy: { finishedAt: 'desc' },
     take,
     select: { jobId: true, scoreBefore: true, scoreAfter: true, finishedAt: true, job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
