@@ -2,7 +2,9 @@
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
+import { companyOnPage } from '../../employer';
 import {
+  CompanyName,
   ActionForm,
   Badge,
   Button,
@@ -416,12 +418,9 @@ export const JobsListPage: FC<JobsListProps> = ({
                             {j.company.watched && (
                               <span title={t('jobs.onYourWatchlist')} aria-label={t('job.watchedCompany')}>★ </span>
                             )}
-                            {/* The company as the posting names it: data, whatever language the page is in. */}
-                            <span title={j.employer ?? j.company.name} translate="no">
-                              {j.employer ?? j.company.name}
-                            </span>
+                            <CompanyName name={companyOnPage(j.employer, j.company).name} />
                           </div>
-                          {j.employer && j.company.atsType !== 'ADZUNA' && j.company.atsType !== 'FRANCETRAVAIL' && (
+                          {companyOnPage(j.employer, j.company).via !== null && j.company.atsType !== 'ADZUNA' && j.company.atsType !== 'FRANCETRAVAIL' && (
                             <div class="truncate text-meta text-ink-faint">
                               {tRich('job.via', {}, { source: () => <span translate="no">{j.company.name}</span> })}
                             </div>

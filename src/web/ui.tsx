@@ -307,6 +307,21 @@ export const Avatar: FC<{ name: string }> = ({ name }) => (
   </span>
 );
 
+/**
+ * Who hires, where a page names the company (#444). A name is data and keeps
+ * its spelling in every language; a posting that names nobody says so in the
+ * reader's words, and never borrows the name of the source it came through
+ * (`employer.ts:companyOnPage`).
+ */
+export const CompanyName: FC<{ name: string | null }> = ({ name }) =>
+  name === null ? (
+    <span>{t('job.companyNotNamed')}</span>
+  ) : (
+    <span title={name} translate="no">
+      {name}
+    </span>
+  );
+
 export const Hint: FC<PropsWithChildren<{ class?: string }>> = ({
   children,
   class: className = '',

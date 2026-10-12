@@ -8,7 +8,7 @@ import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
-import { withoutMuted } from '../../employer';
+import { companyForPage, withoutMuted } from '../../employer';
 import { mutedKeys } from '../../jobs/employer-store';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { readStackParam } from '../overview-numbers';
@@ -75,7 +75,7 @@ overviewRoute.get('/', async (c) => {
         alertedAt: true,
         status: true,
         employer: true,
-        company: { select: { name: true } },
+        company: { select: { name: true, atsType: true } },
       },
     }),
     Promise.all(
@@ -147,7 +147,7 @@ async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[
       ...unmuted,
     },
     orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
-    select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true } } },
+    select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true, atsType: true } } },
   });
   if (top === null || top.fitScore === null) return null;
   const [resumes, compareCost] = await Promise.all([
@@ -155,7 +155,7 @@ async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[
     spendHint('resume-match'),
   ]);
   return nextThings({
-    top: { id: top.id, title: top.title, company: top.employer ?? top.company.name, fitScore: top.fitScore },
+    top: { id: top.id, title: top.title, company: companyForPage(top.employer, top.company), fitScore: top.fitScore },
     comparisons,
     resumes,
     compareCost,

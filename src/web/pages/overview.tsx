@@ -2,7 +2,9 @@
 import type { Child, FC } from 'hono/jsx';
 import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
+import { companyOnPage } from '../../employer';
 import {
+  CompanyName,
   Avatar,
   Badge,
   Button,
@@ -66,7 +68,7 @@ interface JobRow {
   status: 'NEW' | 'ALERTED' | 'APPLIED' | 'DISMISSED' | 'SAVED';
   /** ADR 0056: who hires, when an aggregator named them. */
   employer: string | null;
-  company: { name: string };
+  company: { name: string; atsType: string };
 }
 
 interface RunRow {
@@ -410,21 +412,25 @@ const RecentAlerts: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }
       <ul class="divide-y divide-line border-t border-line">
         {jobs.map((j) => {
           const place = placeLine(j, places);
-          const who = j.employer ?? j.company.name;
+          // Who hires, and — only when the row names nobody — the source it came through (#444).
+          const { name, via } = companyOnPage(j.employer, j.company);
+          const who = name ?? t('job.companyNotNamed');
           return (
             <li>
               <a
                 href={`/jobs/${j.id}`}
                 class="flex items-center gap-3.5 px-5 py-3 transition-colors duration-150 hover:bg-surface-selected/40"
               >
-                <Avatar name={who} />
+                <Avatar name={name ?? ''} />
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-entity text-ink" translate="no">
                     {j.title}
                   </div>
                   {/* Who posted it (data, whatever language the page is in) and where — names in the reader's language, or the posting's own words. */}
                   <div class="mt-0.5 truncate text-note text-ink-faint" title={`${who} · ${place.title}`} translate="no">
-                    <span translate="no">{who}</span> · <span translate={place.asPosted ? 'no' : undefined}>{place.text}</span>
+                    <CompanyName name={name} />
+                    {name === null && via !== null && <> · {tRich('job.via', {}, { source: () => <span translate="no">{via}</span> })}</>} ·{' '}
+                    <span translate={place.asPosted ? 'no' : undefined}>{place.text}</span>
                   </div>
                 </div>
                 {j.techMatch.length > 0 && (

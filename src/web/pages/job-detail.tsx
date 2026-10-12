@@ -2,7 +2,9 @@
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
+import { companyOnPage } from '../../employer';
 import {
+  CompanyName,
   ActionForm,
   Badge,
   Button,
@@ -119,7 +121,9 @@ export interface MuteState {
 export interface CrossListedJob {
   id: number;
   title: string;
-  company: { name: string };
+  /** Who the copy says hires; null when it names nobody. */
+  employer: string | null;
+  company: { name: string; atsType: string };
 }
 
 /** One running search's verdict on this posting (ADR 0028). */
@@ -540,6 +544,15 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
  * this one duplicates, and later arrivals that duplicate it. Nothing is
  * merged or hidden — the point is to stop you applying twice (ADR 0018).
  */
+/**
+ * The sentence for one other copy (#444): who hires and, apart from it, where
+ * the copy is listed. "<job> at <source>" read the source as the employer.
+ */
+function crossListedKey(copy: CrossListedJob): MessageKey {
+  const { name, via } = companyOnPage(copy.employer, copy.company);
+  return via === null ? 'job.crossListed' : name === null ? 'job.crossListedUnnamed' : 'job.crossListedVia';
+}
+
 const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
   const others = [
     ...(job.crossListedOf ? [job.crossListedOf] : []),
@@ -554,7 +567,7 @@ const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
       <ul class="mt-1.5 space-y-1 text-note text-ink-muted">
         {others.map((o) => (
           <li>
-            {tRich('job.crossListed', {}, {
+            {tRich(crossListedKey(o), {}, {
               job: () => (
                 <a
                   href={`/jobs/${o.id}`}
@@ -564,7 +577,8 @@ const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
                   {o.title}
                 </a>
               ),
-              company: () => <span translate="no">{o.company.name}</span>,
+              company: () => <span translate="no">{companyOnPage(o.employer, o.company).name}</span>,
+              source: () => <span translate="no">{o.company.name}</span>,
             })}
           </li>
         ))}
@@ -601,8 +615,8 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
         </h1>
         <div class="mt-1 text-sm text-ink-muted">
           {job.company.watched && <span aria-label={t('job.watchedCompany')}>★ </span>}
-          <span translate="no">{job.employer ?? job.company.name}</span>
-          {job.employer && job.company.atsType !== 'ADZUNA' && job.company.atsType !== 'FRANCETRAVAIL' && (
+          <CompanyName name={companyOnPage(job.employer, job.company).name} />
+          {companyOnPage(job.employer, job.company).via !== null && job.company.atsType !== 'ADZUNA' && job.company.atsType !== 'FRANCETRAVAIL' && (
             <span class="text-ink-faint"> · {tRich('job.via', {}, { source: () => <span translate="no">{job.company.name}</span> })}</span>
           )}{' '}
           · {job.location ? <span translate="no">{job.location}</span> : workplaceName('REMOTE')}

@@ -66,7 +66,10 @@
   re-apply decision. `Job.employerKey` is written at every insert;
   `jobs/employer-store.ts` is the only file that touches `company_mute`, and
   its `fillEmployerKeys` is the one-time fill `init.ts` runs. A page that
-  names a posting's company reads `employer ?? company.name`; a prompt and a
+  names a posting's company reads `companyOnPage` (who hires, and apart from
+  it the source the row came through) or, for one slot, `companyForPage`: a
+  row that names nobody says "Company not named" and never borrows its
+  source's name (#444); a prompt and a
   message read `companyForPrompt` / `companyForMessage` (a stored row) or
   `fetchedHiringName` (the tick), which say "not named" for a row from an
   aggregator, an import or a folder that names no company — never the

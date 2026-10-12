@@ -123,3 +123,28 @@ where the employer should be.
   per-role windows (the feature-gap analysis's "same role for N days" and
   "cross-role bucket"). One window for all roles is the rule until someone
   asks for the finer one.
+
+## Addendum (2026-10-12): what a page says for a row that names nobody (v2.55.51, #444)
+
+A row from an aggregator, an imported file or a folder that names no
+company used to show its source where the company goes: "RemoteOK Feed"
+in the company column, "<job> at RemoteOK Feed" in the cross-listing
+banner. The prompts and the messages stopped doing so in v2.55.21 and
+v2.55.27; the pages were left for a wording decision, taken here.
+
+- **Who hires and where the row came through are two things on a page**
+  (`employer.ts:companyOnPage`): `name` is the employer the row names, or
+  the source when the source is the employer; `via` is the source when it
+  is somebody else's listing. A row that names nobody reads **Company not
+  named** with its source on the line under it, the same two-line shape a
+  named row has. One slot only (a picker's line, a card, a heading):
+  `companyForPage`.
+- **The applications export has a `Source` column**, and `Company` is empty
+  for such a row: a spreadsheet filter on a source's name as a company was
+  wrong.
+- **The cross-listing banner says both**: "<job> at <company> — via
+  <source>", "<job> — via <source> (the copy names no company)", and
+  "<job> at <company>" for a copy on the employer's own board.
+
+Nothing stored changes. On the newest backup this is 45 of 624 postings.
+

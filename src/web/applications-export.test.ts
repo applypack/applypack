@@ -6,6 +6,7 @@ const row = (over: Partial<ApplicationExportRow> = {}): ApplicationExportRow => 
   stageKey: 'interview',
   stage: 'Interview',
   company: 'Acme',
+  source: '',
   title: 'Senior Backend Engineer',
   appliedAt: new Date('2026-09-01T22:30:00Z'),
   stageSince: new Date('2026-09-10T08:00:00Z'),
@@ -27,10 +28,10 @@ test('a date is the day it fell on in the reader\'s time zone', () => {
 test('the CSV has one line per application and keeps the notes in their cell', () => {
   const csv = applicationsCsv([row(), row({ title: '=cmd|calc', fitScore: null, notes: null })], 'UTC');
   const lines = csv.slice(1).split('\r\n');
-  assert.equal(lines[0], 'Stage,Company,Title,Applied on,In this stage since,Fit,Applied with,Recruiter contact,Notes,Posting');
+  assert.equal(lines[0], 'Stage,Company,Source,Title,Applied on,In this stage since,Fit,Applied with,Recruiter contact,Notes,Posting');
   assert.equal(
     lines[1],
-    'Interview,Acme,Senior Backend Engineer,2026-09-01,2026-09-10,87,Senior Backend v3,jane@acme.example,"First call went well.\nSend the portfolio.",https://jobs.acme.example/1',
+    'Interview,Acme,,Senior Backend Engineer,2026-09-01,2026-09-10,87,Senior Backend v3,jane@acme.example,"First call went well.\nSend the portfolio.",https://jobs.acme.example/1',
   );
   assert.ok(lines[2]?.includes(",'=cmd|calc,"), 'a title that opens like a formula is text');
 });
@@ -67,4 +68,23 @@ test('the Markdown walks the columns in board order and skips the empty ones', (
       '',
     ].join('\n'),
   );
+});
+
+test('who hires and where the row came from are two columns, never one (#444)', () => {
+  // An aggregator's row that names its employer, one that names nobody, and an employer's own board.
+  const rows = [
+    row({ company: 'Fennel Works', source: 'RemoteOK Feed', title: 'Backend Engineer' }),
+    row({ company: '', source: 'September export', title: 'Platform Engineer' }),
+    row({ company: 'Acme', source: '', title: 'Data Engineer' }),
+  ];
+  const lines = applicationsCsv(rows, 'UTC').replace(/^\uFEFF/, '').split('\r\n');
+  assert.match(lines[1]!, /^Interview,Fennel Works,RemoteOK Feed,Backend Engineer,/);
+  // No company named: the Company cell is empty, and a filter on it no longer finds a source's name.
+  assert.match(lines[2]!, /^Interview,,September export,Platform Engineer,/);
+  assert.match(lines[3]!, /^Interview,Acme,,Data Engineer,/);
+
+  const md = applicationsMarkdown(rows, [{ key: 'interview', label: 'Interview' }], 'UTC', new Date('2026-10-12T00:00:00Z'));
+  assert.match(md, /\*\*Backend Engineer\*\* — Fennel Works · via RemoteOK Feed · applied/);
+  assert.match(md, /\*\*Platform Engineer\*\* — via September export · applied/);
+  assert.match(md, /\*\*Data Engineer\*\* — Acme · applied/);
 });
