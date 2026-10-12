@@ -76,6 +76,11 @@ test('the volume on a plan, with a model on this computer idle: no bill to cut, 
   assert.equal(hint?.tone, 'neutral');
   assert.match(hint!.text, /^Scoring postings is 395 of 429 calls in the last 7 days \(92 %\), all on Claude Code CLI\. A plan covers them, so there is no bill to cut\./);
   assert.match(hint!.text, /Local model \(Ollama\) runs on this computer and can be given this task/);
+  // #415: "can be given this task" named no step, and this engine is not even enabled.
+  assert.match(hint!.text, /Enable it, leave only Scoring postings ticked on its card and put it above Claude Code CLI: it then answers first, with Claude Code CLI as its fallback\. How well a small model does this task is not measured here\.$/);
+  // Enabled and below the plan, the step is the order; enabled and above, with every box ticked, it is the boxes.
+  const below = usageHints(facts({ groups, engines: [PLAN, engine('local_api', 'local', 1)] }))[0];
+  assert.match(below!.text, /Leave only Scoring postings ticked on its card and put it above Claude Code CLI:/);
   assert.match(hint!.text, /not measured here\.$/);
   // Without a local model ready, or once it answers the task, there is nothing to suggest.
   assert.equal(usageHints(facts({ groups }))[0]?.tone, 'ok');

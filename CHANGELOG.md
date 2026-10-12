@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.47] — 2026-10-12
+
+### Changed
+- **AI usage: four small improvements.**
+  - "9 in 10 under …" is shown from ten answered calls up. From two calls it
+    was the slower one, interpolated.
+  - On a phone the By model table no longer scrolls sideways with the time
+    and the money behind the scroll: each task's line carries its calls, its
+    typical time and its cost.
+  - A screen reader hears which engine each "Used for" group of task boxes
+    belongs to.
+  - The hint about scoring's volume on a plan names the steps for the model
+    on this computer from where it stands: enable it, leave only Scoring
+    postings ticked, put it above (#415).
+
 ## [2.55.46] — 2026-10-12
 
 ### Changed
@@ -5770,6 +5785,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.47]: https://github.com/applypack/applypack/compare/v2.55.46...v2.55.47
 [2.55.46]: https://github.com/applypack/applypack/compare/v2.55.45...v2.55.46
 [2.55.45]: https://github.com/applypack/applypack/compare/v2.55.44...v2.55.45
 [2.55.44]: https://github.com/applypack/applypack/compare/v2.55.43...v2.55.44

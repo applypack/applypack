@@ -2001,7 +2001,14 @@ const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <form method="post" action="/settings/ai/tasks" data-model-form class="mt-4">
     <input type="hidden" name="provider" value={e.id} />
     <fieldset>
-      <legend class="text-label text-ink">{t('settings.tasksItTakes')}</legend>
+      <legend class="text-label text-ink">
+        {t('settings.tasksItTakes')}
+        {/* Two engines, two groups with the same boxes: a screen reader hears which engine each belongs to (#415). */}
+        <span class="sr-only" translate="no">
+          {' — '}
+          {e.label}
+        </span>
+      </legend>
       <div class="mt-2 flex flex-wrap gap-2">
         {e.tasks.map((task) =>
           task.offered ? (
