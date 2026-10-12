@@ -269,8 +269,9 @@
   ceilings; `judgeFile` → jobs and the ledger row) are pure.
   `datasets/folder-io.ts` is the ONLY module that touches a user's folder and
   it only reads — no write, move, rename or delete, ever, and
-  `folder-io.test.ts` fails the file if one appears; links are not followed
-  and a file's real path must lie beneath the folder's. `fetchers/folder.ts`
+  `folder-io.test.ts` fails the file if one appears; links are not followed,
+  a file's real path must lie beneath the folder's before it is opened and
+  again after, and a file with a second name on the disk is passed over. `fetchers/folder.ts`
   returns `NormalizedJob[]` and writes nothing: the look is staged in
   `fetchers/folder-ledger.ts` and `jobs/fetch-job.ts` hands it to
   `jobs/source-file-store.ts` (the only file that touches `source_file`) once

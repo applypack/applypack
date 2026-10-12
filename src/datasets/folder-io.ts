@@ -155,7 +155,8 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
 
 /**
  * One file's bytes and their hash. The file is opened without following a
- * link, must really lie beneath the folder, and is measured before and after
+ * link, must really lie beneath the folder — before the open and again after
+ * it — must have no second name on the disk, and is measured before and after
  * the read: a file that moved meanwhile is still being written.
  */
 export async function readFolderFile(root: string, relPath: string, maxBytes: number = MAX_FILE_BYTES): Promise<FileRead> {
@@ -172,12 +173,20 @@ export async function readFolderFile(root: string, relPath: string, maxBytes: nu
     const opened = handle;
     const before = await asked(() => opened.stat());
     if (!before.isFile()) return { ok: false, why: 'outside' };
+    // One name on the disk: a file that also has a name somewhere else is not this folder's alone, and is passed over as a link is.
+    if (before.nlink > 1) return { ok: false, why: 'outside' };
     // The file opened is the one the real path named a moment ago, not something swapped in between.
     const named = await asked(() => fs.lstat(real)).catch((err: unknown) => {
       if (err instanceof NoAnswer) throw err;
       return null;
     });
     if (!named || named.ino !== before.ino || named.dev !== before.dev) return { ok: false, why: 'outside' };
+    // And its name still leads where it led before the open: asked again, now that the file is held.
+    const still = await asked(() => fs.realpath(file)).catch((err: unknown) => {
+      if (err instanceof NoAnswer) throw err;
+      return null;
+    });
+    if (still !== real) return { ok: false, why: 'outside' };
     if (before.size > maxBytes) return { ok: false, why: 'too-large' };
     // Exactly the bytes it had: a file still being appended to is not read to its moving end.
     const bytes = Buffer.alloc(before.size);
