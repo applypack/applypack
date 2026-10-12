@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.50] — 2026-10-12
+
+### Added
+- **A pack waiting in the queue can be cancelled.** While a pack is queued
+  its tab has **Cancel**: the pack is taken out, and nothing is prepared or
+  spent. Once the worker has started it, Cancel says so and changes nothing.
+- **What a pack costs is said before the press.** Under **Prepare the pack**:
+  how many AI calls a pack is, and whether they are billed, covered by your
+  plan or run on this computer (#387).
+
 ## [2.55.49] — 2026-10-12
 
 ### Changed
@@ -5810,6 +5820,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.50]: https://github.com/applypack/applypack/compare/v2.55.49...v2.55.50
 [2.55.49]: https://github.com/applypack/applypack/compare/v2.55.48...v2.55.49
 [2.55.48]: https://github.com/applypack/applypack/compare/v2.55.47...v2.55.48
 [2.55.47]: https://github.com/applypack/applypack/compare/v2.55.46...v2.55.47

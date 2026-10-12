@@ -756,6 +756,7 @@ async function main(): Promise<void> {
   rows.push(...(await importChecks()));
   rows.push(...(await folderChecks()));
   rows.push(await packAgainCheck(f.jobId));
+  rows.push(await packCancelCheck(f.jobId));
   rows.push(...(await engineTroubleChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
@@ -842,6 +843,19 @@ async function engineTroubleChecks(): Promise<Check[]> {
     { route: 'GET /ai with an engine whose last calls all failed (said first, no all-clear)', url: '/ai', status: usage.status, ok: usageHtml.includes('found no server answering') && !usageHtml.includes('Nothing was billed') },
     { route: 'GET /settings?tab=ai with that engine (its card says calls failing)', url: '/settings?tab=ai', status: tab.status, ok: tabHtml.includes('calls failing') && tabHtml.includes('found no server answering') },
   ];
+}
+
+/**
+ * #387: Cancel takes a pack out while it waits in the queue. The row is put
+ * back afterwards, queued, as the checks after this one found it.
+ */
+async function packCancelCheck(jobId: number): Promise<Check> {
+  const url = `/jobs/${jobId}/pack/cancel`;
+  const res = await app.request(url, form({}));
+  // Under `npm start` the worker may have taken the pack first: then it is no longer queued, which is all Cancel promises.
+  const left = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true } });
+  if (!left) await prisma.applicationPack.create({ data: { jobId, trigger: 'manual' } });
+  return { route: 'POST /jobs/:id/pack/cancel (a pack in the queue is taken out)', url, status: res.status, ok: res.status === 303 && left?.status !== 'queued' };
 }
 
 /**

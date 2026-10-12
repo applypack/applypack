@@ -31,6 +31,8 @@ export interface ApplicationPackProps {
   letter: boolean;
   /** Whether packs are prepared on their own (Settings → General); the empty state says which. */
   automatic: boolean;
+  /** What preparing a pack spends, said before the press (#387): how many calls, and on what kind of money. */
+  cost: string;
 }
 
 const LABEL = 'text-meta font-medium uppercase tracking-wide text-ink-faint';
@@ -39,11 +41,20 @@ const QUOTE = 'mt-0.5 whitespace-pre-wrap break-words border-l-2 pl-2 text-sm le
 /** The id of the progress sentence: public/pack-tab.mjs rewrites it as the pack moves on. */
 export const PACK_LINE_ID = 'pack-line';
 
-/** The pack in flight: the step it is on, and nothing to press. */
-const Preparing: FC<{ pack: PackRow }> = ({ pack }) => (
-  <Notice tone="ok" role="status">
-    <span id={PACK_LINE_ID}>{preparingLine(pack)}</span>
-  </Notice>
+/** The pack in flight: the step it is on. While it only waits in the queue it can still be taken out (#387). */
+const Preparing: FC<{ pack: PackRow; jobId: number }> = ({ pack, jobId }) => (
+  <>
+    <Notice tone="ok" role="status">
+      <span id={PACK_LINE_ID}>{preparingLine(pack)}</span>
+    </Notice>
+    {pack.status === 'queued' && (
+      <ActionForm action={`/jobs/${jobId}/pack/cancel`} class="mt-2">
+        <Button variant="ghost" size="sm" aria-label={t('pack.card.cancelQueued')}>
+          {t('ui.cancel')}
+        </Button>
+      </ActionForm>
+    )}
+  </>
 );
 
 const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
@@ -67,7 +78,7 @@ const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
   </ul>
 );
 
-export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, kept, files, edits, changes, company, asks, unbacked, letter, automatic }) => {
+export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, kept, files, edits, changes, company, asks, unbacked, letter, automatic, cost }) => {
   const prepare = `/jobs/${jobId}/pack`;
   if (!pack) {
     return (
@@ -80,6 +91,7 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
             {t('pack.card.prepare')}
           </Button>
         </ActionForm>
+        <Hint class="mt-2">{cost}</Hint>
       </Card>
     );
   }
@@ -154,7 +166,7 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
         </div>
 
         <div class="mt-3 space-y-3">
-          {busy && <Preparing pack={pack} />}
+          {busy && <Preparing pack={pack} jobId={jobId} />}
           {pack.status === 'failed' && (
             <Notice tone="danger">{t('pack.card.failed', { why: pack.why ?? t('pack.card.noReason') })}</Notice>
           )}

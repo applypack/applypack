@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
 import { t } from '../../i18n/t';
-import { getPack, getPackFile, packFiles, packIsKept, queuePack } from '../../pack/store';
+import { cancelQueuedPack, getPack, getPackFile, packFiles, packIsKept, queuePack } from '../../pack/store';
 import { packBusy, preparingLine, readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { contentDisposition } from '../../resume/draft-document';
@@ -9,6 +9,7 @@ import { loadLineDiff } from '../../resume/line-diff';
 import { readKeywords } from '../../resume/prompts';
 import { PDF_MIME } from '../../resume/render/clean-pdf';
 import { getPackSettings } from '../../settings';
+import { kindHint } from '../cost-hint';
 import { flashRedirect } from '../flash';
 import { jobHref } from '../job-tabs';
 import type { ApplicationPackProps } from '../pages/application-pack-card';
@@ -33,6 +34,14 @@ packRoute.post('/jobs/:id/pack', async (c) => {
     return flashRedirect(tab, 'warn', t(outcome === 'sent' ? 'pack.flash.sent' : 'pack.flash.kept'));
   }
   return flashRedirect(tab, 'ok', t(outcome === 'busy' ? 'pack.flash.busy' : outcome === 'waiting' ? 'pack.flash.waiting' : 'pack.flash.queued'));
+});
+
+/** Cancel on a pack that is still in the queue (#387): the row goes, and the tab offers Prepare again. */
+packRoute.post('/jobs/:id/pack/cancel', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const cancelled = await cancelQueuedPack(id);
+  return flashRedirect(jobHref(id, 'pack'), cancelled ? 'ok' : 'warn', t(cancelled ? 'pack.flash.cancelled' : 'pack.flash.tooLateToCancel'));
 });
 
 /**
@@ -103,5 +112,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
     unbacked: keywords.filter((k) => k.status === 'cannot_claim').map((k) => k.term),
     letter: pack?.coverLetterId !== null && pack?.coverLetterId !== undefined,
     automatic: settings.enabled,
+    // No figure: a pack's calls are several features' calls (web/cost-hint.ts:kindHint).
+    cost: `${t('settings.pack.cost')} ${await kindHint('resume-match')}`.trim(),
   };
 }

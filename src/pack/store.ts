@@ -174,6 +174,15 @@ export async function dropAutoPack(id: number): Promise<void> {
   await prisma.applicationPack.deleteMany({ where: { id, trigger: 'auto', status: 'running' } });
 }
 
+/**
+ * A pack still waiting in the queue, taken out by the person: nothing was
+ * prepared and nothing is spent. False once the runner has it, or it is done —
+ * the delete only lands on a row that is still queued.
+ */
+export async function cancelQueuedPack(jobId: number): Promise<boolean> {
+  return (await prisma.applicationPack.deleteMany({ where: { jobId, status: 'queued' } })).count > 0;
+}
+
 /** Packs were switched off: the ones the tick queued and no runner has started are not prepared. Returns how many. */
 export async function cancelQueuedAutoPacks(): Promise<number> {
   return (await prisma.applicationPack.deleteMany({ where: { trigger: 'auto', status: 'queued' } })).count;
