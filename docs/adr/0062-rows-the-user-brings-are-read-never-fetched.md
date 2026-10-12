@@ -615,6 +615,15 @@ skipped or misread, with nothing said:
   the address and always asks a model for the title and the company.
   `.webarchive` is listed and set aside with the way to save it instead;
   reading it is #451. Up to 10 MB, since the page's images ride inside.
+  *Amended 2026-10-12 (v2.55.60, #451):* `.webarchive` is read
+  (`datasets/webarchive.ts`). It is a binary property list; the page is
+  `WebMainResource.WebResourceData`, as Safari received it, with its charset
+  and its address beside it. Three keys are looked up and nothing else in
+  the archive is walked; every offset is checked against the file first.
+  Safari keeps the page's scripts, so unlike an `.mhtml` the `JobPosting`
+  block is there and such a page usually states its own title and company.
+  An archive that cannot be read — damaged, or of something that is no page
+  — is still set aside with the way to save the page instead.
 - **A subfolder beside a page.** Any folder whose name began with a page's
   name was taken for that page's saved files, so `Acme interviews/` next to
   `Acme.html` was never listed. Only the names a browser gives such a

@@ -141,10 +141,10 @@ export type FolderHolds = 'rows' | 'postings';
 /**
  * A saved posting by its file's name: a web page, plain text, Markdown, a PDF
  * or a Word document — and the two forms a browser saves a page as one file
- * in: `mhtml` (Chrome's and Edge's "Webpage, Single File") is read, and
- * `webarchive` (Safari's default) is listed and set aside with the way to
- * save it instead. Both were passed over as "other files", with nothing said
- * (#399).
+ * in: `mhtml` (Chrome's and Edge's "Webpage, Single File") and `webarchive`
+ * (Safari's default) are both read; one that cannot be is set aside with
+ * the way to save the page instead. Both were passed over as "other files",
+ * with nothing said (#399), and the second was only listed until #451.
  */
 export type PostingKind = 'html' | 'txt' | 'md' | 'pdf' | 'docx' | 'mhtml' | 'webarchive';
 export type FileKind = RowFormat | PostingKind;

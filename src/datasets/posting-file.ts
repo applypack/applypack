@@ -19,6 +19,7 @@ import { decodeText } from './decode';
 import type { PostingKind } from './folder-scan';
 import { fileDate } from './map';
 import { readMhtml } from './mhtml';
+import { readWebArchive } from './webarchive';
 import { MAX_POSTING_TEXT_CHARS, readSavedPage, type PageFacts, type SavedPage } from './saved-page';
 
 /** As `jobs/manual-job.ts:MIN_DESCRIPTION_CHARS`: less than this is not a posting, it is a note. */
@@ -79,8 +80,10 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
     if (page === null) return { ok: false, why: POSTING_NOTES.mhtml };
     read = { ok: true, ...readSavedPage(decodeText(page.html, { page: true, charset: page.charset }).text, now, page.location) };
   } else if (kind === 'webarchive') {
-    // Safari's own archive is a binary property list: listed, and said how to save instead.
-    return { ok: false, why: POSTING_NOTES.webarchive };
+    // Safari's own archive: the page as Safari received it, scripts and all, with its charset and its address (#451).
+    const page = readWebArchive(bytes);
+    if (page === null) return { ok: false, why: POSTING_NOTES.webarchive };
+    read = { ok: true, ...readSavedPage(decodeText(page.html, { page: true, charset: page.charset }).text, now, page.location) };
   } else if (kind === 'pdf') {
     try {
       const { pdfToText } = await import('../resume/pdf-text.js');

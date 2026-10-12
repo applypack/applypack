@@ -72,6 +72,18 @@ describe('readPostingFile', () => {
     assert.equal(needsModel(got), true);
   });
 
+  it('reads a page Safari saved as a web archive: the block Safari keeps says the title and the company (#451)', async () => {
+    const got = ok(await readPostingFile('webarchive', readFileSync(join(__dirname, 'fixtures', 'saved-page.webarchive')), NOW));
+    assert.match(got.text, /Fennel Works builds scheduling software for clinics\./);
+    assert.doesNotMatch(got.text, /Careers · Teams · Benefits/);
+    assert.equal(got.facts?.title, 'Senior Backend Engineer');
+    assert.equal(got.facts?.company, 'Fennel Works');
+    assert.equal(got.pageTitle, 'Senior Backend Engineer at Fennel Works | Careers');
+    // Where Safari says it saved the page from, as for a page Chrome saved as one file.
+    assert.deepEqual([got.address, got.addressIsOwn], ['https://careers.fennel.example/jobs/senior-backend-engineer-z%C3%BCrich', true]);
+    assert.equal(needsModel(got), false);
+  });
+
   it('says how to save a page it cannot read in the form it was saved', async () => {
     assert.deepEqual(await readPostingFile('mhtml', bytes('not a saved page at all'), NOW), { ok: false, why: POSTING_NOTES.mhtml });
     const archive = await readPostingFile('webarchive', Uint8Array.from([0x62, 0x70, 0x6c, 0x69, 0x73, 0x74, 0x30, 0x30]), NOW);
