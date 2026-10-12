@@ -32,7 +32,7 @@ packRoute.post('/jobs/:id/pack', async (c) => {
   if (outcome === 'sent' || outcome === 'kept') {
     return flashRedirect(tab, 'warn', t(outcome === 'sent' ? 'pack.flash.sent' : 'pack.flash.kept'));
   }
-  return flashRedirect(tab, 'ok', outcome === 'busy' ? t('pack.flash.busy') : t('pack.flash.queued'));
+  return flashRedirect(tab, 'ok', t(outcome === 'busy' ? 'pack.flash.busy' : outcome === 'waiting' ? 'pack.flash.waiting' : 'pack.flash.queued'));
 });
 
 /**

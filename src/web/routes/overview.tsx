@@ -16,7 +16,7 @@ import { loadOverviewStats } from '../overview-stats';
 import { preferredPlaces } from '../place-line';
 import { DEFAULT_RANGE, isRangeKey } from '../stats-series';
 import { nextThings, type NextThing } from '../next-things';
-import { listReadyPacks } from '../../pack/store';
+import { countReadyPacks, listReadyPacks } from '../../pack/store';
 import { spendHint } from '../cost-hint';
 
 /** ★ How many companies the user watches, and what they put up today (ADR 0036). */
@@ -119,6 +119,7 @@ overviewRoute.get('/', async (c) => {
       finishSetup={currentStep(facts) !== null}
       next={await loadNextThings(unmuted)}
       readyPacks={await listReadyPacks(READY_PACKS_SHOWN)}
+      readyPacksTotal={await countReadyPacks()}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

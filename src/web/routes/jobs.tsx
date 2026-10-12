@@ -36,7 +36,7 @@ import { readEvidence } from '../../verification/prompts';
 import { addresseeFromFinding } from '../../resume/addressee';
 import { livenessCodeLabel } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
-import { jobHref, jobTabLabels, resolveJobTab, type JobTab } from '../job-tabs';
+import { jobHref, jobTabLabels, resolveJobTab, shownMatch, type JobTab } from '../job-tabs';
 import { getPack, markPackSent, type PackRow } from '../../pack/store';
 import { packFact } from '../../pack/view';
 import { loadPackView } from './pack';
@@ -461,7 +461,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
 
   // ?match=<id> shows an older comparison; default is the latest. Same for ?letter.
   const requestedMatch = idParam(c.req.query('match'));
-  const selected = matches.find((m) => m.id === requestedMatch) ?? matches[0] ?? null;
+  const applicationPack = await loadPackView(id, job.url);
+  const selected = shownMatch(matches, requestedMatch, applicationPack.pack?.tailoredMatchId ?? null);
   const requestedLetter = idParam(c.req.query('letter'));
   const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
   // The search that speaks for this posting is the one that scored it best,
@@ -487,7 +488,6 @@ jobsRoute.get('/jobs/:id', async (c) => {
       : null;
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
-  const applicationPack = await loadPackView(id, job.url);
   const selectedKeywords = await orderedKeywords(selected, job.description);
   const selectedSummaryGuide = selected
     ? await summaryGuideFor(

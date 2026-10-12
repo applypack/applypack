@@ -42,6 +42,27 @@ export const HELD_WORDS = {
   'removals-off': 'pack.held.removalsOff',
 } as const satisfies Record<HeldReason, MessageKey>;
 
+/** Why an edit the plan allowed was not made in the text: the errors the editor's operations answer (text-edits.mjs). */
+const UNPLACED_WORDS: Record<string, MessageKey> = {
+  'not-found': 'pack.card.unplaced',
+  protected: 'pack.card.unplaced.protected',
+  'no-replacement': 'pack.card.unplaced.noWording',
+};
+
+/**
+ * The edits that could not be made, one sentence per reason with its count.
+ * The card said one reason for all of them — the quoted text is not in the
+ * resume — and an edit refused for touching a contact line is not that (#384).
+ */
+export function unplacedLines(unplaced: readonly string[]): string[] {
+  const counts = new Map<MessageKey, number>();
+  for (const error of unplaced) {
+    const key = Object.hasOwn(UNPLACED_WORDS, error) ? UNPLACED_WORDS[error]! : 'pack.card.unplaced.other';
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts].map(([key, n]) => t(key, { n }));
+}
+
 /** The step a pack is on, as catalog keys: "Reading the posting". */
 const STEP_WORDS = {
   liveness: 'pack.step.liveness',

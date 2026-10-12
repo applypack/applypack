@@ -27,7 +27,7 @@ export interface TailorPolicy {
   maxBullets: number;
   /** Whether a line may be cut. */
   removals: boolean;
-  /** Whether the keywords the resume backs are written onto its skills lines. */
+  /** Whether the keywords the resume backs are written onto its skills lines — which needs `skills` among the sections too. */
   keywords: boolean;
 }
 
@@ -161,7 +161,9 @@ export function planEdits(
   // resume backs and does not spell. A term nothing backs is never written,
   // and neither is the posting's own title — on the dry run three of the seven
   // terms written onto a skills line were "Senior Product Engineer (…)".
-  const terms = policy.keywords
+  // They go onto skills lines, so a policy that closes Skills closes them: unticking
+  // the section and finding keywords written into it was the surprise (#384).
+  const terms = policy.keywords && policy.sections.includes('skills')
     ? effectiveKeywords(report.keywords)
         .filter((k) => k.status === 'add' && k.requirement !== 'context' && !isTitleKeyword(k, report.postingTitle))
         .map((k) => (k.where ? { term: k.term, where: k.where } : { term: k.term }))

@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.45] — 2026-10-12
+
+### Fixed
+- **Application packs: seven small defects.**
+  - A pack you ask for is prepared before the ones the worker queued on its
+    own. Behind five of those it waited a quarter of an hour under "the worker
+    starts it within a minute".
+  - Pressing **Prepare** again on a pack still in the queue answers "This
+    pack is already in the queue", not "already being prepared".
+  - An edit that could not be made says its own reason: the quoted text is
+    not in the resume, the line carries your email or phone, or there was no
+    wording to paste. One sentence used to say the first for all three.
+  - The Overview's **Ready to send (N)** counts every ready pack, not the
+    eight it lists, and leaves out a posting found closed since.
+  - After a pack, the job's Resume match tab no longer headlines the pack's
+    own tailored draft ("Resume match · 100" for a resume that scores 70).
+    The draft is still in the list and opens from the pack.
+  - With **Skills** unticked under "What an automatic edit may touch",
+    keywords are no longer written onto skills lines; the keywords box says
+    it needs Skills ticked (#384).
+
 ## [2.55.44] — 2026-10-12
 
 ### Fixed
@@ -5736,6 +5757,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.45]: https://github.com/applypack/applypack/compare/v2.55.44...v2.55.45
 [2.55.44]: https://github.com/applypack/applypack/compare/v2.55.43...v2.55.44
 [2.55.43]: https://github.com/applypack/applypack/compare/v2.55.42...v2.55.43
 [2.55.42]: https://github.com/applypack/applypack/compare/v2.55.41...v2.55.42

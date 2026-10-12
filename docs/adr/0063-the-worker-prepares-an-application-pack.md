@@ -109,7 +109,13 @@ Before a line of the feature was written, the pipeline was run dry over those
    one slot: a pack the tick queued today and the person prepared again no
    longer counts for today, so the worker may start one more on its own that
    day. A column that remembers the first asker would close that; one slot
-   the person frees by their own press did not earn it. Rows written before
+   the person frees by their own press did not earn it.
+   *Amended 2026-10-12 (v2.55.45, #384).* "Oldest first" put a pack asked
+   for by hand behind every automatic one: with five queued it waited a
+   quarter of an hour under a line saying "the worker starts it within a
+   minute". The runner now takes a pack somebody asked for before the ones
+   the tick queued, the oldest first among each
+   (`pack/store.ts:claimNextPack`). Rows written before
    this cannot be told apart from packs nobody pressed and are left as they
    are: one such pack may still be announced once.
 4. **The worker calls the resume module.** A pack is the chain of calls the
@@ -132,6 +138,10 @@ Before a line of the feature was written, the pipeline was run dry over those
    change must give the original back to the character, no change may take
    out words its suggestion did not quote, no email or phone may be touched,
    the score may not fall. A failed check drops every edit.
+   *Amended 2026-10-12 (v2.55.45, #384).* Keywords were gated on their own
+   box alone, so with **Skills** unticked they were still written onto
+   skills lines. They are written only while Skills is among the open
+   sections too, and the box says so.
 7. **The file is kept as bytes, and the resume is never changed.** A pack
    stores its `.docx` (and the PDF of a clean version) and bumps no resume
    version. "I sent this file" marks the job applied, records the pack's text
@@ -162,6 +172,13 @@ Before a line of the feature was written, the pipeline was run dry over those
    the job page would preselect (`resume/pick.ts:preselectResume`), and a
    pack fails for want of one only when none is stored. A pack that failed
    before it compared anything takes no slot of the day's limit.
+   *Amended 2026-10-12 (v2.55.45, #384).* The Overview's **Ready to send**
+   counted the packs it listed (eight at most) and kept a posting found
+   closed since. It counts every ready pack and leaves out one whose posting
+   is `expired` (ADR 0016). And the job page no longer opens on the
+   comparison a pack made of its own tailored text: that draft judges a
+   file nobody has saved, and "Resume match · 100" headed a resume that
+   scores 70 (`web/job-tabs.ts:shownMatch`).
 9. **Nothing is submitted.** The person applies.
 
 ## Consequences
