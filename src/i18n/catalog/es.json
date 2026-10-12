@@ -3488,6 +3488,8 @@
   "import.field.needed": "{label} (obligatorio)",
   "import.field.notFound": "No se encuentra en este archivo.",
   "import.field.guessed": "Deducido de los valores, así que revísalo.",
+  "import.field.idPassedOver": "No se toma de «{column}»: {why, select, rows {numera las filas, así que la próxima exportación daría estos números a otras ofertas} repeats {sus valores se repiten} other {sus números son demasiado grandes para leerse con exactitud}}. Las filas se distinguen por su enlace.",
+  "import.field.idWeak": "{why, select, rows {Numera las filas, así que la próxima exportación daría estos números a otras ofertas.} repeats {Sus valores se repiten, así que las filas que comparten uno se toman por repetidas.} other {Sus números son demasiado grandes para leerse con exactitud, así que dos ofertas pueden recibir el mismo id.}}{link, select, yes { Elige «— no está en este archivo —» para distinguir las filas por su enlace; las filas ya guardadas de esta fuente contarían entonces como nuevas una vez.} other {}}",
   "import.field.example": "Por ejemplo: {sample}",
   "import.field.emptyFirstRows": "Vacío en las primeras filas.",
   "import.field.none": "— no está en este archivo —",

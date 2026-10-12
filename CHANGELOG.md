@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.55] — 2026-10-12
+
+### Fixed
+- **A row-number column is no longer taken for the id of an imported row.**
+  An `ID` column always beat the link. When it only counted the rows (1, 2,
+  3…), a re-sorted export reported new postings as already stored and added
+  old ones again; ids that repeat folded two postings into one; and a numeric
+  id past 2^53 in a JSON file lost its last digits, so two postings arrived
+  with one id. With a link column in the file, such a column is now passed
+  over when a file is first read, and the **Id of the row** select says why.
+  A source you already imported keeps the column it was stored under, so what
+  it holds is still recognised; its select says the id is weak and how to
+  switch (#403, first of four).
+
 ## [2.55.54] — 2026-10-12
 
 ### Changed
@@ -5888,6 +5902,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.55]: https://github.com/applypack/applypack/compare/v2.55.54...v2.55.55
 [2.55.54]: https://github.com/applypack/applypack/compare/v2.55.53...v2.55.54
 [2.55.53]: https://github.com/applypack/applypack/compare/v2.55.52...v2.55.53
 [2.55.52]: https://github.com/applypack/applypack/compare/v2.55.51...v2.55.52
