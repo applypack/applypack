@@ -183,6 +183,21 @@ ask the question.
   A date with a space before its zone (`2026-10-05 10:00:00 +02:00`, as a
   database prints it) is read; and a month's name with a year is a date
   only when nothing else is in the cell: "You may apply 2026" was 1 May.
+- **Markup is stripped once, from the description.** A body that carries
+  tags goes through `stripHtml`; every other field is kept as written.
+  *Amended 2026-10-12 (v2.55.57, #403):* "as written" stored a title
+  `<img src=x onerror=…>Staff Engineer` and a company `Evil <b>Corp</b>`
+  with their tags — escaped on every page, so never run, and shown as tags
+  on Jobs, the job page and in each message. A title, a company and a place
+  now go through `http.ts:stripInlineTags`: entities decoded, then every tag
+  the text itself closes, and the ones nothing closes. A "<" that is not
+  markup stays ("C++ <-> Rust", "A < B Ltd", and `a<b and c>d`, which has a
+  tag's shape and closes nothing). The description has three readings
+  instead of two: markup that makes the lines (`<p>`, `<li>`, `<br>`…) is
+  rebuilt by `stripHtml` as before; markup that only dresses words — a link,
+  a bold phrase, written out or escaped — is taken out and the text's own
+  newlines stay, where `stripHtml` flattened every paragraph of a plain-text
+  posting that held one `<a>`; anything else is text.
 - **An import is a burst of postings.** Every row takes the path a fetched
   posting takes, alert included.
   *Amended 2026-10-12 (v2.55.54, #402):* so a file of 2,000 rows, 300 of

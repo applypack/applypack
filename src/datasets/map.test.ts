@@ -759,3 +759,48 @@ describe('an id column that cannot tell postings apart (#403)', () => {
     assert.deepEqual(idNote(sheet([1, 2, 3]), kept), { column: 'ID', why: 'rows', used: true });
   });
 });
+
+describe('markup in a row (#403)', () => {
+  const fields = mapping({ title: 'title', id: 'id', employer: 'company', location: 'place', description: 'text' });
+  const read = (row: Row) => {
+    const mapped = mapRow({ id: 1, ...row }, fields, 1, NOW);
+    if (!('job' in mapped)) throw new Error(mapped.dropped);
+    return { ...mapped.job, text: mapped.job.description.replace(/\n\n(?:Only this much|No description)[\s\S]*$/, '') };
+  };
+
+  it('a title, a company and a place are stored as words, not as tags', () => {
+    const job = read({ title: '<img src=x onerror=alert(1)>Staff Node.js Engineer', company: 'Evil <b>Corp</b>', place: '<span>Lisbon</span>, Portugal' });
+    assert.equal(job.title, 'Staff Node.js Engineer');
+    assert.equal(job.employer, 'Evil Corp');
+    assert.equal(job.location, 'Lisbon, Portugal');
+    const escaped = read({ title: 'Ops &amp; Platform Engineer', company: 'R&amp;D Labs', place: { city: '<b>Porto</b>', country: 'Portugal' } });
+    assert.equal(escaped.title, 'Ops & Platform Engineer');
+    assert.equal(escaped.employer, 'R&D Labs');
+    assert.equal(escaped.location, 'Porto, Portugal');
+  });
+
+  it('a "<" that is not markup stays in a short field', () => {
+    const job = read({ title: 'Engineer, C++ <-> Rust tooling', company: 'A < B Ltd', place: 'Remote' });
+    assert.equal(job.title, 'Engineer, C++ <-> Rust tooling');
+    assert.equal(job.employer, 'A < B Ltd');
+  });
+
+  it('a title that is only markup is no title', () => {
+    assert.deepEqual(mapRow({ id: 1, title: '<img src=x>' }, fields, 1, NOW), { dropped: 'no-title' });
+  });
+
+  it('plain text with a link keeps its paragraphs', () => {
+    const job = read({ title: 'a', text: 'First paragraph about the team.\n\nSecond paragraph, with <a href="https://x.example">one link</a> in it.\n\nThird paragraph.' });
+    assert.equal(job.text, 'First paragraph about the team.\n\nSecond paragraph, with one link in it.\n\nThird paragraph.');
+  });
+
+  it('escaped inline markup is read as markup, and prose with a "<" is left whole', () => {
+    assert.equal(read({ title: 'a', text: 'We use &lt;span&gt;Kubernetes&lt;/span&gt; daily.\n\nSecond paragraph.' }).text, 'We use Kubernetes daily.\n\nSecond paragraph.');
+    const prose = 'Salary < 100k is not offered. We compare a<b and c>d in code review.\n\nSecond paragraph.';
+    assert.equal(read({ title: 'a', text: prose }).text, prose);
+  });
+
+  it('a description made of blocks is still rebuilt from them', () => {
+    assert.equal(read({ title: 'a', text: '<p>One.</p>\n<p>Two <b>bold</b>.</p><ul><li>x</li><li>y</li></ul>' }).text, 'One.\n\nTwo bold .\n\n• x\n• y');
+  });
+});

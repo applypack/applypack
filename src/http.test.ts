@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { stripHtml, sleep, DEFAULT_USER_AGENT, retryAfterMs } from './http';
+import { stripHtml, stripInlineTags, sleep, DEFAULT_USER_AGENT, retryAfterMs } from './http';
 
 describe('DEFAULT_USER_AGENT', () => {
   it('carries the package.json major.minor, never a stale hardcode', () => {
@@ -179,6 +179,44 @@ describe('stripHtml — markup nobody closed', () => {
   it('removes a script block from its opener to the first closer after it, whatever the case', () => {
     assert.equal(stripHtml('a<SCRIPT type="x">1</Script>b<script>2</script>c'), 'a b c');
     assert.equal(stripHtml('a<script><script>1</script>b</script>c'), 'a b c');
+  });
+});
+
+describe('stripInlineTags', () => {
+  it('takes out the tags a text closes, and the ones nothing closes', () => {
+    assert.equal(stripInlineTags('Evil <b>Corp</b>'), 'Evil Corp');
+    assert.equal(stripInlineTags('<img src=x onerror=alert(1)>Staff Node.js Engineer'), 'Staff Node.js Engineer');
+    assert.equal(stripInlineTags('<span class="x">Lisbon</span>, Portugal'), 'Lisbon, Portugal');
+    assert.equal(stripInlineTags('Senior <em>and</em> <STRONG>lead</STRONG> roles<br/>remote'), 'Senior and lead roles remote');
+    // What a script holds goes with it; the blank it leaves is the caller's to trim.
+    assert.equal(stripInlineTags('<script>alert(1)</script>Engineer').trim(), 'Engineer');
+  });
+
+  it('decodes entities first, so escaped markup goes the same way', () => {
+    assert.equal(stripInlineTags('Ops &amp; Platform Engineer'), 'Ops & Platform Engineer');
+    assert.equal(stripInlineTags('We use &lt;span&gt;Kubernetes&lt;/span&gt; daily.'), 'We use Kubernetes daily.');
+    // Escaped twice is text about markup, and stays text.
+    assert.equal(stripInlineTags('the &amp;lt;b&amp;gt; tag'), 'the &lt;b&gt; tag');
+  });
+
+  it('leaves a "<" that is not markup, and a tag-shaped run that closes nothing', () => {
+    for (const text of ['a < b and c > d', 'I <3 Rust', 'C++ <-> Rust tooling', 'Salary < 100k; we compare a<b and c>d', 'use the <b> tag sparingly', 'x <= y']) {
+      assert.equal(stripInlineTags(text), text);
+    }
+  });
+
+  it('keeps the lines of a text that only dresses a few words', () => {
+    const text = 'First paragraph.\n\nSecond, with <a href="https://x.example">one link</a> in it.\n\n• a bullet';
+    assert.equal(stripInlineTags(text), 'First paragraph.\n\nSecond, with one link in it.\n\n• a bullet');
+  });
+
+  it('is one pass over openers nobody closed, and over openers one closer ends', () => {
+    for (const text of ['<a>'.repeat(100_000), `${'<a>'.repeat(100_000)}</a>`, '<a '.repeat(100_000), `${'<script>'.repeat(40_000)}</script>`]) {
+      const started = Date.now();
+      stripInlineTags(text);
+      const took = Date.now() - started;
+      assert.ok(took < 1_500, `${text.length} characters took ${took} ms`);
+    }
   });
 });
 
