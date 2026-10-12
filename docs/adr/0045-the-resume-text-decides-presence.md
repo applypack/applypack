@@ -56,6 +56,18 @@ rule with no AI call.
 
 ## Consequences
 
+- *Amended 2026-10-12 (v2.55.61, #203).* The status is the text's, and the
+  note beside it stayed the model's: a row read "in your resume" next to
+  "no WP evidence to support it" — the reason for the verdict the code had
+  just overruled. Of the three ways out (drop the note, replace it, keep
+  and label it) the note is kept and labelled, because it loses nothing:
+  `anchorStatuses` records the verdict it overruled on the row
+  (`overruled`: `ask_user` or `cannot_claim`), and the keyword table says
+  the note was written before the word was found. An `add` that is written
+  was never contradicted, so its note ("Candidate confirmed: …") is shown
+  as it is. Rows flipped before this version carry no record and read as
+  they did.
+
 ✅ The number reads the resume; live and stored agree on the same text; no
 page asks for a "yes" about a word already on it; the primary cap lifts the
 moment the stack is written in.

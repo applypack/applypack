@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.61] — 2026-10-12
+
+### Changed
+- **A keyword's stale note says it is stale.** When the resume's own text
+  shows a word the analysis had marked as not there, the row reads "in your
+  resume" — and beside it stood the model's reason for the opposite ("no WP
+  evidence to support it"). The note is kept and now opens with "The
+  analysis's note, written before this word was found in your resume:". A
+  note on a word you confirmed is shown as before. Comparisons stored before
+  this version read as they did (#203).
+
 ## [2.55.60] — 2026-10-12
 
 ### Added
@@ -5983,6 +5994,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.61]: https://github.com/applypack/applypack/compare/v2.55.60...v2.55.61
 [2.55.60]: https://github.com/applypack/applypack/compare/v2.55.59...v2.55.60
 [2.55.59]: https://github.com/applypack/applypack/compare/v2.55.58...v2.55.59
 [2.55.58]: https://github.com/applypack/applypack/compare/v2.55.57...v2.55.58

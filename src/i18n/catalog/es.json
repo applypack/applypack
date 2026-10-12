@@ -4066,6 +4066,7 @@
   "screening.applicant.removeConfirm": "¿Quitar a este candidato junto con el archivo y todos los veredictos?",
   "keyword.note.addedPresent": "añadida por ti — ya está en este currículum",
   "keyword.note.addedAsk": "añadida por ti — confirma si la tienes",
+  "keyword.note.overruled": "Nota del análisis, escrita antes de encontrar esta palabra en tu currículum:",
   "applications.line.namedToday": "{stage, select, applied {solicitada hoy} rejected {rechazada hoy} ghosted {marcada sin respuesta hoy} screen {en primera llamada desde hoy} tech {en entrevista técnica desde hoy} onsite {en entrevista presencial desde hoy} offer {propuesta recibida hoy} unfiled {sin clasificar desde hoy} other {sin clasificar desde hoy}}",
   "applications.line.namedAgo": "{stage, select, applied {solicitada hace {days} d} rejected {rechazada hace {days} d} ghosted {marcada sin respuesta hace {days} d} screen {en primera llamada desde hace {days} d} tech {en entrevista técnica desde hace {days} d} onsite {en entrevista presencial desde hace {days} d} offer {propuesta recibida hace {days} d} unfiled {sin clasificar desde hace {days} d} other {sin clasificar desde hace {days} d}}",
   "render.run.rewritten": "el modelo reescribió el currículum en lugar de copiarlo — nada utilizable que guardar",

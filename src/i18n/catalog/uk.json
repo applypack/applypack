@@ -4066,6 +4066,7 @@
   "screening.applicant.removeConfirm": "Видалити цього кандидата разом із файлом і всіма вердиктами?",
   "keyword.note.addedPresent": "додано вами — уже є в цьому резюме",
   "keyword.note.addedAsk": "додано вами — підтвердьте, чи це у вас є",
+  "keyword.note.overruled": "Примітка аналізу, написана до того, як це слово знайшлося у вашому резюме:",
   "applications.line.namedToday": "{stage, select, applied {подано сьогодні} rejected {відмова: сьогодні} ghosted {без відповіді: сьогодні} screen {скринінг: від сьогодні} tech {технічна співбесіда: від сьогодні} onsite {онсайт: від сьогодні} offer {офер: від сьогодні} unfiled {без етапу: від сьогодні} other {без етапу: від сьогодні}}",
   "applications.line.namedAgo": "{stage, select, applied {подано {days} дн. тому} rejected {відмова: {days} дн. тому} ghosted {без відповіді: {days} дн. тому} screen {скринінг: {days} дн.} tech {технічна співбесіда: {days} дн.} onsite {онсайт: {days} дн.} offer {офер: {days} дн.} unfiled {без етапу: {days} дн.} other {без етапу: {days} дн.}}",
   "render.run.rewritten": "модель переписала резюме замість того, щоб скопіювати, — нічого придатного для збереження",

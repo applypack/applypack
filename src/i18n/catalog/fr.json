@@ -4066,6 +4066,7 @@
   "screening.applicant.removeConfirm": "Retirer ce candidat avec le fichier et tous les verdicts ?",
   "keyword.note.addedPresent": "ajouté par vous — déjà dans ce CV",
   "keyword.note.addedAsk": "ajouté par vous — confirmez si vous l'avez",
+  "keyword.note.overruled": "Note de l'analyse, écrite avant que ce mot soit trouvé dans votre CV :",
   "applications.line.namedToday": "{stage, select, applied {postulé aujourd'hui} rejected {refusée aujourd'hui} ghosted {classée sans nouvelles aujourd'hui} screen {en premier échange depuis aujourd'hui} tech {en entretien technique depuis aujourd'hui} onsite {en entretien sur site depuis aujourd'hui} offer {proposition reçue aujourd'hui} unfiled {non classée depuis aujourd'hui} other {non classée depuis aujourd'hui}}",
   "applications.line.namedAgo": "{stage, select, applied {postulé il y a {days} j} rejected {refusée il y a {days} j} ghosted {classée sans nouvelles il y a {days} j} screen {en premier échange depuis {days} j} tech {en entretien technique depuis {days} j} onsite {en entretien sur site depuis {days} j} offer {proposition reçue il y a {days} j} unfiled {non classée depuis {days} j} other {non classée depuis {days} j}}",
   "render.run.rewritten": "le modèle a réécrit le CV au lieu de le recopier — rien d'exploitable à enregistrer",

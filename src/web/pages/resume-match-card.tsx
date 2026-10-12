@@ -53,9 +53,15 @@ import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 
 /** A keyword's note: ours in the reader's language, the model's in its own English. */
-const KeywordNote: FC<{ note: string }> = ({ note }) => {
+const KeywordNote: FC<{ note: string; overruled?: boolean }> = ({ note, overruled = false }) => {
   const { text, ours } = keywordNote(note);
-  return <span lang={ours ? undefined : 'en'}>{text}</span>;
+  return (
+    <>
+      {/* The note is the model's reason for a verdict the resume's own text overruled: said, not dropped (#203). */}
+      {overruled && `${t('keyword.note.overruled')} `}
+      <span lang={ours ? undefined : 'en'}>{text}</span>
+    </>
+  );
 };
 
 export interface ResumeMatchCardProps {
@@ -1220,7 +1226,7 @@ const KeywordRow: FC<{ k: CountedKeyword & { usage?: TermUsage }; edit?: Keyword
       <span lang="en">{k.where ?? '—'}</span>
     </Td>
     <Td class="max-w-md text-meta text-ink-muted">
-      {k.note ? <KeywordNote note={k.note} /> : '—'}
+      {k.note ? <KeywordNote note={k.note} overruled={k.status === 'present' && k.overruled != null} /> : '—'}
     </Td>
   </Tr>
 );
