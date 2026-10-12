@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { postingFields } from './map';
-import { MAX_COLUMNS, MAX_ROWS, NOT_ROWS, decodeBody, findRows, type FoundRows } from './rows';
+import { MAX_COLUMNS, MAX_ROWS, NOT_ROWS, decodeBody, findRows, keptColumns, type FoundRows } from './rows';
 
 const fixture = (name: string): string => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
 
@@ -121,12 +121,31 @@ describe('findRows: CSV and TSV', () => {
     assert.deepEqual(rows[1], { title: 'B', url: 'https://rows.example/b', place: 'Lisbon' });
   });
 
-  it('refuses a header wider than a table of jobs is, before a row is built from it', () => {
-    const wide = `${Array.from({ length: MAX_COLUMNS + 1 }, (_, i) => `c${i}`).join(',')}\n${'x\n'.repeat(2000)}`;
+  it('refuses a header no table of jobs has, before a row is built from it', () => {
+    const wide = `${Array.from({ length: 5001 }, (_, i) => `c${i}`).join(',')}\n${'x\n'.repeat(2000)}`;
     const found = findRows(wide);
     assert.equal(found.ok, false);
-    assert.match(found.ok ? '' : found.error, /201 columns, and ApplyPack reads up to 200/);
+    assert.match(found.ok ? '' : found.error, /5,?001 columns, and ApplyPack reads up to 5,?000/);
     assert.equal(rowsOf(`${Array.from({ length: MAX_COLUMNS }, (_, i) => `c${i}`).join(',')}\nx,y`).rows.length, 1);
+  });
+
+  it('keeps the wanted columns of a table too wide to keep whole, then the first of the rest (#403)', () => {
+    // A flattened export: 230 columns, the title and the link the last two.
+    const names = [...Array.from({ length: 228 }, (_, i) => `attr_${i}`), 'title', 'url'];
+    const body = `${names.join(',')}\n${[...Array.from({ length: 228 }, (_, i) => `v${i}`), 'Backend Developer', 'https://rows.example/a'].join(',')}`;
+    const wanted = (name: string): boolean => name === 'title' || name === 'url';
+    const kept = findRows(body, undefined, 0, undefined, wanted);
+    const [row] = kept.ok ? kept.rows : [];
+    assert.equal(Object.keys(row!).length, MAX_COLUMNS);
+    assert.equal(row!.title, 'Backend Developer');
+    assert.equal(row!.url, 'https://rows.example/a');
+    // The file's own order, and the first 198 of the others.
+    assert.deepEqual(Object.keys(row!).slice(0, 3), ['attr_0', 'attr_1', 'attr_2']);
+    assert.deepEqual(Object.keys(row!).slice(-3), ['attr_197', 'title', 'url']);
+    // With nobody to say what is wanted, the first 200 — and no row ever carries more keys than that.
+    assert.deepEqual(Object.keys(rowsOf(body).rows[0]!).slice(-1), ['attr_199']);
+    assert.deepEqual(keptColumns(['a', 'b', 'c'], () => false), [0, 1, 2]);
+    assert.deepEqual(keptColumns(['a', 'b', 'c', 'd'], (n) => n === 'd', 2), [0, 3]);
   });
 
   it('takes the delimiter a spreadsheet names on a line of its own', () => {

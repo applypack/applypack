@@ -214,6 +214,28 @@ ask the question.
 - **The people filter knows names and two shapes of value, not meaning.** A
   person's name in a column called `Field7` cannot be told from a company's.
   The preview shows what each field took, and the user decides.
+  *Amended 2026-10-12 (v2.55.58, #403):* it also hid facts about the job
+  whose names hold one of its words: `workAuthorization` ("author"),
+  `isRecruiter`. `map.ts:JOB_FACT_RE` cuts those fragments out of a name
+  before it is asked about people — a permit to work, a yes/no about who
+  posted, working in person, ownership, a membership — so `authorEmail` and
+  `personalEmail` are still left out for what remains.
+- **A column is known by its English name.** The alias table held English
+  only.
+  *Amended 2026-10-12 (v2.55.58, #403):* a sheet with Ukrainian headers
+  found neither its title nor its company. `MORE_ALIASES` adds the usual
+  header words of the interface's other languages (Ukrainian, Spanish,
+  French) and German, tried after the English ones.
+- **Reading a file's shape.** Three more readings changed in v2.55.58
+  (#403). A table wider than 200 columns was refused whole; it now keeps
+  200 — the columns named like a job's fields, then the first of the rest
+  (`rows.ts:keptColumns`, the same for objects with more keys than are
+  offered) — and only a header past 5,000 cells is refused. The delimiter
+  was read off the first line alone, a tie going to the comma; it is now
+  the one that cuts each of the first ten lines into the same number of
+  cells, so a TSV whose header holds a comma is a TSV. And a posting's
+  place is read from a schema.org `Place` (its parts are in `address`) and
+  from a list of them, joined: "Lisbon, Portugal; Porto, Portugal".
 - **The public count of sources does not move.** An import is not a kind of
   source ApplyPack reads from the web; `source-count.test.ts` lists it with
   the pasted job.

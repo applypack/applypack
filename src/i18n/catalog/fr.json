@@ -3495,7 +3495,7 @@
   "import.field.none": "— absent de ce fichier —",
   "import.moreFields": "Pays, mode de travail, salaire et lignes clôturées",
   "import.peopleColumns": "Les colonnes concernant des personnes ne sont pas proposées : elles ne sont jamais lues.",
-  "import.firstColumnsOnly": "{n, plural, one {Seule la première colonne est proposée.} many {Seules les # premières colonnes sont proposées.} other {Seules les # premières colonnes sont proposées.}}",
+  "import.firstColumnsOnly": "{n, plural, one {Seule # colonne est proposée} many {Seules # de colonnes sont proposées} other {Seules # colonnes sont proposées}} : d'abord celles qui portent le nom d'un champ d'offre, puis les premières des autres.",
   "import.row.noCompany": "entreprise non indiquée",
   "import.row.noLocation": "sans lieu",
   "import.row.noLink": "sans lien",

@@ -804,3 +804,95 @@ describe('markup in a row (#403)', () => {
     assert.equal(read({ title: 'a', text: '<p>One.</p>\n<p>Two <b>bold</b>.</p><ul><li>x</li><li>y</li></ul>' }).text, 'One.\n\nTwo bold .\n\n• x\n• y');
   });
 });
+
+describe('columns of a job that the people filter used to hide (#403)', () => {
+  it('offers a permit to work, a yes/no about who posted, and working in person', () => {
+    const row = Object.fromEntries(['title', 'url', 'workAuthorization', 'Work authorisation', 'authorizedCountries', 'isRecruiter', 'is_agency', 'inPersonDays', 'ownership', 'Membership fee', 'personalDevelopmentBudget'].map((name) => [name, 'x']));
+    assert.deepEqual(columnsOf([row]), Object.keys(row));
+  });
+
+  it('still leaves out who wrote, recruits, manages or is to be contacted', () => {
+    const row = Object.fromEntries(['title', 'url', 'author', 'authorName', 'authorEmail', 'recruiter', 'recruiterName', 'Hiring Manager', 'personalEmail', 'contact person', 'owner', 'member', 'isRecruiterEmail'].map((name) => [name, 'x']));
+    assert.deepEqual(columnsOf([row]), ['title', 'url']);
+  });
+});
+
+describe('header names in the interface\'s other languages (#403)', () => {
+  const text = 'A long enough description of the role, its team and its stack so that it reads as text and not as a title.';
+  const sheet = (head: string[]): Row[] => [
+    Object.fromEntries(head.map((h, i) => [h, ['Backend Developer', 'Acme', 'https://rows.example/a', text, 'Lisbon', '2026-10-01'][i]!])),
+    Object.fromEntries(head.map((h, i) => [h, ['Data Engineer', 'Acme', 'https://rows.example/b', text, 'Porto', '2026-10-02'][i]!])),
+  ];
+  for (const [language, head] of [
+    ['Ukrainian', ['Посада', 'Компанія', 'Посилання', 'Опис', 'Місто', 'Дата']],
+    ['Spanish', ['Puesto', 'Empresa', 'Enlace', 'Descripción', 'Ubicación', 'Fecha']],
+    ['French', ['Poste', 'Entreprise', 'Lien', 'Description', 'Lieu', 'Date']],
+    ['German', ['Stelle', 'Unternehmen', 'Link', 'Beschreibung', 'Ort', 'Datum']],
+  ] as const) {
+    it(`finds every field of a ${language} sheet by its name`, () => {
+      const rows = sheet([...head]);
+      const { mapping: found, guessed } = detectMapping(rows, NOW);
+      assert.deepEqual([found.title, found.employer, found.url, found.description, found.location, found.postedAt], [...head]);
+      assert.deepEqual(guessed, []);
+      assert.equal(mapRows(rows, found, 1, NOW).jobs.length, 2);
+    });
+  }
+
+  it('reads a posting written with such names as a posting', () => {
+    assert.equal(postingFields({ Посада: 'Backend Developer', Компанія: 'Acme', Посилання: 'https://rows.example/a' }), 3);
+  });
+});
+
+describe('a posting\'s places (#403)', () => {
+  const where = mapping({ title: 'title', id: 'id', location: 'jobLocation' });
+  const place = (jobLocation: unknown) => {
+    const mapped = mapRow({ id: 1, title: 'a', jobLocation }, where, 1, NOW);
+    if (!('job' in mapped)) throw new Error(mapped.dropped);
+    return [mapped.job.location, mapped.job.locationHints?.countries ?? null];
+  };
+  const lisbon = { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: 'Lisbon', addressCountry: 'PT' } };
+  const porto = { '@type': 'Place', address: { addressLocality: 'Porto', addressRegion: 'Norte', addressCountry: { '@type': 'Country', name: 'Portugal' } } };
+
+  it('reads a schema.org Place: its parts sit one level down, in its address', () => {
+    assert.deepEqual(place(lisbon), ['Lisbon, Portugal', ['PT']]);
+    assert.deepEqual(place(porto), ['Porto, Norte, Portugal', ['PT']]);
+    // The address taken apart says more than the place's own name; an address that is one string is the place.
+    assert.deepEqual(place({ name: 'Head office', address: { addressLocality: 'Lisbon' } }), ['Lisbon', null]);
+    assert.deepEqual(place({ '@type': 'Place', address: 'Rua Augusta 1, Lisbon' }), ['Rua Augusta 1, Lisbon', null]);
+  });
+
+  it('reads a list of places as the posting\'s places, joined', () => {
+    assert.deepEqual(place([lisbon, porto]), ['Lisbon, Portugal; Porto, Norte, Portugal', ['PT']]);
+    // Two countries are a choice the text keeps, and no single country is claimed.
+    assert.deepEqual(place([lisbon, { city: 'Madrid', countryCode: 'ES' }]), ['Lisbon, Portugal; Madrid, Spain', null]);
+    assert.deepEqual(place([lisbon, lisbon]), ['Lisbon, Portugal', ['PT']]);
+  });
+
+  it('offers a list of places as the location column, and no other list of objects', () => {
+    const rows = [{ title: 'Backend Developer', url: 'https://rows.example/a', jobLocation: [lisbon, porto], skills: [{ name: 'Go' }] }];
+    assert.deepEqual(columnsOf(rows), ['title', 'url', 'jobLocation']);
+    assert.equal(detectMapping(rows, NOW).mapping.location, 'jobLocation');
+    assert.equal(sampleValue(rows, 'jobLocation'), 'Lisbon, Portugal; Porto, Norte, Portugal');
+  });
+
+  it('a place written the old ways reads as it did', () => {
+    assert.deepEqual(place('Berlin, Germany'), ['Berlin, Germany', null]);
+    assert.deepEqual(place({ name: 'Berlin', country: 'Germany' }), ['Berlin', ['DE']]);
+    assert.deepEqual(place({ city: 'Berlin', region: 'BE', countryCode: 'de' }), ['Berlin, BE, Germany', ['DE']]);
+  });
+});
+
+describe('a table wider than is offered (#403)', () => {
+  it('offers the columns named like a job\'s fields first, whether the rows came from a table or from objects', () => {
+    const row = Object.fromEntries([...Array.from({ length: 230 }, (_, i) => [`attr_${i}`, `v${i}`]), ['title', 'Backend Developer'], ['url', 'https://rows.example/a']]);
+    const columns = columnsOf([row]);
+    assert.equal(columns.length, 200);
+    assert.deepEqual(columns.slice(-2), ['title', 'url']);
+    assert.equal(detectMapping([row], NOW).mapping.title, 'title');
+    const head = Object.keys(row);
+    const found = findJobRows(`${head.join(',')}\n${head.map((h) => row[h]).join(',')}`);
+    assert.ok(found.ok);
+    assert.equal(found.rows[0]!.title, 'Backend Developer');
+    assert.equal(Object.keys(found.rows[0]!).length, 200);
+  });
+});

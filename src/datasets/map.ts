@@ -17,7 +17,7 @@ import { workplaceFromText, type LocationHints, type WorkplaceCode } from '../lo
 import { clipText, feedItemKey, hashShortId, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { safeHref } from '../web/format';
-import { MAX_COLUMNS, findRows, isRow, type Row, type RowsResult } from './rows';
+import { MAX_COLUMNS, findRows, isRow, keptColumns, type Row, type RowsResult } from './rows';
 
 /** What a column can be mapped to, in the order detection claims columns and the preview lists them. */
 export const MAPPING_FIELDS = [
@@ -158,8 +158,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** A number written to be dialled: a plus and at least seven digits. A bare run of digits is an id. */
 const PHONE_RE = /^\+\d(?:[\s().-]*\d){6,}$/;
 
+/**
+ * Names that hold one of those words and are facts about the job: a permit
+ * to work ("workAuthorization" holds "author"), a yes/no about who posted
+ * ("isRecruiter"), working in person, ownership, a membership. They are cut
+ * out of a name before it is asked about people, so "authorEmail" and
+ * "personalEmail" are still left out for what remains (#403).
+ */
+const JOB_FACT_RE = /authori[sz]|authority|^(?:is|has)(?:a|an)?(?:recruiter|manager|agency)|inperson|ownership|membership|personal/g;
+
 function isPeopleColumn(path: string): boolean {
-  return PEOPLE_RE.test(norm(path));
+  return PEOPLE_RE.test(norm(path).replace(JOB_FACT_RE, ' '));
 }
 
 /** Most of what a column holds is e-mail addresses or phone numbers, whatever the column is called. */
@@ -168,7 +177,7 @@ function holdsContacts(texts: readonly string[]): boolean {
 }
 
 /** Names a field goes by, normalised, most telling first. A nested path joins its parts: `employer.name` is `employername`. */
-const ALIASES: Record<MappingField, readonly string[]> = {
+const ALIASES: Record<MappingField, string[]> = {
   title: ['title', 'jobtitle', 'positionname', 'displaytitle', 'position', 'positiontitle', 'role', 'jobname', 'vacancy', 'name'],
   url: ['url', 'link', 'joburl', 'joblink', 'listingurl', 'postingurl', 'posturl', 'permalink', 'href', 'detailurl', 'detailsurl', 'sourceurl', 'pageurl'],
   applyUrl: ['applyurl', 'applylink', 'applicationurl', 'applicationlink', 'applyhref', 'externalapplylink', 'externalapplyurl', 'apply'],
@@ -187,15 +196,43 @@ const ALIASES: Record<MappingField, readonly string[]> = {
   closed: ['expired', 'closed', 'isexpired', 'isclosed', 'inactive'],
 };
 
+/**
+ * The same names in the interface's other languages (ADR 0061) and German:
+ * a sheet with Ukrainian headers found neither its title nor its company
+ * (#403). Tried after the English ones, with and without their accents.
+ */
+const MORE_ALIASES: Partial<Record<MappingField, readonly string[]>> = {
+  title: ['посада', 'вакансія', 'назвавакансії', 'позиція', 'назва', 'puesto', 'cargo', 'vacante', 'título', 'titulo', 'poste', 'intitulé', 'intitule', 'intituléduposte', 'intituleduposte', 'titre', 'stelle', 'stellentitel', 'jobtitel', 'stellenbezeichnung', 'titel'],
+  url: ['посилання', 'лінк', 'enlace', 'vínculo', 'vinculo', 'lien'],
+  employer: ['компанія', 'роботодавець', 'організація', 'empresa', 'compañía', 'compania', 'empleador', 'entreprise', 'société', 'societe', 'employeur', 'unternehmen', 'firma', 'arbeitgeber'],
+  description: ['опис', 'описвакансії', 'descripción', 'descripcion', 'beschreibung', 'stellenbeschreibung'],
+  location: ['місто', 'локація', 'місце', 'розташування', 'місцезнаходження', 'ubicación', 'ubicacion', 'ciudad', 'lugar', 'localidad', 'lieu', 'ville', 'localisation', 'emplacement', 'ort', 'standort', 'arbeitsort', 'stadt'],
+  postedAt: ['дата', 'датапублікації', 'опубліковано', 'fecha', 'fechadepublicación', 'fechadepublicacion', 'publicado', 'datedepublication', 'datum', 'veröffentlicht', 'veroffentlicht', 'veröffentlichungsdatum'],
+  country: ['країна', 'país', 'pais', 'pays', 'land'],
+  salary: ['зарплата', 'зарплатня', 'оплата', 'salario', 'sueldo', 'salaire', 'rémunération', 'remuneration', 'gehalt', 'vergütung', 'vergutung'],
+};
+for (const field of MAPPING_FIELDS) ALIASES[field] = [...ALIASES[field], ...(MORE_ALIASES[field] ?? [])];
+
+const KNOWN_NAMES: ReadonlySet<string> = new Set(Object.values(ALIASES).flat());
+
+/** Whether a column goes by a name of one of a job's fields — what is kept first of a table too wide to keep whole (rows.ts:keptColumns). */
+function knownColumn(name: string): boolean {
+  return KNOWN_NAMES.has(norm(name));
+}
+
 /** Sub-fields of a nested value, by normalised name. */
 const HTML_KEYS = ['html', 'descriptionhtml'];
 const TEXT_KEYS = ['text', 'plain', 'descriptiontext', 'description'];
 const NAME_KEYS = ['name', 'displayname', 'title'];
-const PLACE_TEXT_KEYS = ['formattedaddressshort', 'formattedaddress', 'formatted', 'displayname', 'fulladdress', 'text', 'label', 'name'];
-const CITY_KEYS = ['city', 'locality', 'town'];
-const REGION_KEYS = ['region', 'state', 'admin1', 'province'];
-const COUNTRY_NAME_KEYS = ['countryname', 'country'];
-const COUNTRY_CODE_KEYS = ['countrycode', 'iso2', 'countryiso'];
+const PLACE_TEXT_KEYS = ['formattedaddressshort', 'formattedaddress', 'formatted', 'displayname', 'fulladdress', 'address', 'text', 'label', 'name'];
+const CITY_KEYS = ['city', 'locality', 'town', 'addresslocality'];
+const REGION_KEYS = ['region', 'state', 'admin1', 'province', 'addressregion'];
+const COUNTRY_NAME_KEYS = ['countryname', 'country', 'addresscountry'];
+const COUNTRY_CODE_KEYS = ['countrycode', 'iso2', 'countryiso', 'addresscountry'];
+/** Where a place nests its parts: schema.org's `Place.address`. */
+const ADDRESS_KEYS = ['address'];
+/** A posting lists a handful of places; a longer list is cut here. */
+const MAX_PLACES = 5;
 const PAY_MIN_KEYS = ['min', 'salarymin', 'minvalue', 'minimum', 'from'];
 const PAY_MAX_KEYS = ['max', 'salarymax', 'maxvalue', 'maximum', 'to'];
 const PAY_CURRENCY_KEYS = ['currency', 'salarycurrency', 'currencycode'];
@@ -334,13 +371,38 @@ function readCountry(value: unknown): string | null {
   return text.length > 0 && text.length <= 60 ? (findCountry(text)?.code ?? null) : null;
 }
 
+/** A list of places as a cell holds it: a posting in two cities (`jobLocation: [{…}, {…}]`). */
+function isPlaceList(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.some(isRow);
+}
+
+/**
+ * Where a posting is. A string as written; an object by its formatted text,
+ * else its city, region and country; a schema.org `Place`, whose parts sit
+ * one level down in `address`; and a list of places, each read as one and
+ * their names joined — "Lisbon, Portugal; Porto, Portugal". A list used to
+ * be no column at all, and a `Place` read as nothing (#403).
+ */
 function readPlace(value: unknown): { text: string; country: string | null } {
+  if (isPlaceList(value)) {
+    const places = value.filter(isRow).slice(0, MAX_PLACES).map(readPlace);
+    const countries = new Set(places.flatMap((p) => p.country ?? []));
+    // One country for all of them is the posting's country; two are a choice the text keeps.
+    return { text: [...new Set(places.map((p) => p.text).filter((t) => t.length > 0))].join('; '), country: countries.size === 1 ? [...countries][0]! : null };
+  }
   if (!isRow(value)) return { text: plainLine(value), country: null };
-  const parts = [CITY_KEYS, REGION_KEYS, COUNTRY_NAME_KEYS].map((keys) => plainLine(inner(value, keys))).filter((p) => p.length > 0);
-  return {
-    text: plainLine(inner(value, PLACE_TEXT_KEYS)) || parts.join(', '),
-    country: readCountry(inner(value, COUNTRY_CODE_KEYS)) ?? readCountry(inner(value, COUNTRY_NAME_KEYS)),
+  const address = inner(value, ADDRESS_KEYS);
+  const place = isRow(address) ? { ...value, ...address } : value;
+  // A country may be a thing with a name of its own (`{ "@type": "Country", "name": "PT" }`).
+  const named = (keys: readonly string[]): unknown => {
+    const v = inner(place, keys);
+    return isRow(v) ? inner(v, NAME_KEYS) : v;
   };
+  const country = readCountry(named(COUNTRY_CODE_KEYS)) ?? readCountry(named(COUNTRY_NAME_KEYS));
+  const parts = [plainLine(inner(place, CITY_KEYS)), plainLine(inner(place, REGION_KEYS)), country === null ? plainLine(named(COUNTRY_NAME_KEYS)) : placeLabel(country)].filter((p) => p.length > 0);
+  const text = plainLine(inner(place, PLACE_TEXT_KEYS));
+  // An address taken apart says more than the place's own name ("Head office").
+  return { text: isRow(address) ? parts.join(', ') || text : text || parts.join(', '), country };
 }
 
 /** `isRemote: true`, "Fully remote", "Hybrid". A false or an unknown word says nothing. */
@@ -433,7 +495,7 @@ function salaryLine(at: (field: MappingField) => unknown): string | null {
 function fitsField(field: MappingField, value: unknown, now: Date): boolean {
   if (field === 'url' || field === 'applyUrl') return httpLink(value) !== null;
   if (field === 'postedAt') return readDate(value, now) !== null;
-  return cellText(value).length > 0 || isRow(value);
+  return cellText(value).length > 0 || isRow(value) || (field === 'location' && isPlaceList(value));
 }
 
 /**
@@ -449,7 +511,11 @@ export function columnsOf(rows: readonly Row[]): string[] {
   };
   for (const row of sample) {
     for (const [key, value] of Object.entries(row)) {
-      if (Array.isArray(value) && value.some(isRow)) continue;
+      // A list of objects is not a cell — except a posting's places, which the place reader takes whole.
+      if (Array.isArray(value) && value.some(isRow)) {
+        if (ALIASES.location.includes(norm(key))) add(key);
+        continue;
+      }
       add(key);
       if (!isRow(value) || Object.keys(value).length > MAX_NESTED_KEYS) continue;
       for (const [sub, nested] of Object.entries(value)) {
@@ -457,7 +523,9 @@ export function columnsOf(rows: readonly Row[]): string[] {
       }
     }
   }
-  return [...out].slice(0, MAX_COLUMNS).filter((column) => !holdsContacts(textsOf(sample, column)));
+  const all = [...out];
+  // Of more columns than are offered, the ones named like a job's fields first, then the first of the rest.
+  return keptColumns(all, knownColumn).map((i) => all[i]!).filter((column) => !holdsContacts(textsOf(sample, column)));
 }
 
 /** A column's non-empty cells as text; an object in a cell is not text. */
@@ -473,7 +541,7 @@ function textsOf(rows: readonly Row[], column: string): string[] {
 export function sampleValue(rows: readonly Row[], column: string): string {
   for (const row of rows.slice(0, SAMPLE_ROWS)) {
     const value = valueAt(row, column);
-    const text = isRow(value) ? `{ ${Object.keys(value).filter((k) => !isPeopleColumn(k)).slice(0, 5).join(', ')} }` : oneLine(cellText(value));
+    const text = isRow(value) ? `{ ${Object.keys(value).filter((k) => !isPeopleColumn(k)).slice(0, 5).join(', ')} }` : isPlaceList(value) ? readPlace(value).text : oneLine(cellText(value));
     if (text.length > 0) return text.length > 90 ? `${text.slice(0, 89)}…` : text;
   }
   return '';
@@ -652,7 +720,7 @@ export function postingFields(row: Row): number {
  * row and not that list (#395).
  */
 export function findJobRows(body: string, maxRows?: number, from?: number): RowsResult {
-  return findRows(body, maxRows, from, postingFields);
+  return findRows(body, maxRows, from, postingFields, knownColumn);
 }
 
 /**
