@@ -48,7 +48,22 @@ export interface FetchRun {
 }
 
 const RUN_TTL_MS = 30 * 60_000;
+/** How long a run still at work is believed: scoring a few hundred postings on a CLI engine takes hours. */
+const LIVE_RUN_KEEP_MS = 6 * 60 * 60_000;
 const runs = new Map<string, FetchRun>();
+
+function isLive(run: FetchRun): boolean {
+  return run.stage === 'fetch' || run.stage === 'store';
+}
+
+/**
+ * A run at work is kept from its start (a hung one must not hold the guard for
+ * ever); a finished one from the moment it finished, so the page of a long run
+ * still finds its verdict. The shape of target-runs.ts.
+ */
+function expired(run: FetchRun, now: number): boolean {
+  return isLive(run) ? now - run.startedAt > LIVE_RUN_KEEP_MS : now - run.stageAt > RUN_TTL_MS;
+}
 
 export function createFetchRun(fields: Pick<FetchRun, 'classify' | 'backUrl' | 'scope'>): FetchRun {
   prune();
@@ -87,10 +102,11 @@ export function getFetchRun(id: string): FetchRun | null {
   return runs.get(id) ?? null;
 }
 
-/** The in-flight guard: at most one manual fetch at a time per web process. */
+/** The in-flight guard: at most one manual fetch at a time per web process. A run past its keep does not count. */
 export function activeFetchRun(): FetchRun | null {
+  const now = Date.now();
   for (const run of runs.values()) {
-    if (run.stage === 'fetch' || run.stage === 'store') return run;
+    if (isLive(run) && !expired(run, now)) return run;
   }
   return null;
 }
@@ -105,8 +121,8 @@ export function startFetchRun(id: string, fn: () => Promise<void>): void {
 }
 
 function prune(): void {
-  const cutoff = Date.now() - RUN_TTL_MS;
+  const now = Date.now();
   for (const [id, run] of runs) {
-    if (run.startedAt < cutoff) runs.delete(id);
+    if (expired(run, now)) runs.delete(id);
   }
 }
