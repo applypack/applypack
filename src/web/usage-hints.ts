@@ -298,7 +298,12 @@ function volumeOnPlan(facts: HintFacts, groups: readonly SpendGroup[]): UsageHin
   const count = volume.reduce((n, g) => n + g.calls, 0);
   if (count < VOLUME_CALLS || count < total * VOLUME_SHARE || volume.some((g) => g.billing !== 'plan')) return null;
   const local = freeEngineFor(facts, LOCAL_TASK, ['local']);
-  if (!local || engineOf(facts, facts.first[LOCAL_TASK])?.billing !== 'plan') return null;
+  const first = engineOf(facts, facts.first[LOCAL_TASK]);
+  if (!local || first?.billing !== 'plan') return null;
+  // The steps from where the local engine stands today, as the billed-task hint names them: "can be given
+  // this task" said nothing of an engine that is not enabled, or stands below the plan (#415).
+  const place = local.position === -1 ? 'enable' : first.position !== -1 && local.position > first.position ? 'above' : 'stay';
+  const steps = STEPS.only[place];
   const share = {
     task: taskLabel(LOCAL_TASK),
     count,
@@ -308,5 +313,6 @@ function volumeOnPlan(facts: HintFacts, groups: readonly SpendGroup[]): UsageHin
     engines: joinNames([...new Set(volume.map((g) => label(g.engine)))]),
     local: label(local.id),
   };
-  return { tone: 'neutral', text: `${t('usage.volume', share)} ${t('usage.unmeasured')}`, action: enginesLink() };
+  const sentences = [t('usage.volume', share), ...(steps ? [t(steps, { task: share.task, first: label(first.id) })] : []), t('usage.unmeasured')];
+  return { tone: 'neutral', text: sentences.join(' '), action: enginesLink() };
 }
