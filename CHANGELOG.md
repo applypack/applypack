@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.42] — 2026-10-12
+
+### Fixed
+- **An import stores rows only with the columns you were shown.** Changing a
+  column on the import's preview and pressing Import without "Update the
+  preview" stored the rows with a mapping no preview had shown. That press
+  now keeps the new columns, draws the preview with them and stores nothing
+  until Import is pressed again.
+- **A long import's warning is no longer replaced by "That preview is
+  gone".** An import that outlasted the half hour its upload is kept for, and
+  ended with a warning (rows that could not be scored, a pause mid-run, a
+  fetch that was running), sent you to a preview that had expired. The rows
+  now wait a fresh half hour from the end of such an import.
+- **An empty file is called empty**, instead of "Choose a .json, .jsonl, .csv
+  or .tsv file first".
+- **Runs: an import's count says what it counts.** "5 rows read from the
+  file" was the number of rows that are jobs, after the rows with no title
+  and the repeats were left out; it now reads "5 jobs in the file" (#404).
+
 ## [2.55.41] — 2026-10-12
 
 ### Fixed
@@ -5678,6 +5697,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.42]: https://github.com/applypack/applypack/compare/v2.55.41...v2.55.42
 [2.55.41]: https://github.com/applypack/applypack/compare/v2.55.40...v2.55.41
 [2.55.40]: https://github.com/applypack/applypack/compare/v2.55.39...v2.55.40
 [2.55.39]: https://github.com/applypack/applypack/compare/v2.55.38...v2.55.39

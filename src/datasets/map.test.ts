@@ -19,6 +19,7 @@ import {
   readDate,
   alertsOff,
   readSourceConfig,
+  sameMapping,
   sampleValue,
   usableMapping,
   type Mapping,
@@ -553,6 +554,15 @@ describe('a stored mapping', () => {
     assert.equal(mappingFits(mapping({ title: 'title', url: 'url', employer: 'company' }), columns), false);
     assert.equal(mappingFits(mapping({ title: 'title', url: 'url', employer: 'recruiterName' }), columns), false);
     assert.equal(mappingFits(mapping({ title: 'title' }), columns), false);
+  });
+
+  it('tells a mapping the preview showed from one whose selects were changed since', () => {
+    const shown = mapping({ title: 'Position', url: 'Job link', description: 'About the role' });
+    // A form posts only the fields it has, in its own order: the same columns are the same mapping.
+    assert.equal(sameMapping(shown, MappingSchema.parse({ description: 'About the role', url: 'Job link', title: 'Position', employer: '' })), true);
+    assert.equal(sameMapping(shown, mapping({ title: 'Position', url: 'Job link', description: 'Notes' })), false);
+    assert.equal(sameMapping(shown, mapping({ title: 'Position', url: 'Job link' })), false);
+    assert.equal(sameMapping(shown, { ...shown, location: 'Where' }), false);
   });
 });
 

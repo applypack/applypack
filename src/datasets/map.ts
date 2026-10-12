@@ -106,6 +106,11 @@ export function usableMapping(mapping: Mapping): boolean {
   return mapping.title !== null && (mapping.id !== null || mapping.url !== null || mapping.applyUrl !== null);
 }
 
+/** Whether two mappings read the same columns for every field. */
+export function sameMapping(a: Mapping, b: Mapping): boolean {
+  return MAPPING_FIELDS.every((f) => a[f] === b[f]);
+}
+
 /** Whether a mapping kept from an earlier file still names columns this one has. */
 export function mappingFits(mapping: Mapping, columns: readonly string[]): boolean {
   return usableMapping(mapping) && MAPPING_FIELDS.every((f) => mapping[f] === null || columns.includes(mapping[f]));

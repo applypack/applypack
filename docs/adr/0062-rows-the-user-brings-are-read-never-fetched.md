@@ -152,6 +152,15 @@ ask the question.
   such rows unscored as leads is a later decision.
 - **A wrong mapping stores wrong jobs.** The preview is the guard: nothing
   is stored before the user has seen three rows as they would be kept.
+  *Amended 2026-10-12 (v2.55.42, #404):* the guard held only through a
+  hint — Import posted the selects as they stood, so a column changed and
+  never previewed was stored unseen. The import route now compares the
+  posted mapping with the one the preview was drawn from
+  (`map.ts:sameMapping`); when they differ it keeps the new one, stores
+  nothing and answers with the preview. The rows of an upload also wait a
+  fresh half hour when an import ends with anything but a full store
+  (`import-stash.ts:keepImport`): its warning names the preview, and an
+  import can outlast the half hour its upload had.
 - **The people filter knows names and two shapes of value, not meaning.** A
   person's name in a column called `Field7` cannot be told from a company's.
   The preview shows what each field took, and the user decides.
