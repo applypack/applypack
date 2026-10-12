@@ -3495,7 +3495,7 @@
   "import.field.none": "— not in this file —",
   "import.moreFields": "Country, arrangement, pay and closed rows",
   "import.peopleColumns": "Columns about people are not offered: they are never read.",
-  "import.firstColumnsOnly": "Only the first {n, plural, one {# column is} other {# columns are}} offered.",
+  "import.firstColumnsOnly": "Only {n, plural, one {# column is} other {# columns are}} offered: the ones named like a job's fields, then the first of the rest.",
   "import.row.noCompany": "company not named",
   "import.row.noLocation": "no location",
   "import.row.noLink": "no link",

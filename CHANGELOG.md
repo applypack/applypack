@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.58] — 2026-10-12
+
+### Fixed
+- **Headers in Ukrainian, Spanish, French and German are recognised in an
+  imported file.** A sheet headed Посада, Компанія, Посилання, Опис found
+  neither its title nor its company, and nothing could be imported until
+  every column was chosen by hand (#403, last of four).
+- **Columns about the job are no longer hidden as columns about a person.**
+  `workAuthorization` holds the word "author" and `isRecruiter` the word
+  "recruiter", so neither was offered. A permit to work, a yes/no about who
+  posted, working in person, ownership and membership are offered now; an
+  author's, recruiter's or manager's name and contact details still are not
+  (#403).
+- **A wide table is read instead of refused.** More than 200 columns used to
+  stop the import. The columns named like a job's fields are kept first,
+  then the first of the others, 200 in all; only a header past 5,000 columns
+  is refused (#403).
+- **A tab-separated file whose header contains a comma is read as tabs.** The
+  delimiter was taken from the first line alone, and a tie went to the
+  comma (#403).
+- **A posting in two cities has a location.** A schema.org `JobPosting`
+  saved as `.json` keeps its places in a list, and each place's parts in an
+  `address`: neither was read. It is now "Lisbon, Portugal; Porto,
+  Portugal" (#403).
+
 ## [2.55.57] — 2026-10-12
 
 ### Fixed
@@ -5934,6 +5959,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.58]: https://github.com/applypack/applypack/compare/v2.55.57...v2.55.58
 [2.55.57]: https://github.com/applypack/applypack/compare/v2.55.56...v2.55.57
 [2.55.56]: https://github.com/applypack/applypack/compare/v2.55.55...v2.55.56
 [2.55.55]: https://github.com/applypack/applypack/compare/v2.55.54...v2.55.55

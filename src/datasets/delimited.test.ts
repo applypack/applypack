@@ -15,6 +15,21 @@ describe('sniffDelimiter', () => {
   it('answers a comma when the line has none of them', () => {
     assert.equal(sniffDelimiter('just one column'), ',');
   });
+
+  it('reads the delimiter off the lines together, not off the header alone (#403)', () => {
+    // A TSV whose header holds one comma: the tab cuts every line in two, the comma only the first.
+    assert.equal(sniffDelimiter('Title, as posted\tLink\nBackend Developer\thttps://rows.example/a\nData Engineer\thttps://rows.example/b'), '\t');
+    // Semicolons throughout, commas in the header's names.
+    assert.equal(sniffDelimiter('Title, short;Company, legal\nA;B\nC;D'), ';');
+    // A CSV whose rows hold free commas is not regular; the header decides, as before.
+    assert.equal(sniffDelimiter('title,company,notes\nA,B,"x"\nC,D,one, two, three'), ',');
+    // Tabs inside a comma file's cells do not outvote the commas every line has.
+    assert.equal(sniffDelimiter('title,note\nA,one\ttwo\nB,three'), ',');
+    // A quoted cell that spans lines is one cell of one line.
+    assert.equal(sniffDelimiter('a;b\n"one\ntwo, three";x\ny;z'), ';');
+    // One line is all there is to go by.
+    assert.equal(sniffDelimiter('a, b\tc'), ',');
+  });
 });
 
 describe('readDelimited', () => {

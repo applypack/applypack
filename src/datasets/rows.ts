@@ -62,6 +62,27 @@ export type RowsResult = ({ ok: true } & FoundRows) | { ok: false; error: string
  * commas made every short row carry thousands of keys.
  */
 export const MAX_COLUMNS = 200;
+/**
+ * A header wider than this is refused whole: it is not a table of jobs, and
+ * every cell of it would still be read. Between the two, the columns kept
+ * are the ones a caller says it wants and then the first of the rest — a
+ * flattened export of nested tool output runs to hundreds of columns with
+ * the title among them, and refusing it left the person to cut the file by
+ * hand (#403).
+ */
+const MAX_HEADER_CELLS = 5_000;
+
+/** Which columns of a table too wide to keep whole a caller reads first: `map.ts` brings the names of a job's fields. */
+export type WantedColumn = (name: string) => boolean;
+
+/** The positions kept of a header of `names`: all of them when they fit; else the wanted ones, then the first others, in the file's order. */
+export function keptColumns(names: readonly string[], wanted: WantedColumn, max: number = MAX_COLUMNS): number[] {
+  if (names.length <= max) return names.map((_, i) => i);
+  const picked = new Set<number>();
+  for (let i = 0; i < names.length && picked.size < max; i++) if (wanted(names[i]!)) picked.add(i);
+  for (let i = 0; i < names.length && picked.size < max; i++) picked.add(i);
+  return [...picked].sort((a, b) => a - b);
+}
 
 /** Where exports keep their rows, most common first. */
 const ROW_KEYS = ['data', 'items', 'results', 'records', 'jobs'];
@@ -215,7 +236,7 @@ function headerNames(cells: readonly string[]): string[] {
 const SEPARATOR_LINE_RE = /^sep=([,;\t])\r?\n/i;
 
 /** `linesBefore`: the lines of the file above `body`, so a line is named as an editor numbers it. `ended`: the file's last line ends in a line break. */
-function fromDelimited(body: string, page: Page, linesBefore: number, ended: boolean): RowsResult {
+function fromDelimited(body: string, page: Page, linesBefore: number, ended: boolean, wanted: WantedColumn): RowsResult {
   const hint = SEPARATOR_LINE_RE.exec(body);
   const text = hint ? body.slice(hint[0].length) : body;
   const delimiter = (hint?.[1] as Delimiter | undefined) ?? sniffDelimiter(text);
@@ -226,10 +247,11 @@ function fromDelimited(body: string, page: Page, linesBefore: number, ended: boo
   if (cutAt !== null && lines.length === 0 && (!head || head.length >= 2)) return { ok: false, error: t('datasets.rows.unclosedQuote', { line: cutAt }), why: 'unclosed-quote' };
   // One column and no delimiter anywhere is prose, not a table.
   if (!head || head.length < 2 || lines.length === 0) return noRows();
-  if (head.length > MAX_COLUMNS) return { ok: false, error: t('datasets.rows.tooManyColumns', { n: head.length, max: MAX_COLUMNS }) };
+  if (head.length > MAX_HEADER_CELLS) return { ok: false, error: t('datasets.rows.tooManyColumns', { n: head.length, max: MAX_HEADER_CELLS }) };
   const names = headerNames(head);
+  const kept = keptColumns(names, wanted);
   // A row keeps the cells it has: a short row is not padded out to the header's width.
-  const rows = lines.slice(page.from, page.from + page.max).map((cells) => Object.fromEntries(cells.slice(0, names.length).map((cell, i) => [names[i]!, cell])));
+  const rows = lines.slice(page.from, page.from + page.max).map((cells) => Object.fromEntries(kept.filter((i) => i < cells.length).map((i) => [names[i]!, cells[i]!])));
   // A row with a quote left open is gone already; what is left of the table ends where its rows do.
   const openRow = !ended && cutAt === null;
   return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - page.from - rows.length), total: lines.length, notRows: 0, cutAt, openRow, single: false };
@@ -252,7 +274,7 @@ const JSON_OPENING_RE = /^[[{]\s*(?:[[{"\]}]|$)/;
  * none, any one list of objects is the rows. Callers that read jobs go
  * through `map.ts:findJobRows`, which brings it.
  */
-export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0, reads: PostingFields = () => 0): RowsResult {
+export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0, reads: PostingFields = () => 0, wanted: WantedColumn = () => false): RowsResult {
   const page: Page = { from, max: maxRows };
   const unmarked = body.startsWith(BOM) ? body.slice(1) : body;
   const blank = LEADING_BLANK_LINES_RE.exec(unmarked)?.[0] ?? '';
@@ -264,7 +286,7 @@ export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0, rea
   const linesBefore = blank.split('\n').length - 1;
   // Blanks after the last line break are no line of their own.
   const ended = /[\r\n][ \t]*$/.test(unmarked);
-  if (opening[0] !== '[' && opening[0] !== '{') return fromDelimited(text, page, linesBefore, ended);
+  if (opening[0] !== '[' && opening[0] !== '{') return fromDelimited(text, page, linesBefore, ended, wanted);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -274,7 +296,7 @@ export function findRows(body: string, maxRows: number = MAX_ROWS, from = 0, rea
     if (lines.ok) return lines;
     // JSON that stops short or is damaged is said to be that: read as a table it gave columns named `[{"title":"a"` (#394).
     if (JSON_OPENING_RE.test(opening)) return { ok: false, error: t('datasets.rows.brokenJson'), why: 'broken-json' };
-    return fromDelimited(text, page, linesBefore, ended);
+    return fromDelimited(text, page, linesBefore, ended, wanted);
   }
   return fromJson(parsed, page, reads);
 }

@@ -10,17 +10,44 @@ const DELIMITERS = [',', ';', '\t'] as const;
 
 export type Delimiter = (typeof DELIMITERS)[number];
 
-/** The delimiter the first line uses most outside quotes; a comma when it uses none. */
+/** How many lines the delimiter is read off. */
+const SNIFF_LINES = 10;
+
+/**
+ * The delimiter of a table: the one that cuts every one of its first lines
+ * into the same number of cells, and of those the one that makes the most.
+ * When none is that regular, the one the first line uses most; a comma when
+ * it uses none. The first line alone used to decide, a tie going to the
+ * comma — so a TSV whose header holds one comma ("Title, as posted") was
+ * read as a CSV of that header's two halves (#403). Quoted text is skipped.
+ */
 export function sniffDelimiter(text: string): Delimiter {
-  const counts = new Map<Delimiter, number>(DELIMITERS.map((d) => [d, 0]));
+  const lines: Map<Delimiter, number>[] = [];
+  let counts = new Map<Delimiter, number>(DELIMITERS.map((d) => [d, 0]));
   let quoted = false;
+  let seen = false;
+  const endLine = (): void => {
+    if (seen) lines.push(counts);
+    counts = new Map<Delimiter, number>(DELIMITERS.map((d) => [d, 0]));
+    seen = false;
+  };
   for (const ch of text) {
     if (ch === '"') quoted = !quoted;
-    else if (!quoted && (ch === '\n' || ch === '\r')) break;
-    else if (!quoted && counts.has(ch as Delimiter)) counts.set(ch as Delimiter, counts.get(ch as Delimiter)! + 1);
+    else if (!quoted && (ch === '\n' || ch === '\r')) {
+      endLine();
+      if (lines.length >= SNIFF_LINES) break;
+      continue;
+    } else if (!quoted && counts.has(ch as Delimiter)) counts.set(ch as Delimiter, counts.get(ch as Delimiter)! + 1);
+    seen = true;
   }
+  if (!quoted && lines.length < SNIFF_LINES) endLine();
+  const first = lines[0];
+  if (!first) return ',';
   let best: Delimiter = ',';
-  for (const d of DELIMITERS) if (counts.get(d)! > counts.get(best)!) best = d;
+  for (const d of DELIMITERS) if (first.get(d)! > first.get(best)!) best = d;
+  // With two lines or more, a delimiter every line uses equally often outranks one the header merely contains.
+  const regular = lines.length < 2 ? [] : DELIMITERS.filter((d) => first.get(d)! > 0 && lines.every((line) => line.get(d) === first.get(d)));
+  if (regular.length > 0 && !regular.includes(best)) best = regular.reduce((a, b) => (first.get(b)! > first.get(a)! ? b : a));
   return best;
 }
 

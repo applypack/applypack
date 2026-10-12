@@ -3495,7 +3495,7 @@
   "import.field.none": "— no está en este archivo —",
   "import.moreFields": "País, modalidad, salario y filas cerradas",
   "import.peopleColumns": "No se ofrecen las columnas sobre personas: nunca se leen.",
-  "import.firstColumnsOnly": "Solo se {n, plural, one {ofrece la primera columna} many {ofrecen las primeras # de columnas} other {ofrecen las primeras # columnas}}.",
+  "import.firstColumnsOnly": "Solo se {n, plural, one {ofrece # columna} many {ofrecen # de columnas} other {ofrecen # columnas}}: primero las que se llaman como los campos de una oferta, después las primeras del resto.",
   "import.row.noCompany": "empresa sin nombre",
   "import.row.noLocation": "sin ubicación",
   "import.row.noLink": "sin enlace",
