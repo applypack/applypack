@@ -500,6 +500,24 @@ describe('readDate', () => {
     assert.equal(iso('1759132800000'), '2025-09-29T08:00:00.000Z');
   });
 
+  it('reads a zone written after a space, as a database prints it (#403)', () => {
+    assert.equal(iso('2026-09-28 10:00:00 +02:00'), '2026-09-28T08:00:00.000Z');
+    assert.equal(iso('2026-09-28 10:00 +0200'), '2026-09-28T08:00:00.000Z');
+    assert.equal(iso('2026-09-28 10:00:00 Z'), '2026-09-28T10:00:00.000Z');
+    assert.equal(iso('2026-09-28T10:00:00.250 -05:00'), '2026-09-28T15:00:00.250Z');
+  });
+
+  it('reads a written date only when it is a date and nothing else (#403)', () => {
+    assert.equal(iso('May 5, 2026'), '2026-05-05T00:00:00.000Z');
+    assert.equal(iso('5 May 2026'), '2026-05-05T00:00:00.000Z');
+    assert.equal(iso('May 5th, 2026'), '2026-05-05T00:00:00.000Z');
+    assert.equal(iso('Tuesday, 5 May 2026 at 10:00 UTC'), '2026-05-05T10:00:00.000Z');
+    // A month's name and a year inside a sentence: Date.parse read the first as 1 May 2026.
+    for (const value of ['You may apply 2026', 'Positions may close in 2026', 'March of progress 2025', 'Open until Dec 2026', 'Posted in March 2026 by the team']) {
+      assert.equal(iso(value), null, value);
+    }
+  });
+
   it('refuses words, a month with no year, a day/month order it would have to guess, and dates out of range', () => {
     for (const value of ['2 days ago', 'yesterday', 'March 5', '05/06/2026', '5.6.2026', 'soon', '', null, 42, true, '1998-01-01', '2031-01-01', 'decade 2020', 'marching on in 2024', `2026-09-28 ${'x'.repeat(100)}`]) {
       assert.equal(iso(value), null, String(value));
@@ -644,8 +662,30 @@ describe('mapRow: pay as numbers', () => {
 
   it('takes a number as the number it is, and nothing from a cell that is not one', () => {
     assert.equal(line({ min: 65.125, max: 80000 }), 'Salary: 65.13-80000.');
-    assert.equal(line({ min: '$50k', max: 'DOE' }), 'No description came with this row — the full posting is behind the link.');
+    assert.equal(line({ min: 'DOE', max: 'competitive' }), 'No description came with this row — the full posting is behind the link.');
     assert.equal(line({ min: 0, max: '-5' }), 'No description came with this row — the full posting is behind the link.');
+    // A range in one cell, a rate with its unit, a word of three letters that is no currency: not one amount.
+    assert.equal(line({ min: '90-120k' }), 'No description came with this row — the full posting is behind the link.');
+    assert.equal(line({ min: '45/hour' }), 'No description came with this row — the full posting is behind the link.');
+    assert.equal(line({ min: '90000 net' }), 'No description came with this row — the full posting is behind the link.');
+  });
+
+  it('reads pay as people write it: a sign or a code around the digits, k for thousands (#403)', () => {
+    // "$" names several currencies: it is kept as written, never turned into a code.
+    assert.equal(line({ min: '$90,000', max: '$120,000' }), 'Salary: $90000-$120000.');
+    assert.equal(line({ min: '90k', max: '120k' }), 'Salary: 90000-120000.');
+    assert.equal(line({ min: '$50k', max: 'DOE' }), 'Salary: $50000.');
+    assert.equal(line({ min: '1.5k', max: '2,5K' }), 'Salary: 1500-2500.');
+    // A sign only one currency uses, or a code, is that currency.
+    assert.equal(line({ min: '€65.000', max: '€80.000' }), 'Salary: 65000-80000 EUR.');
+    assert.equal(line({ min: '£45 000' }), 'Salary: 45000 GBP.');
+    assert.equal(line({ min: '65000 EUR', max: '80000 EUR', per: 'year' }), 'Salary: 65000-80000 EUR (year).');
+    assert.equal(line({ min: 'USD 90k', max: '120k usd' }), 'Salary: 90000-120000 USD.');
+    assert.equal(line({ min: '25 000 zł', max: '30 000 zł', per: 'month' }), 'Salary: 25000-30000 PLN (month).');
+    assert.equal(line({ min: '1.2m', cur: 'JPY' }), 'Salary: 1200000 JPY.');
+    assert.equal(line({ min: '100 MXN' }), 'Salary: 100 MXN.');
+    // The currency column wins over what a cell says.
+    assert.equal(line({ min: '$90,000', cur: 'cad' }), 'Salary: 90000 CAD.');
   });
 });
 

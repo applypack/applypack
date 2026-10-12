@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.56] — 2026-10-12
+
+### Fixed
+- **Pay written the way people write it is read from an imported row.**
+  `$90,000`, `90k`, `€65.000`, `£45 000` and `65000 EUR` in the "pay from"
+  and "pay to" columns were read as nothing, so the row carried no pay and a
+  search's minimum never saw it. They are amounts now; `€`, `£`, `₴`, `₹`,
+  `₪`, `zł` and a currency code name the currency, and `$` stays `$` (#403,
+  second of four).
+- **Two dates an imported row can state.** `2026-10-05 10:00:00 +02:00` — a
+  zone after a space, as a database prints it — was not read, and the row
+  took the import's time. And "You may apply 2026" was read as 1 May 2026: a
+  month's name with a year is a date only when the cell holds nothing else
+  (#403).
+
 ## [2.55.55] — 2026-10-12
 
 ### Fixed
@@ -5902,6 +5917,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.56]: https://github.com/applypack/applypack/compare/v2.55.55...v2.55.56
 [2.55.55]: https://github.com/applypack/applypack/compare/v2.55.54...v2.55.55
 [2.55.54]: https://github.com/applypack/applypack/compare/v2.55.53...v2.55.54
 [2.55.53]: https://github.com/applypack/applypack/compare/v2.55.52...v2.55.53
