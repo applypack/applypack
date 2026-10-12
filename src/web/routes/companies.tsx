@@ -44,6 +44,7 @@ import { config } from '../../config';
 import { inboxRoots } from '../../datasets/folder-path';
 import { readSourceConfig } from '../../datasets/map';
 import { folderSummaries } from '../../jobs/source-file-store';
+import { foldersReadOnceHint } from '../folder-words-io';
 import { localInstall } from '../../local/install';
 
 const NewCompanySchema = z.object({
@@ -239,7 +240,8 @@ companiesRoute.post('/companies/mutes/delete', async (c) => {
   const back = safeBack(body.back, '/companies#muted');
   const mute = typeof body.key === 'string' ? await findMute(body.key) : null;
   if (!mute || !(await unmuteEmployer(mute.key))) return flashRedirect(back, 'err', t('mute.flash.notMuted'));
-  return flashRedirect(back, 'ok', t('mute.flash.unmuted', { name: mute.name }));
+  // "The next search reads its postings again" is true of a feed and not of a file of rows, which was read once (#448).
+  return flashRedirect(back, 'ok', [t('mute.flash.unmuted', { name: mute.name }), await foldersReadOnceHint()].filter(Boolean).join(' '));
 });
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;

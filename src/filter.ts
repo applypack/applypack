@@ -25,6 +25,19 @@ export interface FilterProfile {
 }
 
 /**
+ * Whether two versions of a search admit different postings before any
+ * model is asked: one of the fields the base filter reads differs. The order
+ * and the case of a list do not matter to the filter, so they do not here.
+ * A saved search that changed only its notes, its thresholds or its resume
+ * turns the same postings away as it did (#448).
+ */
+export function filterChanged(before: FilterProfile, after: FilterProfile): boolean {
+  const key = (list: readonly string[]): string => [...new Set(list.map((v) => v.trim().toLowerCase()))].sort().join('\n');
+  const fields = ['stackRequired', 'roleTypes', 'stackExclude', 'countries', 'regions', 'workplace', 'onsiteCities'] as const satisfies readonly (keyof FilterProfile)[];
+  return fields.some((field) => key(before[field]) !== key(after[field]));
+}
+
+/**
  * ADR 0028: with several searches running, a posting is admitted when ANY of
  * them admits it — a plain union, and free, because the gate is pure string
  * work. `passesBaseFilter` stays single-profile on purpose: the per-search

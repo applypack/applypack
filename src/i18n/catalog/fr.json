@@ -3592,6 +3592,7 @@
   "folders.col.changed": "Modifié",
   "folders.files.reread": "Relire tous les fichiers",
   "folders.files.rereadHint": "Un fichier est lu une fois. Une ligne qu'une recherche ou une entreprise masquée a écartée à ce moment-là n'est pas réexaminée quand vous modifiez la recherche ou cessez de masquer l'entreprise, tant que son fichier n'est pas relu. Les lignes déjà enregistrées sont ignorées, sans coût ; celles que vos recherches acceptent maintenant sont évaluées comme toute nouvelle ligne.",
+  "folders.flash.readOnce": "{n, plural, one {# dossier de lignes a été lu} many {# de dossiers de lignes ont été lus} other {# dossiers de lignes ont été lus}} avant ce changement, et un fichier est lu une fois. Pour que ces lignes soient réexaminées : Entreprises → Dossiers sur cet ordinateur → Fichiers → Relire tous les fichiers.",
   "folders.flash.typePath": "Saisissez le chemin complet du dossier, depuis la racine du disque ou depuis ~ pour votre dossier personnel.",
   "folders.preview.couldNotRead": "Il n'a pas pu être lu pour le moment.",
   "folders.flash.nothingAdded": "Rien n'a été ajouté.",
