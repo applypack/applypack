@@ -115,7 +115,16 @@ Before a line of the feature was written, the pipeline was run dry over those
    quarter of an hour under a line saying "the worker starts it within a
    minute". The runner now takes a pack somebody asked for before the ones
    the tick queued, the oldest first among each
-   (`pack/store.ts:claimNextPack`). Rows written before
+   (`pack/store.ts:claimNextPack`).
+   *Amended 2026-10-12 (v2.55.50, #387).* A pack that is still queued can
+   be taken out by the person (**Cancel** on its tab,
+   `pack/store.ts:cancelQueuedPack`): the row is deleted, nothing was
+   prepared, and an automatic one gives its slot of the day back. The
+   delete lands only on a queued row; once the runner has it, Cancel says
+   so and changes nothing. The tab also says what a pack spends before the
+   press: the number of calls, and the kind of money of the engine that
+   answers the analysis — no figure, since a pack's calls are filed under
+   the features it reuses. Rows written before
    this cannot be told apart from packs nobody pressed and are left as they
    are: one such pack may still be announced once.
 4. **The worker calls the resume module.** A pack is the chain of calls the
