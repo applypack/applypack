@@ -49,7 +49,13 @@ export function summarizeImport(stats: CronStats, fileName: string, source: stri
     return { kind: 'warn', text: say(t('import.summary.pausedMidRun', head), ...tail, t('import.summary.importRest')) };
   }
   const failed = num(stats, 'classifyFailed');
-  const scored = say(t('import.summary.scored', { ...head, scored: num(stats, 'classified'), alerted: num(stats, 'alerted') }), ...tail);
+  // What became of the matches (#402): listed in the one message, counted in it, or stored quietly.
+  const alerted = num(stats, 'alerted');
+  const sent = [
+    num(stats, 'alertCounted') > 0 ? t('import.summary.counted', { listed: alerted, n: num(stats, 'alertCounted') }) : null,
+    num(stats, 'alertSourceOff') > 0 ? t('import.summary.quiet', { n: num(stats, 'alertSourceOff') }) : null,
+  ];
+  const scored = say(t('import.summary.scored', { ...head, scored: num(stats, 'classified'), alerted }), ...sent, ...tail);
   if (failed > 0) return { kind: 'warn', text: say(scored, t('import.summary.failed', { n: failed })) };
   return { kind: 'ok', text: scored };
 }

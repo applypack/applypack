@@ -731,11 +731,16 @@ stops short is refused as cut off, never read as a table.
    are a job (the others by reason: no title, neither an id nor a link,
    marked closed, a repeat), rows the source already holds, and new rows the
    running searches' base filter admits. That last number is the AI calls an
-   import would make.
+   import would make, and the most matches it could bring: the page says
+   they arrive as one message a chat, how many application packs the rows
+   could get at most, and offers the **Alerts** choice — "No alerts" by
+   default for more than 20 new rows (#402).
 2. **Import.** The rows become jobs of an inactive `Company` with
    `atsType = IMPORT` (one per source name; the confirmed mapping is kept in
    `sourceConfig`) through `processNormalizedJobs`: filter, mute, dedupe,
-   classify, persist, alert. It shares the fetch lock with the tick, is
+   classify, persist — and one grouped alert when it ends instead of one a
+   match (`groupAlerts`, then `deliverHeldAlerts` for that source; nothing
+   at all with "No alerts"). It shares the fetch lock with the tick, is
    recorded as an `import` run, and stores the rows unscored while fetching
    is paused. A newer export into the same source adds only what is new.
 

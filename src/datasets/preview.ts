@@ -7,7 +7,10 @@
 
 import { anyBaseFilterReason, type FilterProfile } from '../filter';
 import { parseLocation } from '../location';
+import type { PackSettings } from '../pack/settings';
+import { autoPack } from '../pack/trigger';
 import type { NormalizedJob } from '../types';
+import type { FolderAlerts } from './map';
 
 export interface PreviewCounts {
   /** Rows that map to a job. */
@@ -36,6 +39,48 @@ export function previewCounts(
   const admitted = fresh.filter((job) => anyBaseFilterReason({ ...job, ...parseLocation(job.location, job.locationHints) }, profiles) === null);
   const turnedAway = admitted.filter(turnsAway).length;
   return { usable: jobs.length, stored: jobs.length - fresh.length, turnedAway, passing: admitted.length - turnedAway };
+}
+
+/** The rows `PreviewCounts.passing` counts: new, admitted by a running search, at a company nothing turns away. */
+export function passingRows(
+  jobs: readonly NormalizedJob[],
+  profiles: readonly FilterProfile[],
+  storedIds: ReadonlySet<string>,
+  turnsAway: (job: NormalizedJob) => boolean = () => false,
+): NormalizedJob[] {
+  return jobs.filter(
+    (job) =>
+      !storedIds.has(job.externalId) &&
+      anyBaseFilterReason({ ...job, ...parseLocation(job.location, job.locationHints) }, profiles) === null &&
+      !turnsAway(job),
+  );
+}
+
+/**
+ * More new rows than this and an import is offered with no alerts (#402): a
+ * file that size is a backlog brought in, not news. The person may still ask
+ * for the message; then it is one message a chat, never one a match.
+ */
+export const QUIET_ABOVE = 20;
+
+/** What the Alerts choice shows before the person touches it. */
+export function defaultImportAlerts(passing: number): FolderAlerts {
+  return passing > QUIET_ABOVE ? 'off' : 'matches';
+}
+
+/**
+ * How many of the rows that would be stored could get an application pack
+ * on their own: the ones the trigger would queue if they scored at the
+ * threshold (pack/trigger.ts — switched on, a recent date the file itself
+ * gave), under what is left of the day's limit. An upper bound: how they
+ * score is not known before the import.
+ */
+export function packsUpTo(rows: readonly NormalizedJob[], settings: PackSettings, queuedToday: number, now: Date): number {
+  if (!settings.enabled) return 0;
+  const eligible = rows.filter(
+    (job) => autoPack({ settings, fit: settings.minFit, postedAt: job.postedAt, dated: job.undated !== true, now, queuedToday: 0 }) === 'queue',
+  ).length;
+  return settings.dailyLimit > 0 ? Math.min(eligible, Math.max(0, settings.dailyLimit - queuedToday)) : eligible;
 }
 
 /** Why an import is not offered. */

@@ -159,6 +159,12 @@ export interface ProcessOptions {
    */
   schedule?: Schedule;
   /**
+   * true = no match is sent on the spot: each is held, and the caller sends
+   * the run's matches as one grouped message (alert-delivery.ts). An import
+   * asks for it — a file of rows is one event, not three hundred (#402).
+   */
+  groupAlerts?: boolean;
+  /**
    * Filled with the source (`companyId`) of every posting that passed the
    * filter and was not stored because no verdict came for it: what
    * `classifyFailed` counts, by where it came from. A folder not named here
@@ -181,7 +187,7 @@ export async function processNormalizedJobs(
   stats: ProcessStats,
   opts: ProcessOptions,
 ): Promise<void> {
-  const { classifierMode, classify = true, isCancelled, schedule } = opts;
+  const { classifierMode, classify = true, isCancelled, schedule, groupAlerts = false } = opts;
   const mayAlert = schedule === undefined || canAlertNow(new Date(), schedule);
 
   // Issue #50: a search with no required stack and no role types has nothing
@@ -410,7 +416,7 @@ export async function processNormalizedJobs(
     // DATA-3).
     const skipsAlert =
       finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
-    const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off');
+    const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off' || groupAlerts);
     const alertHeldAt = holds ? new Date() : null;
     const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {
       verdicts,

@@ -52,6 +52,7 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'alertFailed', words: 'runs.fact.alertFailed' },
   { key: 'alertNoTarget', words: 'runs.fact.alertNoTarget' },
   { key: 'alertSourceOff', words: 'runs.fact.alertSourceOff' },
+  { key: 'alertCounted', words: 'runs.fact.alertCounted' },
   { key: 'sourcesFailed', words: 'runs.fact.sourcesFailed' },
   // Bare words a second job could reuse for something else: worded for the job that writes them.
   { key: 'found', job: 'stale-applications', words: 'runs.fact.staleFound', always: true },

@@ -13,6 +13,7 @@ const fields = (fileName: string) => ({
   source: { id: null, name: 'Test source' },
   mapping: emptyMapping(),
   guessed: [],
+  alerts: null,
 });
 
 test('a stashed upload is found by its id until it is dropped', () => {
