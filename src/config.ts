@@ -83,6 +83,9 @@ export type Config = z.infer<typeof ConfigSchema>;
  * one was ever created (ADR 0054). Written into process.env, not only into
  * the config, because the Prisma CLI that init.ts runs reads it from there.
  */
+/** Whether the URL below came from a local install's data folder rather than from the environment. */
+let foundBuiltInDatabase = false;
+
 function useBuiltInDatabaseWhenUnset(): void {
   if (process.env.DATABASE_URL?.trim()) return;
   let state: string | null = null;
@@ -92,7 +95,9 @@ function useBuiltInDatabaseWhenUnset(): void {
     // never created: the schema below reports the missing URL
   }
   const url = resolveDatabaseUrl(undefined, state);
-  if (url) process.env.DATABASE_URL = url;
+  if (!url) return;
+  process.env.DATABASE_URL = url;
+  foundBuiltInDatabase = true;
 }
 
 function loadConfig(): Config {
@@ -108,3 +113,11 @@ function loadConfig(): Config {
 }
 
 export const config: Config = loadConfig();
+
+/**
+ * True for a process of a local install that the launcher did not start: it
+ * was given no database and found the built-in one through `db.json`. The
+ * launcher's own children are handed the URL and say so over IPC instead
+ * (`local/child.ts:underLauncher`); `local/install.ts` asks both.
+ */
+export const usesBuiltInDatabase: boolean = foundBuiltInDatabase;

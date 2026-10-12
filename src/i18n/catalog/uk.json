@@ -3652,7 +3652,7 @@
   "datasets.folder.notInRoots": "Ця тека не лежить усередині теки, названої в {env}.",
   "datasets.folder.outsideHome": "Виберіть теку всередині вашої домашньої теки або назвіть інше місце в {env}.",
   "datasets.folder.hidden": "Прихована тека (з назвою, що починається з крапки) не читається.",
-  "datasets.folder.system": "Системні теки (Library, AppData) не читаються.",
+  "datasets.folder.system": "Системні теки (Library, AppData) не читаються. На Mac там лежать і хмарні диски (Library/CloudStorage, Library/Mobile Documents): щоб читати теку з такого диска, назвіть її в {env}.",
   "datasets.folder.dataDir": "Там ApplyPack зберігає власну базу даних, і вона не читається як джерело.",
   "datasets.folder.missing": "За шляхом {path} теки немає.",
   "datasets.folder.refused": "Система не дозволила ApplyPack прочитати {path} ({code}).",

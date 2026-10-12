@@ -3652,7 +3652,7 @@
   "datasets.folder.notInRoots": "This folder is not inside a folder named in {env}.",
   "datasets.folder.outsideHome": "Choose a folder inside your home folder, or name another place in {env}.",
   "datasets.folder.hidden": "A hidden folder (a name that starts with a dot) is not read.",
-  "datasets.folder.system": "The system’s own folders (Library, AppData) are not read.",
+  "datasets.folder.system": "The system’s own folders (Library, AppData) are not read. On a Mac a cloud drive lives there (Library/CloudStorage, Library/Mobile Documents): to read a folder in one, name it in {env}.",
   "datasets.folder.dataDir": "That is where ApplyPack keeps its own database, which is not read as a source.",
   "datasets.folder.missing": "There is no folder at {path}.",
   "datasets.folder.refused": "The system did not let ApplyPack read {path} ({code}).",

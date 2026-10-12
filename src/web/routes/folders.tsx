@@ -45,7 +45,7 @@ import { prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
 import { folderSummaries, listSourceFiles, loadLedger, misfitsWaitAgain, readFilesAgain } from '../../jobs/source-file-store';
-import { underLauncher } from '../../local/child';
+import { localInstall } from '../../local/install';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
@@ -86,10 +86,10 @@ async function resolveFolder(typed: string): Promise<{ root: string } | { error:
   if (asked === null) return { error: t('folders.flash.typePath') };
   try {
     const root = await realFolder(asked);
-    const allowed = folderAllowed(root, await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS));
+    const allowed = folderAllowed(root, await currentFolderRules(localInstall(), config.APPLYPACK_INBOX_ROOTS));
     return allowed.ok ? { root } : { error: allowed.reason };
   } catch (err) {
-    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !underLauncher()) };
+    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !localInstall()) };
     throw err;
   }
 }
@@ -136,7 +136,7 @@ async function previewFolder(root: string, form: Record<string, unknown>): Promi
   try {
     listing = await listFolder(root);
   } catch (err) {
-    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !underLauncher()) };
+    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !localInstall()) };
     throw err;
   }
   const existing = await prisma.company.findUnique({
@@ -309,7 +309,7 @@ foldersRoute.post('/companies/folder/check', async (c) => {
 
 /** A local install only: an empty folder of ApplyPack's own in the home directory, then its check. */
 foldersRoute.post('/companies/folder/inbox', async (c) => {
-  if (!underLauncher()) {
+  if (!localInstall()) {
     return flashRedirect(BACK, 'err', t('folders.flash.inboxServer'));
   }
   let inbox: string;

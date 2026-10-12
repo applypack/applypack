@@ -204,6 +204,17 @@ dashboard. `datasets/folder-path.ts` bounds it, on real paths:
 - Anywhere else only a folder inside a root named in `APPLYPACK_INBOX_ROOTS`,
   which whoever runs the machine sets in the environment, never in the
   browser. In Docker that is one read-only mount into both services.
+- *Amended 2026-10-12 (v2.55.48, #398).* "Under the launcher" was asked of
+  the process's IPC channel alone, so a fetch run on a local install from
+  anything but the launcher — `node dist/scripts/fetch-once.js`, a dev
+  watcher — took the machine for a server, refused a folder under the home
+  directory and added to its failure streak. A process that found its
+  database through the install's own data folder (`db.json`) is that
+  install too (`local/install.ts:localInstall`), and the same rule applies
+  to it. A server is given its database in the environment and is not. And
+  the refusal for the system's own folders now names the way out: a cloud
+  drive lives under `~/Library` on a Mac, and a synced folder named in
+  `APPLYPACK_INBOX_ROOTS` is read like any other root.
 - The rules are asked again on every look, not only when the row is added.
 - The path is typed. A browser cannot hand a server a folder, and the form
   does not pretend it can.

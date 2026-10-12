@@ -45,6 +45,18 @@ describe('folderAllowed on a local install', () => {
     assert.equal(allowed('/Users/sam/Documents/Library', local), true);
   });
 
+  it('says how a cloud drive under Library can be read, and reads it once it is named (#398)', () => {
+    // iCloud Drive, Dropbox, Google Drive and OneDrive live there on a Mac; the refusal used to give no way out.
+    const drive = '/Users/sam/Library/CloudStorage/Dropbox/job-exports';
+    const verdict = folderAllowed(drive, local, posix);
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.ok ? '' : verdict.reason, /Library\/CloudStorage.*name it in APPLYPACK_INBOX_ROOTS\.$/);
+    assert.equal(allowed(drive, { ...local, roots: [drive] }), true);
+    assert.equal(allowed(`${drive}/2026`, { ...local, roots: [drive] }), true);
+    // Naming one synced folder opens that folder, not the rest of Library.
+    assert.equal(allowed('/Users/sam/Library/Mail', { ...local, roots: [drive] }), false);
+  });
+
   it('refuses the data folder, a folder inside it and a folder that holds it', () => {
     const moved: FolderRules = { ...local, dataDir: '/Users/sam/apps/applypack-data' };
     assert.equal(allowed('/Users/sam/apps/applypack-data', moved), false);

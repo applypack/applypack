@@ -3652,7 +3652,7 @@
   "datasets.folder.notInRoots": "Esta carpeta no está dentro de ninguna carpeta indicada en {env}.",
   "datasets.folder.outsideHome": "Elige una carpeta dentro de tu carpeta personal, o indica otro lugar en {env}.",
   "datasets.folder.hidden": "Una carpeta oculta (cuyo nombre empieza por un punto) no se lee.",
-  "datasets.folder.system": "Las carpetas propias del sistema (Library, AppData) no se leen.",
+  "datasets.folder.system": "Las carpetas propias del sistema (Library, AppData) no se leen. En un Mac las unidades en la nube están ahí (Library/CloudStorage, Library/Mobile Documents): para leer una carpeta de una de ellas, indícala en {env}.",
   "datasets.folder.dataDir": "Ahí guarda ApplyPack su propia base de datos, que no se lee como fuente.",
   "datasets.folder.missing": "No hay ninguna carpeta en {path}.",
   "datasets.folder.refused": "El sistema no permitió a ApplyPack leer {path} ({code}).",

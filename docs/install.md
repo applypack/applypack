@@ -107,7 +107,12 @@ or `Copy-Item .env.example .env` in PowerShell) and set:
 - `DATABASE_URL=postgresql://…` — to use a PostgreSQL 16 of your own; the
   built-in database is then never started.
 - `APPLYPACK_INBOX_ROOTS=/path/one:/path/two` — folders ApplyPack may read
-  job files from when they are outside your home folder (an external disk).
+  job files from when they are outside your home folder (an external disk),
+  or inside it in a place it does not read by itself. On a Mac that is where
+  a cloud drive lives: iCloud Drive, Dropbox, Google Drive and OneDrive sit
+  under `~/Library/CloudStorage` or `~/Library/Mobile Documents`, and
+  `~/Library` is otherwise left alone. Name the synced folder itself, by
+  its full path: `/Users/you/Library/CloudStorage/Dropbox/job-exports`.
   Several are separated the way your system separates paths: `:` on macOS
   and Linux, `;` on Windows (`D:\jobs;E:\exports`). A folder inside your
   home folder needs no entry. See

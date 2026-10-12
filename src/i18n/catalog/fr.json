@@ -3652,7 +3652,7 @@
   "datasets.folder.notInRoots": "Ce dossier ne se trouve dans aucun dossier indiqué dans {env}.",
   "datasets.folder.outsideHome": "Choisissez un dossier dans votre dossier personnel, ou indiquez un autre emplacement dans {env}.",
   "datasets.folder.hidden": "Un dossier caché (dont le nom commence par un point) n'est pas lu.",
-  "datasets.folder.system": "Les dossiers propres au système (Library, AppData) ne sont pas lus.",
+  "datasets.folder.system": "Les dossiers propres au système (Library, AppData) ne sont pas lus. Sur un Mac, les lecteurs cloud s'y trouvent (Library/CloudStorage, Library/Mobile Documents) : pour lire un dossier de l'un d'eux, indiquez-le dans {env}.",
   "datasets.folder.dataDir": "C'est là qu'ApplyPack garde sa propre base de données, qui n'est pas lue comme source.",
   "datasets.folder.missing": "Il n'y a aucun dossier à l'emplacement {path}.",
   "datasets.folder.refused": "Le système n'a pas laissé ApplyPack lire {path} ({code}).",
