@@ -918,6 +918,21 @@ async function importChecks(): Promise<Check[]> {
     crafted,
     crafted.status === 303 && crafted.headers.get('location') === preview && (await prisma.company.count({ where: { atsType: 'IMPORT' } })) === 0,
   );
+  // Import pressed with a select changed since the preview: back to the preview with the new columns kept,
+  // and nothing written — the rows are stored only as three of them were shown (#404).
+  const unseen = await app.request(preview, form({ ...IMPORT_MAPPING, description: 'Where' }));
+  const redrawn = unseen.status === 303 ? await (await app.request(preview, { headers: ORIGIN })).text() : '';
+  const descriptionSelect = /<select[^>]*name="description"[\s\S]*?<\/select>/.exec(redrawn)?.[0] ?? '';
+  check(
+    'POST /jobs/import/:token with a column changed since the preview (shown first, nothing written)',
+    preview,
+    unseen,
+    unseen.status === 303 &&
+      unseen.headers.get('location') === preview &&
+      (unseen.headers.get('set-cookie') ?? '').includes('flash=') &&
+      /<option[^>]*value="Where"[^>]*selected/.test(descriptionSelect) &&
+      (await prisma.company.count({ where: { atsType: 'IMPORT' } })) === 0,
+  );
   const mapped = await app.request(`${preview}/mapping`, form(IMPORT_MAPPING));
   check('POST /jobs/import/:token/mapping', `${preview}/mapping`, mapped, mapped.status === 303 && mapped.headers.get('location') === preview);
   const foreign = await app.request(preview, {

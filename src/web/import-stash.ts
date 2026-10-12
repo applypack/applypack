@@ -28,12 +28,23 @@ const MAX_STASHES = 4;
 const stashes = new Map<string, ImportStash>();
 
 export function stashImport(fields: Omit<ImportStash, 'id' | 'createdAt'>): ImportStash {
-  prune();
-  // The oldest goes first: a Map keeps insertion order.
-  while (stashes.size >= MAX_STASHES) stashes.delete(stashes.keys().next().value!);
+  makeRoom();
   const stash: ImportStash = { ...fields, id: randomUUID(), createdAt: Date.now() };
   stashes.set(stash.id, stash);
   return stash;
+}
+
+/**
+ * Puts a stash back for another half hour. An import can outlast the half
+ * hour its upload had, and what it ends with — rows that could not be scored,
+ * a fetch that was running — sends the person back to this preview for a
+ * second press (#404).
+ */
+export function keepImport(stash: ImportStash): void {
+  stashes.delete(stash.id);
+  makeRoom();
+  stash.createdAt = Date.now();
+  stashes.set(stash.id, stash);
 }
 
 export function getImport(id: string): ImportStash | null {
@@ -43,6 +54,12 @@ export function getImport(id: string): ImportStash | null {
 
 export function dropImport(id: string): void {
   stashes.delete(id);
+}
+
+/** Room for one more: the expired go, then the oldest — a Map keeps insertion order. */
+function makeRoom(): void {
+  prune();
+  while (stashes.size >= MAX_STASHES) stashes.delete(stashes.keys().next().value!);
 }
 
 function prune(): void {

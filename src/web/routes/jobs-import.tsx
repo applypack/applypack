@@ -11,6 +11,7 @@ import {
   mapRows,
   mappingFits,
   readSourceConfig,
+  sameMapping,
   usableMapping,
   MAPPING_FIELDS,
   type Mapping,
@@ -31,7 +32,7 @@ import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { spendHint } from '../cost-hint';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { dropImport, getImport, stashImport, type ImportStash } from '../import-stash';
+import { dropImport, getImport, keepImport, stashImport, type ImportStash } from '../import-stash';
 import { importBlockText, summarizeImport } from '../import-summary';
 import { logger } from '../../logger';
 import { JobImportPage, JobImportPreviewPage, type ImportSourceRow } from '../pages/job-import';
@@ -100,7 +101,9 @@ jobsImportRoute.post(
   async (c) => {
     const form = await c.req.parseBody();
     const file = form.file;
-    if (!(file instanceof File) || file.size === 0) return flashRedirect('/jobs/import', 'err', t('import.chooseFile'));
+    // No file chosen arrives as a nameless empty one; a named one with nothing in it was chosen, and is told so.
+    if (!(file instanceof File) || (file.size === 0 && file.name === '')) return flashRedirect('/jobs/import', 'err', t('import.chooseFile'));
+    if (file.size === 0) return flashRedirect('/jobs/import', 'err', t('import.emptyFile', { file: file.name.slice(0, MAX_FILE_NAME_CHARS) }));
     if (file.size > MAX_IMPORT_BYTES) return flashRedirect('/jobs/import', 'err', tooLarge());
 
     // An existing source by its id, else a name: the same name is the same source.
@@ -197,10 +200,15 @@ jobsImportRoute.post('/jobs/import/:token/mapping', async (c) => {
   if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
   const mapping = mappingFromForm(await c.req.parseBody(), stash);
   if (!mapping) return flashRedirect(`/jobs/import/${stash.id}`, 'err', t('import.columnNotInFile'));
-  stash.guessed = stash.guessed.filter((f) => mapping[f] === stash.mapping[f]);
-  stash.mapping = mapping;
+  keepMapping(stash, mapping);
   return c.redirect(`/jobs/import/${stash.id}`, 303);
 });
+
+/** The selects as the person set them, kept with the rows; a field they changed is no longer a guess. */
+function keepMapping(stash: ImportStash, mapping: Mapping): void {
+  stash.guessed = stash.guessed.filter((f) => mapping[f] === stash.mapping[f]);
+  stash.mapping = mapping;
+}
 
 jobsImportRoute.post('/jobs/import/:token', async (c) => {
   const token = c.req.param('token');
@@ -215,7 +223,12 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   if (!mapping || !usableMapping(mapping)) {
     return flashRedirect(back, 'err', t('import.flash.noTitle'));
   }
-  stash.mapping = mapping;
+  // Selects changed since the preview was drawn were never shown as rows, and nothing is stored before the
+  // person has seen three rows as they would be kept (ADR 0062): keep them and show that preview first (#404).
+  if (!sameMapping(mapping, stash.mapping)) {
+    keepMapping(stash, mapping);
+    return flashRedirect(back, 'warn', t('import.flash.mappingChanged'));
+  }
   // Before a source row is written: what the preview refuses, the import refuses, for the same reason —
   // a form posted anyway (an old tab, a double press) leaves nothing behind (#364).
   const { mapped, counts, scoring, searches } = await previewFacts(stash);
@@ -267,13 +280,16 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
       });
     } catch (err) {
       logger.error({ err, runId: run.id }, 'web: import run failed');
+      keepImport(stash);
       return updateRun(run.id, { stage: 'error', error: t(IMPORT_FAILED) });
     }
     if (created && (await dropEmptySource(source.id))) stash.source = { id: null, name: source.name };
     const { kind, text } = summarizeImport(stats, stash.fileName, source.name);
-    if (kind === 'err') return updateRun(run.id, { stage: 'error', error: text });
-    // Stored: the rows have done their job. Not stored (a fetch was running): they wait for the second press.
+    // Stored: the rows have done their job. Anything else sends the person back to this preview for another
+    // press, so the rows wait a fresh half hour: the import may have outlasted the one its upload had (#404).
     if (kind === 'ok') dropImport(stash.id);
+    else keepImport(stash);
+    if (kind === 'err') return updateRun(run.id, { stage: 'error', error: text });
     updateRun(run.id, { stage: 'done', resultUrl: kind === 'ok' ? '/jobs' : back, flash: text, flashKind: kind });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);

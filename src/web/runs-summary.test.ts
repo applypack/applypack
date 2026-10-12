@@ -157,10 +157,12 @@ describe('summarizeRun', () => {
     assert.deepEqual(summarizeRun('fetch', {}), []);
   });
 
-  it('reads an import in its own words: rows of a file, not a fetch', () => {
+  it('reads an import in its own words: jobs of a file, not a fetch', () => {
+    // The count is the rows that are jobs (import-job.ts): a row with no title and a repeat are not among them,
+    // so "rows read from the file" named a number the preview had called something else (#404).
     const stats = { source: 'September export', fetched: 250, persisted: 37, duplicate: 112, classified: 37, alerted: 4, filterRejected: 101, rejectedTitle: 101, durationMs: 9_000 };
-    assert.deepEqual(summarizeRun('import', stats), ['250 rows read from the file', '37 new', '112 duplicates', '37 classified', '4 alerted']);
-    assert.deepEqual(summarizeRun('import', { fetched: 1, persisted: 0 }), ['1 row read from the file', '0 new']);
+    assert.deepEqual(summarizeRun('import', stats), ['250 jobs in the file', '37 new', '112 duplicates', '37 classified', '4 alerted']);
+    assert.deepEqual(summarizeRun('import', { fetched: 1, persisted: 0 }), ['1 job in the file', '0 new']);
     assert.deepEqual(summarizeRun('import', { skipped: 1, reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
     // The shared wording stands for every other job.
     assert.equal(summarizeRun('fetch', { fetched: 250 })[0], '250 fetched');
