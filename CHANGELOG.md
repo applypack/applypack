@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.44] — 2026-10-12
+
+### Fixed
+- **Folder pages: five small things.**
+  - A refused **Check** no longer opens with "Nothing was added": Check never
+    adds anything. It says "Not checked."
+  - A saved text file, PDF or document with no title reads "No title in the
+    file"; only a saved page reads "No title on the page".
+  - On a phone the **Alerts** choices were cut ("A match sends an alert, like
+    every sour…"). They are "Alert on a match" and "No alerts", and the line
+    under them says the rest, including that a match with no alerts gets no
+    application pack.
+  - A file's name no longer breaks in the middle of a word ("page.h / tml"):
+    it breaks at a slash, a hyphen or a space first.
+  - Runs: a match from a folder whose alerts are off reads "1 not alerted:
+    its folder's alerts are off" instead of "1 alert source off".
+  - The three lines that still sent you to "the Companies table" to switch a
+    folder on name its card, where the switch is since 2.55.43 (#365).
+
 ## [2.55.43] — 2026-10-12
 
 ### Fixed
@@ -5717,6 +5736,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.44]: https://github.com/applypack/applypack/compare/v2.55.43...v2.55.44
 [2.55.43]: https://github.com/applypack/applypack/compare/v2.55.42...v2.55.43
 [2.55.42]: https://github.com/applypack/applypack/compare/v2.55.41...v2.55.42
 [2.55.41]: https://github.com/applypack/applypack/compare/v2.55.40...v2.55.41

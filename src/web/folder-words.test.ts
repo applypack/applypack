@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { explainFolderFault, fileLine, folderCheckLine, folderLine, folderTrouble } from './folder-words';
+import { explainFolderFault, fileLine, folderCheckLine, folderLine, folderTrouble, untitledLine } from './folder-words';
 
 const at = new Date('2026-10-05T12:00:00Z');
 
@@ -80,4 +80,9 @@ test('folderTrouble: a folder whose last check failed says so, in the folder’s
   assert.deepEqual(folderTrouble('network', 0), { label: 'Unreachable', tone: 'warn', title: 'Unreachable' });
   // Healthy, or never checked: the card has nothing to add.
   for (const status of ['ok', 'empty', 'not_modified', null]) assert.equal(folderTrouble(status, 0), null, String(status));
+});
+
+test('untitledLine: a page has no title on it, a file that is no page has none in it (#365)', () => {
+  for (const name of ['page.html', 'saved/page.HTM', 'article.mhtml', 'clip.webarchive']) assert.equal(untitledLine(name), 'No title on the page', name);
+  for (const name of ['notes.txt', 'posting.md', 'role.pdf', 'role.docx']) assert.equal(untitledLine(name), 'No title in the file', name);
 });

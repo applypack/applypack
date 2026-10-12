@@ -11,7 +11,7 @@ import { formatList, formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import type { NormalizedJob } from '../../types';
 import type { FlashMessage } from '../flash';
-import { fileLine, folderLine, folderTrouble } from '../folder-words';
+import { fileLine, folderLine, folderTrouble, untitledLine } from '../folder-words';
 import { Layout } from '../layout';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, Code, Empty, Field, Flash, Hint, Input, More, Notice, PageHeader, Radio, SectionTitle, Select, Table, Td, Tr, When } from '../ui';
@@ -398,21 +398,21 @@ const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, ex
               {newest.map((f) => (
                 <Tr>
                   <Td class="max-w-[16rem] font-mono text-meta text-ink">
-                    <div class="break-all">{f.relPath}</div>
+                    <div class="[overflow-wrap:anywhere]">{f.relPath}</div>
                   </Td>
                   <Td class="text-note">
                     {f.why !== null ? (
                       <span class="text-ink-muted">{f.why}</span>
                     ) : (
                       <>
-                        <span class="text-ink">{f.title ?? t('folders.postings.noTitle')}</span>
+                        <span class="text-ink">{f.title ?? untitledLine(f.relPath)}</span>
                         {f.company && <span class="text-ink-muted"> · {f.company}</span>}
                         {f.asksModel && <span class="block text-ink-faint">{t('folders.postings.asksModel')}</span>}
                       </>
                     )}
                   </Td>
                   <Td class="max-w-[16rem] text-meta text-ink-muted">
-                    <div class="break-all">{f.address ?? '—'}</div>
+                    <div class="[overflow-wrap:anywhere]">{f.address ?? '—'}</div>
                   </Td>
                 </Tr>
               ))}
@@ -544,7 +544,7 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
                 return (
                   <Tr>
                     <Td class="max-w-[20rem] font-mono text-meta text-ink">
-                      <div class="break-all">{file.relPath}</div>
+                      <div class="[overflow-wrap:anywhere]">{file.relPath}</div>
                     </Td>
                     <Td>
                       <div class="flex flex-wrap items-baseline gap-2">
