@@ -372,7 +372,10 @@ foldersRoute.post('/companies/folder', async (c) => {
 foldersRoute.get('/companies/:id/files', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const company = await prisma.company.findFirst({ where: { id, atsType: AtsType.FOLDER }, select: { id: true, name: true, atsToken: true, active: true, sourceConfig: true } });
+  const company = await prisma.company.findFirst({
+    where: { id, atsType: AtsType.FOLDER },
+    select: { id: true, name: true, atsToken: true, active: true, sourceConfig: true, lastFetchStatus: true, consecutiveFailures: true },
+  });
   if (!company) return c.text(t('http.notFound'), 404);
   const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
   // The job each file became, by the file the job names (Job.sourceFile): one query, the files shown.
@@ -384,7 +387,17 @@ foldersRoute.get('/companies/:id/files', async (c) => {
   const kept = readSourceConfig(company.sourceConfig);
   return c.html(
     <FolderFilesPage
-      folder={{ id, name: company.name, path: company.atsToken, active: company.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(id) }}
+      folder={{
+        id,
+        name: company.name,
+        path: company.atsToken,
+        active: company.active,
+        include: kept?.include ?? null,
+        holds: kept?.holds ?? 'rows',
+        summary: summaries.get(id),
+        lastFetchStatus: company.lastFetchStatus,
+        consecutiveFailures: company.consecutiveFailures,
+      }}
       files={files}
       jobs={jobs}
       flash={parseFlashCookie(c.req.header('cookie'))}

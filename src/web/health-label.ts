@@ -20,6 +20,7 @@ const HEALTH_LABEL = {
   server: 'sources.health.server',
   network: 'sources.health.network',
   bad_payload: 'sources.health.badPayload',
+  too_many: 'sources.health.tooMany',
   unknown: 'sources.health.unknown',
 } as const satisfies Record<FetchStatus, MessageKey>;
 

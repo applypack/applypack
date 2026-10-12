@@ -1040,6 +1040,17 @@ async function folderChecks(): Promise<Check[]> {
     const folder = await prisma.company.findFirst({ where: { atsType: 'FOLDER' } });
     check('POST /companies/folder (added, switched off)', '/companies/folder', added, added.status === 303 && folder?.active === false && folder.sourceConfig !== null);
     if (!folder) return out;
+    // #405: the folder's own card carries the switch, and says when its last check failed.
+    await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: 'slug_gone', consecutiveFailures: 2 } });
+    const offPage = await app.request('/companies', { headers: ORIGIN });
+    const card = /<section[^>]*id="folders"[\s\S]*?<\/section>/.exec(offPage.status === 200 ? await offPage.text() : '')?.[0] ?? '';
+    check(
+      'GET /companies with a folder that is off and failing (its card: the switch, the failure)',
+      '/companies',
+      offPage,
+      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row'),
+    );
+    await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: null, consecutiveFailures: 0 } });
 
     const off = await app.request(`/companies/${folder.id}/check-now`, form({}));
     check('POST /companies/:id/check-now on a folder that is off (refused)', `/companies/${folder.id}/check-now`, off, off.status === 303 && off.headers.get('location') === '/companies');

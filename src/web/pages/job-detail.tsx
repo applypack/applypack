@@ -24,6 +24,7 @@ import {
 import { toCheckInterval } from '../../watchlist/interval';
 import { formatDate, formatRelative, formatSalary, safeHref } from '../format';
 import { techLabel } from '../tech-label';
+import { sourceLabel } from '../source-names';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf } from '../../countries';
@@ -274,7 +275,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
             {job.alertedAt && <FactRow label={t('job.alerted')}>{formatDate(job.alertedAt)}</FactRow>}
             <AppliedWithRow job={job} />
             <FactRow label={t('job.source')}>
-              <span translate="no">{job.company.atsType.replace('_', ' ')}</span>
+              {/* A vendor's name is a name; a kind that is no vendor ("Folder on this computer") is worded (#405). */}
+              <span translate="no">{sourceLabel(job.company.atsType)}</span>
             </FactRow>
             {job.sourceFile && (
               <FactRow label={t('job.from')}>

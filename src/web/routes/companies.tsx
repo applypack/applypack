@@ -182,7 +182,17 @@ companiesRoute.get('/companies', async (c) => {
     .filter((c) => c.atsType === AtsType.FOLDER)
     .map((c) => {
       const kept = readSourceConfig(c.sourceConfig);
-      return { id: c.id, name: c.name, path: c.atsToken, active: c.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(c.id) };
+      return {
+        id: c.id,
+        name: c.name,
+        path: c.atsToken,
+        active: c.active,
+        include: kept?.include ?? null,
+        holds: kept?.holds ?? 'rows',
+        summary: summaries.get(c.id),
+        lastFetchStatus: c.lastFetchStatus,
+        consecutiveFailures: c.consecutiveFailures,
+      };
     });
 
   const flash = parseFlashCookie(c.req.header('cookie'));

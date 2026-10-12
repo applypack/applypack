@@ -236,6 +236,14 @@ dashboard. `datasets/folder-path.ts` bounds it, on real paths:
   changes or the mapping is saved again. When every file a look reads
   misfits, the look fails as `bad_payload`, which is how a tool that changed
   its output shows on the source's row.
+- *Amended 2026-10-12 (v2.55.43, #405).* A folder that holds more entries
+  than a look lists (`MAX_ENTRIES`) was filed under the same `bad_payload`,
+  so its row read "Files do not fit the mapping" and the flash pointed at
+  the mapping. It is a status of its own, `too_many`, worded "Too many
+  entries in the folder". A status the last check failed with also shows
+  in the folder's own card (`folder-words.ts:folderTrouble`), whose line is
+  built from the ledger and said only what earlier checks had read; and the
+  card carries the switch for a folder added switched off.
 - *Amended 2026-10-11 (v2.55.23, #394).* A file read to the end of what
   can be read, with a part lost — a quote never closed, characters that
   could not be read — is `done` and its ledger row says what was lost: the

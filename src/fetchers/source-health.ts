@@ -20,6 +20,8 @@ export const FETCH_STATUSES = [
   'server',
   'network',
   'bad_payload',
+  // A folder that holds more entries than a look lists (datasets/folder-io.ts): no folder of job files.
+  'too_many',
   'unknown',
 ] as const;
 
@@ -74,7 +76,7 @@ const FOLDER_FAULT_STATUS: Record<string, FetchStatus> = {
   refused: 'auth',
   'not-allowed': 'auth',
   unmapped: 'bad_payload',
-  'too-many': 'bad_payload',
+  'too-many': 'too_many',
   // Its disk did not answer: unreachable, as a board whose server does not answer is.
   stalled: 'network',
 };
@@ -237,6 +239,8 @@ export function describeStatus(status: string | null, atsType?: string): {
       return { label: 'Board is gated', tone: 'bad' };
     case 'bad_payload':
       return { label: 'Unreadable payload', tone: 'bad' };
+    case 'too_many':
+      return { label: 'Too many entries in the folder', tone: 'bad' };
     case 'rate_limit':
       return { label: 'Rate-limited', tone: 'warn' };
     case 'server':
