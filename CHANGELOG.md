@@ -19,9 +19,10 @@ All notable changes to this project are documented here. The format follows
   entries than a check lists was reported as "Files do not fit the mapping",
   and its message pointed at the mapping. It now reads "Too many entries in
   the folder".
-- **The job page names the source in words.** "Source: FOLDER" is now
-  "Folder on this computer"; an imported file, a pasted job and a feed are
-  worded the same way, and a vendor keeps its name (#405).
+- **The job page names the source as the rest of the dashboard does.**
+  "Source: FOLDER" is now "Folder on this computer", and every other source
+  reads by its name ("Greenhouse", "We Work Remotely", "Imported file")
+  instead of its internal code (#405).
 
 ## [2.55.42] — 2026-10-12
 
