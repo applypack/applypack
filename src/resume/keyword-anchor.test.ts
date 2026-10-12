@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { anchorKeywords, annotateAliasOnly, elsewhereForPosting } from './keyword-anchor';
+import { anchorKeywords, anchorStatuses, annotateAliasOnly, elsewhereForPosting } from './keyword-anchor';
 import { loadKeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
 
@@ -83,4 +83,43 @@ test('a present keyword found only as an alias carries the spelling an ATS would
     matcher,
   );
   assert.deepEqual(rows.map((k) => k.aliasOnly ?? null), ['Postgres', null, null, null, null]);
+});
+
+test('a verdict the text overrules is kept beside its note, so the page can say whose reading the note is (#203)', async () => {
+  const matcher = await loadKeywordMatcher();
+  const resume = 'Dana Example\nWordPress Developer\n\nSkills\nPHP, Ajax, Docker';
+  const row = (term: string, status: MatchKeyword['status'], note: string | null): MatchKeyword => ({ ...keyword(term), status, note });
+  const { keywords, upgraded, downgraded } = anchorStatuses(
+    [
+      row('WordPress Developer', 'cannot_claim', 'Title line does not use this title; no WP evidence to support it'),
+      row('Docker', 'ask_user', 'Posting wants it; the resume does not say'),
+      row('Ajax', 'add', "Candidate confirmed: 'ajax'"),
+      row('PHP', 'present', null),
+      row('Kafka', 'cannot_claim', 'Nothing in the resume'),
+      row('automated testing', 'present', 'In the summary, in other words'),
+    ],
+    resume,
+    matcher,
+  );
+  assert.deepEqual([upgraded, downgraded], [3, 1]);
+  const by = Object.fromEntries(keywords.map((k) => [k.term, k]));
+  // Overruled: the status is the text's, the note is still the model's, and the verdict it was written for is kept.
+  assert.deepEqual([by['WordPress Developer']!.status, by['WordPress Developer']!.overruled], ['present', 'cannot_claim']);
+  assert.equal(by['WordPress Developer']!.note, 'Title line does not use this title; no WP evidence to support it');
+  assert.deepEqual([by.Docker!.status, by.Docker!.overruled], ['present', 'ask_user']);
+  // An `add` that is written was never contradicted: its note is still true of the row.
+  assert.deepEqual([by.Ajax!.status, by.Ajax!.overruled], ['present', null]);
+  // Untouched rows are the same objects, with no marker of any kind.
+  assert.equal(by.PHP!.overruled, undefined);
+  assert.deepEqual([by.Kafka!.status, by.Kafka!.overruled], ['cannot_claim', undefined]);
+  // A `present` the text does not spell becomes `add`, and nothing was overruled in its favour.
+  assert.deepEqual([by['automated testing']!.status, by['automated testing']!.overruled], ['add', null]);
+
+  // Read again on the same text, a flipped row is left as it is: the marker survives every later pass.
+  const again = anchorStatuses(keywords, resume, matcher);
+  assert.equal(again.upgraded + again.downgraded, 0);
+  assert.equal(again.keywords.find((k) => k.term === 'Docker')!.overruled, 'ask_user');
+  // And when the word leaves the text, the row is an `add` with nothing overruled.
+  const gone = anchorStatuses(keywords, resume.replace('Docker', 'Podman'), matcher).keywords.find((k) => k.term === 'Docker')!;
+  assert.deepEqual([gone.status, gone.overruled], ['add', null]);
 });
