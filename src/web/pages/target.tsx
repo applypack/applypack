@@ -9,6 +9,7 @@ import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { VerificationForHint } from '../../resume/verification-hint';
 import { effectiveKeywords, confirmable } from '../../resume/keyword-overrides';
 import { DENIED_NOTE, UNSURE_NOTE } from '../../resume/facts';
+import { structureFromText } from '../../resume/structure-from-text';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchEvidence, readMatchMode } from '../../resume/match-mode';
 import { notEnglishNotice } from '../../text-language';
@@ -156,6 +157,8 @@ export const TargetPage: FC<TargetPageProps> = ({
     // So a chip can tell the user's own "I don't" / "Not sure" from a term the model could not back.
     deniedNote: DENIED_NOTE,
     unsureNote: UNSURE_NOTE,
+    // The line under the name: where the chip of the posting's own title leads (#349).
+    headline: structureFromText(resumeText).basics.label,
     actions,
     removals,
     // The score parts the live count holds fixed; null on pre-ADR-0012
@@ -647,6 +650,8 @@ export const TargetPage: FC<TargetPageProps> = ({
             </div>
           </div>
           <div id="missing-chips" class="mb-3 flex flex-wrap gap-1.5"></div>
+          {/* What a chip's click says when it has no line to go to (target-page.mjs:chipTarget). */}
+          <p id="chips-status" hidden class="-mt-1.5 mb-3 text-meta text-ink-muted"></p>
           {/* Every keyword the text does not spell, in one list, ticked where the
               resume already backs it — one press instead of one chip at a time.
               Filled by target-page.mjs, which hides it while nothing is missing. */}
