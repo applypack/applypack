@@ -6,6 +6,8 @@ import {
   FILE_NOTES,
   MAX_FILES_PER_LOOK,
   MAX_FILE_BYTES,
+  MAX_ROW_BYTES_PER_LOOK,
+  MAX_ROW_FILES_PER_LOOK,
   OPEN_ROW_SETTLE_MS,
   SETTLE_MS,
   guessHolds,
@@ -19,6 +21,7 @@ import {
   newestIsMisfit,
   planScan,
   rowFileKind,
+  unreachedChanges,
   unreadChange,
   type FileRead,
   type LedgerEntry,
@@ -138,21 +141,55 @@ describe('planScan', () => {
     assert.equal(plan.other, 3);
   });
 
-  it('reads a bounded number of files a look and leaves the rest for the next', () => {
-    const many = Array.from({ length: MAX_FILES_PER_LOOK + 3 }, (_, i) => file(`run-${String(i).padStart(2, '0')}.json`, (100 - i) * MINUTE));
-    const plan = planScan(many, [], NOW);
+  // Oldest first, as the plan orders them: run-000 is the oldest.
+  const runs = (n: number, ext: string, size = 1_000): ListedFile[] =>
+    Array.from({ length: n }, (_, i) => file(`run-${String(i).padStart(3, '0')}.${ext}`, (10_000 - i) * MINUTE, size));
+
+  it('reads a bounded number of saved postings a look and leaves the rest for the next', () => {
+    // A posting can be a model call: twenty a look is its spending limit, and stays (#432).
+    const plan = planScan(runs(MAX_FILES_PER_LOOK + 3, 'html'), [], NOW, undefined, 'postings');
     assert.equal(plan.read.length, MAX_FILES_PER_LOOK);
-    assert.deepEqual(names(plan.later), ['run-20.json', 'run-21.json', 'run-22.json']);
-    assert.equal(plan.read[0]!.relPath, 'run-00.json');
+    assert.deepEqual(names(plan.later), ['run-020.html', 'run-021.html', 'run-022.html']);
+    assert.equal(plan.read[0]!.relPath, 'run-000.html');
+  });
+
+  it('reads files of rows by what they cost: twenty-five small ones in one look, a few hundred at most (#432)', () => {
+    // The live case: 25 one-row files took two looks, and a 1,000-file run two days.
+    assert.equal(planScan(runs(25, 'json'), [], NOW).read.length, 25);
+    const plan = planScan(runs(MAX_ROW_FILES_PER_LOOK + 3, 'json'), [], NOW);
+    assert.equal(plan.read.length, MAX_ROW_FILES_PER_LOOK);
+    assert.deepEqual(names(plan.later), ['run-400.json', 'run-401.json', 'run-402.json']);
+  });
+
+  it('stops a look of rows at its bytes, in order: nothing is read out of turn', () => {
+    const big = Math.floor(MAX_ROW_BYTES_PER_LOOK / 5);
+    // Five files of that size fill a look; the small one after them waits its turn behind the sixth.
+    const files = [...runs(6, 'csv', big), file('small.csv', MINUTE, 10)];
+    const plan = planScan(files, [], NOW);
+    assert.equal(plan.read.length, 5);
+    assert.deepEqual(names(plan.later), ['run-005.csv', 'small.csv']);
+    // One file larger than what is left never blocks a look that has read nothing.
+    assert.equal(planScan([file('one.csv', 10 * MINUTE, big)], [], NOW).read.length, 1);
   });
 
   it('reads new and changed files before the ones it looks at again, so a heap of those cannot starve them', () => {
-    const retried = Array.from({ length: MAX_FILES_PER_LOOK }, (_, i) => file(`stuck-${String(i).padStart(2, '0')}.json`, (500 - i) * MINUTE));
+    const retried = Array.from({ length: MAX_ROW_FILES_PER_LOOK }, (_, i) => file(`stuck-${String(i).padStart(3, '0')}.json`, (5_000 - i) * MINUTE));
     const fresh = file('new.json', MINUTE);
     const plan = planScan([...retried, fresh], retried.map((f) => seen(f, 'waiting')), NOW);
     assert.equal(plan.read[0]!.relPath, 'new.json');
-    assert.equal(plan.read.length, MAX_FILES_PER_LOOK);
-    assert.deepEqual(names(plan.later), ['stuck-19.json']);
+    assert.equal(plan.read.length, MAX_ROW_FILES_PER_LOOK);
+    assert.deepEqual(names(plan.later), ['stuck-399.json']);
+  });
+
+  it('notes a file a look did not reach as waiting, once, and only one the ledger has never heard of', () => {
+    const [a, b, c] = runs(3, 'json');
+    const changes = unreachedChanges([a!, b!, c!], [seen(b!, 'failed')]);
+    // b keeps the row that says why it could not be opened.
+    assert.deepEqual(changes.map((ch) => ch.relPath), ['run-000.json', 'run-002.json']);
+    assert.deepEqual(changes[0], { ...a!, kind: 'json', sha256: null, status: 'waiting', detail: 'Not reached yet: a check reads only so much at a time. The next check reads it.', jobCount: 0, rowsRead: 0 });
+    // Noted, it is in the ledger: the next look that still does not reach it writes nothing.
+    assert.deepEqual(unreachedChanges([a!], [{ ...changes[0]!, sha256: null }]), []);
+    assert.equal(unreachedChanges([file('page.html')], [], 'postings')[0]?.kind, 'html');
   });
 
   it('reads a file dated far in the future instead of waiting for it forever', () => {
@@ -571,7 +608,7 @@ describe('saved postings in a folder', () => {
     assert.match(tooLargeNote('mhtml'), /10 MB, which is more than a saved posting/);
     assert.match(tooLargeNote('csv'), /a file of rows/);
     const page = file('big.html', 10 * MINUTE, maxBytesOf('html') + 1);
-    const plan = planScan([page, file('ok.pdf', 10 * MINUTE, maxBytesOf('html') + 1)], [], NOW, undefined, postingFileKind);
+    const plan = planScan([page, file('ok.pdf', 10 * MINUTE, maxBytesOf('html') + 1)], [], NOW, undefined, 'postings');
     assert.deepEqual([names(plan.tooLarge), names(plan.read)], [['big.html'], ['ok.pdf']]);
     assert.equal(unreadChange(page, 'tooLarge', postingFileKind).detail, tooLargeNote('html'));
   });

@@ -63,8 +63,22 @@ export type FileRead =
 export const MAX_DEPTH = 3;
 /** A folder with more entries than this is not a folder of job files, and is refused whole. */
 export const MAX_ENTRIES = 20_000;
-/** Files read in one look; the rest wait for the next one. */
+/** Saved postings read in one look; the rest wait for the next one. A posting can be a model call, so this is a spending limit. */
 export const MAX_FILES_PER_LOOK = 20;
+/**
+ * Files of rows read in one look. What such a look costs is rows and bytes,
+ * which have ceilings of their own, so the count only bounds a folder of tiny
+ * files: at twenty a look, a tool that writes one file a posting brought
+ * twenty jobs an hour (#432).
+ */
+export const MAX_ROW_FILES_PER_LOOK = 400;
+/** Bytes of row files read in one look: five files of the largest size a file may be. */
+export const MAX_ROW_BYTES_PER_LOOK = 25 * 1024 * 1024;
+/** How much one look reads, by what the folder holds. */
+const LOOK_LIMITS: Record<FolderHolds, { files: number; bytes: number }> = {
+  rows: { files: MAX_ROW_FILES_PER_LOOK, bytes: MAX_ROW_BYTES_PER_LOOK },
+  postings: { files: MAX_FILES_PER_LOOK, bytes: Number.POSITIVE_INFINITY },
+};
 /** Rows read in one look, from one long file or from many: every one past the filter is an AI call, and the tick asks the database about them in one query. */
 export const MAX_ROWS_PER_LOOK = 5_000;
 /** A file changed more recently than this may still be written. */
@@ -94,6 +108,9 @@ const MAX_ARCHIVE_BYTES = 10 * 1024 * 1024;
 export const FILE_NOTES = {
   get fresh(): string {
     return t('datasets.file.fresh');
+  },
+  get later(): string {
+    return t('datasets.file.later');
   },
   get changing(): string {
     return t('datasets.file.changing');
@@ -355,8 +372,9 @@ export function planScan(
   ledger: readonly LedgerEntry[],
   now: number,
   include: (relPath: string) => boolean = () => true,
-  kindOf: (relPath: string) => FileKind | null = rowFileKind,
+  holds: FolderHolds = 'rows',
 ): ScanPlan {
+  const kindOf = kindsFor(holds);
   const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const plan: ScanPlan = { read: [], waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 };
   const fresh: ListedFile[] = [];
@@ -376,15 +394,35 @@ export function planScan(
   }
   const oldestFirst = (a: ListedFile, b: ListedFile): number => a.mtimeMs - b.mtimeMs || a.relPath.localeCompare(b.relPath);
   const due = [...fresh.sort(oldestFirst), ...again.sort(oldestFirst)];
-  plan.read = due.slice(0, MAX_FILES_PER_LOOK);
-  plan.later = due.slice(MAX_FILES_PER_LOOK);
+  // In order, up to the look's ceilings; from the first file that does not fit, the rest wait, so none is read out of turn.
+  const limits = LOOK_LIMITS[holds];
+  let bytes = 0;
+  for (const file of due) {
+    if (plan.later.length === 0 && plan.read.length < limits.files && bytes + file.size <= limits.bytes) {
+      plan.read.push(file);
+      bytes += file.size;
+    } else plan.later.push(file);
+  }
   return plan;
 }
 
+/**
+ * The files a look did not reach, as ledger rows that say so (#432): past its
+ * ceilings they were noted nowhere, so the per-file list did not show them and
+ * the folder's row did not count them as waiting. Only files the ledger has
+ * never heard of: a row it already holds says more — what was read of the
+ * file before it changed, why it could not be opened — and stays.
+ */
+export function unreachedChanges(files: readonly ListedFile[], ledger: readonly LedgerEntry[], holds: FolderHolds = 'rows'): FileChange[] {
+  const known = new Set(ledger.map((entry) => entry.relPath));
+  return files.filter((file) => !known.has(file.relPath)).map((file) => unreadChange(file, 'later', kindsFor(holds)));
+}
+
 /** A file the plan could not read now, as the ledger row that says why. */
-export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge', kindOf: (relPath: string) => FileKind | null = rowFileKind): FileChange {
+export function unreadChange(file: ListedFile, why: 'fresh' | 'later' | 'tooLarge', kindOf: (relPath: string) => FileKind | null = rowFileKind): FileChange {
   const kind = kindOf(file.relPath)!;
-  return { ...file, kind, sha256: null, status: why === 'fresh' ? 'waiting' : 'skipped', detail: why === 'fresh' ? FILE_NOTES.fresh : tooLargeNote(kind), jobCount: 0, rowsRead: 0 };
+  const detail = why === 'fresh' ? FILE_NOTES.fresh : why === 'later' ? FILE_NOTES.later : tooLargeNote(kind);
+  return { ...file, kind, sha256: null, status: why === 'tooLarge' ? 'skipped' : 'waiting', detail, jobCount: 0, rowsRead: 0 };
 }
 
 /**

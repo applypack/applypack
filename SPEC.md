@@ -757,7 +757,9 @@ reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
 - **Read every file again** on the Files page puts the read files back to
   waiting: a row a search or a mute turned away the first time is judged as
   things stand now, and rows already stored are skipped;
-- 20 files and 5 000 rows a check, 5 MB a file, three folders deep. A file
+- A check of a folder of rows reads up to 5 000 rows, 25 MB and 400 files
+  (twenty files, for a folder of saved postings); 5 MB a file, three folders
+  deep. A file it did not reach is listed as waiting. A file
   with more rows than a check has left waits ("5,000 of 12,000 rows read so
   far") and the next check reads on from there; a file that only grew is
   read from its old end, one written anew from its start;
