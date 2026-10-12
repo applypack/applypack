@@ -11,7 +11,7 @@ import { formatList, formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import type { NormalizedJob } from '../../types';
 import type { FlashMessage } from '../flash';
-import { fileLine, folderLine } from '../folder-words';
+import { fileLine, folderLine, folderTrouble } from '../folder-words';
 import { Layout } from '../layout';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, Code, Empty, Field, Flash, Hint, Input, More, Notice, PageHeader, Radio, SectionTitle, Select, Table, Td, Tr, When } from '../ui';
@@ -80,7 +80,22 @@ export interface FolderSourceRow {
   include: string | null;
   holds: FolderHolds;
   summary: FolderSummary | undefined;
+  /** The source's own health (ADR 0019): what the last check came to, and how many in a row failed. */
+  lastFetchStatus: string | null;
+  consecutiveFailures: number;
 }
+
+/** A failing folder says so in its card, as its row in the table does: the ledger's line cannot (#405). */
+const FolderTrouble: FC<{ folder: FolderSourceRow }> = ({ folder }) => {
+  const trouble = folderTrouble(folder.lastFetchStatus, folder.consecutiveFailures);
+  if (!trouble) return null;
+  return (
+    <span title={trouble.title}>
+      <Badge tone={trouble.tone}>{trouble.label}</Badge>
+      {folder.consecutiveFailures > 0 && <span class="sr-only">{t('sources.health.streakAfterLabel', { n: folder.consecutiveFailures })}</span>}
+    </span>
+  );
+};
 
 /** The folders among the sources: what each holds, its files, and a check on demand. */
 export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folders }) =>
@@ -103,10 +118,19 @@ export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folde
                     </>
                   )}
                 </span>
+                <FolderTrouble folder={f} />
                 {!f.active && <Badge tone="neutral">{t('folders.switchedOff')}</Badge>}
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+              {/* Added switched off: the switch is here, not only on its row among every other source (#405). */}
+              {!f.active && (
+                <ActionForm action={`/companies/${f.id}/toggle-active`}>
+                  <Button size="sm" aria-label={t('companies.enableNamed', { name: f.name })}>
+                    {t('ui.enable')}
+                  </Button>
+                </ActionForm>
+              )}
               <Button href={`/companies/${f.id}/files`} variant="secondary" size="sm">
                 {t('companies.files')}
               </Button>

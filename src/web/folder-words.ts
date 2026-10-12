@@ -1,8 +1,10 @@
 import type { FolderFault } from '../datasets/folder-io';
+import { describeStatus } from '../fetchers/source-health';
 import { postingFileKind } from '../datasets/folder-scan';
 import type { CronStats } from '../jobs/cron-run';
 import type { FolderSummary } from '../jobs/source-file-store';
 import type { FlashKind } from './flash';
+import { healthLabel } from './health-label';
 import { t } from '../i18n/t';
 
 /*
@@ -19,6 +21,19 @@ export function folderLine(summary: FolderSummary | undefined): string {
   if (summary.failed > 0) parts.push(t('folders.line.failed', { n: summary.failed }));
   if (summary.partial > 0) parts.push(t('folders.line.partial', { n: summary.partial }));
   return parts.join(' · ');
+}
+
+/**
+ * A folder whose last check failed, in the folder's words, for its card: the
+ * line above is built from the ledger and says only what earlier checks read,
+ * so a folder renamed away looked healthy there (#405). Null while the source
+ * is healthy or was never checked.
+ */
+export function folderTrouble(status: string | null, streak: number): { label: string; tone: 'danger' | 'warn'; title: string } | null {
+  const { tone } = describeStatus(status, 'FOLDER');
+  if (tone !== 'bad' && tone !== 'warn') return null;
+  const label = healthLabel(status, 'FOLDER');
+  return { label, tone: tone === 'bad' ? 'danger' : 'warn', title: streak > 0 ? t('sources.health.withStreak', { label, n: streak }) : label };
 }
 
 export interface FileLine {

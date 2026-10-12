@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { explainFolderFault, fileLine, folderCheckLine, folderLine } from './folder-words';
+import { explainFolderFault, fileLine, folderCheckLine, folderLine, folderTrouble } from './folder-words';
 
 const at = new Date('2026-10-05T12:00:00Z');
 
@@ -68,4 +68,16 @@ test('folderCheckLine: rows that came, an overlap and a run with no source are t
   assert.equal(folderCheckLine('Checked Tool output', { bySource: [{ name: 'Tool output', status: 'ok', count: 3, ms: 3 }], fetched: 3 }), null);
   assert.equal(folderCheckLine('Checked Tool output', { skipped: 1, reason: 'overlap' }), null);
   assert.equal(folderCheckLine('Checked Tool output', {}), null);
+});
+
+test('folderTrouble: a folder whose last check failed says so, in the folder’s words (#405)', () => {
+  // The card's own line is the ledger's: "28 files · 0 new at the last check" for a folder renamed away.
+  assert.deepEqual(folderTrouble('slug_gone', 1), { label: 'Folder not found', tone: 'danger', title: 'Folder not found — 1 tick in a row' });
+  assert.deepEqual(folderTrouble('auth', 3), { label: 'Not allowed to read', tone: 'danger', title: 'Not allowed to read — 3 ticks in a row' });
+  assert.equal(folderTrouble('bad_payload', 2)?.label, 'Files do not fit the mapping');
+  assert.equal(folderTrouble('too_many', 2)?.label, 'Too many entries in the folder');
+  // A disk that did not answer is a warning, as an unreachable board is.
+  assert.deepEqual(folderTrouble('network', 0), { label: 'Unreachable', tone: 'warn', title: 'Unreachable' });
+  // Healthy, or never checked: the card has nothing to add.
+  for (const status of ['ok', 'empty', 'not_modified', null]) assert.equal(folderTrouble(status, 0), null, String(status));
 });

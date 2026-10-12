@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.43] — 2026-10-12
+
+### Fixed
+- **A failing folder says so in its own card.** With a folder renamed away,
+  the Companies table read "Folder not found" while the folder's card under
+  **Folders on this computer** read "1 file · 1 new at the last check". The
+  card now carries the same status, in the folder's words, with how many
+  checks in a row failed.
+- **The switch is in the card.** A folder is added switched off, and the
+  message sent you to find its row among every other source. The card has
+  **Enable**, and the message names the card.
+- **A folder with too many entries is called that.** A folder holding more
+  entries than a check lists was reported as "Files do not fit the mapping",
+  and its message pointed at the mapping. It now reads "Too many entries in
+  the folder".
+- **The job page names the source in words.** "Source: FOLDER" is now
+  "Folder on this computer"; an imported file, a pasted job and a feed are
+  worded the same way, and a vendor keeps its name (#405).
+
 ## [2.55.42] — 2026-10-12
 
 ### Fixed
@@ -5697,6 +5716,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.43]: https://github.com/applypack/applypack/compare/v2.55.42...v2.55.43
 [2.55.42]: https://github.com/applypack/applypack/compare/v2.55.41...v2.55.42
 [2.55.41]: https://github.com/applypack/applypack/compare/v2.55.40...v2.55.41
 [2.55.40]: https://github.com/applypack/applypack/compare/v2.55.39...v2.55.40

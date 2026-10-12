@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { describeStatus } from '../fetchers/source-health';
+import { FETCH_STATUSES, describeStatus } from '../fetchers/source-health';
 import { withLocale } from '../i18n/locale';
 import { healthLabel, healthStreak } from './health-label';
 
-const STATUSES = ['ok', 'empty', 'not_modified', 'slug_gone', 'auth', 'rate_limit', 'server', 'network', 'bad_payload', 'unknown', null, 'never-heard-of'];
+// Every status there is, so one added later is held to the same two rules without an edit here.
+const STATUSES = [...FETCH_STATUSES, null, 'never-heard-of'];
 
 test('healthLabel says in English what describeStatus says, for a board and for a folder', () => {
   for (const atsType of ['GREENHOUSE', 'FOLDER'])
