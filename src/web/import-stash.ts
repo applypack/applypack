@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Mapping, MappingField } from '../datasets/map';
+import type { FolderAlerts, Mapping, MappingField } from '../datasets/map';
 import type { Reading } from '../datasets/read-notes';
 import type { FoundRows } from '../datasets/rows';
 
@@ -20,6 +20,8 @@ export interface ImportStash extends Pick<FoundRows, 'format' | 'rows' | 'over' 
   mapping: Mapping;
   /** Fields the mapping read off the values rather than the names — the preview marks them. */
   guessed: MappingField[];
+  /** Whether this import's matches alert, once the person has said; null = what its size is offered with (preview.ts:defaultImportAlerts). */
+  alerts: FolderAlerts | null;
   createdAt: number;
 }
 

@@ -161,6 +161,19 @@ ask the question.
   fresh half hour when an import ends with anything but a full store
   (`import-stash.ts:keepImport`): its warning names the preview, and an
   import can outlast the half hour its upload had.
+- **An import is a burst of postings.** Every row takes the path a fetched
+  posting takes, alert included.
+  *Amended 2026-10-12 (v2.55.54, #402):* so a file of 2,000 rows, 300 of
+  them matches, sent 300 messages in one run, and the preview said nothing
+  of it. A file is one event: its matches are held as they are scored
+  (`ProcessOptions.groupAlerts`) and leave as one message a chat when the
+  import ends, the best twenty listed and the rest counted
+  (`alert-delivery.ts:deliverHeldAlerts` narrowed to the source); what the
+  schedule or the Alerts switch keeps back leaves with the next heartbeat.
+  The preview has the folder's **Alerts** choice — with "No alerts" nothing
+  is sent or held and no pack is queued — offered with no alerts above
+  `preview.ts:QUIET_ABOVE` (20) new rows, and it says how many rows could
+  match and how many packs at most (`packsUpTo`).
 - **The people filter knows names and two shapes of value, not meaning.** A
   person's name in a column called `Field7` cannot be told from a company's.
   The preview shows what each field took, and the user decides.

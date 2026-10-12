@@ -21,9 +21,29 @@ import type { AlertJob } from '../types';
  * schedule gate: these are matches this app has already found and already
  * scored. Nothing about "pause fetching" or "don't search at night" says the
  * user should not hear about them.
+ *
+ * An import sends its own matches the same way when it ends (#402): `only`
+ * narrows the delivery to one source's rows and names the message after it.
+ * What the schedule or the switch keeps back stays held, and leaves with the
+ * next heartbeat's delivery like any other held match.
  */
-export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<{ delivered: number; messages: number }> {
-  if (!shouldDeliverHeld(now, schedule)) return { delivered: 0, messages: 0 };
+export interface HeldDelivery {
+  /** Listed in a message and marked ALERTED. */
+  delivered: number;
+  messages: number;
+  /** Counted in a message's header, not listed: left New. */
+  counted: number;
+  /** In a message every chat refused: still held, for the next heartbeat. */
+  failed: number;
+}
+
+export async function deliverHeldAlerts(
+  now: Date,
+  schedule: Schedule,
+  only?: { companyId: number; title: string },
+): Promise<HeldDelivery> {
+  const nothing: HeldDelivery = { delivered: 0, messages: 0, counted: 0, failed: 0 };
+  if (!shouldDeliverHeld(now, schedule)) return nothing;
 
   // A match can be dismissed, saved or applied to from the dashboard while it
   // waits — the row is on /jobs the whole time. Acting on it settles it: the
@@ -37,10 +57,10 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
   // Alerts switched off, or no chat to send to: the rows keep waiting, as
   // they wait for the window. Asked before the rows are read, so an install
   // with Alerts off does not build the messages every hour to discard them.
-  if ((await alertChannel()) !== 'open') return { delivered: 0, messages: 0 };
+  if ((await alertChannel()) !== 'open') return nothing;
 
   const rows = await prisma.job.findMany({
-    where: { alertHeldAt: { not: null }, status: JobStatus.NEW },
+    where: { alertHeldAt: { not: null }, status: JobStatus.NEW, ...(only && { companyId: only.companyId }) },
     // The message's fields only (DATA-5).
     select: {
       id: true,
@@ -69,7 +89,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
     },
     orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
   });
-  if (rows.length === 0) return { delivered: 0, messages: 0 };
+  if (rows.length === 0) return nothing;
 
   const held: HeldRow[] = rows.map((j) => ({
     id: j.id,
@@ -99,15 +119,18 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
 
   let delivered = 0;
   let messages = 0;
+  let counted = 0;
+  let failed = 0;
   for (const group of groupHeldByTarget(held)) {
     let delivery: Delivery;
     try {
-      delivery = await sendDigest(group.alerts, group.targetId, [], heldTitle(), group.unlisted.length);
+      delivery = await sendDigest(group.alerts, group.targetId, [], only?.title ?? heldTitle(), group.unlisted.length);
     } catch (err) {
       // Every chat refused it. The rows keep alertHeldAt, so the next
       // heartbeat tries again rather than leaving a match the user never
       // hears about.
       logger.error({ err, targetId: group.targetId, count: group.ids.length }, 'alert-delivery: send failed, keeping the rows held');
+      failed += group.ids.length + group.unlisted.length;
       continue;
     }
     // Switched off, or the last chat removed, since the check above: the
@@ -125,10 +148,11 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
       await prisma.job.updateMany({ where: { id: { in: group.unlisted } }, data: { alertHeldAt: null } });
     }
     delivered += count;
+    counted += group.unlisted.length;
     messages++;
   }
-  if (delivered > 0) logger.info({ delivered, messages }, 'alert-delivery: held matches sent');
-  return { delivered, messages };
+  if (delivered > 0) logger.info({ delivered, messages, counted }, 'alert-delivery: held matches sent');
+  return { delivered, messages, counted, failed };
 }
 
 /** How many matches are waiting — for the overview line and the settings card. */

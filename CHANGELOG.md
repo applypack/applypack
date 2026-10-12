@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.54] — 2026-10-12
+
+### Changed
+- **An import sends one message, not one per match.** A file of 2,000 rows
+  with 300 matches sent 300 Telegram or Discord messages in one run. The
+  matches of an import now arrive as one message per chat when it ends — the
+  best twenty listed, the rest counted and left New on Jobs. Outside your
+  alert hours, or with Alerts off, they wait and leave with the next check
+  as before (#402).
+- **An import can be stored with no alerts.** The preview has the folder's
+  **Alerts** choice. "No alerts" keeps the matches on Jobs with their scores,
+  sends nothing and prepares no application pack; a file that brings more
+  than twenty new rows is offered that way (#402).
+- **The preview says what an import would send**: how many rows could match,
+  that they come as one message, and how many application packs the rows
+  could get at most (#402).
+- On Runs, "not alerted: its folder's alerts are off" now reads "alerts are
+  off for its source": an import can be stored that way too.
+
 ## [2.55.53] — 2026-10-12
 
 ### Fixed
@@ -5869,6 +5888,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.54]: https://github.com/applypack/applypack/compare/v2.55.53...v2.55.54
 [2.55.53]: https://github.com/applypack/applypack/compare/v2.55.52...v2.55.53
 [2.55.52]: https://github.com/applypack/applypack/compare/v2.55.51...v2.55.52
 [2.55.51]: https://github.com/applypack/applypack/compare/v2.55.50...v2.55.51

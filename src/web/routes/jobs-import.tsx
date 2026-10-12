@@ -13,12 +13,14 @@ import {
   readSourceConfig,
   sameMapping,
   usableMapping,
+  FOLDER_ALERTS,
   MAPPING_FIELDS,
+  type FolderAlerts,
   type Mapping,
   type SourceConfig,
 } from '../../datasets/map';
 import { decodeText } from '../../datasets/decode';
-import { importBlock, previewCounts } from '../../datasets/preview';
+import { defaultImportAlerts, importBlock, packsUpTo, passingRows, previewCounts } from '../../datasets/preview';
 import { readingOf } from '../../datasets/read-notes';
 import { MAX_BODY_MB } from '../../datasets/rows';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
@@ -27,7 +29,9 @@ import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
-import { getSettings } from '../../settings';
+import { getPackSettings, getSettings } from '../../settings';
+import { alertChannel } from '../../notifier';
+import { autoPacksToday } from '../../pack/store';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { spendHint } from '../cost-hint';
@@ -134,10 +138,16 @@ jobsImportRoute.post(
       ...detected,
       fileName,
       source: existing ? { id: existing.id, name: existing.name } : { id: null, name: typed },
+      alerts: null,
     });
     return c.redirect(`/jobs/import/${stash.id}`, 303);
   },
 );
+
+/** The form's Alerts choice; null when the page drew none (nothing would be scored) or the value is not one it offers. */
+function alertsFromForm(form: Record<string, unknown>): FolderAlerts | null {
+  return FOLDER_ALERTS.find((a) => a === form.alerts) ?? null;
+}
 
 /** The form's selects as a mapping, or null when one names a column the file does not offer. */
 function mappingFromForm(form: Record<string, unknown>, stash: ImportStash): Mapping | null {
@@ -170,14 +180,28 @@ async function previewFacts(stash: ImportStash) {
   const scoring = settings.fetchingEnabled;
   const roster = scoring ? active.filter((p) => !isBlankProfile(p)) : active;
   // The employer gate as the tick applies it: these rows always name their own employer, or nobody (ADR 0056).
-  const counts = previewCounts(mapped.jobs, roster, new Set(stored.map((s) => s.externalId)), (job) => employerGate(hiringKey(job.employer, stash.source.name, true), employers) !== null);
-  return { mapped, counts, scoring, searches: { running: active.length, usable: roster.length } };
+  const storedIds = new Set(stored.map((s) => s.externalId));
+  const turnsAway = (job: (typeof mapped.jobs)[number]): boolean => employerGate(hiringKey(job.employer, stash.source.name, true), employers) !== null;
+  const counts = previewCounts(mapped.jobs, roster, storedIds, turnsAway);
+  // What the Alerts choice is about, read only when there is something to choose: who would hear, and how many packs.
+  const choosing = scoring && counts.passing > 0;
+  const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(), getPackSettings(), autoPacksToday(now)]) : [null, null, 0];
+  const sends = choosing && channel && packSettings
+    ? {
+        alerts: stash.alerts ?? defaultImportAlerts(counts.passing),
+        chosen: stash.alerts !== null,
+        channel,
+        packs: packsUpTo(passingRows(mapped.jobs, roster, storedIds, turnsAway), packSettings, queuedToday, now),
+        packFit: packSettings.minFit,
+      }
+    : null;
+  return { mapped, counts, scoring, searches: { running: active.length, usable: roster.length }, sends };
 }
 
 jobsImportRoute.get('/jobs/import/:token', async (c) => {
   const stash = getImport(c.req.param('token'));
   if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
-  const { mapped, counts, scoring, searches } = await previewFacts(stash);
+  const { mapped, counts, scoring, searches, sends } = await previewFacts(stash);
   return c.html(
     <JobImportPreviewPage
       stash={stash}
@@ -186,6 +210,7 @@ jobsImportRoute.get('/jobs/import/:token', async (c) => {
       counts={counts}
       scoring={scoring}
       searches={searches}
+      sends={sends}
       cost={scoring && counts.passing > 0 ? await spendHint('classifier') : ''}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -198,9 +223,11 @@ jobsImportRoute.get('/jobs/import/:token', async (c) => {
 jobsImportRoute.post('/jobs/import/:token/mapping', async (c) => {
   const stash = getImport(c.req.param('token'));
   if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
-  const mapping = mappingFromForm(await c.req.parseBody(), stash);
+  const body = await c.req.parseBody();
+  const mapping = mappingFromForm(body, stash);
   if (!mapping) return flashRedirect(`/jobs/import/${stash.id}`, 'err', t('import.columnNotInFile'));
   keepMapping(stash, mapping);
+  stash.alerts = alertsFromForm(body) ?? stash.alerts;
   return c.redirect(`/jobs/import/${stash.id}`, 303);
 });
 
@@ -219,7 +246,10 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   const stash = getImport(token);
   if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
   const back = `/jobs/import/${stash.id}`;
-  const mapping = mappingFromForm(await c.req.parseBody(), stash);
+  const body = await c.req.parseBody();
+  const mapping = mappingFromForm(body, stash);
+  // The choice as the page showed it when pressed: kept with the rows, so a preview drawn again still shows it.
+  stash.alerts = alertsFromForm(body) ?? stash.alerts;
   if (!mapping || !usableMapping(mapping)) {
     return flashRedirect(back, 'err', t('import.flash.noTitle'));
   }
@@ -235,7 +265,9 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   const block = importBlock({ mappingUsable: true, jobs: mapped.jobs.length, searches, scoring, passing: counts.passing });
   if (block) return flashRedirect(back, 'err', importBlockText(block));
 
-  const config: SourceConfig = { holds: 'rows', mapping, include: null, alerts: 'matches' };
+  // No choice came with the press (a form posted by something other than the page): what the size is offered with.
+  const alerts = stash.alerts ?? defaultImportAlerts(counts.passing);
+  const config: SourceConfig = { holds: 'rows', mapping, include: null, alerts };
   const sourceConfig = config as Prisma.InputJsonValue;
   let source: { id: number; name: string };
   // A source this press makes is taken back if the run stores nothing in it (a fetch was running, a search switched off meanwhile).
@@ -274,7 +306,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     let stats: CronStats = {};
     try {
       await recordCronRun('import', async () => {
-        const out = await runImportJob(source, jobs);
+        const out = await runImportJob(source, jobs, alerts);
         stats = out.stats;
         return out;
       });

@@ -32,6 +32,21 @@ test('a scored import names the file, the source and the counts', () => {
   assert.equal(text, 'Imported jobs.json into "September export": 250 rows, 37 new stored, 37 scored, 4 alerted.');
 });
 
+test('the matches of an import: listed in its one message, counted in it, or stored quietly (#402)', () => {
+  // 300 matched: the message listed the best 20 and counted the rest.
+  assert.equal(
+    say({ ...base, classified: 300, matched: 300, alerted: 20, alertCounted: 280 }).text,
+    'Imported jobs.json into "September export": 250 rows, 37 new stored, 300 scored, 20 alerted. The message lists the best 20; 280 more matches are counted in it and on Jobs as New.',
+  );
+  // "No alerts" was chosen: nothing is sent, and the flash says the matches are there.
+  const quiet = say({ ...base, classified: 37, matched: 5, alerted: 0, alertSourceOff: 5 });
+  assert.equal(quiet.kind, 'ok');
+  assert.equal(quiet.text, 'Imported jobs.json into "September export": 250 rows, 37 new stored, 37 scored, 0 alerted. 5 matches were stored with no alert, as chosen.');
+  assert.match(say({ ...base, classified: 1, alerted: 0, alertSourceOff: 1 }).text, /1 match was stored with no alert, as chosen\.$/);
+  // A handful, all listed: the sentence it always was.
+  assert.equal(say({ ...base, classified: 37, alerted: 4 }).text, 'Imported jobs.json into "September export": 250 rows, 37 new stored, 37 scored, 4 alerted.');
+});
+
 test('a paused import stored unscored and spent no AI', () => {
   const { kind, text } = say({ ...base, classify: false });
   assert.equal(kind, 'ok');

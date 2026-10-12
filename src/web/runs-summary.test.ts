@@ -155,8 +155,11 @@ describe('summarizeRun', () => {
 
   it('says a match from a folder with its alerts off in words, not as a humanised counter (#365)', () => {
     const stats = { fetched: 3, persisted: 1, classified: 1, matched: 1, alertSourceOff: 1 };
-    assert.deepEqual(summarizeRun('fetch', stats), ['3 fetched', '1 new', '1 classified', '1 match', "1 not alerted: its folder's alerts are off"]);
-    assert.equal(summarizeRun('folder-watch', { ...stats, alertSourceOff: 2 }).at(-1), "2 not alerted: their folder's alerts are off");
+    // Worded for any source since an import can be stored with no alerts too (#402).
+    assert.deepEqual(summarizeRun('fetch', stats), ['3 fetched', '1 new', '1 classified', '1 match', '1 not alerted: alerts are off for its source']);
+    assert.equal(summarizeRun('folder-watch', { ...stats, alertSourceOff: 2 }).at(-1), '2 not alerted: alerts are off for their source');
+    // An import's one message lists the best and counts the rest.
+    assert.deepEqual(summarizeRun('import', { fetched: 300, persisted: 300, classified: 300, matched: 300, alerted: 20, alertCounted: 280 }).slice(-2), ['20 alerted', '280 more counted in the message']);
   });
 
   it('has nothing to say about an empty record', () => {
