@@ -17,8 +17,9 @@ import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
-import { autoPacksToday, queuePack } from '../pack/store';
-import { autoPack } from '../pack/trigger';
+import { packsOnSince } from '../pack/settings';
+import { autoPacksToday, queuePack, sameRole } from '../pack/store';
+import { autoPack, copyPack } from '../pack/trigger';
 import { sourceLine } from '../web/pages/attribution';
 import { getPackSettings, type ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
@@ -429,9 +430,16 @@ export async function processNormalizedJobs(
     ) {
       // A pack is an extra: failing to queue one must never cost the match its alert.
       try {
-        await queuePack(created.id, 'auto');
-        packsToday++;
-        stats.packsQueued++;
+        // Another source's copy of a role already stored: one pack a role, and no way into the backlog (#380).
+        const role = crossListing ? await sameRole(created.id) : null;
+        const copy = role ? copyPack({ role, onSince: packsOnSince(packs) }) : 'queue';
+        if (copy === 'queue') {
+          await queuePack(created.id, 'auto');
+          packsToday++;
+          stats.packsQueued++;
+        } else {
+          logger.info({ jobId: created.id, originalJobId: crossListing?.job.id, reason: copy }, 'process-jobs: no pack for a copy of a stored posting');
+        }
       } catch (err) {
         logger.warn({ err, jobId: created.id }, 'process-jobs: could not queue an application pack');
       }

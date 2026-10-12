@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parsePackSettings } from './settings';
-import { autoPack, autoPackUnwanted, utcDayStart } from './trigger';
+import { autoPack, autoPackUnwanted, copyPack, utcDayStart } from './trigger';
 
 const NOW = new Date('2026-10-05T14:30:00Z');
 const daysAgo = (n: number): Date => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -46,6 +46,22 @@ test('a date nobody gave is no evidence that a posting is recent (#379)', () => 
   // And after what would have stopped it anyway.
   assert.equal(ask({ dated: false, fit: 60 }), 'low-fit');
   assert.equal(ask({ dated: false, settings: parsePackSettings(null) }), 'off');
+});
+
+test('another source\'s copy of a stored role gets one pack between them, and opens no backlog (#380)', () => {
+  const onSince = daysAgo(10);
+  const role = (over: Partial<Parameters<typeof copyPack>[0]['role']> = {}) => ({ hasPack: false, firstStoredAt: daysAgo(2), ...over });
+  // The role already has a pack — queued, ready, stopped or failed, asked for by hand or not: it is prepared once.
+  assert.equal(copyPack({ role: role({ hasPack: true }), onSince }), 'has-pack');
+  // The original was stored before packs were switched on: the settings promise such a posting is never prepared on its own.
+  assert.equal(copyPack({ role: role({ firstStoredAt: daysAgo(11) }), onSince }), 'before-packs');
+  // Stored since, and never given a pack (the day's limit was spent, or it scored lower then): the copy is the role's chance.
+  assert.equal(copyPack({ role: role(), onSince }), 'queue');
+  assert.equal(copyPack({ role: role({ firstStoredAt: onSince }), onSince }), 'queue');
+  // No record of when packs went on: nothing shows the role arrived after it.
+  assert.equal(copyPack({ role: role(), onSince: null }), 'before-packs');
+  // A pack outranks the date: the question of the backlog never comes up for a role that has one.
+  assert.equal(copyPack({ role: role({ hasPack: true, firstStoredAt: daysAgo(40) }), onSince: null }), 'has-pack');
 });
 
 test('the day the limit counts is the UTC day', () => {

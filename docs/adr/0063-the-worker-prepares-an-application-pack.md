@@ -83,6 +83,26 @@ Before a line of the feature was written, the pipeline was run dry over those
    hand. Two things are left: the date is still shown and filtered as
    "Posted" (#458), and a board that never publishes dates gets no automatic
    pack even for a role that appeared between two reads (#459).
+   *Amended 2026-10-12 (v2.55.53, #380).* The trigger asked about the row
+   and never about the role. The same posting from a second source — a row
+   linked to its original by `crossListedOfJobId` (ADR 0018) — got a pack of
+   its own: two comparisons, two company checks, the role twice in the
+   morning message. And a copy of a posting stored before packs were
+   switched on queued one too, which is the backlog by another door. A copy
+   is now asked a second question (`trigger.ts:copyPack` over
+   `store.ts:sameRole` — the posting it is linked to, what that one is
+   linked to, and their other copies): no pack when one of them has a pack
+   in any state, and none when the first of them was stored before the
+   switch. That needs the moment of the switch, which nothing recorded:
+   `AppSettings.pack.enabledAt` is stamped when a save turns packs on, kept
+   while they stay on, cleared when they go off (`settings.ts:switchedOn`).
+   An install that already had them on gets the moment of the upgrade
+   (migration `20261012100000_pack_switched_on_at`): for a copy of a posting
+   stored before it nothing shows the posting came after the switch, so it
+   is left to the person's own **Prepare** — the error is on the side that
+   spends nothing. A role stored since and never given a pack (the day's
+   limit was spent) still gets one through its copy. The tab of the posting
+   left without a pack points at the one that has it.
 3. **The row is the queue.** `application_pack`, one per posting: queued →
    running → ready | stopped | failed. The dashboard only inserts the row;
    the worker's runner (`jobs/pack-job.ts`) beats every minute, takes an
@@ -138,6 +158,13 @@ Before a line of the feature was written, the pipeline was run dry over those
    the tailored text judged again → the file → the letter. A company check
    that fails is not a verdict: the pack goes on and says the company was not
    looked at.
+   *Amended 2026-10-12 (v2.55.53, #380).* A company check was reused only
+   from the posting's own rows. A check under fourteen days old that another
+   source's copy of the same posting has is reused too
+   (`PackPosting.sameRole`), when both rows name the same hiring company
+   (`Job.employerKey`, ADR 0056): a copy an agency lists under its own name
+   is another company to check, and a row that names no company borrows
+   nothing. On the live check that step was 189–216 s a posting.
 6. **What may change is a policy held in code** (`pack/policy.ts`): the
    sections open to an edit, at most two experience bullets, nothing removed,
    only keywords the resume backs. Two rules came from the dry run: the

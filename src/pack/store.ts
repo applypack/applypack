@@ -4,7 +4,7 @@ import { companyForMessage, companyForPrompt } from '../employer';
 import { preselectResume } from '../resume/pick';
 import type { PrepareStep } from './gate';
 import type { PackPosting, PackResume } from './prepare';
-import { utcDayStart } from './trigger';
+import { utcDayStart, type SameRole } from './trigger';
 import type { PackNotice } from './view';
 
 /*
@@ -115,6 +115,47 @@ const BLANK = {
   finishedAt: null,
 } satisfies Prisma.ApplicationPackUpdateManyMutationInput;
 
+/** How far a chain of copies is followed up: a copy of a copy of a copy is already rare. */
+const COPY_HOPS = 5;
+
+/**
+ * The other stored postings of the role a job is a copy of: the posting it
+ * was linked to (`crossListedOfJobId`, ADR 0018), what that one was linked
+ * to, and the copies linked to it or to any of them. Empty for a posting
+ * no other source carries.
+ */
+async function sameRoleJobs(jobId: number): Promise<{ id: number; fetchedAt: Date; employerKey: string | null }[]> {
+  const select = { id: true, fetchedAt: true, employerKey: true, crossListedOfJobId: true } as const;
+  const self = await prisma.job.findUnique({ where: { id: jobId }, select: { crossListedOfJobId: true } });
+  const above: { id: number; fetchedAt: Date; employerKey: string | null }[] = [];
+  let next = self?.crossListedOfJobId ?? null;
+  for (let hop = 0; next !== null && hop < COPY_HOPS; hop++) {
+    const row = await prisma.job.findUnique({ where: { id: next }, select });
+    if (!row || row.id === jobId || above.some((a) => a.id === row.id)) break;
+    above.push(row);
+    next = row.crossListedOfJobId;
+  }
+  const known = [jobId, ...above.map((a) => a.id)];
+  const beside = await prisma.job.findMany({ where: { crossListedOfJobId: { in: known }, id: { notIn: known } }, select });
+  return [...above, ...beside];
+}
+
+/** The posting of the same role that holds a pack — where the tab of one that holds none points (#380). */
+export async function packOfSameRole(jobId: number): Promise<number | null> {
+  const jobs = await sameRoleJobs(jobId);
+  if (jobs.length === 0) return null;
+  const pack = await prisma.applicationPack.findFirst({ where: { jobId: { in: jobs.map((j) => j.id) } }, orderBy: { queuedAt: 'desc' }, select: { jobId: true } });
+  return pack?.jobId ?? null;
+}
+
+/** What the tick asks before it queues a pack for a copy (trigger.ts:copyPack); null for a posting no other source carries. */
+export async function sameRole(jobId: number): Promise<SameRole | null> {
+  const jobs = await sameRoleJobs(jobId);
+  if (jobs.length === 0) return null;
+  const packs = await prisma.applicationPack.count({ where: { jobId: { in: jobs.map((j) => j.id) } } });
+  return { hasPack: packs > 0, firstStoredAt: new Date(Math.min(...jobs.map((j) => j.fetchedAt.getTime()))) };
+}
+
 /** Packs the worker queued on its own since the UTC day began — what the daily limit counts. */
 export async function autoPacksToday(now: Date): Promise<number> {
   // A pack that failed before it compared anything (no resume to read, the engine down) spent nothing, and takes no slot.
@@ -222,6 +263,8 @@ export async function loadPackInputs(jobId: number, primaryResumeId: number | nu
   const stored = await prisma.resume.findMany({ where: { hidden: false }, select: { id: true, skills: true, isDefault: true } });
   const picked = preselectResume(stored, `${job.title} ${job.description}`, job.scores[0]?.profile.resumeId ?? primaryResumeId);
   const resume = picked && (await prisma.resume.findUnique({ where: { id: picked.id }, select: { id: true, name: true, text: true, version: true, updatedAt: true } }));
+  // The same role at the same hiring company: a copy an agency lists under its own name is another company to check.
+  const sameCompany = job.employerKey === null ? [] : (await sameRoleJobs(job.id)).filter((j) => j.employerKey === job.employerKey);
   return {
     posting: {
       id: job.id,
@@ -235,6 +278,7 @@ export async function loadPackInputs(jobId: number, primaryResumeId: number | nu
       postedAt: job.postedAt,
       atsType: job.company.atsType,
       atsToken: job.company.atsToken,
+      sameRole: sameCompany.map((j) => j.id),
     },
     resume,
   };

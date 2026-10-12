@@ -31,6 +31,8 @@ export interface ApplicationPackProps {
   letter: boolean;
   /** Whether packs are prepared on their own (Settings → General); the empty state says which. */
   automatic: boolean;
+  /** With no pack here: another source's copy of this posting that has one (#380). */
+  sameRoleJobId: number | null;
   /** What preparing a pack spends, said before the press (#387): how many calls, and on what kind of money. */
   cost: string;
 }
@@ -78,7 +80,7 @@ const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
   </ul>
 );
 
-export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, kept, files, edits, changes, company, asks, unbacked, letter, automatic, cost }) => {
+export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, kept, files, edits, changes, company, asks, unbacked, letter, automatic, sameRoleJobId, cost }) => {
   const prepare = `/jobs/${jobId}/pack`;
   if (!pack) {
     return (
@@ -86,6 +88,17 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
         <SectionTitle>{t('pack.card.title')}</SectionTitle>
         <Hint>{t('pack.card.whatItDoes')}</Hint>
         <Hint class="mt-2">{automatic ? t('pack.card.automaticOn') : t('pack.card.automaticOff')}</Hint>
+        {sameRoleJobId !== null && (
+          <p class="mt-2 text-sm leading-6 text-ink">
+            {tRich('pack.card.sameRole', {}, {
+              link: (words) => (
+                <a class="text-accent underline-offset-2 hover:underline" href={jobHref(sameRoleJobId, 'pack')}>
+                  {words}
+                </a>
+              ),
+            })}
+          </p>
+        )}
         <ActionForm action={prepare} class="mt-3" once>
           <Button variant="violet" size="sm">
             {t('pack.card.prepare')}
