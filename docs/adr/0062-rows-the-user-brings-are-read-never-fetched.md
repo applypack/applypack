@@ -172,6 +172,17 @@ ask the question.
   purpose: a source keeps the mapping its rows were stored under, so a
   newer export into it still recognises what it holds — changing how its
   ids are read would store every row again, and score it again.
+- **Pay and dates are read as written, or not at all.** An amount is a
+  number; a date is ISO, a month's name with a year, or an epoch.
+  *Amended 2026-10-12 (v2.55.56, #403):* "as written" left out how pay is
+  written. `"$90,000"`, `"90k"`, `"€65.000"` and `"65000 EUR"` in the from
+  and to columns read as nothing, so no `Salary:` line was written and the
+  low-pay dismissal never saw the pay. `map.ts:money` reads a sign or a
+  currency code around the digits and a `k` or `m` after them; a sign only
+  one currency uses is that currency, and `$` stays `$` — it names several.
+  A date with a space before its zone (`2026-10-05 10:00:00 +02:00`, as a
+  database prints it) is read; and a month's name with a year is a date
+  only when nothing else is in the cell: "You may apply 2026" was 1 May.
 - **An import is a burst of postings.** Every row takes the path a fetched
   posting takes, alert included.
   *Amended 2026-10-12 (v2.55.54, #402):* so a file of 2,000 rows, 300 of

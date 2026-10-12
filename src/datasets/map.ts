@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import { findCountry, placeLabel } from '../countries';
+import { isCurrencyCode } from '../currency';
 import { cleanEmployer } from '../employer';
 import { decodeHtmlEntities, stripHtml } from '../http';
 import { isBlockedPostingHost } from '../jobs/blocked-hosts';
@@ -207,6 +208,10 @@ const MARKUP_RE = /<\/?(p|div|ul|ol|li|br|h[1-6]|strong|em|b|table|span|a)[\s>/]
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 const MONTH_NAME_RE = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
 const YEAR_RE = /\b(?:19|20)\d{2}\b/;
+/** What a written date is made of besides its digits: the month, a weekday, "5th", "at", am/pm, a zone. */
+const DATE_WORDS_RE =
+  /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|at|am|pm|gmt|utc|z)\b/gi;
+const ORDINAL_RE = /\b(\d{1,2})(?:st|nd|rd|th)\b/gi;
 /** A date that says which zone it is in; one that does not is read as UTC, on every machine alike. */
 const ZONED_RE = /(?:Z|GMT|UTC|[+-]\d{2}:?\d{2})$/i;
 /** A posting date before this, or past tomorrow, is a misread column rather than a date. */
@@ -270,9 +275,16 @@ export function readDate(value: unknown, now: Date): Date | null {
   let ms: number;
   if (/^\d{10}$/.test(text)) ms = Number(text) * 1000;
   else if (/^\d{13}$/.test(text)) ms = Number(text);
-  else if (ISO_DATE_RE.test(text)) ms = Date.parse(text.length === 10 || ZONED_RE.test(text) ? text.replace(' ', 'T') : `${text.replace(' ', 'T')}Z`);
-  else if (MONTH_NAME_RE.test(text) && YEAR_RE.test(text)) ms = Date.parse(ZONED_RE.test(text) ? text : `${text} UTC`);
-  else return null;
+  else if (ISO_DATE_RE.test(text)) {
+    // "2026-10-05 10:00:00 +02:00": the space before the zone is how a database prints it, and Date.parse refuses it.
+    const iso = text.replace(/^(\d{4}-\d{2}-\d{2})\s+/, '$1T').replace(/\s+/g, '');
+    ms = Date.parse(text.length === 10 || ZONED_RE.test(text) ? iso : `${iso}Z`);
+  } else if (MONTH_NAME_RE.test(text) && YEAR_RE.test(text)) {
+    // A date and nothing else. "You may apply 2026" holds a month's name and a year, and Date.parse reads it as 1 May (#403).
+    const written = text.replace(ORDINAL_RE, '$1').replace(/\bat\b/gi, ' ');
+    if (/\p{L}/u.test(written.replace(DATE_WORDS_RE, ' '))) return null;
+    ms = Date.parse(ZONED_RE.test(written) ? written : `${written} UTC`);
+  } else return null;
   return Number.isNaN(ms) || ms < EARLIEST_POSTING || ms > now.getTime() + DAY_MS ? null : new Date(ms);
 }
 
@@ -322,23 +334,46 @@ function isTrue(value: unknown): boolean {
   return /^(?:true|yes|y|1|expired|closed)$/i.test(cellText(value));
 }
 
+/** Signs that name one currency. "$" and "¥" name several, and are kept as the row wrote them. */
+const SIGN_CODES: Readonly<Record<string, string>> = { '€': 'EUR', '£': 'GBP', '₴': 'UAH', '₹': 'INR', '₪': 'ILS', zł: 'PLN' };
+/** An amount as people write it: a sign or a code before or after, "k" or "m" for thousands and millions. */
+const MONEY_RE = /^(?<lead>[$€£¥₴₹₪]|[a-z]{3})?(?<digits>\d+(?:[.,]\d+)*)(?<scale>k|m)?(?<tail>[$€£¥₴₹₪]|zł|[a-z]{3})?$/i;
+const SCALE: Readonly<Record<string, number>> = { k: 1_000, m: 1_000_000 };
+
+interface Money {
+  amount: number;
+  /** The currency the cell itself names by code or by a sign only one currency uses. */
+  currency: string | null;
+  /** "$" or "¥", when that is all the cell says of the currency. */
+  sign: string | null;
+}
+
 /**
- * An amount of money as a number. A number is taken as it is; a text is read
- * the way amounts are written on both sides of the decimal comma: with both
- * marks the last one is the decimal ("90.000,50", "90,000.50"), and one mark
+ * An amount of money. A number is taken as it is; a text is read the way
+ * amounts are written on both sides of the decimal comma: with both marks
+ * the last one is the decimal ("90.000,50", "90,000.50"), and one mark
  * before exactly three final digits groups thousands ("65.000", "65,000") —
- * nobody pays to a tenth of a cent. Anything else is not a number here.
+ * nobody pays to a tenth of a cent. A currency sign or code around the
+ * digits and a "k" after them are part of how pay is written ("$90,000",
+ * "90k", "€65.000", "65000 EUR"), not a reason to read nothing (#403).
+ * Anything else — "DOE", a range in one cell — is not an amount here.
  */
-function amount(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? Number(value.toFixed(2)) : null;
-  const text = cellText(value).replace(/[\s'_\u00A0\u202F]/g, '');
-  if (!/^\d+(?:[.,]\d+)*$/.test(text)) return null;
+function money(value: unknown): Money | null {
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? { amount: Number(value.toFixed(2)), currency: null, sign: null } : null;
+  const found = MONEY_RE.exec(cellText(value).replace(/[\s'_\u00A0\u202F]/g, ''));
+  if (!found?.groups) return null;
+  const { lead, digits: text = '', scale, tail } = found.groups;
+  const marked = [lead, tail].filter((m): m is string => m !== undefined);
+  // A word of three letters is a currency only when it is one: "90000 net" is not an amount in NET.
+  if (marked.some((m) => /^[a-z]{3}$/i.test(m) && !isCurrencyCode(m))) return null;
   const mark = Math.max(text.lastIndexOf('.'), text.lastIndexOf(','));
   const marks = text.replace(/\d/g, '');
   const grouped = marks.length > 0 && new Set(marks).size === 1 && /^\d{1,3}(?:[.,]\d{3})+$/.test(text);
   const digits = (part: string): string => part.replace(/[.,]/g, '');
-  const n = mark === -1 || grouped ? Number(digits(text)) : Number(`${digits(text.slice(0, mark))}.${text.slice(mark + 1)}`);
-  return n > 0 ? Number(n.toFixed(2)) : null;
+  const n = (mark === -1 || grouped ? Number(digits(text)) : Number(`${digits(text.slice(0, mark))}.${text.slice(mark + 1)}`)) * (scale ? SCALE[scale.toLowerCase()]! : 1);
+  if (!(n > 0)) return null;
+  const code = marked.map((m) => (/^[a-z]{3}$/i.test(m) ? m.toUpperCase() : SIGN_CODES[m.toLowerCase()])).find((c) => c !== undefined) ?? null;
+  return { amount: Number(n.toFixed(2)), currency: code, sign: code === null ? (marked.find((m) => m === '$' || m === '¥') ?? null) : null };
 }
 
 function periodWord(value: unknown): string | null {
@@ -358,15 +393,18 @@ function salaryLine(at: (field: MappingField) => unknown): string | null {
     }
     return null;
   };
-  const min = first(pick('salaryMin', PAY_MIN_KEYS), amount);
-  const max = first(pick('salaryMax', PAY_MAX_KEYS), amount);
+  const min = first(pick('salaryMin', PAY_MIN_KEYS), money);
+  const max = first(pick('salaryMax', PAY_MAX_KEYS), money);
   if (min === null && max === null) {
     const text = clipText(oneLine(nested ? cellText(inner(nested, PAY_TEXT_KEYS)) : cellText(pay)), MAX_PAY_CHARS).replace(/[.\s]+$/, '');
     return text.length > 0 ? `Salary: ${text}.` : null;
   }
-  const currency = first(pick('salaryCurrency', PAY_CURRENCY_KEYS), (v) => (/^[A-Za-z]{3}$/.test(cellText(v)) ? cellText(v).toUpperCase() : null));
+  // The currency column first; else what the amounts' own cells say.
+  const currency = first(pick('salaryCurrency', PAY_CURRENCY_KEYS), (v) => (/^[A-Za-z]{3}$/.test(cellText(v)) ? cellText(v).toUpperCase() : null)) ?? min?.currency ?? max?.currency ?? null;
+  const sign = currency === null ? (min?.sign ?? max?.sign ?? '') : '';
   const period = first(pick('salaryPeriod', PAY_PERIOD_KEYS), periodWord);
-  const range = min !== null && max !== null && min !== max ? `${min}-${max}` : `${max ?? min}`;
+  const [low, high] = [min?.amount ?? null, max?.amount ?? null];
+  const range = low !== null && high !== null && low !== high ? `${sign}${low}-${sign}${high}` : `${sign}${high ?? low}`;
   return `Salary: ${range}${currency ? ` ${currency}` : ''}${period ? ` (${period})` : ''}.`;
 }
 
