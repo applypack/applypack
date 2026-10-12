@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.40] — 2026-10-12
+
+### Fixed
+- **A long "Fetch now" keeps its result for the tab that started it.** The
+  dashboard remembered a "Fetch now" or "Check now" run for half an hour
+  counted from its start. A run that took longer was forgotten as soon as
+  another one was started, and a tab still on its page was told "That fetch
+  run is gone" instead of what the run found. A finished run is now kept for
+  half an hour from the moment it finished. A run whose work never returned
+  made every later press of Fetch now join it until the dashboard restarted;
+  after six hours it no longer counts as running (#407).
+
 ## [2.55.39] — 2026-10-11
 
 ### Fixed
@@ -5654,6 +5666,18 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.40]: https://github.com/applypack/applypack/compare/v2.55.39...v2.55.40
+[2.55.39]: https://github.com/applypack/applypack/compare/v2.55.38...v2.55.39
+[2.55.38]: https://github.com/applypack/applypack/compare/v2.55.37...v2.55.38
+[2.55.37]: https://github.com/applypack/applypack/compare/v2.55.36...v2.55.37
+[2.55.36]: https://github.com/applypack/applypack/compare/v2.55.35...v2.55.36
+[2.55.35]: https://github.com/applypack/applypack/compare/v2.55.34...v2.55.35
+[2.55.34]: https://github.com/applypack/applypack/compare/v2.55.33...v2.55.34
+[2.55.33]: https://github.com/applypack/applypack/compare/v2.55.32...v2.55.33
+[2.55.32]: https://github.com/applypack/applypack/compare/v2.55.31...v2.55.32
+[2.55.31]: https://github.com/applypack/applypack/compare/v2.55.30...v2.55.31
+[2.55.30]: https://github.com/applypack/applypack/compare/v2.55.29...v2.55.30
+[2.55.29]: https://github.com/applypack/applypack/compare/v2.55.28...v2.55.29
 [2.55.28]: https://github.com/applypack/applypack/compare/v2.55.27...v2.55.28
 [2.55.27]: https://github.com/applypack/applypack/compare/v2.55.26...v2.55.27
 [2.55.26]: https://github.com/applypack/applypack/compare/v2.55.25...v2.55.26

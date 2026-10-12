@@ -265,7 +265,7 @@
   "runs.column.status": "Status",
   "runs.column.whatHappened": "What happened",
   "runs.details": "Details",
-  "runs.fetchRunGone": "That fetch run is gone (live progress lasts ~30 min) — its row below still has the result.",
+  "runs.fetchRunGone": "That fetch run is gone (its page is kept for ~30 min after it ends) — its row below still has the result.",
   "runs.checked": "Checked {name}",
   "runs.failed": "The {name} run failed",
   "runs.reason.fetchingPaused": "Fetching is paused",

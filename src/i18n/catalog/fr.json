@@ -265,7 +265,7 @@
   "runs.column.status": "Statut",
   "runs.column.whatHappened": "Ce qui s'est passé",
   "runs.details": "Détails",
-  "runs.fetchRunGone": "Cette exécution de récupération n'est plus disponible (la progression en direct dure environ 30 min) — sa ligne ci-dessous garde le résultat.",
+  "runs.fetchRunGone": "Cette exécution de récupération n'est plus disponible (sa page est conservée environ 30 min après la fin) — sa ligne ci-dessous garde le résultat.",
   "runs.checked": "Vérification de {name}",
   "runs.failed": "L'exécution {name} a échoué",
   "runs.reason.fetchingPaused": "La récupération est en pause",

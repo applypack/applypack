@@ -265,7 +265,7 @@
   "runs.column.status": "Estado",
   "runs.column.whatHappened": "Qué pasó",
   "runs.details": "Detalles",
-  "runs.fetchRunGone": "Esa ejecución de obtención ya no está (el progreso en directo dura unos 30 min); su fila de abajo conserva el resultado.",
+  "runs.fetchRunGone": "Esa ejecución de obtención ya no está (su página se conserva unos 30 min después de terminar); su fila de abajo conserva el resultado.",
   "runs.checked": "Comprobación de {name}",
   "runs.failed": "La ejecución {name} falló",
   "runs.reason.fetchingPaused": "La obtención está en pausa",
