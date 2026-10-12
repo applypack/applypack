@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.41] — 2026-10-12
+
+### Fixed
+- **A click on a missing-keyword chip always does something.** On the Tailor
+  page most chips above the editor did nothing when pressed: no scroll, no
+  focus, no message (48 of 50 solid chips on one set of stored comparisons).
+  Now the chip of the posting's own title leads to the line under your name;
+  a term the model asks about opens its own question in the confirm card, as
+  a term with no evidence does; a term the resume backs leads to the section
+  its hint names, or to the skills line **+ add** would write it on; and when
+  there is no line to go to, a sentence under the chips says so (#349).
+
 ## [2.55.40] — 2026-10-12
 
 ### Fixed
@@ -5666,6 +5678,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.41]: https://github.com/applypack/applypack/compare/v2.55.40...v2.55.41
 [2.55.40]: https://github.com/applypack/applypack/compare/v2.55.39...v2.55.40
 [2.55.39]: https://github.com/applypack/applypack/compare/v2.55.38...v2.55.39
 [2.55.38]: https://github.com/applypack/applypack/compare/v2.55.37...v2.55.38

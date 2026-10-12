@@ -373,7 +373,7 @@ export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ h
 
 /** One term the user can answer for. Answers persist as CandidateFact rows. */
 const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, matchId, back }) => (
-  <li class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
+  <li data-fact={k.term} class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
     <div class="min-w-0 flex-1 text-sm">
       <span class="font-medium text-ink" translate="no">
         {k.term}
@@ -426,7 +426,8 @@ const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, ma
  * The card takes both tiers of `keyword-overrides.ts:confirmable`. The asks are open; the
  * terms the model could not back sit behind a summary, because on a resume
  * from another profession there are twenty-five of them and a wall of forms
- * is not an offer. The dashed chips above the editor open it (target-page.mjs).
+ * is not an offer. A chip above the editor leads to its own row here, in
+ * either tier (target-page.mjs:chipTarget).
  */
 export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; matchId: number; back: string }> = ({
   asks,
@@ -438,7 +439,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
     <div>
       <div class={SUBHEAD}>{t('facts.heading')}</div>
       {asks.length > 0 && (
-        <ul class="divide-y divide-line rounded-md border border-line">
+        <ul id="confirm-asks" class="divide-y divide-line rounded-md border border-line">
           {asks.map((k) => (
             <FactRow k={k} matchId={matchId} back={back} />
           ))}

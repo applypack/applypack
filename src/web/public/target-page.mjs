@@ -78,6 +78,71 @@ export function skillGaps(gaps, jobTitle) {
   return gaps.filter((r) => !isTitleKeyword(r, jobTitle));
 }
 
+/** The sections a `where` hint can name by their usual heading. */
+const HINT_SECTIONS = ['summary', 'skills', 'experience', 'education'];
+/** A heading is a short line; a sentence that says "experience" is not one. */
+const HINT_HEADING_MAX = 60;
+
+/** The offsets of the first line of `text` that `test` accepts, or null. */
+function firstLine(text, test) {
+  let start = 0;
+  for (const line of text.split('\n')) {
+    if (test(line)) return { start, end: start + line.length };
+    start += line.length + 1;
+  }
+  return null;
+}
+
+/** The offsets of the line of `text` that holds offset `at`. */
+function lineHolding(text, at) {
+  const start = text.lastIndexOf('\n', at - 1) + 1;
+  const stop = text.indexOf('\n', start);
+  return { start, end: stop === -1 ? text.length : stop };
+}
+
+/**
+ * Where a click on a missing-keyword chip leads (#349): the confirm card, a
+ * line of the resume, or the reason there is no line to go to. Never nowhere
+ * in silence, which is what 40 of 42 solid chips did on the live comparisons:
+ * an `ask_user` row carries no `where`, the model writes the hint as a
+ * sentence, and no resume labels its headline "Title".
+ *
+ *   { to: 'confirm', tier: 'asks' | 'unproven' }
+ *   { to: 'line', start, end }      a whole line of `text`
+ *   { to: 'nowhere', why: 'answered-no' | 'answered-unsure' | 'title' | 'no-place' }
+ *
+ * `ctx`: the posting's title, the resume's headline as the server read it
+ * (the line under the name), the two notes an answer leaves, and which tiers
+ * of the confirm card the page drew — a file judged on its text alone has none.
+ */
+export function chipTarget(row, text, ctx) {
+  if (isTitleKeyword(row, ctx.jobTitle)) {
+    const headline = String(ctx.headline ?? '').trim();
+    const line =
+      headline === '' ? null : (firstLine(text, (l) => l.trim() === headline) ?? firstLine(text, (l) => l.includes(headline)));
+    return line ? { to: 'line', ...line } : { to: 'nowhere', why: 'title' };
+  }
+  if (row.status === 'cannot_claim') {
+    if (row.note === ctx.deniedNote) return { to: 'nowhere', why: 'answered-no' };
+    if (row.note === ctx.unsureNote) return { to: 'nowhere', why: 'answered-unsure' };
+    return ctx.confirm?.unproven ? { to: 'confirm', tier: 'unproven' } : { to: 'nowhere', why: 'no-place' };
+  }
+  if (row.status === 'ask_user') {
+    return ctx.confirm?.asks ? { to: 'confirm', tier: 'asks' } : { to: 'nowhere', why: 'no-place' };
+  }
+  // The resume backs the term and does not spell it: the section the hint
+  // names, or the skills line "+ add" would write it on.
+  const hint = String(row.where ?? '').toLowerCase();
+  const section = HINT_SECTIONS.find((s) => hint.includes(s));
+  const heading = section
+    ? firstLine(text, (l) => l.length < HINT_HEADING_MAX && l.toLowerCase().includes(section))
+    : null;
+  const probe = insertIntoSkills(text, row.term, row.where);
+  const skills = probe.error ? null : lineHolding(text, probe.change.start);
+  const line = section && section !== 'skills' ? (heading ?? skills) : (skills ?? heading);
+  return line ? { to: 'line', ...line } : { to: 'nowhere', why: 'no-place' };
+}
+
 /** Why an edit did not happen — every error the text operations can return, as the key that words it. */
 const REASON = {
   'not-found': 'browser.edit.notFound',
@@ -242,9 +307,7 @@ export function init(data) {
         answer ?? (unproven ? t('browser.chips.typeOrConfirm') : r.where ? t('browser.chips.addIn', { where: r.where }) : null),
         answer ? null : r.note,
       ].filter(Boolean).join(' · ');
-      // A dashed chip has no section to send you to — the resume never mentions
-      // the word. It opens the confirm card, the other way to make it count.
-      b.addEventListener('click', () => (unproven && !answer ? openConfirm() : jumpToSection(r.where)));
+      b.addEventListener('click', () => followChip(r));
       chips.appendChild(b);
       // "Add to Skills" only where it can honestly work: the model (or a fact the
       // user confirmed — applyFacts flips confirmed to `add` before this page
@@ -301,36 +364,63 @@ export function init(data) {
     if (resumeView === 'doc') docPane?.schedule();
   }
 
-  /** Open the "no evidence" tier of the confirm card and bring it into view. */
-  function openConfirm() {
-    const box = document.getElementById('confirm-unproven');
-    if (!box) return;
-    box.open = true;
-    box.scrollIntoView({ block: 'center' });
-    // Focus follows the disclosure, as it does when the summary itself is pressed.
-    box.querySelector('summary')?.focus({ preventScroll: true });
-    box.classList.remove('flash-target');
-    void box.offsetWidth; // restart the animation when clicked twice
-    box.classList.add('flash-target');
+  /** What a chip's click says when there is no line to go to: shown under the chips and read out. */
+  const NOWHERE = {
+    'answered-no': ['browser.chips.answered', { answer: 'no' }],
+    'answered-unsure': ['browser.chips.answered', { answer: 'unsure' }],
+    title: ['browser.chips.titleLine', {}],
+    'no-place': ['browser.chips.noPlace', {}],
+  };
+  const chipsStatus = document.getElementById('chips-status');
+  function sayChip(message) {
+    if (chipsStatus) {
+      chipsStatus.textContent = message;
+      chipsStatus.hidden = message === '';
+    }
+    if (message !== '') announce(message);
   }
 
-  function jumpToSection(where) {
-    if (!where) return;
-    const hint = where.toLowerCase();
-    const sections = ['summary', 'skills', 'experience', 'education', 'title'];
-    const wanted = sections.find((s) => hint.includes(s));
-    const lines = editor.value.split('\n');
-    let offset = 0;
-    for (const line of lines) {
-      if (wanted && line.toLowerCase().includes(wanted) && line.length < 60) {
-        // The document is the default view, and the textarea behind it is hidden:
-        // outline the heading there, or open the text where the caret can land.
-        if (resumeView === 'doc' && docPane?.locate(line.trim())) return;
-        select(offset, offset + line.length);
-        return;
-      }
-      offset += line.length + 1;
+  /** A chip's click: the confirm card, a line of the resume, or the sentence that says why neither (chipTarget). */
+  function followChip(row) {
+    const target = chipTarget(row, editor.value, {
+      jobTitle: data.sheet.jobTitle,
+      headline: data.headline,
+      deniedNote: data.deniedNote,
+      unsureNote: data.unsureNote,
+      confirm: {
+        asks: document.getElementById('confirm-asks') !== null,
+        unproven: document.getElementById('confirm-unproven') !== null,
+      },
+    });
+    if (target.to === 'nowhere') {
+      const [key, params] = NOWHERE[target.why];
+      sayChip(t(key, { term: row.term, ...params }));
+      return;
     }
+    sayChip('');
+    if (target.to === 'confirm') openConfirm(target.tier, row.term);
+    else goToLine(target.start, target.end);
+  }
+
+  /** Bring the term's question in the confirm card into view: its own row, or the tier when the card does not list it. */
+  function openConfirm(tier, term) {
+    const box = document.getElementById(tier === 'asks' ? 'confirm-asks' : 'confirm-unproven');
+    if (!box) return;
+    if (tier === 'unproven') box.open = true;
+    const row = [...box.querySelectorAll('[data-fact]')].find((li) => li.dataset.fact === term) ?? box;
+    row.scrollIntoView({ block: 'center' });
+    // Focus lands on the question's first control; with no row, on the disclosure, as when the summary itself is pressed.
+    (row === box ? box.querySelector('summary') : row.querySelector('input:not([type=hidden]), button'))?.focus({ preventScroll: true });
+    row.classList.remove('flash-target');
+    void row.offsetWidth; // restart the animation when clicked twice
+    row.classList.add('flash-target');
+  }
+
+  function goToLine(start, end) {
+    // The document is the default view, and the textarea behind it is hidden:
+    // outline the line there, or open the text where the caret can land.
+    if (resumeView === 'doc' && docPane?.locate(editor.value.slice(start, end).trim())) return;
+    select(start, end);
   }
 
   /** Scroll THE EDITOR so the offset sits in its upper third. The page never moves. */
@@ -362,6 +452,7 @@ export function init(data) {
   let timer = null;
   editor.addEventListener('input', () => {
     located = null;
+    sayChip('');
     // A refusal ("couldn't find this text") describes the text as it was; once
     // the user types, it may no longer be true, so it stops being sticky.
     for (const st of document.querySelectorAll('[data-card-status][data-sticky]')) delete st.dataset.sticky;
