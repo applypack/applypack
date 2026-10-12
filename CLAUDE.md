@@ -156,7 +156,10 @@
   The launcher never imports `config.ts` or
   `db.ts` — the URL does not exist until it has started the database. The
   worker and the dashboard only call `child.ts` (`announceReady`,
-  `onLauncherStop`, `underLauncher`), a no-op without a launcher; the
+  `onLauncherStop`, `underLauncher`), a no-op without a launcher;
+  `install.ts:localInstall` is the wider question the folder rules ask — the
+  launcher started this process, or it found the built-in database through
+  `db.json` (a once-script, a dev watcher; #398); the
   dashboard's login entry (`web/login-item-io.ts` over the pure
   `src/login-item.ts`) also reads the pure `data-dir.ts`. `snapshots.ts`
   (pure) plans the daily copy the launcher takes before Postgres starts. `config.ts` fills an empty

@@ -83,7 +83,7 @@ export function folderAllowed(folder: string, rules: FolderRules, p: PathApi = p
   }
   const parts = p.relative(rules.home, folder).split(p.sep);
   if (parts.some((part) => part.startsWith('.'))) return { ok: false, reason: t('datasets.folder.hidden') };
-  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: t('datasets.folder.system') };
+  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: t('datasets.folder.system', { env: INBOX_ROOTS_ENV }) };
   if (within(folder, rules.dataDir, p) || within(rules.dataDir, folder, p)) return { ok: false, reason: t('datasets.folder.dataDir') };
   return { ok: true };
 }

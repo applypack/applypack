@@ -54,7 +54,7 @@ import { alertsOff } from '../datasets/map';
 import { currentFolderRules } from '../datasets/folder-io';
 import { loadLedger, loadStoredPostings } from '../jobs/source-file-store';
 import { config } from '../config';
-import { underLauncher } from '../local/child';
+import { localInstall } from '../local/install';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
 import { dueCutoff, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
@@ -429,7 +429,7 @@ export async function fetchOne(
       // (ADR 0062): read from the disk, no request. What it learns about each
       // file is staged in `folder-ledger.ts` and kept once the tick stored the jobs.
       // The look's own clock, not the walk's: a file written minutes into a long walk is younger than the walk (#396).
-      return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS), {
+      return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(localInstall(), config.APPLYPACK_INBOX_ROOTS), {
         now: new Date(),
         scoring: context.scoring !== false,
         stored: () => loadStoredPostings(company.id),

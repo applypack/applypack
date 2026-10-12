@@ -44,7 +44,7 @@ import { config } from '../../config';
 import { inboxRoots } from '../../datasets/folder-path';
 import { readSourceConfig } from '../../datasets/map';
 import { folderSummaries } from '../../jobs/source-file-store';
-import { underLauncher } from '../../local/child';
+import { localInstall } from '../../local/install';
 
 const NewCompanySchema = z.object({
   name: z.string().min(1).max(100),
@@ -200,7 +200,7 @@ companiesRoute.get('/companies', async (c) => {
     <CompaniesPage
       companies={rows}
       folders={folders}
-      folderHost={{ launcher: underLauncher(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
+      folderHost={{ launcher: localInstall(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
       watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p))))}
       watchlistRun={activeWatchlistRun()}
       packs={packs}

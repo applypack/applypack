@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.48] — 2026-10-12
+
+### Fixed
+- **A folder is read by a script run beside a local install.** On an install
+  started with `npm start`, a fetch run from anything but the launcher (`node
+  dist/scripts/fetch-once.js`, the dev watchers) took the machine for a
+  server: it refused every folder under your home folder ("On a server
+  ApplyPack reads only the folders named in APPLYPACK_INBOX_ROOTS") and
+  marked the source failing. A process that finds its database in the
+  install's own data folder now follows the local rules.
+- **The refusal for a cloud drive says the way out.** iCloud Drive, Dropbox,
+  Google Drive and OneDrive live under `~/Library` on a Mac, and a folder
+  there was refused with "The system's own folders (Library, AppData) are not
+  read" and nothing more. The message and `docs/install.md` now say to name
+  the synced folder in `APPLYPACK_INBOX_ROOTS` (#398).
+
 ## [2.55.47] — 2026-10-12
 
 ### Changed
@@ -5785,6 +5801,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.48]: https://github.com/applypack/applypack/compare/v2.55.47...v2.55.48
 [2.55.47]: https://github.com/applypack/applypack/compare/v2.55.46...v2.55.47
 [2.55.46]: https://github.com/applypack/applypack/compare/v2.55.45...v2.55.46
 [2.55.45]: https://github.com/applypack/applypack/compare/v2.55.44...v2.55.45
