@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.49] — 2026-10-12
+
+### Changed
+- **A folder's file is checked twice before it is read.** Its path is
+  resolved again once the file is open and must still be what it was, and a
+  file that has a second name on the disk (a hard link) is passed over like
+  a link: the Files page lists it as "A link, or a file outside the folder.
+  Not read." (#398).
+
 ## [2.55.48] — 2026-10-12
 
 ### Fixed
@@ -5801,6 +5810,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.49]: https://github.com/applypack/applypack/compare/v2.55.48...v2.55.49
 [2.55.48]: https://github.com/applypack/applypack/compare/v2.55.47...v2.55.48
 [2.55.47]: https://github.com/applypack/applypack/compare/v2.55.46...v2.55.47
 [2.55.46]: https://github.com/applypack/applypack/compare/v2.55.45...v2.55.46

@@ -349,6 +349,11 @@ link, a file's real path must lie beneath the folder's, and a test holds
 the module to that call by call. The one folder ApplyPack creates is an
 empty `~/ApplyPack/inbox`, on a local install, when the user presses the
 button for it.
+*Amended 2026-10-12 (v2.55.49, #398).* Two more conditions on a file
+before its bytes are read: its path is resolved again once the file is
+held open and must still be what it was, and a file with a second name on
+the disk (a hard link) is passed over as a link is, with the same line on
+the per-file list.
 
 **What the user sees.** Check reads the folder and shows what a first look
 would do, with no AI spent and nothing stored; Add stores the row switched
