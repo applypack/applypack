@@ -153,6 +153,12 @@ describe('summarizeRun', () => {
     assert.deepEqual(summarizeRun('fetch', { skipped: 1, reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
   });
 
+  it('says a match from a folder with its alerts off in words, not as a humanised counter (#365)', () => {
+    const stats = { fetched: 3, persisted: 1, classified: 1, matched: 1, alertSourceOff: 1 };
+    assert.deepEqual(summarizeRun('fetch', stats), ['3 fetched', '1 new', '1 classified', '1 match', "1 not alerted: its folder's alerts are off"]);
+    assert.equal(summarizeRun('folder-watch', { ...stats, alertSourceOff: 2 }).at(-1), "2 not alerted: their folder's alerts are off");
+  });
+
   it('has nothing to say about an empty record', () => {
     assert.deepEqual(summarizeRun('fetch', {}), []);
   });

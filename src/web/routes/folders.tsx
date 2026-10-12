@@ -300,9 +300,10 @@ async function previewPostings(
 foldersRoute.post('/companies/folder/check', async (c) => {
   const form = await c.req.parseBody();
   const folder = await resolveFolder(text(form.path));
-  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${folder.error}`);
+  // Check never adds anything, so its refusal does not say "Nothing was added" (#365).
+  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${folder.error}`);
   const preview = await previewFolder(folder.root, form);
-  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${preview.error}`);
+  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${preview.error}`);
   return c.html(<FolderPreviewPage {...preview} />);
 });
 

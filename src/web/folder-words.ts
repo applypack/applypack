@@ -36,6 +36,12 @@ export function folderTrouble(status: string | null, streak: number): { label: s
   return { label, tone: tone === 'bad' ? 'danger' : 'warn', title: streak > 0 ? t('sources.health.withStreak', { label, n: streak }) : label };
 }
 
+/** What a saved posting with no title of its own is called: a saved page has a title to state, a text file, a PDF or a document has none to look for. */
+export function untitledLine(relPath: string): string {
+  const kind = postingFileKind(relPath);
+  return t(kind === 'html' || kind === 'mhtml' || kind === 'webarchive' ? 'folders.postings.noTitle' : 'folders.postings.noTitleFile');
+}
+
 export interface FileLine {
   /** One or two words for the badge. */
   label: string;
