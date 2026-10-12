@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.53] — 2026-10-12
+
+### Fixed
+- **One application pack for a role, however many sources list it.** The same
+  posting reaching ApplyPack from two sources got two packs: two comparisons,
+  two company checks with web search, and the role twice in the morning
+  message. Another source's copy of a stored posting now gets no pack of its
+  own when a posting of that role already has one, and its **Application
+  pack** tab points at the one that does (#380).
+- **A copy is no door into the backlog.** A copy of a posting stored before
+  packs were switched on queued a pack, though the settings say such a
+  posting is never prepared on its own. Packs now keep the moment they were
+  switched on; a copy whose original predates it is left to **Prepare the
+  pack**. On an install that already has packs on, that moment is the
+  upgrade (#380).
+- **A pack reuses the company check its copy already has.** A check under
+  fourteen days old on another source's copy of the same posting, at the same
+  hiring company, is used instead of running a new one (#380).
+
 ## [2.55.52] — 2026-10-12
 
 ### Changed
@@ -5850,6 +5869,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.53]: https://github.com/applypack/applypack/compare/v2.55.52...v2.55.53
 [2.55.52]: https://github.com/applypack/applypack/compare/v2.55.51...v2.55.52
 [2.55.51]: https://github.com/applypack/applypack/compare/v2.55.50...v2.55.51
 [2.55.50]: https://github.com/applypack/applypack/compare/v2.55.49...v2.55.50

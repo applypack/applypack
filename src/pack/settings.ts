@@ -39,6 +39,13 @@ const PolicySchema = z
 
 const PackSettingsSchema = z.object({
   enabled: z.boolean().catch(false).default(false),
+  /**
+   * When the switch was last turned on (ISO, UTC); null while it is off. It
+   * tells a posting found since from one that was already stored: another
+   * source's copy of a stored posting gets no pack of its own when the
+   * original predates this (#380). Stamped by `switchedOn`, never typed.
+   */
+  enabledAt: z.string().datetime().nullable().catch(null).default(null),
   /** The classifier fit a new posting needs before a pack is prepared for it. */
   minFit: whole(PACK_LIMITS.minFit),
   /** Packs the worker starts on its own in one UTC day; the person's own "Prepare" never counts. */
@@ -116,6 +123,8 @@ export function packSettingsFromForm(form: Record<string, unknown>): PackForm {
     ok: true,
     settings: {
       enabled: typed.enabled === '1',
+      // The form knows nothing of it: the save stamps it (switchedOn).
+      enabledAt: null,
       minFit: typed.minFit,
       dailyLimit: typed.dailyLimit,
       maxAgeDays: typed.maxAgeDays,
@@ -128,6 +137,21 @@ export function packSettingsFromForm(form: Record<string, unknown>): PackForm {
       },
     },
   };
+}
+
+/**
+ * The settings a save stores: the moment packs were switched on is kept
+ * while they stay on, set when they go on — or were on with none recorded —
+ * and cleared when they go off.
+ */
+export function switchedOn(next: PackSettings, previous: PackSettings, now: Date): PackSettings {
+  if (!next.enabled) return { ...next, enabledAt: null };
+  return { ...next, enabledAt: previous.enabled && previous.enabledAt ? previous.enabledAt : now.toISOString() };
+}
+
+/** Since when packs have been on; null while they are off, or when nothing recorded the moment. */
+export function packsOnSince(settings: PackSettings): Date | null {
+  return settings.enabled && settings.enabledAt ? new Date(settings.enabledAt) : null;
 }
 
 /** Whether the posting's own text asks for a letter — the one place the dashboard can read it from. */

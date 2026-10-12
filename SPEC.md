@@ -1003,7 +1003,12 @@ publishes none) is not prepared on its own, while one the person saved
 themselves counts from the time they saved it (#379). The trigger
 is asked only where a new match is inserted (`process-jobs.ts` →
 `pack/trigger.ts`), so jobs already stored are never walked and a
-re-classify queues nothing. Any job can be prepared by hand on its
+re-classify queues nothing. Another source's copy of a stored posting
+(`crossListedOfJobId`) gets no pack when a posting of that role already has
+one, or when the first of them was stored before packs were switched on
+(`AppSettings.pack.enabledAt`, `trigger.ts:copyPack`, #380); its pack tab
+points at the one that has the pack, and a pack reuses a fresh company check
+its copy has when both name the same hiring company. Any job can be prepared by hand on its
 **Application pack** tab (`POST /jobs/:id/pack`), whatever the settings say.
 A pack prepared again there is the person's from then on, whoever queued the
 first one: it takes no slot of the day's number, no message announces it, and

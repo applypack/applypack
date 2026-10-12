@@ -41,6 +41,12 @@ export interface PackPosting {
   postedAt: Date;
   atsType: string;
   atsToken: string;
+  /**
+   * The other stored postings of this role at the same hiring company — the
+   * same posting from another source (store.ts:loadPackInputs). A company
+   * check one of them has serves this one too (#380).
+   */
+  sameRole: number[];
 }
 
 export interface PackResume {
@@ -176,8 +182,11 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   if (out.stop) return out;
 
   if (opts.verify) {
+    // The posting's own check, or the one another source's copy of it has:
+    // the same role at the same company was looked at, and looking again is
+    // minutes of web search for the same answer (#380).
     out.verification = await prisma.jobVerification.findFirst({
-      where: { jobId: posting.id, createdAt: { gte: new Date(Date.now() - VERIFICATION_FRESH_MS) } },
+      where: { jobId: { in: [posting.id, ...posting.sameRole] }, createdAt: { gte: new Date(Date.now() - VERIFICATION_FRESH_MS) } },
       orderBy: { createdAt: 'desc' },
     });
     out.verificationReused = out.verification !== null;

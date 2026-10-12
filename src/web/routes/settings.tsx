@@ -11,6 +11,7 @@ import {
   findSameDestination,
   deleteNotificationTarget,
   getAiKeys,
+  getPackSettings,
   getSchedule,
   getSettings,
   listNotificationTargets,
@@ -141,7 +142,7 @@ import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
-import { packSettingsFromForm, parsePackSettings } from '../../pack/settings';
+import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
@@ -1031,7 +1032,7 @@ settingsRoute.post('/settings/pack', async (c) => {
   if (!form.ok) {
     return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues) }), refusedField(c.req.path, form.issues));
   }
-  const pack = form.settings;
+  const pack = switchedOn(form.settings, await getPackSettings(), new Date());
   await setPackSettings(pack);
   // Off means off for what already waits: the flash says none is prepared on its own, and the queue may hold a day of them.
   const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks();

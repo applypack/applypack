@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
 import { t } from '../../i18n/t';
-import { cancelQueuedPack, getPack, getPackFile, packFiles, packIsKept, queuePack } from '../../pack/store';
+import { cancelQueuedPack, getPack, getPackFile, packFiles, packIsKept, packOfSameRole, queuePack } from '../../pack/store';
 import { packBusy, preparingLine, readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { contentDisposition } from '../../resume/draft-document';
@@ -112,6 +112,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
     unbacked: keywords.filter((k) => k.status === 'cannot_claim').map((k) => k.term),
     letter: pack?.coverLetterId !== null && pack?.coverLetterId !== undefined,
     automatic: settings.enabled,
+    sameRoleJobId: pack ? null : await packOfSameRole(jobId),
     // No figure: a pack's calls are several features' calls (web/cost-hint.ts:kindHint).
     cost: `${t('settings.pack.cost')} ${await kindHint('resume-match')}`.trim(),
   };

@@ -94,6 +94,8 @@ async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | 
       postedAt: job.postedAt,
       atsType: job.company.atsType,
       atsToken: job.company.atsToken,
+      // The dry run measures every posting on its own, so no copy lends it a company check.
+      sameRole: [],
     },
     resume,
     { minCeiling: tools.settings.minCeiling, policy: tools.settings.policy, verify: tools.verify, rejudge: tools.rejudge, coverLetter: false },

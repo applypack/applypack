@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { firstIssue, refusedField } from '../web/flash';
 import { DEFAULT_POLICY } from './policy';
-import { asksForCoverLetter, packSettingsFromForm, parsePackSettings, wantsCoverLetter, type PackSettings } from './settings';
+import { asksForCoverLetter, packSettingsFromForm, packsOnSince, parsePackSettings, switchedOn, wantsCoverLetter, type PackSettings } from './settings';
 
 const DEFAULTS = {
   enabled: false,
+  enabledAt: null,
   minFit: 90,
   dailyLimit: 5,
   maxAgeDays: 7,
@@ -23,6 +24,7 @@ test('nothing stored, or nothing readable, is the feature switched off with its 
 test('a stored value reads back as stored, and one bad field does not cost the rest', () => {
   const stored = {
     enabled: true,
+    enabledAt: '2026-10-01T08:00:00.000Z',
     minFit: 95,
     dailyLimit: 0,
     maxAgeDays: 3,
@@ -32,6 +34,31 @@ test('a stored value reads back as stored, and one bad field does not cost the r
   assert.deepEqual(parsePackSettings(stored), stored);
   assert.deepEqual(parsePackSettings({ ...stored, minFit: 400, dailyLimit: -1 }), { ...stored, minFit: 90, dailyLimit: 5 });
   assert.deepEqual(parsePackSettings({ enabled: true }).policy, DEFAULT_POLICY);
+  // A value stored before the moment was kept, and one nobody could have written, read as "not recorded".
+  assert.equal(parsePackSettings({ enabled: true }).enabledAt, null);
+  assert.equal(parsePackSettings({ enabled: true, enabledAt: 'yesterday' }).enabledAt, null);
+});
+
+test('a save keeps the moment packs were switched on while they stay on (#380)', () => {
+  const at = (iso: string): Date => new Date(iso);
+  const off = parsePackSettings(null);
+  const typed = (enabled: boolean): PackSettings => ({ ...off, enabled, minFit: 95 });
+  // Switched on: stamped. Saved again while on — another threshold, say — the moment stays.
+  const first = switchedOn(typed(true), off, at('2026-10-01T08:00:00Z'));
+  assert.equal(first.enabledAt, '2026-10-01T08:00:00.000Z');
+  assert.equal(switchedOn(typed(true), first, at('2026-10-05T09:00:00Z')).enabledAt, '2026-10-01T08:00:00.000Z');
+  // Switched off, the moment goes; on again is a new one — what was stored in between is the backlog.
+  const stopped = switchedOn(typed(false), first, at('2026-10-06T09:00:00Z'));
+  assert.equal(stopped.enabledAt, null);
+  assert.equal(switchedOn(typed(true), stopped, at('2026-10-08T09:00:00Z')).enabledAt, '2026-10-08T09:00:00.000Z');
+  // On with no moment recorded (stored by an older version): the save records this one.
+  assert.equal(switchedOn(typed(true), parsePackSettings({ enabled: true }), at('2026-10-09T09:00:00Z')).enabledAt, '2026-10-09T09:00:00.000Z');
+  // Everything else the form carried is stored as typed.
+  assert.equal(first.minFit, 95);
+
+  assert.deepEqual(packsOnSince(first), at('2026-10-01T08:00:00Z'));
+  assert.equal(packsOnSince(stopped), null);
+  assert.equal(packsOnSince(parsePackSettings({ enabled: true })), null);
 });
 
 /** What a browser always sends: the number fields and the select. A box is sent only while ticked. */
@@ -54,6 +81,7 @@ const refused = (form: Record<string, unknown>): string => {
 test('the form: an unticked box is off, no section ticked is no section', () => {
   assert.deepEqual(saved(FORM), {
     enabled: true,
+    enabledAt: null,
     minFit: 92,
     dailyLimit: 0,
     maxAgeDays: 14,
@@ -69,6 +97,7 @@ test('the form: an unticked box is off, no section ticked is no section', () => 
   // The ends of every range belong to it.
   assert.deepEqual(saved({ ...FIELDS, minFit: '50', dailyLimit: '50', maxAgeDays: '1', maxBullets: '6', coverLetter: 'never', removals: '1' }), {
     enabled: false,
+    enabledAt: null,
     minFit: 50,
     dailyLimit: 50,
     maxAgeDays: 1,

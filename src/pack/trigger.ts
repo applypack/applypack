@@ -42,6 +42,33 @@ export function autoPack(input: {
   return 'queue';
 }
 
+/**
+ * What is stored of a role a new posting is another source's copy of
+ * (`Job.crossListedOfJobId`, ADR 0018): whether any of its postings has a
+ * pack, and when the first of them was stored.
+ */
+export interface SameRole {
+  hasPack: boolean;
+  firstStoredAt: Date;
+}
+
+export type CopyPack = 'queue' | 'has-pack' | 'before-packs';
+
+/**
+ * Whether a posting that would get a pack still gets one when it is a copy
+ * of a role already stored (#380). One role is prepared once: each copy ran
+ * its own comparison and its own company check, and the morning message
+ * listed the role twice. And a copy is not a door into the backlog: a role
+ * stored before packs were switched on stays unprepared, as the settings
+ * promise — with no record of that moment, nothing shows the role came
+ * after it. Asked of automatic packs only.
+ */
+export function copyPack(input: { role: SameRole; onSince: Date | null }): CopyPack {
+  if (input.role.hasPack) return 'has-pack';
+  if (input.onSince === null || input.role.firstStoredAt.getTime() < input.onSince.getTime()) return 'before-packs';
+  return 'queue';
+}
+
 export type Unwanted = 'off' | 'dismissed' | 'applied' | 'muted';
 
 /**
