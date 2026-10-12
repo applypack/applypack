@@ -161,6 +161,17 @@ ask the question.
   fresh half hour when an import ends with anything but a full store
   (`import-stash.ts:keepImport`): its warning names the preview, and an
   import can outlast the half hour its upload had.
+- **An id column is believed.** A column named like an id tells the rows
+  apart; the link is the fallback.
+  *Amended 2026-10-12 (v2.55.55, #403):* an `ID` that only counts the rows
+  names another posting once the sheet is sorted again, ids that repeat fold
+  two postings into one, and a number past 2^53 arrives from `JSON.parse`
+  without its last digits. `map.ts:weakId` reads the sample for those three,
+  and `detectMapping` passes such a column over when a link can tell the
+  rows apart; the select says why (`idNote`). `mapRow` is unchanged on
+  purpose: a source keeps the mapping its rows were stored under, so a
+  newer export into it still recognises what it holds — changing how its
+  ids are read would store every row again, and score it again.
 - **An import is a burst of postings.** Every row takes the path a fetched
   posting takes, alert included.
   *Amended 2026-10-12 (v2.55.54, #402):* so a file of 2,000 rows, 300 of

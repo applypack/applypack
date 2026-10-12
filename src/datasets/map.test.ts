@@ -12,6 +12,7 @@ import {
   emptyMapping,
   fileDate,
   findJobRows,
+  idNote,
   mapRow,
   mapRows,
   mappingFits,
@@ -22,6 +23,7 @@ import {
   sameMapping,
   sampleValue,
   usableMapping,
+  weakId,
   type Mapping,
 } from './map';
 
@@ -663,5 +665,57 @@ describe('sampleValue', () => {
     assert.equal(sampleValue(rows, 'b'), '{ city }');
     assert.equal(sampleValue(rows, 'c').length, 90);
     assert.equal(sampleValue(rows, 'missing'), '');
+  });
+});
+
+describe('an id column that cannot tell postings apart (#403)', () => {
+  const sheet = (ids: readonly unknown[]): Row[] => ids.map((id, i) => ({ ID: id, Title: `Role ${i}`, Link: `https://rows.example/${i}` }));
+
+  it('knows a row number, values that repeat, and a number read inexactly', () => {
+    assert.equal(weakId(sheet([1, 2, 3, 4]), 'ID'), 'rows');
+    assert.equal(weakId(sheet(['0', '1', '2']), 'ID'), 'rows');
+    assert.equal(weakId(sheet(['a7', 'b2', 'a7']), 'ID'), 'repeats');
+    // What JSON.parse leaves of 9007199254740993: the digits are gone before the mapper sees the row.
+    assert.equal(weakId(sheet([9007199254740992, 12]), 'ID'), 'large');
+  });
+
+  it('takes a real id for what it is', () => {
+    // A board's own ids rise one by one when three postings went up together; a count starts at 0 or 1.
+    assert.equal(weakId(sheet(['4100000001', '4100000002', '4100000003']), 'ID'), null);
+    assert.equal(weakId(sheet([7, 8, 9]), 'ID'), null);
+    assert.equal(weakId(sheet([1, 2]), 'ID'), null);
+    assert.equal(weakId(sheet([3, 1, 2]), 'ID'), null);
+    assert.equal(weakId(sheet(['f00d01', 'f00d02', 'beef03']), 'ID'), null);
+    // The same digits as text were never rounded.
+    assert.equal(weakId(sheet(['9007199254740993', '9007199254740992']), 'ID'), null);
+    assert.equal(weakId(sheet([]), 'ID'), null);
+  });
+
+  it('detection passes such a column over when a link can tell the rows apart', () => {
+    const numbered = detectMapping(sheet([1, 2, 3]), NOW);
+    assert.equal(numbered.mapping.id, null);
+    assert.equal(numbered.mapping.url, 'Link');
+    assert.deepEqual(idNote(sheet([1, 2, 3]), numbered.mapping), { column: 'ID', why: 'rows', used: false });
+    // A re-sorted export of the same sheet: each posting keeps the id its link gives it.
+    const first = mapRows(sheet([1, 2, 3]), numbered.mapping, 1, NOW).jobs.map((j) => j.externalId);
+    const resorted = [{ ID: 1, Title: 'Role 2', Link: 'https://rows.example/2' }, { ID: 2, Title: 'Role 0', Link: 'https://rows.example/0' }];
+    assert.deepEqual(mapRows(resorted, numbered.mapping, 1, NOW).jobs.map((j) => j.externalId), [first[2], first[0]]);
+    // A real id is kept, and nothing is said.
+    const real = detectMapping(sheet(['a7', 'b2', 'c9']), NOW);
+    assert.equal(real.mapping.id, 'ID');
+    assert.equal(idNote(sheet(['a7', 'b2', 'c9']), real.mapping), null);
+  });
+
+  it('keeps the column when nothing else tells the rows apart, and says it is weak', () => {
+    const rows = [{ id: 1, title: 'Role a' }, { id: 2, title: 'Role b' }, { id: 3, title: 'Role c' }];
+    const { mapping: found } = detectMapping(rows, NOW);
+    assert.equal(found.id, 'id');
+    assert.deepEqual(idNote(rows, found), { column: 'id', why: 'rows', used: true });
+  });
+
+  it('a mapping that names the column still reads ids from it: what a source already stored stays known', () => {
+    const kept = mapping({ title: 'Title', id: 'ID', url: 'Link' });
+    assert.deepEqual(mapRows(sheet([1, 2, 3]), kept, 1, NOW).jobs.map((j) => j.externalId), ['1', '2', '3']);
+    assert.deepEqual(idNote(sheet([1, 2, 3]), kept), { column: 'ID', why: 'rows', used: true });
   });
 });

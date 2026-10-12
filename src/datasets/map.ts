@@ -470,6 +470,54 @@ const GUESSES: readonly (readonly [MappingField, (cols: readonly ColumnTexts[], 
   ],
 ];
 
+/** Why a column cannot tell one posting from another: it counts the rows, its values repeat, or its numbers were too large to be read exactly. */
+export type WeakId = 'rows' | 'repeats' | 'large';
+
+/**
+ * A column that counts 1, 2, 3 (or 0, 1, 2) down this many rows is a row
+ * number. A run that starts anywhere else — 4100000001, 4100000002 — is what
+ * a board's own ids look like when three postings went up one after another.
+ */
+const MIN_ROW_RUN = 3;
+
+/**
+ * Whether a column named like an id is one a re-export would keep (#403).
+ * A row number names another posting once the sheet is sorted again — new
+ * postings read "already stored" and old ones are added twice. Values that
+ * repeat fold two postings into one. And a number past 2^53 lost its last
+ * digits when the JSON was read: two postings arrive with the same id.
+ * Read off the sample, like the rest of a mapping.
+ */
+export function weakId(rows: readonly Row[], column: string): WeakId | null {
+  const values = rows
+    .slice(0, SAMPLE_ROWS)
+    .map((row) => valueAt(row, column))
+    .filter((v): v is string | number => (typeof v === 'string' || typeof v === 'number') && cellText(v).length > 0);
+  if (values.some((v) => typeof v === 'number' && Number.isInteger(v) && !Number.isSafeInteger(v))) return 'large';
+  const texts = values.map(cellText);
+  if (new Set(texts).size < texts.length) return 'repeats';
+  const start = Number(texts[0]);
+  const counts = texts.length >= MIN_ROW_RUN && (start === 0 || start === 1) && texts.every((t, i) => /^\d{1,9}$/.test(t) && Number(t) === start + i);
+  return counts ? 'rows' : null;
+}
+
+/**
+ * What the preview says beside the id: the column a mapping reads ids from
+ * when it is a weak one (`used`), or the column named like an id that was
+ * passed over for being weak. Null when there is nothing to say.
+ */
+export function idNote(rows: readonly Row[], mapping: Mapping): { column: string; why: WeakId; used: boolean } | null {
+  if (mapping.id !== null) {
+    const why = weakId(rows, mapping.id);
+    return why === null ? null : { column: mapping.id, why, used: true };
+  }
+  const taken = new Set(MAPPING_FIELDS.map((f) => mapping[f]));
+  const columns = columnsOf(rows);
+  const named = ALIASES.id.flatMap((alias) => columns.filter((c) => norm(c) === alias)).find((c) => !taken.has(c));
+  const why = named === undefined ? null : weakId(rows, named);
+  return named === undefined || why === null ? null : { column: named, why, used: false };
+}
+
 export interface DetectedMapping {
   mapping: Mapping;
   /** Fields read off the values, not the names: the weaker half, shown as a guess. */
@@ -503,6 +551,9 @@ export function detectMapping(rows: readonly Row[], now: Date = new Date()): Det
     claim(field, column);
     guessed.push(field);
   }
+  // With a link to tell rows apart, a column that only looks like an id is passed over (#403). Decided here and
+  // not in `mapRow`: a source keeps the mapping its rows were stored under, so what it already holds is still known.
+  if (mapping.id !== null && (mapping.url !== null || mapping.applyUrl !== null) && weakId(sample, mapping.id) !== null) mapping.id = null;
   return { mapping, guessed };
 }
 
