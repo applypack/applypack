@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.60] — 2026-10-12
+
+### Added
+- **A page saved from Safari is read.** Safari saves a page as a Web Archive
+  (`.webarchive`) by default; in a folder of saved postings such a file was
+  listed and set aside with advice to save it another way. It is read now:
+  the page inside the archive, with the address it was saved from. Safari
+  keeps what Chrome's single-file save drops, so such a page usually states
+  its own title and company and needs no AI to be stored. An archive that
+  cannot be read is still set aside with the way to save the page instead
+  (#451, the part that needs no engine).
+
 ## [2.55.59] — 2026-10-12
 
 ### Changed
@@ -5971,6 +5983,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.60]: https://github.com/applypack/applypack/compare/v2.55.59...v2.55.60
 [2.55.59]: https://github.com/applypack/applypack/compare/v2.55.58...v2.55.59
 [2.55.58]: https://github.com/applypack/applypack/compare/v2.55.57...v2.55.58
 [2.55.57]: https://github.com/applypack/applypack/compare/v2.55.56...v2.55.57

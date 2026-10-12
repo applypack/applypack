@@ -3700,7 +3700,7 @@
   "datasets.posting.docxTooLarge": "Too large once unpacked: more than {mb} MB of document inside the .docx. A posting is a page or two; this file is not read.",
   "datasets.posting.needsModel": "Waits until fetching is resumed: the page does not say its title and company, and reading them asks the AI engine.",
   "datasets.posting.mhtml": "A page saved as a single file, with no page inside that could be read. Save it again as “Webpage, Complete”, or print it to a PDF.",
-  "datasets.posting.webarchive": "A Safari web archive, which ApplyPack does not read. In Safari, save the page with Format: Page Source, or use File → Export as PDF.",
+  "datasets.posting.webarchive": "A Safari web archive that ApplyPack could not read. In Safari, save the page with Format: Page Source, or use File → Export as PDF.",
   "datasets.posting.readAs": "Read as “{title}”{named, select, yes { at {company}} other {, company not named}}{noAddress, select, yes {; the file gives no address to apply at} other {}}.",
   "datasets.posting.samePosting": "The same posting as {file}, which is a job already.",
   "datasets.rows.notRows": "This file holds no rows ApplyPack can read. It takes a JSON array of objects, JSON Lines, CSV or TSV.",

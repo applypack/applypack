@@ -783,8 +783,10 @@ folder); on a server or in Docker, only one inside a root named in
 **A folder the user saves postings into** is the same source holding one
 posting a file (`sourceConfig.holds = 'postings'`, ADR 0062 addendum
 2026-10-06): a saved page (`.html`, or one file as `.mhtml`), a PDF, a
-`.docx`, text or Markdown. Safari's `.webarchive` is listed and set aside
-with the way to save the page instead.
+`.docx`, text or Markdown. Safari's `.webarchive` is read too
+(`datasets/webarchive.ts`: the page inside the archive, scripts and all);
+one that cannot be read is set aside with the way to save the page
+instead.
 Check guesses which kind a folder holds and lets the user switch it.
 
 - Code reads what it can first: a page's `JobPosting` block (title,
