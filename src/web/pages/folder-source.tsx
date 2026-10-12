@@ -2,7 +2,7 @@
 import type { SourceFile } from '@prisma/client';
 import type { FC } from 'hono/jsx';
 import { INBOX_ROOTS_ENV } from '../../datasets/folder-path';
-import { MAX_DEPTH, MAX_FILES_PER_LOOK, maxBytesOf, type FolderHolds, type PostingKind } from '../../datasets/folder-scan';
+import { MAX_DEPTH, MAX_FILES_PER_LOOK, MAX_ROW_FILES_PER_LOOK, maxBytesOf, type FolderHolds, type PostingKind } from '../../datasets/folder-scan';
 import { MAX_INCLUDE_CHARS, usableMapping, type FolderAlerts, type Mapping, type MappingField } from '../../datasets/map';
 import type { PreviewCounts } from '../../datasets/preview';
 import { MAX_BODY_MB, type Row, type RowFormat } from '../../datasets/rows';
@@ -34,7 +34,7 @@ export const AddFolderCard: FC<{ host: FolderHost }> = ({ host }) => {
       <More class="mb-4 mt-1">
         <p>{t('folders.add.savedPostings')}</p>
         <p>{t('folders.add.toolFiles')}</p>
-        <p>{t('folders.add.readOnce', { files: MAX_FILES_PER_LOOK, depth: MAX_DEPTH })}</p>
+        <p>{t('folders.add.readOnce', { files: MAX_ROW_FILES_PER_LOOK, postings: MAX_FILES_PER_LOOK, depth: MAX_DEPTH })}</p>
         <p>{t('folders.add.notDownloads')}</p>
       </More>
       {closed ? (
@@ -252,7 +252,7 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
           <ul class="space-y-1 text-sm text-ink">
             <li>{t('folders.rows.contents', { files: rowFiles, kinds: byKind.join(', '), filtered: include ? 'yes' : 'no', include: include ?? '', other })}</li>
             {newest.length > 0 && <li>{t('folders.newest', { files: newest.join(', ') })}</li>}
-            {rowFiles > 0 && <li>{t('folders.rows.plan', { ...plan, perCheck: MAX_FILES_PER_LOOK, mb: MAX_BODY_MB })}</li>}
+            {rowFiles > 0 && <li>{t('folders.rows.plan', { ...plan, perCheck: MAX_ROW_FILES_PER_LOOK, mb: MAX_BODY_MB })}</li>}
           </ul>
           {fileNotes.map(({ file, note }) => (
             <Notice tone="warn" class="mt-3">

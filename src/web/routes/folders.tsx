@@ -264,7 +264,7 @@ async function previewPostings(
     const kind = postingFileKind(file.relPath)!;
     kinds[kind] = (kinds[kind] ?? 0) + 1;
   }
-  const plan = planScan(listing, ledger, now.getTime(), take, postingFileKind);
+  const plan = planScan(listing, ledger, now.getTime(), take, 'postings');
   const newest: PostingSample[] = [];
   for (const file of [...files].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, NEWEST_SHOWN)) {
     const kind = postingFileKind(file.relPath)!;

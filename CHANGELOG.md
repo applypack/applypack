@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.46] — 2026-10-12
+
+### Changed
+- **A folder of rows is read much faster.** A check read twenty files
+  whatever their size, so a tool that writes one small file per posting
+  brought twenty jobs an hour: 455 files took 23 hourly checks. A check now
+  reads up to 5,000 rows, 25 MB and 400 files, and the same 455 files take
+  three. A folder of saved postings still reads twenty a check, because a
+  posting can cost an AI call.
+- **A file a check did not reach is listed as waiting.** It was noted
+  nowhere: the Files page did not show it and the folder's line did not
+  count it, so a folder looked read when most of it was not (#432).
+
 ## [2.55.45] — 2026-10-12
 
 ### Fixed
@@ -5757,6 +5770,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.46]: https://github.com/applypack/applypack/compare/v2.55.45...v2.55.46
 [2.55.45]: https://github.com/applypack/applypack/compare/v2.55.44...v2.55.45
 [2.55.44]: https://github.com/applypack/applypack/compare/v2.55.43...v2.55.44
 [2.55.43]: https://github.com/applypack/applypack/compare/v2.55.42...v2.55.43

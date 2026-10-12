@@ -219,6 +219,19 @@ dashboard. `datasets/folder-path.ts` bounds it, on real paths:
   nothing and is set aside by name.
 - Ceilings: 20 files and 5 000 rows a look, 5 MB a file, and a folder of
   more than 20 000 entries is refused whole.
+- *Amended 2026-10-12 (v2.55.46, #432).* Twenty files a look, whatever
+  their size, made a tool that writes one small file a posting bring twenty
+  jobs an hour: a run of 455 files took 23 hourly checks. What a look of
+  rows costs is rows and bytes, so those are its ceilings now: 5 000 rows
+  as before, 25 MB read (`MAX_ROW_BYTES_PER_LOOK`: five files of the
+  largest size), and 400 files (`MAX_ROW_FILES_PER_LOOK`) to bound a folder
+  of tiny ones. The same 455 files take three checks. A folder of saved
+  postings keeps twenty a look: a posting can be a model call, and that is
+  its spending limit. And a file a look did not reach — past a ceiling, or
+  behind the rows the look used up — is noted in the ledger as waiting
+  (`folder-scan.ts:unreachedChanges`), once, when the ledger has no row for
+  it: before, the per-file list did not show it and the folder's row did
+  not count it.
 - *Amended 2026-10-10 (v2.55.11, #393).* The import's 2 000 rows a body
   first applied to a folder's file too: it was read to its 2 000th row and
   marked done, and a tool that appends to one file stopped yielding there.

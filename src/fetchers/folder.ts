@@ -9,6 +9,7 @@ import {
   newestIsMisfit,
   pageResources,
   planScan,
+  unreachedChanges,
   postingFileKind,
   unreadChange,
   unreadVerdict,
@@ -101,9 +102,13 @@ async function lookAtRows(
   let left = MAX_ROWS_PER_LOOK;
   let read = 0;
   let misfits = 0;
-  for (const file of plan.read) {
-    // Past the ceiling the rest waits, unnoted: the next look plans it again.
-    if (left <= 0) break;
+  // The files this look does not reach: past its ceilings, and behind the rows it used up.
+  const unreached: ListedFile[] = [...plan.later];
+  for (const [at, file] of plan.read.entries()) {
+    if (left <= 0) {
+      unreached.unshift(...plan.read.slice(at));
+      break;
+    }
     const verdict = judgeFile(file, await readFolderFile(root, file.relPath), mapping, companyId, readAs, known.get(file.relPath), left, now.getTime());
     if (verdict.change) changes.push(verdict.change);
     left -= verdict.taken;
@@ -115,6 +120,7 @@ async function lookAtRows(
       jobs.push(...verdict.jobs.map((job) => ({ ...job, sourceFile: file.relPath })));
     }
   }
+  changes.push(...unreachedChanges(unreached, ledger));
   // Every file read this look misfits, or nothing was read and the newest judged file is one.
   const misfit = (misfits > 0 && misfits === read) || (read === 0 && newestIsMisfit(listing, ledger, include));
   return { jobs, changes, misfit };
@@ -156,10 +162,11 @@ async function lookAtPostings(
   scoring: boolean,
   stored: (() => Promise<StoredPosting[]>) | undefined,
 ): Promise<Look> {
-  const plan = planScan(listing, ledger, now.getTime(), include, postingFileKind);
+  const plan = planScan(listing, ledger, now.getTime(), include, 'postings');
   const changes: FileChange[] = [
     ...plan.waiting.map((f) => unreadChange(f, 'fresh', postingFileKind)),
     ...plan.tooLarge.map((f) => unreadChange(f, 'tooLarge', postingFileKind)),
+    ...unreachedChanges(plan.later, ledger, 'postings'),
   ];
   const readAs = readHashes(ledger);
   const jobs: NormalizedJob[] = [];
