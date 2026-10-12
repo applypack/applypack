@@ -73,6 +73,7 @@ import { claimRun, startRun, updateRun } from '../target-runs';
 import { MAX_UPLOAD_MB } from '../upload';
 import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
+import { companyForPage } from '../../employer';
 
 /*
  * Employer mode (TASKS §19, ADR 0049): every route here sits behind
@@ -275,7 +276,7 @@ screenRoute.get('/screen/:id', async (c) => {
         rubricVersion: screening.rubricVersion,
         retainUntil: screening.retainUntil,
         createdAt: screening.createdAt,
-        job: { id: screening.job.id, title: screening.job.title, companyName: screening.job.employer ?? screening.job.company.name, location: screening.job.location },
+        job: { id: screening.job.id, title: screening.job.title, companyName: companyForPage(screening.job.employer, screening.job.company), location: screening.job.location },
         postingText: screening.postingText,
         postingUpdatedAt: screening.postingUpdatedAt,
         scoredBeforePosting: scoredBeforePosting(rows, screening.postingUpdatedAt),
@@ -717,7 +718,7 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
   const breakdown = applicant.verdict ? readScreenBreakdown(applicant.verdict.breakdown) : null;
   return c.html(
     <ScreenApplicantPage
-      screening={{ id: s.id, title: s.title, rubricVersion: s.rubricVersion, job: { id: s.job.id, title: s.job.title, companyName: s.job.employer ?? s.job.company.name } }}
+      screening={{ id: s.id, title: s.title, rubricVersion: s.rubricVersion, job: { id: s.job.id, title: s.job.title, companyName: companyForPage(s.job.employer, s.job.company) } }}
       applicant={{
         id: applicant.id,
         number: applicant.number,

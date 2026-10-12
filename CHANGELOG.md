@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.51] — 2026-10-12
+
+### Changed
+- **A posting that names no company says so, and its source stands apart.**
+  A row from an aggregator, an imported file or a folder that names no
+  employer showed its source where the company goes ("RemoteOK Feed",
+  "September export"). It now reads **Company not named** with "via
+  <source>" on the line under it, the same shape a named row has: on the
+  Jobs list, the job page, the Overview's lists, the applications board, the
+  pickers and the Tailor page.
+- **The applications export has a Source column.** `Company` holds who hires
+  and is empty when the posting names nobody; `Source` holds the aggregator,
+  file or folder it came through.
+- **The cross-listing banner says who hires and where the copy is listed:**
+  "Backend Engineer at Fennel Works — via RemoteOK Feed". It read "Backend
+  Engineer at RemoteOK Feed", as if the source were the employer (#444).
+
 ## [2.55.50] — 2026-10-12
 
 ### Added
@@ -5820,6 +5837,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.51]: https://github.com/applypack/applypack/compare/v2.55.50...v2.55.51
 [2.55.50]: https://github.com/applypack/applypack/compare/v2.55.49...v2.55.50
 [2.55.49]: https://github.com/applypack/applypack/compare/v2.55.48...v2.55.49
 [2.55.48]: https://github.com/applypack/applypack/compare/v2.55.47...v2.55.48

@@ -18,6 +18,7 @@ import { appliedWithLabel } from '../../jobs/applied-with';
 import { displayZone } from '../display-zone';
 import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
+import { companyForPage, companyOnPage } from '../../employer';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -56,7 +57,7 @@ async function loadBoard() {
       appliedAt: true,
       appliedResumeVersion: true,
       appliedResume: { select: { name: true } },
-      company: { select: { name: true } },
+      company: { select: { name: true, atsType: true } },
     },
     orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
   });
@@ -95,7 +96,7 @@ applicationsRoute.get('/applications', async (c) => {
     byStage[stage]!.push({
       id: j.id,
       title: j.title,
-      companyName: j.employer ?? j.company.name,
+      companyName: companyForPage(j.employer, j.company),
       fitScore: j.fitScore,
       recruiterContact: j.recruiterContact,
       stageLine: line,
@@ -131,7 +132,9 @@ async function boardRows(): Promise<{ rows: ApplicationExportRow[]; columns: { k
     .map(({ job: j, stage, line }) => ({
       stageKey: stage,
       stage: stage === UNFILED_STAGE.key ? UNFILED_STAGE.label : labelFor(work, stage),
-      company: j.employer ?? j.company.name,
+      // Who hires and where the row came from, apart: a source's name in the Company column filtered as an employer (#444).
+      company: companyOnPage(j.employer, j.company).name ?? '',
+      source: companyOnPage(j.employer, j.company).via ?? '',
       title: j.title,
       appliedAt: j.appliedAt,
       stageSince: line?.since ?? null,

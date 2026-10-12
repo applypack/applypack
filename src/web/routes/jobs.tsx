@@ -95,7 +95,7 @@ import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
-import { companyForPrompt, employerKey, hiringName, postingForPrompt, withoutMuted } from '../../employer';
+import { companyForPage, companyForPrompt, employerKey, hiringName, postingForPrompt, withoutMuted } from '../../employer';
 import { preferredPlaces } from '../place-line';
 import { t } from '../../i18n/t';
 
@@ -411,10 +411,10 @@ jobsRoute.get('/jobs/:id', async (c) => {
         // F3: the posting this one near-duplicates, and any that
         // near-duplicate it — the link is annotation only (ADR 0018).
         crossListedOf: {
-          select: { id: true, title: true, company: { select: { name: true } } },
+          select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } },
         },
         crossListings: {
-          select: { id: true, title: true, company: { select: { name: true } } },
+          select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } },
         },
         // Stage C: the resume this application went out with. Only the name is
         // read — the version and text snapshot live on the job itself.
@@ -541,7 +541,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         selected,
         selectedKeywords,
         selectedSummaryGuide,
-        job: { title: job.title, companyName: job.employer ?? job.company.name },
+        job: { title: job.title, companyName: companyForPage(job.employer, job.company) },
         verification: verifications[0] ?? null,
         costHint: costHintText(matchCost),
       }}
@@ -670,7 +670,7 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
 jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } });
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
   if (!job) return c.text(t('http.notFound'), 404);
   const back = jobHref(id, 'verify', {}, 'verification');
   const [latest] = await listVerificationsForJob(id);
@@ -687,7 +687,7 @@ jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
   if (plan.unchanged) return flashRedirect(back, 'ok', describeRefresh(plan));
   return c.html(
     <DescriptionRefreshPage
-      job={{ id, title: job.title, companyName: job.employer ?? job.company.name }}
+      job={{ id, title: job.title, companyName: companyForPage(job.employer, job.company) }}
       url={url}
       plan={plan}
       rows={foldOps(ops)}
@@ -1049,7 +1049,7 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
   const letter = await getCoverLetter(letterId);
   if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
   const [job, resume, facts, snapshot] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(letter.resumeId),
     listFacts(),
     getLatestCompanySnapshot(id),
@@ -1089,7 +1089,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const [job, matches, verifications] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     listMatchesForJob(id),
     listVerificationsForJob(id),
   ]);
@@ -1112,7 +1112,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const file = await describeResumeFile(resume);
   return c.html(
     <TargetPage
-      job={{ id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description }}
+      job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
       resume={{ id: resume.id, name: match.resume.name, version: resume.version, ephemeral: resume.hidden }}
       match={match}
       keywords={await orderedKeywords(match, job.description)}

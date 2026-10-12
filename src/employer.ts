@@ -94,6 +94,24 @@ export function hiringName(employer: string | null, source: { name: string; atsT
   return employer ?? (sourceIsEmployer(source.atsType) ? source.name : null);
 }
 
+/**
+ * A posting's company as a page shows it (#444), in two parts that never
+ * stand in for each other: `name` is who hires — the employer the row names,
+ * or the source when the source is the employer — and `via` is the source the
+ * row came through when that is somebody else's listing. A row from an
+ * aggregator, an imported file or a folder that names no company has
+ * `name: null`: the page says "Company not named" where the name goes and
+ * keeps the source on its own line, where the eye finds it on every other row.
+ */
+export function companyOnPage(employer: string | null | undefined, source: { name: string; atsType: string }): { name: string | null; via: string | null } {
+  return { name: hiringName(employer ?? null, source), via: sourceIsEmployer(source.atsType) ? null : source.name };
+}
+
+/** The same for a place with room for one name only (a picker's line, a card, a heading): the company, or the words that say none was named. */
+export function companyForPage(employer: string | null | undefined, source: { name: string; atsType: string }): string {
+  return hiringName(employer ?? null, source) ?? t('job.companyNotNamed');
+}
+
 /** What a prompt is told when nobody named who hires. English, as every prompt is (ADR 0061). */
 export const COMPANY_NOT_NAMED = 'not named in the posting';
 

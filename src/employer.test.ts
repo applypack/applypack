@@ -4,6 +4,8 @@ import {
   cleanEmployer,
   COMPANY_NOT_NAMED,
   companyForMessage,
+  companyForPage,
+  companyOnPage,
   companyForPrompt,
   employerFromDescription,
   employerGate,
@@ -142,4 +144,19 @@ test('a fetched row says who hires by its own sign: an employer left out is the 
   assert.equal(fetchedHiringName('Globex', 'RemoteOK'), 'Globex');
   assert.equal(fetchedHiringName(null, 'RemoteOK'), null);
   assert.equal(fetchedHiringName(null, 'Saved postings'), null);
+});
+
+test('a page names who hires and where the row came through as two things (#444)', () => {
+  // An aggregator, an imported file and a folder hold other people's postings: their own name is never the company.
+  for (const [atsType, name] of [['REMOTEOK', 'RemoteOK Feed'], ['IMPORT', 'September export'], ['FOLDER', 'Saved postings']] as const) {
+    assert.deepEqual(companyOnPage(null, { atsType, name }), { name: null, via: name }, atsType);
+    assert.deepEqual(companyOnPage('Fennel Works', { atsType, name }), { name: 'Fennel Works', via: name }, atsType);
+    assert.equal(companyForPage(null, { atsType, name }), 'Company not named', atsType);
+    assert.equal(companyForPage('Fennel Works', { atsType, name }), 'Fennel Works', atsType);
+  }
+  // An employer's own board, and a posting the person pasted: the source is the company, and there is no "via".
+  for (const atsType of ['GREENHOUSE', 'MANUAL']) {
+    assert.deepEqual(companyOnPage(null, { atsType, name: 'Acme' }), { name: 'Acme', via: null }, atsType);
+    assert.equal(companyForPage(undefined, { atsType, name: 'Acme' }), 'Acme', atsType);
+  }
 });
