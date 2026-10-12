@@ -78,6 +78,18 @@ export function skillGaps(gaps, jobTitle) {
   return gaps.filter((r) => !isTitleKeyword(r, jobTitle));
 }
 
+/**
+ * Whether a keyword is a named skill a skills line can take, or a phrase for
+ * a sentence. Mirrors src/resume/keyword-shape.ts:isNamedSkill — change one,
+ * change the other; src/web/target.test.ts holds the two equal. Methodology
+ * (priority 3) and domain (priority 4) terms stay gaps and chips; they are
+ * listed unticked and left out of Apply all (#351). A term the person added
+ * is theirs to place: its priority only follows the level they chose.
+ */
+export function namedSkill(row) {
+  return row.added === true || (row.priority !== 3 && row.priority !== 4);
+}
+
 /** The sections a `where` hint can name by their usual heading. */
 const HINT_SECTIONS = ['summary', 'skills', 'experience', 'education'];
 /** A heading is a short line; a sentence that says "experience" is not one. */
@@ -279,7 +291,7 @@ export function init(data) {
     const skills = skillGaps(gaps, data.sheet.jobTitle);
     // Every term the resume backs, whether or not a skills line can take it:
     // what no line takes gets a line of its own (apply-all.mjs:addKeywords).
-    addable = skills.filter((r) => r.status === 'add').map((r) => ({ term: r.term, where: r.where }));
+    addable = skills.filter((r) => r.status === 'add' && namedSkill(r)).map((r) => ({ term: r.term, where: r.where }));
     paintBulk(bulkRows(skills));
     // Hardest requirement first, then the words the posting keeps repeating.
     for (const r of gaps) {
@@ -732,7 +744,9 @@ export function init(data) {
 
   function bulkRow(r) {
     const backed = r.status === 'add' || r.status === 'present';
-    if (!bulkTicked.has(r.term)) bulkTicked.set(r.term, backed);
+    // A methodology or domain phrase the resume backs is listed and left unticked: it belongs in a sentence (#351).
+    const phrase = backed && !namedSkill(r);
+    if (!bulkTicked.has(r.term)) bulkTicked.set(r.term, backed && !phrase);
     const li = document.createElement('li');
     const label = document.createElement('label');
     label.className = 'flex cursor-pointer items-start gap-2 text-note leading-5';
@@ -751,7 +765,7 @@ export function init(data) {
     term.textContent = r.term;
     const note = document.createElement('span');
     note.className = backed ? 'text-ink-faint' : 'text-warn';
-    note.textContent = ' · ' + wantsLabel(r) + ' · ' + t(backed ? 'browser.bulk.backed' : 'browser.bulk.notBacked');
+    note.textContent = ' · ' + wantsLabel(r) + ' · ' + t(phrase ? 'browser.bulk.phrase' : backed ? 'browser.bulk.backed' : 'browser.bulk.notBacked');
     const words = document.createElement('span');
     words.append(term, note);
     label.append(box, words);

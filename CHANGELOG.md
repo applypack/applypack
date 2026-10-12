@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.52] — 2026-10-12
+
+### Changed
+- **Only named skills are written onto a skills line unasked.** "Add missing
+  keywords" ticked, and Apply all and an application pack wrote, phrases such
+  as "code deployments", "open-source contributions" and "AI tooling" onto a
+  tools line, where they read as filler. A methodology or domain keyword
+  (the posting's priority 3 and 4) is now listed unticked and marked "backed,
+  better said in a bullet"; Apply all and a pack leave it out. It still
+  counts in the score, keeps its chip, and can be ticked or added with
+  **+ add**; a keyword you added yourself is treated as a skill at any
+  level (#351).
+
 ## [2.55.51] — 2026-10-12
 
 ### Changed
@@ -5837,6 +5850,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.52]: https://github.com/applypack/applypack/compare/v2.55.51...v2.55.52
 [2.55.51]: https://github.com/applypack/applypack/compare/v2.55.50...v2.55.51
 [2.55.50]: https://github.com/applypack/applypack/compare/v2.55.49...v2.55.50
 [2.55.49]: https://github.com/applypack/applypack/compare/v2.55.48...v2.55.49

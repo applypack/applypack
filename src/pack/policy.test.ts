@@ -213,3 +213,18 @@ test('keywords go onto skills lines, so a policy that closes Skills writes none 
   // The box alone still switches them off.
   assert.deepEqual(plan({ keywords }, { keywords: false }).terms, []);
 });
+
+test('a methodology or domain phrase is not written onto a skills line (#351)', () => {
+  // The live list: only the named skills are written; "code deployments" and "AI tooling" were appended to a tools line.
+  const keywords = [
+    keyword('HTTP', { priority: 1 }),
+    keyword('code deployments', { priority: 3 }),
+    keyword('open-source contributions', { priority: 3 }),
+    keyword('SaaS', { priority: 4 }),
+    keyword('key-value data stores', { priority: 1 }),
+  ];
+  assert.deepEqual(plan({ keywords }).terms.map((k) => k.term), ['HTTP', 'key-value data stores']);
+  // A term the person added at "nice" carries priority 3 for its level alone, and is still theirs to have written.
+  const typed = [{ ...keyword('Redis', { priority: 3 }), added: true }];
+  assert.deepEqual(plan({ keywords: typed }).terms.map((k) => k.term), ['Redis']);
+});

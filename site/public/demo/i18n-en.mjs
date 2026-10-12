@@ -145,6 +145,7 @@ export const ENGLISH = {
   "browser.card.undone": "Undone",
   "browser.bulk.add": "{n, plural, one {Add {n} keyword} other {Add {n} keywords}}",
   "browser.bulk.backed": "backed",
+  "browser.bulk.phrase": "backed, better said in a bullet",
   "browser.bulk.notBacked": "not backed yet",
   "browser.undo.undid": "{n, plural, one {Undid {n} edit.} other {Undid {n} edits.}}",
   "browser.undo.stuck": "{n, plural, one {{n} stays: the text there changed since — undo it by hand.} other {{n} stay: the text there changed since — undo it by hand.}}",

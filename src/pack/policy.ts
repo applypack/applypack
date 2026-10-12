@@ -2,6 +2,7 @@ import { proposalOf, suggestionKey } from '../resume/change-sheet';
 import { effectiveKeywords } from '../resume/keyword-overrides';
 import type { ACTION_SECTIONS, MatchAction, MatchKeyword, MatchRemoval } from '../resume/prompts';
 import { hasCheckNote, instructionIn } from '../resume/replacement-gate';
+import { isNamedSkill } from '../resume/keyword-shape';
 import { isTitleKeyword } from '../resume/title-keyword';
 
 /*
@@ -160,12 +161,13 @@ export function planEdits(
   // What the page's "Add missing keywords" offers ticked: a weighted term the
   // resume backs and does not spell. A term nothing backs is never written,
   // and neither is the posting's own title — on the dry run three of the seven
-  // terms written onto a skills line were "Senior Product Engineer (…)".
+  // terms written onto a skills line were "Senior Product Engineer (…)" — nor
+  // a methodology or domain phrase, which belongs in a sentence (#351).
   // They go onto skills lines, so a policy that closes Skills closes them: unticking
   // the section and finding keywords written into it was the surprise (#384).
   const terms = policy.keywords && policy.sections.includes('skills')
     ? effectiveKeywords(report.keywords)
-        .filter((k) => k.status === 'add' && k.requirement !== 'context' && !isTitleKeyword(k, report.postingTitle))
+        .filter((k) => k.status === 'add' && k.requirement !== 'context' && !isTitleKeyword(k, report.postingTitle) && isNamedSkill(k))
         .map((k) => (k.where ? { term: k.term, where: k.where } : { term: k.term }))
     : [];
   return { ops, terms, held };
