@@ -119,3 +119,24 @@ export function dropMalformedKeywords(keywords: MatchKeyword[]): ShapeReport {
   }
   return { keywords: out, dropped };
 }
+
+/** The priorities the prompt gives things done and fields worked in (prompts.ts:RULE_KEYWORDS): 3 = methodology and process, 4 = domain. */
+const PHRASE_PRIORITIES: ReadonlySet<number> = new Set([3, 4]);
+
+/**
+ * Whether a keyword is a named skill a skills line can take, or a phrase for
+ * a sentence (#351). "code deployments", "open-source contributions" and "AI
+ * tooling" were appended to tools lines, where they read as filler beside
+ * the tools themselves; a bullet is where such a thing is said. A phrase
+ * stays a gap, a chip and a part of the score — it is only never written
+ * onto a skills line unasked: unticked in "Add missing keywords", out of
+ * Apply all and out of a pack's plan. A term the person typed is theirs to
+ * place: its priority only follows the level they chose
+ * (keyword-overrides.ts), so it says nothing about what kind of word it is.
+ * Mirrored in public/target-page.mjs (`namedSkill`); src/web/target.test.ts
+ * holds the two equal.
+ */
+export function isNamedSkill(keyword: { priority: number; added?: boolean }): boolean {
+  return keyword.added === true || !PHRASE_PRIORITIES.has(keyword.priority);
+}
+

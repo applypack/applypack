@@ -151,6 +151,12 @@ Before a line of the feature was written, the pipeline was run dry over those
    box alone, so with **Skills** unticked they were still written onto
    skills lines. They are written only while Skills is among the open
    sections too, and the box says so.
+   *Amended 2026-10-12 (v2.55.52, #351).* A keyword of the posting's
+   priority 3 (methodology and process) or 4 (domain) is a phrase for a
+   sentence, not a named skill: "code deployments" and "AI tooling" were
+   appended to tools lines. A pack's plan leaves such a term out
+   (`keyword-shape.ts:isNamedSkill`), as Apply all does on the Tailor page,
+   where the list shows it unticked.
 7. **The file is kept as bytes, and the resume is never changed.** A pack
    stores its `.docx` (and the PDF of a clean version) and bumps no resume
    version. "I sent this file" marks the job applied, records the pack's text

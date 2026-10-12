@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fitTone } from './format';
+import { isNamedSkill } from '../resume/keyword-shape';
 
 // The matcher ships to the browser as a static ES module; node loads it the same way.
 // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
@@ -481,4 +482,17 @@ test('a click with no line to go to says why', async () => {
   const noCard = { ...CHIP_CTX, confirm: { asks: false, unproven: false } };
   assert.equal(chipLands(chipTarget({ term: 'Kafka', status: 'cannot_claim' }, CHIP_RESUME, noCard)), 'nowhere: no-place');
   assert.equal(chipLands(chipTarget({ term: 'code deployments', status: 'ask_user' }, CHIP_RESUME, noCard)), 'nowhere: no-place');
+});
+
+test('what a skills line takes unasked is decided the same way on the page and in a pack\'s plan (#351)', async () => {
+  // @ts-expect-error — plain JS with no declaration file.
+  const { namedSkill } = (await import('./public/target-page.mjs')) as { namedSkill: (row: { priority: number; added?: boolean }) => boolean };
+  for (const priority of [1, 2, 3, 4, 5]) {
+    assert.equal(namedSkill({ priority }), isNamedSkill({ priority }), `priority ${priority}`);
+    // A keyword the person typed at "nice" or "context" gets priority 3 or 4 from its level alone: it stays a skill.
+    assert.equal(namedSkill({ priority, added: true }), true, `added, priority ${priority}`);
+    assert.equal(isNamedSkill({ priority, added: true }), true, `added, priority ${priority}`);
+  }
+  // Methodology and process (3) and domain (4) are phrases for a sentence; a required skill and a term the person added are not.
+  assert.deepEqual([1, 2, 3, 4].map((priority) => namedSkill({ priority })), [true, true, false, false]);
 });
