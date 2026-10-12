@@ -2,6 +2,7 @@ import { prisma } from '../db';
 import { fromDbBigInt } from '../fingerprint';
 import { logger } from '../logger';
 import type { FileStatus, LedgerEntry } from '../datasets/folder-scan';
+import { readSourceConfig } from '../datasets/map';
 import type { StoredPosting } from '../datasets/posting-file';
 import type { FolderLook } from '../fetchers/folder-ledger';
 
@@ -115,6 +116,22 @@ export async function folderSummaries(): Promise<Map<number, FolderSummary>> {
     JOIN (SELECT "companyId", max("seenAt") AS last FROM source_file GROUP BY "companyId") l ON l."companyId" = f."companyId"
     GROUP BY f."companyId", l.last`;
   return new Map(rows.map(({ companyId, ...summary }) => [companyId, summary]));
+}
+
+/**
+ * How many switched-on folders of rows hold a file a look has read. A file
+ * of rows is read once, so what a search or a mute turned away in it is not
+ * met again when the search changes or the company is unmuted — unlike a
+ * feed, which serves the posting on its next tick. The pages where such a
+ * change is made say so, with this count (#448).
+ */
+export async function foldersReadOnce(): Promise<number> {
+  const folders = await prisma.company.findMany({
+    where: { atsType: 'FOLDER', active: true, sourceFiles: { some: { status: 'done' } } },
+    select: { sourceConfig: true },
+  });
+  // A folder of saved postings stores every file it reads: nothing in it was turned away.
+  return folders.filter((folder) => readSourceConfig(folder.sourceConfig)?.holds !== 'postings').length;
 }
 
 /**

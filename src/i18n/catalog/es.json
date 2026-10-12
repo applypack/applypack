@@ -3592,6 +3592,7 @@
   "folders.col.changed": "Modificado",
   "folders.files.reread": "Leer todos los archivos de nuevo",
   "folders.files.rereadHint": "Un archivo se lee una vez. Una fila que entonces descartó una búsqueda o una empresa silenciada no se vuelve a mirar cuando cambias la búsqueda o dejas de silenciar la empresa, hasta que su archivo se lea de nuevo. Las filas ya guardadas se omiten sin coste; las que tus búsquedas admiten ahora se puntúan como cualquier fila nueva.",
+  "folders.flash.readOnce": "{n, plural, one {# carpeta de filas se leyó} many {# de carpetas de filas se leyeron} other {# carpetas de filas se leyeron}} antes de este cambio, y un archivo se lee una vez. Para que esas filas se evalúen de nuevo: Empresas → Carpetas en este equipo → Archivos → Leer todos los archivos de nuevo.",
   "folders.flash.typePath": "Escribe la ruta completa de la carpeta, desde la raíz del disco o desde ~ para tu carpeta personal.",
   "folders.preview.couldNotRead": "No se pudo leer ahora mismo.",
   "folders.flash.nothingAdded": "No se añadió nada.",

@@ -394,6 +394,12 @@ revisited:
   behind any new file. Rows already stored are duplicates; rows admitted now
   are scored. Doing this by itself when a search or a mute changes is not
   built (#448).
+  *Amended 2026-10-12 (v2.55.59, #448):* the person at least learns of it
+  where the change is made. Saving a search whose filter fields changed
+  (`filter.ts:filterChanged`), or one that starts to run, and unmuting a
+  company add a sentence when switched-on folders of rows hold files already
+  read (`source-file-store.ts:foldersReadOnce`): how many, and where the
+  button is. Nothing is read again by that.
 - **A row's date.** A stated date was held against the *file's* time, so a
   file stamped 1980 (out of an archive) turned every later date away as "in
   the future" and gave all its rows 1980. It is held against the clock. A

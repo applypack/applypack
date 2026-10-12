@@ -140,6 +140,8 @@ import {
 } from '../../priority-rules';
 import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
+import { filterChanged } from '../../filter';
+import { foldersReadOnceHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
@@ -1404,6 +1406,9 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // Plan §4.3: a running search that names Ukraine, Germany or the UK has
   // feeds waiting on /companies — say so on the save, where the countries were picked.
   const sourcesHint = isActive ? await sourcesWaiting(saved) : '';
+  // A feed serves a posting again on its next tick; a file of rows was read once. When what the filter admits
+  // has changed — its fields, or the search starting to run — the save says which folders that leaves behind (#448).
+  const foldersHint = isActive && (activated || filterChanged(before, saved)) ? await foldersReadOnceHint() : '';
 
   if (f.action === 'save-and-reclassify') {
     if (!isActive) {
@@ -1421,11 +1426,12 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
         t(activated ? 'settingsRoute.search.savedStarted' : 'settingsRoute.search.saved'),
         t(started ? 'settingsRoute.reclassify.started' : 'settingsRoute.reclassify.joins'),
         sourcesHint,
+        foldersHint,
       ),
     );
   }
   if (activated) {
-    return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.savedStartedNext'), sourcesHint));
+    return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.savedStartedNext'), sourcesHint, foldersHint));
   }
   if (!isActive && isBlankProfile(input)) {
     return flashRedirect(
@@ -1434,7 +1440,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       t('settingsRoute.search.savedStaysPaused'),
     );
   }
-  return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.saved'), sourcesHint));
+  return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.saved'), sourcesHint, foldersHint));
 });
 
 /** "2 sources fit these countries — Companies → …", or '' when every suggested feed already runs. */

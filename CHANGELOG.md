@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.59] — 2026-10-12
+
+### Changed
+- **A changed search or an unmute says which folders it does not reach.** A
+  file of rows in a folder is read once, so a row the search or a muted
+  company turned away is not met again when the search is widened or the
+  company unmuted — and the flash said "the next search reads its postings
+  again". When switched-on folders of rows hold files already read, saving a
+  search whose filter changed, or unmuting a company, now adds where to
+  press: Companies → Folders on this computer → Files → Read every file
+  again. Reading them again by itself is still open (#448).
+
 ## [2.55.58] — 2026-10-12
 
 ### Fixed
@@ -5959,6 +5971,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.59]: https://github.com/applypack/applypack/compare/v2.55.58...v2.55.59
 [2.55.58]: https://github.com/applypack/applypack/compare/v2.55.57...v2.55.58
 [2.55.57]: https://github.com/applypack/applypack/compare/v2.55.56...v2.55.57
 [2.55.56]: https://github.com/applypack/applypack/compare/v2.55.55...v2.55.56
