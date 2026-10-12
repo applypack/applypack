@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.57] — 2026-10-12
+
+### Fixed
+- **Markup in an imported title, company or place is not stored as text.** A
+  title `<img src=x onerror=…>Staff Node.js Engineer` and a company
+  `Evil <b>Corp</b>` were kept with their tags — never run, but shown as
+  tags on Jobs, the job page and in messages. They are stored as words now,
+  and `&amp;` as `&`. A "<" that is not markup stays: "C++ <-> Rust",
+  "A < B Ltd" (#403, third of four).
+- **A plain-text description with one link keeps its paragraphs.** Text with
+  line breaks of its own and a single `<a>` or `<b>` went through the HTML
+  reader, which treats line breaks as spaces: every paragraph ran into one.
+  Markup that only dresses words is now taken out and the lines stay; inline
+  markup that arrives escaped (`&lt;span&gt;`) is read the same way instead
+  of being stored literally; and prose such as "we compare a<b and c>d" is
+  no longer mistaken for a tag (#403).
+
 ## [2.55.56] — 2026-10-12
 
 ### Fixed
@@ -5917,6 +5934,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.57]: https://github.com/applypack/applypack/compare/v2.55.56...v2.55.57
 [2.55.56]: https://github.com/applypack/applypack/compare/v2.55.55...v2.55.56
 [2.55.55]: https://github.com/applypack/applypack/compare/v2.55.54...v2.55.55
 [2.55.54]: https://github.com/applypack/applypack/compare/v2.55.53...v2.55.54

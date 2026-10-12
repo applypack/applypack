@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { findCountry, placeLabel } from '../countries';
 import { isCurrencyCode } from '../currency';
 import { cleanEmployer } from '../employer';
-import { decodeHtmlEntities, stripHtml } from '../http';
+import { decodeHtmlEntities, stripHtml, stripInlineTags } from '../http';
 import { isBlockedPostingHost } from '../jobs/blocked-hosts';
 import { workplaceFromText, type LocationHints, type WorkplaceCode } from '../location';
 import { clipText, feedItemKey, hashShortId, storableText } from '../text-utils';
@@ -202,8 +202,18 @@ const PAY_CURRENCY_KEYS = ['currency', 'salarycurrency', 'currencycode'];
 const PAY_PERIOD_KEYS = ['period', 'salarytype', 'unitofwork', 'unit', 'interval', 'type'];
 const PAY_TEXT_KEYS = ['text', 'formatted', 'display', 'label'];
 
-/** A posting's text carrying markup, written out or HTML-escaped (gotcha 12). */
-const MARKUP_RE = /<\/?(p|div|ul|ol|li|br|h[1-6]|strong|em|b|table|span|a)[\s>/]|&lt;\/?(p|div|ul|ol|li|br|h[1-6])\b/i;
+/**
+ * A posting's text whose lines come from its markup, written out or
+ * HTML-escaped (gotcha 12): paragraphs, lists, breaks, headings, tables.
+ */
+const BLOCK_MARKUP_RE = /(?:<|&lt;)\/?(?:p|div|ul|ol|li|br|h[1-6]|table|tr|td|section|article|blockquote)(?:[\s>/]|&gt;)/i;
+/**
+ * Text that only dresses words — a link, a bold phrase — and closes what it
+ * opens. Its lines are already lines: the tags go, the newlines stay (#403).
+ */
+const INLINE_MARKUP_RE = /(?:<|&lt;)\/(?:a|b|i|u|s|em|strong|span|font|small|sup|sub|mark|code)\s*(?:>|&gt;)/i;
+/** A short field is read from at most this much of its cell. */
+const MAX_RAW_LINE_CHARS = 4_000;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 const MONTH_NAME_RE = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
@@ -247,6 +257,16 @@ function cellText(value: unknown): string {
 
 function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A title, a company or a place as plain words on one line: entities
+ * decoded, the tags it closes taken out. `Evil <b>Corp</b>` was stored with
+ * its tags — escaped on every page, so harmless, and shown as tags on Jobs,
+ * the job page and in every message (#403).
+ */
+function plainLine(value: unknown): string {
+  return oneLine(stripInlineTags(cellText(value).slice(0, MAX_RAW_LINE_CHARS)));
 }
 
 function inner(value: Row, names: readonly string[]): unknown {
@@ -296,15 +316,16 @@ function readId(value: unknown): string | null {
 }
 
 function readEmployer(value: unknown): string | null {
-  return cleanEmployer(isRow(value) ? cellText(inner(value, NAME_KEYS)) : cellText(value));
+  return cleanEmployer(plainLine(isRow(value) ? inner(value, NAME_KEYS) : value));
 }
 
 function readDescription(value: unknown): string {
   const raw = isRow(value) ? cellText(inner(value, HTML_KEYS) ?? inner(value, TEXT_KEYS)) : cellText(value);
   const clipped = raw.slice(0, MAX_RAW_DESCRIPTION_CHARS);
   // Stripped once and only when it is markup: a second pass over plain text
-  // flattens the paragraphs the first one built (gotcha 12).
-  const text = MARKUP_RE.test(clipped) ? stripHtml(clipped) : decodeHtmlEntities(clipped);
+  // flattens the paragraphs the first one built (gotcha 12). Markup that
+  // only dresses words leaves the lines alone.
+  const text = BLOCK_MARKUP_RE.test(clipped) ? stripHtml(clipped) : INLINE_MARKUP_RE.test(clipped) ? stripInlineTags(clipped) : decodeHtmlEntities(clipped);
   return clipText(storableText(text).trim(), MAX_DESCRIPTION_CHARS).trim();
 }
 
@@ -314,10 +335,10 @@ function readCountry(value: unknown): string | null {
 }
 
 function readPlace(value: unknown): { text: string; country: string | null } {
-  if (!isRow(value)) return { text: oneLine(cellText(value)), country: null };
-  const parts = [CITY_KEYS, REGION_KEYS, COUNTRY_NAME_KEYS].map((keys) => cellText(inner(value, keys))).filter((p) => p.length > 0);
+  if (!isRow(value)) return { text: plainLine(value), country: null };
+  const parts = [CITY_KEYS, REGION_KEYS, COUNTRY_NAME_KEYS].map((keys) => plainLine(inner(value, keys))).filter((p) => p.length > 0);
   return {
-    text: oneLine(cellText(inner(value, PLACE_TEXT_KEYS)) || parts.join(', ')),
+    text: plainLine(inner(value, PLACE_TEXT_KEYS)) || parts.join(', '),
     country: readCountry(inner(value, COUNTRY_CODE_KEYS)) ?? readCountry(inner(value, COUNTRY_NAME_KEYS)),
   };
 }
@@ -648,7 +669,7 @@ export function fileDate(mtimeMs: number, now: Date): Date {
 export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date, undated: Date = now): MappedRow {
   const at = (field: MappingField): unknown => (mapping[field] === null ? undefined : valueAt(row, mapping[field]));
   if (isTrue(at('closed'))) return { dropped: 'closed' };
-  const title = clipText(oneLine(cellText(at('title'))), MAX_TITLE_CHARS).trim();
+  const title = clipText(plainLine(at('title')), MAX_TITLE_CHARS).trim();
   if (title.length === 0) return { dropped: 'no-title' };
   const listing = httpLink(at('url'));
   const apply = httpLink(at('applyUrl'));

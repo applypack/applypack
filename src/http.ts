@@ -198,6 +198,31 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
+/** Tags nothing closes. */
+const VOID_TAGS: ReadonlySet<string> = new Set(['img', 'br', 'hr', 'wbr', 'input']);
+
+/**
+ * Inline markup out of a short field, or out of prose whose lines are
+ * already lines: every tag whose name the text also closes somewhere, and
+ * the ones nothing closes (`<img>`, `<br>`). Newlines stay where they are —
+ * `stripHtml` treats them as whitespace and rebuilds the lines from block
+ * tags, which flattens a plain-text posting that holds one link. A "<" that
+ * is not markup stays as well: "a < b", "<3", "C++ <-> Rust", and
+ * "a<b and c>d", which has a tag's shape and closes nothing. Entities are
+ * decoded first (gotcha 12). Every step is one pass over the text.
+ */
+export function stripInlineTags(text: string): string {
+  const decoded = decodeHtmlEntities(text);
+  const closed = new Set<string>();
+  for (const closer of decoded.matchAll(/<\/([a-zA-Z][a-zA-Z0-9]*)\s*>/g)) closed.add(closer[1]!.toLowerCase());
+  const body = closed.has('script') || closed.has('style') ? dropElements(dropElements(decoded, 'script'), 'style') : decoded;
+  return body.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)(?:\s[^<>]*)?\/?>/g, (tag: string, name: string) => {
+    const lower = name.toLowerCase();
+    if (!closed.has(lower) && !VOID_TAGS.has(lower)) return tag;
+    return lower === 'br' || lower === 'hr' ? ' ' : '';
+  });
+}
+
 /**
  * `<tag …>…</tag>` out of the text, each from its opener to the first closer
  * after it — what `/<tag[^>]*>[\s\S]*?<\/tag>/gi` matches, found by walking
