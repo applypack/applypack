@@ -94,7 +94,7 @@ more (or less) than two stars.
 The industry criterion read the model's free words for a role's sector, and
 the same resume read three times gave three careers. The worst case was a
 "payments technology / fintech" criterion that swung between 6.3 years and
-none. `src/screening/sectors.ts` holds one vocabulary: groups of names for
+none. `src/sectors.ts` (in `src/screening/` until #207) holds one vocabulary: groups of names for
 one sector, where payments and banking are fintech but never a neighbour.
 The criterion matches a known item by meaning and an unknown one by a
 shared word, generic words ("services", "software") aside. The career line

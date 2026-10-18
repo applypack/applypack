@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SECTORS } from './sectors';
+import { SECTORS } from '../sectors';
 import { fence, untrustedDirective } from '../prompt-fence';
 import { extractJson, jsonFailure, type ParseResult } from '../text-utils';
 import type { MatchJobInput } from '../resume/prompts';

@@ -513,8 +513,10 @@ in six seconds — together with the keyword frame, the either/or requirement
 groups and the gates. It is stored in `posting_brief` against a hash of the
 title and description, so editing a resume and comparing again reuses the
 reading instead of paying for it; the progress page shows it as its own step
-and says when it was reused. The comparison copies the frame and judges only
-what the resume shows; the suggestions aim at the screening block. A missing
+and says when it was reused. **Rebuild keywords** reads the posting again: the
+new brief replaces the stored one, whichever engine wrote that (#410). The
+comparison copies the frame and judges only what the resume shows; the
+suggestions aim at the screening block. A missing
 brief costs context, never the comparison: both callers fall back to deriving
 the frame themselves.
 
