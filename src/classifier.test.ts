@@ -342,9 +342,10 @@ test('the tick scores a posting with no row yet: no subject, and the rows to nam
   assert.equal(out.preFiltered, true);
   assert.deepEqual(out.ledgerIds, [1]);
   assert.equal(turnedAway.asked[0]?.subject, undefined);
-  // An unreadable gate falls open to the full classifier; both calls belong to the posting.
+  // An unreadable gate falls open to the full classifier; both calls belong to the posting. (A posting that names
+  // the search's stack skips the gate, so this one names none of it.)
   const fellOpen = scriptedRuntime(['relevant: maybe', reply([entry(3, 64)])]);
-  const scored = await classifyJob(input('PHP'), [PROFILE], 'two_stage', { ai: fellOpen });
+  const scored = await classifyJob(input('Go'), [PROFILE], 'two_stage', { ai: fellOpen });
   assert.equal(scored.preFiltered, false);
   assert.deepEqual(fellOpen.marked, [[1]]);
   assert.deepEqual(scored.ledgerIds, [1, 2]);

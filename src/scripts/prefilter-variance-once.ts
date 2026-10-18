@@ -20,6 +20,7 @@
 import { prisma } from '../db';
 import { config } from '../config';
 import { preClassify, prefilterMayJudge, type PrefilterResult } from '../classifier-prefilter';
+import { getAiRuntime } from '../ai-runtime';
 import { createLimiter } from '../concurrency';
 import { companyForPrompt } from '../employer';
 import { isBlankProfile } from '../profile-guards';
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
   console.log(`${times} asks × ${postings.length} kept postings · ${profiles.map((p) => `"${p.name}"`).join(' · ')}\n`);
 
   const limit = createLimiter(config.AI_CONCURRENCY);
+  const ai = await getAiRuntime();
   let no = 0;
   let unreadable = 0;
   let anyNo = 0;
@@ -80,7 +82,7 @@ async function main(): Promise<void> {
       continue;
     }
     const answers: (PrefilterResult | null)[] = await Promise.all(
-      Array.from({ length: times }, () => limit(() => preClassify(input, profiles))),
+      Array.from({ length: times }, () => limit(() => preClassify(input, profiles, { ai, subject: { jobId: job.id }, ledgerIds: [] }))),
     );
     const noes = answers.filter((a) => a?.relevant === false);
     no += noes.length;
