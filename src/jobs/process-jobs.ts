@@ -13,6 +13,7 @@ import { withApplyLinkFlags } from '../apply-link';
 import { validDate } from '../fetchers/dates';
 import { parseLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
+import { attributeCalls } from '../ai-ledger';
 import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
 import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
@@ -310,14 +311,16 @@ export async function processNormalizedJobs(
   const pending = candidates.map((item) => ({
     ...item,
     outcome: limit(async (): Promise<ClassifyOutcome> => {
-      if (cancelled) return { results: new Map(), location: null, preFiltered: false };
+      if (cancelled) return { results: new Map(), location: null, preFiltered: false, ledgerIds: [] };
       return classifyJob(
         // The employer an aggregator named — and when it named none, nobody: never the feed's or the folder's own name (ADR 0056).
         buildClassifyInput(item.job, fetchedHiringName(item.job.employer, item.companyName) ?? COMPANY_NOT_NAMED, item.place),
         profiles,
         classifierMode,
-        (reason) => {
-          stats.classifyError = reason;
+        {
+          onError: (reason) => {
+            stats.classifyError = reason;
+          },
         },
       );
     }),
@@ -346,7 +349,7 @@ export async function processNormalizedJobs(
       break;
     }
     consumed++;
-    const { results, location, preFiltered, prefilterReason } = await outcome;
+    const { results, location, preFiltered, prefilterReason, ledgerIds } = await outcome;
     // The model read the whole description; where it knows more than the
     // location line said, the row is stored with that (ADR 0032).
     const placed: Candidate = { ...item, place: mergeAiLocation(item.place, location) };
@@ -358,6 +361,7 @@ export async function processNormalizedJobs(
       // posting the user saved is kept Saved instead, as below (ADR 0062).
       await persistJob(placed, null, job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, [], batch, {
         summary: prefilterReason ? `Set aside by the prefilter: ${prefilterReason}` : 'Set aside by the prefilter.',
+        ledgerIds,
       });
       continue;
     }
@@ -392,6 +396,7 @@ export async function processNormalizedJobs(
       const status = job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED;
       const stored = await persistJob(placed, finalClassification, status, winner.priorityRulesApplied, batch, {
         verdicts,
+        ledgerIds,
       });
       if (stored) {
         stats.dismissed++;
@@ -422,6 +427,7 @@ export async function processNormalizedJobs(
     const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {
       verdicts,
       alertHeldAt,
+      ledgerIds,
     });
     if (!stored) continue;
     stats.matched++;
@@ -640,11 +646,14 @@ async function persistJob(
     verdicts = [],
     alertHeldAt = null,
     summary = null,
+    ledgerIds = [],
   }: {
     verdicts?: ProfileVerdict[];
     alertHeldAt?: Date | null;
     /** A row stored without a classification still says why it was set aside. */
     summary?: string | null;
+    /** The ledger rows of the calls that scored the posting before it had a row (#483). */
+    ledgerIds?: number[];
   } = {},
 ): Promise<{ created: Job; crossListing: CrossListing } | null> {
   const fingerprint = simhash64(job.description);
@@ -683,6 +692,7 @@ async function persistJob(
     }
     throw err;
   }
+  await attributeCalls(ledgerIds, created.id);
   recentFingerprints.push({
     id: created.id,
     companyId: job.companyId,

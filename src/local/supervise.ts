@@ -43,3 +43,14 @@ export function lockHolder(lookup: ProcessLookup, alive: boolean): LockHolder {
   if (lookup === NO_ANSWER) return alive ? 'unsure' : 'nobody';
   return isLauncherCommand(lookup) ? 'launcher' : 'nobody';
 }
+
+/**
+ * The node flags a worker or the dashboard starts with: the launcher's own,
+ * and Web Storage off where this Node has it. Node 25 turned it on, and the
+ * `docx` library looks for `localStorage` when it loads, so every start
+ * printed "ExperimentalWarning: localStorage is not available" — nothing
+ * here uses it.
+ */
+export function childExecArgv(parent: readonly string[], allowed: ReadonlySet<string>): string[] {
+  return allowed.has('--experimental-webstorage') ? [...parent, '--no-experimental-webstorage'] : [...parent];
+}
