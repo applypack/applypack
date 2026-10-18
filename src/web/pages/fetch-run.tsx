@@ -4,10 +4,10 @@ import { Layout } from '../layout';
 import { ActionForm, Button, Card, Hint, Notice } from '../ui';
 import { Icon } from '../icons';
 import { RunSteps, type StepView } from './run-steps';
-import { FETCH_FAILED, FETCH_RUN_STEPS, type FetchRun } from '../fetch-runs';
+import { FETCH_FAILED, FETCH_RUN_STEPS, isSetupSearch, type FetchRun } from '../fetch-runs';
 import { t } from '../../i18n/t';
 
-function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Record<string, StepView> {
+function stepView({ classify, scope, backUrl }: Pick<FetchRun, 'classify' | 'scope' | 'backUrl'>): Record<string, StepView> {
   return {
     fetch:
       typeof scope === 'object'
@@ -17,7 +17,7 @@ function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Re
         : { label: t('fetch.step.all'), detail: t('fetch.step.all.detail') },
     store: classify
       ? { label: t('fetch.step.score'), detail: t('fetch.step.score.detail') }
-      : { label: t('fetch.step.store'), detail: t('fetch.step.store.detail') },
+      : { label: t('fetch.step.store'), detail: isSetupSearch({ scope, backUrl }) ? t('fetch.step.store.detailSetup') : t('fetch.step.store.detail') },
   };
 }
 
@@ -55,7 +55,9 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
           <div class="text-sm text-ink-muted">
             {run.classify
               ? t('fetch.everyEnabledSourceThenThe')
-              : t('fetch.everyEnabledSourceNewJobs')}
+              : isSetupSearch(run)
+                ? t('fetch.setupSearchSubtitle')
+                : t('fetch.everyEnabledSourceNewJobs')}
           </div>
 
           {failed ? (
