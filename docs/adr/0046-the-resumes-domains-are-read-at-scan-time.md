@@ -1,6 +1,6 @@
 # 0046 — The resume's domains are read at scan time and compared with the posting's
 
-**Status:** Accepted (2026-09-08); see the 2026-09-24 addendum
+**Status:** Accepted (2026-09-08); see the 2026-09-24 and 2026-10-18 addenda
 
 ## Context
 
@@ -60,3 +60,30 @@ the overlap should read both.
 - "prompt v14, withdrawn": the number was used again. The trial sentence
   was withdrawn, and `PROMPT_VERSION` 14 (`src/resume/prompts.ts`) is the
   CANDIDATE'S DOMAINS block this ADR decided.
+
+## Addendum (2026-10-18): synonyms, the product, the sectors named (#207)
+
+- **Synonyms.** The two sides also meet on a sector of the vocabulary the
+  screening already reads (TASKS E6), so "healthcare" against "healthtech"
+  and "banking" or "payments" against "fintech" read `match`. The
+  vocabulary moved out of `src/screening/` to `src/sectors.ts`:
+  `domain.ts` is reached by the worker's pack runner, and the worker never
+  imports the screening module. The screening reads it as before. One pair
+  the vocabulary keeps apart on purpose — its criterion asks for one sector
+  — reads as one here: retail and e-commerce. Fitness and healthtech,
+  insurance and banking stay `different`. The case this ADR called right,
+  "healthtech" against "clinical research / CRO (pharma services)", now
+  reads `match`, because the vocabulary files "clinical" under healthcare.
+  Accepted: a silent notice costs nothing, while a wrong `different` tells
+  the model not to claim a sector the person has worked in.
+- **The product.** With no industry, the brief's product names the sector,
+  but only when the vocabulary finds one in it ("AI order taking for
+  restaurants"); a product that names none ("an analytics dashboard") stays
+  `unknown`, since product words are often not sector words. The page then
+  quotes the product. No stored brief had this shape when it was counted (0
+  of 15).
+- **Which sectors the notice names.** Still the scan's first three, most
+  recent first. Naming the sectors closest to the posting's first would
+  reorder nothing: a sector that shares a word or a sector with the
+  posting's makes the verdict `match`, and then there is no sentence at all.
+  The synonyms are what keep a close sector out of the sentence.

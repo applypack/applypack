@@ -28,7 +28,7 @@ import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
 import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
 import { blankProfileInput, listActiveProfiles } from '../profiles';
-import { recordAiCall } from '../ai-ledger';
+import { attributeCalls, markUnparsed, recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
 import { draftRubric } from '../screening/rubric';
@@ -37,7 +37,9 @@ import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { autoPacksToday, listUnnotifiedPacks } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
-import { getRun } from '../web/target-runs';
+import { claimRun, getRun } from '../web/target-runs';
+import { getAiRuntime } from '../ai-runtime';
+import { TIMED_FROM } from '../ai-spend';
 import { parseFlashCookie } from '../web/flash';
 import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
@@ -758,6 +760,8 @@ async function main(): Promise<void> {
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
   rows.push(...(await engineTroubleChecks()));
+  rows.push(await ledgerUpdateCheck(f.jobId));
+  rows.push(await recordedBandCheck());
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -843,6 +847,61 @@ async function engineTroubleChecks(): Promise<Check[]> {
     { route: 'GET /ai with an engine whose last calls all failed (said first, no all-clear)', url: '/ai', status: usage.status, ok: usageHtml.includes('found no server answering') && !usageHtml.includes('Nothing was billed') },
     { route: 'GET /settings?tab=ai with that engine (its card says calls failing)', url: '/settings?tab=ai', status: tab.status, ok: tabHtml.includes('calls failing') && tabHtml.includes('found no server answering') },
   ];
+}
+
+/** An engine's whole window of recent attempts, as `ai-ledger.ts:loadRecentAttempts` reads it. */
+const RECENT_WINDOW = 20;
+
+/**
+ * The ledger's two updates on a real database (#463, #483): scoring calls
+ * written before their posting had a row are named on the fixture job, and
+ * replies the caller could not read turn `unparsed` — a window of them, so
+ * the engine's trouble on AI usage is that, whatever the run before wrote.
+ */
+async function ledgerUpdateCheck(jobId: number): Promise<Check> {
+  const ids: number[] = [];
+  for (let i = 0; i < RECENT_WINDOW; i++) {
+    const id = await recordAiCall({ at: new Date(), durationMs: 1, feature: 'classifier', viaFallback: false, engine: 'claude_code', model: '', outcome: 'ok', billing: 'plan', spend: null });
+    if (id !== null) ids.push(id);
+  }
+  await attributeCalls(ids, jobId);
+  for (const id of ids) await markUnparsed(id);
+  const rows = await prisma.aiCall.findMany({ where: { id: { in: ids } }, select: { jobId: true, outcome: true } });
+  const usage = await app.request('/ai', { headers: ORIGIN });
+  const html = usage.status === 200 ? await usage.text() : '';
+  return {
+    route: 'GET /ai after scoring replies named on their posting and marked unparsed (try another model)',
+    url: '/ai',
+    status: usage.status,
+    ok:
+      rows.length === RECENT_WINDOW &&
+      rows.every((r) => r.jobId === jobId && r.outcome === 'unparsed') &&
+      html.includes('ApplyPack could not read') &&
+      html.includes(`${RECENT_WINDOW} answered, but could not be read`),
+  };
+}
+
+/**
+ * #483: the run page states this install's own time for a step once ten
+ * calls answered on the engine and model that will take it. The run is
+ * claimed and never started, so it waits on its first step while the page
+ * is read.
+ */
+async function recordedBandCheck(): Promise<Check> {
+  const runtime = await getAiRuntime();
+  const engine = runtime.chainFor('resume-read')[0];
+  for (let i = 0; engine && i < TIMED_FROM; i++) {
+    await recordAiCall({ at: new Date(), durationMs: 12_000, feature: 'resume-scan', viaFallback: false, engine, model: runtime.modelFor(engine, 'resume'), outcome: 'ok', billing: 'plan', spend: null });
+  }
+  const { run } = claimRun('smoke:recorded-band', { steps: ['scan'], jobTitle: 'Smoke band', resumeName: 'Smoke band' });
+  const res = await app.request(`/target/runs/${run.id}`, { headers: ORIGIN });
+  const html = res.status === 200 ? await res.text() : '';
+  return {
+    route: 'GET /target/runs/:id with ten answered scans on record (their own time, not the generic words)',
+    url: '/target/runs/:id',
+    status: res.status,
+    ok: html.includes('about 12.0s on') && html.includes('going by your last 10 calls'),
+  };
 }
 
 /**

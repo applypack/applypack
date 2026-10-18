@@ -62,8 +62,11 @@ export async function classifyExistingJob(
     },
     profiles,
     classifierMode,
-    (why) => {
-      reason = why;
+    {
+      jobId: job.id,
+      onError: (why) => {
+        reason = why;
+      },
     },
   );
   if (outcome.preFiltered) {

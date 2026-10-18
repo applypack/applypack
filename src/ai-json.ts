@@ -18,13 +18,14 @@ export interface JsonAnswer<T> {
 /**
  * One AI call whose reply is JSON: complete, parse, retry once on a reply
  * that did not parse. Null when no engine answered or both replies failed.
+ * A reply that did not parse is `unparsed` on the ledger, not `ok` (#463).
  *
  * A reply cut off inside the JSON is not retried: the budget ran out, not
  * the dice, and the identical call would be cut off identically — that was
  * two full-price calls per attempt before #159.
  */
 export async function askForJson<T>(
-  ai: Pick<AiRuntime, 'complete'>,
+  ai: Pick<AiRuntime, 'complete' | 'unparsed'>,
   req: AiCallRequest,
   parse: (text: string) => ParseResult<T>,
   context: Record<string, unknown> = {},
@@ -47,6 +48,7 @@ export async function askForJson<T>(
       { ...context, label: req.label, attempt, error: parsed.error, raw: out.text.slice(0, 500) },
       'ai: reply did not parse',
     );
+    await ai.unparsed(out);
     if (parsed.cutOff) return null;
   }
   return null;

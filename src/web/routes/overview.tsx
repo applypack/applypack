@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { loadUnscored } from '../score-run';
 import { AtsType, JobStatus, type Prisma } from '@prisma/client';
 import { prisma } from '../../db';
 import { clearFlashCookie, parseFlashCookie } from '../flash';
@@ -35,7 +36,12 @@ async function watchedSummary(): Promise<{ companies: number; newJobs: number; t
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_LIMIT = 8;
-const CRON_NAMES = ['fetch', 'digest', 'cleanup'] as const;
+/** The jobs Pipeline health names, each with the runs that count as it: a "Fetch now" is a fetch too. */
+const HEALTH_RUNS = [
+  { name: 'fetch', runs: ['fetch', 'fetch-now'] },
+  { name: 'digest', runs: ['digest'] },
+  { name: 'cleanup', runs: ['cleanup'] },
+] as const;
 
 export const overviewRoute = new Hono();
 
@@ -50,15 +56,17 @@ overviewRoute.get('/', async (c) => {
   const range = isRangeKey(rangeParam) ? rangeParam : DEFAULT_RANGE;
   // The numbers link to /jobs, which hides a muted company's rows (ADR 0056): they count what it shows.
   const unmuted = withoutMuted(await mutedKeys()) ?? {};
-  const [countsRows, recentAlerts, latestRunRows, stats, searches] = await Promise.all([
+  const [countsRows, recentMatches, latestRunRows, stats, searches] = await Promise.all([
     prisma.job.groupBy({
       by: ['status'],
       _count: { _all: true },
       where: unmuted,
     }),
     prisma.job.findMany({
-      where: { status: { in: [JobStatus.ALERTED, JobStatus.NEW] }, ...unmuted },
-      orderBy: [{ alertedAt: 'desc' }, { fetchedAt: 'desc' }],
+      // The matches: alerted, or kept by a search and not alerted (no chat, held). A row stored unscored is not one.
+      where: { status: { in: [JobStatus.ALERTED, JobStatus.NEW] }, fitScore: { not: null }, ...unmuted },
+      // Postgres sorts NULL first in DESC: an unalerted match goes by when it was found, after the alerts.
+      orderBy: [{ alertedAt: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }],
       take: RECENT_LIMIT,
       // The columns a row draws and no more: the page refreshes every 30 seconds,
       // and `include` carried eight descriptions with it each time.
@@ -79,9 +87,9 @@ overviewRoute.get('/', async (c) => {
       },
     }),
     Promise.all(
-      CRON_NAMES.map((name) =>
+      HEALTH_RUNS.map(({ runs }) =>
         prisma.cronRun.findFirst({
-          where: { name },
+          where: { name: { in: [...runs] } },
           orderBy: { startedAt: 'desc' },
         }),
       ),
@@ -99,7 +107,7 @@ overviewRoute.get('/', async (c) => {
   const check = await loadNextCheck(settings.schedule);
   const sleepingUntil = check.dueNow ? '' : check.next;
 
-  const latestRuns = CRON_NAMES.map((name, i) => ({
+  const latestRuns = HEALTH_RUNS.map(({ name }, i) => ({
     name,
     run: latestRunRows[i] ?? null,
   }));
@@ -107,7 +115,7 @@ overviewRoute.get('/', async (c) => {
   return c.html(
     <OverviewPage
       counts={counts}
-      recentAlerts={recentAlerts}
+      recentMatches={recentMatches}
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
       sleepingUntil={sleepingUntil}
@@ -118,6 +126,7 @@ overviewRoute.get('/', async (c) => {
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
       next={await loadNextThings(unmuted)}
+      unscored={await loadUnscored()}
       readyPacks={await listReadyPacks(READY_PACKS_SHOWN)}
       readyPacksTotal={await countReadyPacks()}
       flash={parseFlashCookie(c.req.header('cookie'))}
