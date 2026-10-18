@@ -214,7 +214,18 @@ function billedFallback(facts: HintFacts, groups: readonly SpendGroup[]): UsageH
 function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | null {
   const pairs = new Map<
     string,
-    { feature: string; engine: string; billing: AiBilling; calls: number; failed: number; rateLimited: number; answered: Set<string>; asked: Set<string>; endings: Map<string, number> }
+    {
+      feature: string;
+      engine: string;
+      billing: AiBilling;
+      calls: number;
+      failed: number;
+      unparsed: number;
+      rateLimited: number;
+      answered: Set<string>;
+      asked: Set<string>;
+      endings: Map<string, number>;
+    }
   >();
   for (const g of groups) {
     const key = `${g.feature}\n${g.engine}\n${g.billing}`;
@@ -224,6 +235,7 @@ function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | 
       billing: g.billing,
       calls: 0,
       failed: 0,
+      unparsed: 0,
       rateLimited: 0,
       answered: new Set<string>(),
       asked: new Set<string>(),
@@ -231,6 +243,7 @@ function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | 
     };
     p.calls += g.calls;
     p.failed += g.failed;
+    p.unparsed += g.unparsed;
     p.rateLimited += g.rateLimited;
     if (g.failedAs) p.endings.set(g.failedAs, (p.endings.get(g.failedAs) ?? 0) + g.failed);
     p.asked.add(g.model);
@@ -252,19 +265,24 @@ function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | 
     : local && task && facts.first[task] !== local.id
       ? `${t('usage.failed.giveLocal', { local: label(local.id), task: taskLabel(task) })} ${t('usage.unmeasured')}`
       : t('usage.failed.secondEngine');
+  // A reply that could not be read was an answer: counted apart from the calls that got none (#463).
+  const unanswered = worst.failed - worst.unparsed;
   const said = {
     feature: featureLabel(worst.feature),
     engine: `${label(worst.engine)}${model}`,
-    failed: worst.failed,
+    failed: unanswered,
     calls: worst.calls,
     period: facts.period,
     limited: worst.rateLimited,
   };
-  const sentences = [
-    t(worst.rateLimited > 0 ? 'usage.failed.limited' : 'usage.failed', said),
-    t(worst.billing === 'billed' ? 'usage.failed.costsTimeMoney' : 'usage.failed.costsTime'),
-    advice,
-  ];
+  const counted =
+    unanswered === 0
+      ? [t('usage.failed.unread', { ...said, unread: worst.unparsed })]
+      : [
+          t(worst.rateLimited > 0 ? 'usage.failed.limited' : 'usage.failed', said),
+          ...(worst.unparsed > 0 ? [t('usage.failed.alsoUnread', { n: worst.unparsed })] : []),
+        ];
+  const sentences = [...counted, t(worst.billing === 'billed' ? 'usage.failed.costsTimeMoney' : 'usage.failed.costsTime'), advice];
   return { tone: 'warn', text: sentences.join(' '), action: enginesLink() };
 }
 

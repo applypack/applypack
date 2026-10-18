@@ -140,8 +140,9 @@ failed attempts, then the answer's), which is how the caller finds them.
   counted: the AI usage table, the failure hint, and an engine's trouble on
   its card (`ai-health.ts`), whose advice for it is another model — the one
   ending where that advice is right, and one Test cannot show, since it
-  asks for a single word. A retry after a bad reply is a row of its own, as
-  before.
+  asks for a single word. It is worded as what it is, an answer that could
+  not be read, never as "did not answer". A retry after a bad reply is a
+  row of its own, as before.
 - **The posting a tick scored is named on its calls afterwards** (#483). A
   re-classify knows its posting and passes it as the call's subject. The
   tick scores a posting before its row exists: the classifier returns the

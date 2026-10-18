@@ -4,7 +4,7 @@ import { Layout } from '../layout';
 import { Badge, Card, CardHeader, CardLink, Empty, Flash, Hint, Notice, PageHeader, Tabs } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDuration } from '../format';
-import { billingWords, formatUsd, slowTail, SPEND_PERIODS, type ModelUsage, type SpendPeriod, type SpendRow, type SpendView } from '../../ai-spend';
+import { billingWords, failureWords, formatUsd, slowTail, SPEND_PERIODS, type ModelUsage, type SpendPeriod, type SpendRow, type SpendView } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { AiPlanRow } from '../ai-plan';
 import type { UsageHint } from '../usage-hints';
@@ -207,6 +207,7 @@ export const AiUsagePage: FC<AiUsageProps> = ({ period, view, models, hints, pla
 const FeatureRow: FC<{ row: SpendRow }> = ({ row: r }) => {
   const cost = r.billing === 'local' ? t('ai.free') : r.unpriced > 0 && r.micro === 0 ? t('ai.notPriced') : money(r.billing, r.micro);
   const tail = slowTail(r.calls - r.failed, r.medianMs, r.p90Ms);
+  const failures = failureWords(r.failed, r.unparsed);
   return (
     <tr class="transition-colors duration-150 hover:bg-surface-selected/50">
       <td class="py-2.5 pr-4 text-ink">
@@ -214,12 +215,16 @@ const FeatureRow: FC<{ row: SpendRow }> = ({ row: r }) => {
         {/* On a phone the other columns are folded into this line: the time and the money are what the page is for (#415). */}
         <div class="text-meta tabular-nums text-ink-muted sm:hidden">
           {t('ai.calls', { n: r.calls })} · {formatDuration(r.medianMs)} · {cost}
-          {r.failed > 0 && <span class="text-warn"> · {t('ai.didNotAnswer', { n: r.failed })}</span>}
+          {failures.map((words) => (
+            <span class="text-warn"> · {words}</span>
+          ))}
         </div>
       </td>
       <td class="hidden px-4 py-2.5 text-right tabular-nums sm:table-cell">
         {formatNumber(r.calls)}
-        {r.failed > 0 && <div class="text-meta text-warn">{t('ai.didNotAnswer', { n: r.failed })}</div>}
+        {failures.map((words) => (
+          <div class="text-meta text-warn">{words}</div>
+        ))}
       </td>
       <td class="hidden whitespace-nowrap px-4 py-2.5 text-right tabular-nums sm:table-cell">
         {formatDuration(r.medianMs)}

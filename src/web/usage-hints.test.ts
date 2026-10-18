@@ -11,6 +11,7 @@ const group = (over: Partial<SpendGroup>): SpendGroup => ({
   billing: 'plan',
   calls: 1,
   failed: 0,
+  unparsed: 0,
   noUsage: 0,
   unpriced: 0,
   tokensIn: 0,
@@ -263,7 +264,6 @@ test('a failure hint gives the advice of how most of the calls ended', () => {
   assert.match(advice('too_large'), /never sent: raise the window on the engine's card, or untick this task there\.$/);
   assert.match(advice('unreachable'), /No server answered those calls: check that it is running/);
   assert.match(advice('unauthorized'), /sign in again or paste a new key on its card, then press Test\.$/);
-  assert.match(advice('unparsed'), /not in the shape asked for, which is the model's doing: try another model in that slot\.$/);
   // An ending with no cause of its own, a row from before the two outcomes, a group built without it: as before.
   for (const other of ['empty', 'error', undefined]) assert.match(advice(other), /Try another model in that slot, or press Test on the engine\.$/);
   // Two models of one engine: the ending most of the failures share.
@@ -272,4 +272,24 @@ test('a failure hint gives the advice of how most of the calls ended', () => {
     group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'b', calls: 6, failed: 1, failedAs: 'empty' }),
   ];
   assert.match(find(usageHints(facts({ groups: mixed, engines: [engine('local_api', 'local', 0)] })), /did not answer/)!.text, /raise the window/);
+});
+
+test('#463: a reply that could not be read is worded as an answer, never as "did not answer"', () => {
+  const said = (over: Partial<SpendGroup>) =>
+    find(usageHints(facts({ groups: [group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'llama3.1:8b', calls: 10, ...over })], engines: [engine('local_api', 'local', 0)] })), /on Local model/)!.text;
+  // Every failure an unreadable reply: one sentence for them, and the advice that fits them.
+  const unread = said({ failed: 4, unparsed: 4, failedAs: 'unparsed' });
+  assert.match(
+    unread,
+    /^Full analysis on Local model \(Ollama\) · llama3\.1:8b: 4 of 10 calls answered in the last 7 days, but the reply could not be read\. .* try another model in that slot\.$/,
+  );
+  assert.doesNotMatch(unread, /did not answer/);
+  // Some with no answer, some unreadable: each counted as what it was.
+  assert.match(
+    said({ failed: 5, unparsed: 2, failedAs: 'timeout' }),
+    /: 3 of 10 calls did not answer in the last 7 days\. 2 more calls answered, but the reply could not be read\. /,
+  );
+  assert.match(said({ failed: 2, unparsed: 1, failedAs: 'timeout' }), /: 1 of 10 calls did not answer in the last 7 days\. 1 more call answered, but the reply could not be read\. /);
+  // None unreadable: the sentence stays what it was.
+  assert.doesNotMatch(said({ failed: 4, failedAs: 'timeout' }), /could not be read/);
 });

@@ -149,6 +149,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
       billing: AiBilling;
       calls: number;
       failed: number;
+      unparsed: number;
       failedAs: string | null;
       noUsage: number;
       unpriced: number;
@@ -165,6 +166,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
     SELECT "feature", "engine", COALESCE("resolvedModel", "model") AS "model", "billing",
       count(*)::int AS "calls",
       count(*) FILTER (WHERE "outcome" <> 'ok')::int AS "failed",
+      count(*) FILTER (WHERE "outcome" = 'unparsed')::int AS "unparsed",
       mode() WITHIN GROUP (ORDER BY "outcome") FILTER (WHERE "outcome" <> 'ok') AS "failedAs",
       count(*) FILTER (WHERE "outcome" <> 'ok' AND "inputTokens" IS NULL AND "outputTokens" IS NULL
         AND "cacheReadTokens" IS NULL AND "cacheWriteTokens" IS NULL AND "cacheWrite1hTokens" IS NULL)::int AS "noUsage",

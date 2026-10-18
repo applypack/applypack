@@ -285,7 +285,8 @@ Every engine's failure is read the same way (`ai-provider-parse.ts:failureKind`)
   call's time budget has room. A longer wait goes to the next engine.
 - **A reply that comes back but cannot be read** (not the JSON that was
   asked for) is asked again once, and the ledger records it as `unparsed`:
-  AI usage counts it among the calls that did not answer. When an engine's
+  AI usage counts it as answered but not readable, apart from the calls
+  that got no answer. When an engine's
   calls keep ending that way, its card and AI usage say to try another
   model in its slot — Test asks for one word, which such a model still
   writes.

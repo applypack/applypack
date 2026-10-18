@@ -873,7 +873,11 @@ async function ledgerUpdateCheck(jobId: number): Promise<Check> {
     route: 'GET /ai after scoring replies named on their posting and marked unparsed (try another model)',
     url: '/ai',
     status: usage.status,
-    ok: rows.length === RECENT_WINDOW && rows.every((r) => r.jobId === jobId && r.outcome === 'unparsed') && html.includes('ApplyPack could not read'),
+    ok:
+      rows.length === RECENT_WINDOW &&
+      rows.every((r) => r.jobId === jobId && r.outcome === 'unparsed') &&
+      html.includes('ApplyPack could not read') &&
+      html.includes(`${RECENT_WINDOW} answered, but could not be read`),
   };
 }
 
