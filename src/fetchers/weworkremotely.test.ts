@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapWwrItem, wwrEmployer, type WwrItem } from './weworkremotely';
+import { mapWwrItem, wwrEmployer, wwrRole, type WwrItem } from './weworkremotely';
+import { feedEntryId } from '../text-utils';
 
 const COMPANY_ID = 617;
 
@@ -65,5 +66,20 @@ describe('wwrEmployer', () => {
     assert.equal(wwrEmployer('Acme Inc: Staff Engineer'), 'Acme Inc');
     assert.equal(wwrEmployer('Staff Engineer'), null);
     assert.equal(wwrEmployer(': Staff Engineer'), null);
+  });
+});
+
+describe('wwrRole', () => {
+  it('drops the company the title opens with, which the row shows beside it', () => {
+    assert.equal(mustMap(item()).title, 'Senior Software AI Engineer');
+    assert.equal(wwrRole('Vercel: Software Engineer, Backend'), 'Software Engineer, Backend');
+    assert.equal(wwrRole('Acme: Engineer: Payments'), 'Engineer: Payments');
+  });
+
+  it('keeps a title that names nobody, and the id the full title made', () => {
+    assert.equal(wwrRole('Staff Engineer'), 'Staff Engineer');
+    assert.equal(wwrRole(': Staff Engineer'), ': Staff Engineer');
+    // A row with no link is keyed by its text: still the feed's own title, so stored rows keep their id.
+    assert.equal(mapWwrItem({ title: 'Acme: Engineer' }, COMPANY_ID)?.externalId, feedEntryId(undefined, '', 'Acme: Engineer'));
   });
 });
