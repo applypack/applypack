@@ -48,6 +48,7 @@ import { VERDICT_TONE } from './verification-card';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { UnscoredNotice, type UnscoredView } from './unscored-notice';
 
 interface JobRow {
   id: number;
@@ -98,11 +99,12 @@ export interface JobsListProps {
   blankProfileBanner?: boolean;
   /** Stored postings of muted companies the list leaves out (ADR 0056); 0 when shown or none. */
   mutedHidden: number;
+  unscored: UnscoredView | null;
   /** What the last action said — an unmute from the muted panel lands here (#343). */
   flash?: FlashMessage | null;
 }
 
-/** The tabs in order; '' is every status. Each is named when the page renders (`statusLabel`, `jobs.tab.all`). */
+/** The tabs in order; '' is every status but Dismissed. Each is named when the page renders (`statusLabel`, `jobs.tab.active`). */
 const STATUS_TABS: (JobStatus | '')[] = ['', 'NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'];
 
 /** The orders the list offers, each with the catalog key of its name. */
@@ -125,6 +127,7 @@ export const JobsListPage: FC<JobsListProps> = ({
   statusCounts,
   blankProfileBanner,
   mutedHidden,
+  unscored,
   searchPlaces,
   flash,
 }) => {
@@ -136,7 +139,7 @@ export const JobsListPage: FC<JobsListProps> = ({
   const places = splitPlaces(facets.places);
   // A link inside the panel keeps it open on the page it loads.
   const inPanel = (next: Partial<JobsFilters>) => jobsHref({ ...filters, ...next }, { panel: true });
-  const allStatuses = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
+  const inPlay = Object.entries(statusCounts).reduce((sum, [status, n]) => (status === 'DISMISSED' ? sum : sum + n), 0);
 
   return (
     <Layout title={t('nav.jobs')} active="jobs" fill>
@@ -169,6 +172,8 @@ export const JobsListPage: FC<JobsListProps> = ({
           })}
         </Notice>
       )}
+
+      {unscored && <UnscoredNotice {...unscored} class="mb-4 shrink-0" />}
 
       <div class="mb-3 flex shrink-0 flex-wrap items-center gap-2">
         <form method="get" action="/jobs" class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -293,8 +298,8 @@ export const JobsListPage: FC<JobsListProps> = ({
         class="mb-3 shrink-0"
         tabs={STATUS_TABS.map((status) => ({
           href: jobsHref({ ...filters, status }),
-          label: status === '' ? t('jobs.tab.all') : statusLabel(status),
-          count: status === '' ? allStatuses : (statusCounts[status] ?? 0),
+          label: status === '' ? t('jobs.tab.active') : statusLabel(status),
+          count: status === '' ? inPlay : (statusCounts[status] ?? 0),
           current: filters.status === status,
         }))}
       />

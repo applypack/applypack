@@ -53,6 +53,7 @@ import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { unscoredRun } from '../runs-summary';
+import { UnscoredNotice, type UnscoredView } from './unscored-notice';
 
 interface JobRow {
   id: number;
@@ -83,7 +84,7 @@ interface RunRow {
 
 export interface OverviewProps {
   counts: { status: string; count: number }[];
-  recentAlerts: JobRow[];
+  recentMatches: JobRow[];
   latestRuns: { name: string; run: RunRow | null }[];
   fetchingEnabled: boolean;
   /** "" while the schedule lets every hour through; "Sleeping until Mon 07:05" otherwise (TASKS §16). */
@@ -102,6 +103,8 @@ export interface OverviewProps {
   finishSetup: boolean;
   /** TASKS N11: open a match → compare → tailor, until the first comparison; null hides the card. */
   next: NextThing[] | null;
+  /** Jobs stored unscored, and the one press that scores them (`score-run.ts`). */
+  unscored: UnscoredView | null;
   /** Application packs prepared and not yet sent (ADR 0063); empty on an install that never asked for one. */
   readyPacks: ReadyPack[];
   /** How many are ready in all: the card lists only the newest few. */
@@ -125,7 +128,7 @@ const QUIET_LINK = 'font-medium text-accent-strong transition-colors duration-15
 
 export const OverviewPage: FC<OverviewProps> = ({
   counts,
-  recentAlerts,
+  recentMatches,
   latestRuns,
   fetchingEnabled,
   sleepingUntil,
@@ -136,6 +139,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   fetchRun,
   finishSetup,
   next,
+  unscored,
   readyPacks,
   readyPacksTotal,
   flash,
@@ -204,6 +208,7 @@ export const OverviewPage: FC<OverviewProps> = ({
           })}
         </Notice>
       )}
+      {unscored && <UnscoredNotice {...unscored} class="mb-4" />}
       {fetchingEnabled && held && (
         <Notice tone="warn" class="mb-4">
           {tRich('overview.heldNotice', { text: held.text, action: held.action }, {
@@ -247,7 +252,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,27%)]">
         <div class="min-w-0 space-y-4">
           <MatchesChart chart={stats.chart} funnel={stats.funnel} />
-          <RecentAlerts jobs={recentAlerts} places={places} />
+          <RecentMatches jobs={recentMatches} places={places} />
         </div>
 
         <div class="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
@@ -393,13 +398,13 @@ wireCharts(document);
 wireSelectCommits(document);
 `;
 
-const RecentAlerts: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }) => (
+const RecentMatches: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }) => (
   <Card flush>
-    <CardHeader title={t('overview.recentAlerts')} class="px-5 pb-3 pt-5" action={<CardLink href="/jobs?status=ALERTED">{t('overview.viewAll')}</CardLink>} />
+    <CardHeader title={t('overview.recentMatches')} class="px-5 pb-3 pt-5" action={<CardLink href="/jobs?sort=fitScore_desc">{t('overview.viewAll')}</CardLink>} />
     {jobs.length === 0 ? (
       <Empty
         bare
-        title={t('overview.noAlertsYet')}
+        title={t('overview.noMatchesYet')}
         action={
           <Button href="/jobs" variant="secondary" size="sm">
             {t('overview.seeAllJobs')}

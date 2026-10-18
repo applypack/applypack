@@ -45,10 +45,10 @@ import {
   type ProfileForDraft,
 } from '../../resume/profile-draft';
 import { createProfileFromResume, newProfileDraft, scanFields } from '../profile-from-resume';
-import { recordCronRun, type CronStats } from '../../jobs/cron-run';
-import { runScoreUnscored, SCORE_BATCH } from '../../jobs/reclassify-job';
+import { SCORE_BATCH } from '../../jobs/reclassify-job';
+import { beginScoreUnscored, liveScoreRun } from '../score-run';
 import { activeFetchRun } from '../fetch-runs';
-import { claimRun, findLiveRun, startRun, updateRun } from '../target-runs';
+import { claimRun, startRun, updateRun } from '../target-runs';
 import { testAiEngine } from '../ai-test';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
@@ -60,7 +60,6 @@ import {
   currentStep,
   isWelcomeStep,
   stepDone,
-  summarizeScoreRun,
 } from '../welcome-steps';
 import { spendHint } from '../cost-hint';
 import { currentLocale } from '../../i18n/locale';
@@ -75,7 +74,6 @@ const PROFILE_STEP = '/welcome?step=profile';
 const MATCHES_STEP = '/welcome?step=matches';
 
 /** The scoring pass in flight, if any — one at a time, like re-classify. */
-const SCORE_RUN_KEY = 'score';
 
 export const welcomeRoute = new Hono();
 
@@ -156,7 +154,7 @@ welcomeRoute.get('/welcome', async (c) => {
         minFitScore: profile?.minFitScore ?? 0,
         top: top.map((j) => ({ id: j.id, title: j.title, companyName: companyForPage(j.employer, j.company), fitScore: j.fitScore })),
         waiting,
-        runningRunId: findLiveRun(SCORE_RUN_KEY)?.id ?? null,
+        runningRunId: liveScoreRun()?.id ?? null,
         scoreCost: await spendHint('classifier'),
       }}
       flash={parseFlashCookie(c.req.header('cookie'))}
@@ -382,27 +380,13 @@ welcomeRoute.post('/welcome/score', async (c) => {
   if (!facts.aiReady) {
     return flashRedirect(AI_STEP, 'err', t('welcome.flash.noAi'));
   }
-  const { run, joined } = claimRun(SCORE_RUN_KEY, {
-    steps: ['score'],
-    jobTitle: '',
-    resumeName: '',
+  const { run } = beginScoreUnscored({
+    limit: SCORE_BATCH,
     heading: { running: t('welcome.scoreRun.running'), failed: t('welcome.scoreRun.failed') },
     subtitle: t('welcome.scoreRun.subtitle', { n: SCORE_BATCH }),
     backUrl: MATCHES_STEP,
     backLabel: t('fetch.backToSetup'),
-  });
-  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
-  startRun(run.id, async () => {
-    let stats: CronStats = {};
-    await recordCronRun('score-unscored', async () => {
-      const out = await runScoreUnscored({
-        limit: SCORE_BATCH,
-        onProgress: (done, total) => updateRun(run.id, { progress: { done, total } }),
-      });
-      stats = out.stats;
-      return out;
-    });
-    updateRun(run.id, { stage: 'done', resultUrl: MATCHES_STEP, flash: summarizeScoreRun(stats).text });
+    resultUrl: MATCHES_STEP,
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });

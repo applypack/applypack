@@ -707,7 +707,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | See only one search's matches | `/jobs` → **Filters** → Search (the row appears with more than one running search; the Fit column then shows that search's score) |
 | See only roles you could actually take from where you live | `/jobs` → **Filters** → Show → "Open to me" (reads each search's own location verdict; set "I live in" on `/settings` → Job search → Location first) |
 | See jobs in one country, region or arrangement, or posted this week | `/jobs` → **Filters** → the "Where" options (🇵🇱 Poland, 🇪🇺 European Union, Unknown … — OR within the row, "More…" opens the rest), "Work" (Remote / Hybrid / On-site / Unknown) and "Posted"; the button shows how many are set, each one in force sits above the table with a ✕, and "Clear all" lifts them; the search box also matches the location string |
-| See how many jobs sit in each status under the filters in force | `/jobs` → the status tabs (All / New / Alerted / Applied / Saved / Dismissed) — a tab's number is what it would show |
+| See how many jobs sit in each status under the filters in force | `/jobs` → the status tabs (Active — every status but Dismissed, the default — / New / Alerted / Applied / Saved / Dismissed) — a tab's number is what it would show |
 | Fill the country columns on jobs stored before v1.24 | `docker compose exec app node dist/scripts/backfill-locations.js --dry-run`, read the distribution, then without the flag (no AI call; `location` and `description` untouched) |
 | What each search made of one posting | `/jobs/:id` (the **Posting** tab) → Classifier → "By search" |
 | Re-classify all jobs against new profile | `/settings` Job search tab → "Save & re-classify" in the editor (async, watch /runs) |
