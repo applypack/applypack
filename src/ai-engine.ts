@@ -231,20 +231,22 @@ export function toggleAiEngine(
   return order.filter((x) => x !== id);
 }
 
+/** What "Use it" gives a model on this computer: measured, scoring is the one task a small one suits (#411). */
+const LOCAL_MODEL_TASKS: readonly AiTask[] = ['scoring'];
+
 /**
  * The list after "Use it" on a local server (TASKS S1): `id` first, the rest
- * behind it in their order as the fallback, one model in every slot.
+ * behind it in their order as the fallback, one model in every slot, and
+ * scoring its only task. The other tasks go to the engines behind it, or to
+ * it after all while none can run (`chainFor`).
  */
 export function withEngineFirst(config: AiEngineConfig, id: AiProviderId, env: AiEngineEnv, model: string): AiEngineConfig {
   // The .env engine stands in for a list nobody stored; one that cannot run here is no fallback worth keeping.
   const behind = config.order.length > 0 ? config.order : [env.provider].filter((p) => !providerUnusable(p, env));
-  // "For every task" is what the button promises: a narrower list from before is lifted.
-  const tasks = { ...config.tasks };
-  delete tasks[id];
   return {
     order: [id, ...behind.filter((x) => x !== id)],
     models: { ...config.models, [id]: { classifier: model, resume: model, cover: model } },
-    tasks,
+    tasks: { ...config.tasks, [id]: [...LOCAL_MODEL_TASKS] },
   };
 }
 

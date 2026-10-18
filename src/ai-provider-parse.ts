@@ -810,7 +810,12 @@ export const DEFAULT_LOCAL_CONTEXT_TOKENS = 16_384;
 export const LOCAL_CONTEXT_CHOICES = [8_192, 16_384, 32_768, 65_536] as const;
 /** The chat template's own tokens around the two messages. */
 const CHAT_TEMPLATE_TOKENS = 64;
-/** Room past the answer for a model that thinks first; a model that does not stops where it would have. */
+/**
+ * Room past the answer for a model that thinks first, kept with thinking off:
+ * a small model's answer can run past a budget sized on hosted ones (#409
+ * measured 591 tokens against the classifier's 580). A ceiling, never counted
+ * in `localBudgetTokens`: a model stops where it would have.
+ */
 const LOCAL_THINKING_HEADROOM_TOKENS = 4_096;
 
 /**
@@ -841,6 +846,8 @@ export function buildOllamaChatBody(req: {
   maxTokens: number;
   contextTokens: number;
   json?: boolean;
+  /** Ollama's `think`; left out, a model that can think does (#409). */
+  think?: boolean;
 }): string {
   return JSON.stringify({
     model: req.model,
@@ -853,8 +860,25 @@ export function buildOllamaChatBody(req: {
     stream: true,
     // JSON mode where the caller parses JSON: a small model's usual failure is the syntax.
     ...(req.json && { format: 'json' }),
+    ...(req.think !== undefined && { think: req.think }),
     options: { num_ctx: req.contextTokens, num_predict: req.maxTokens + LOCAL_THINKING_HEADROOM_TOKENS },
   });
+}
+
+const OllamaShowSchema = z.object({ capabilities: z.array(z.string()).optional() });
+
+/**
+ * Whether Ollama's /api/show lists `thinking` among the model's capabilities,
+ * null when the body is not such an answer. A server too old to list any says
+ * no: it predates the `think` field too.
+ */
+export function ollamaCanThink(raw: string): boolean | null {
+  try {
+    const parsed = OllamaShowSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? (parsed.data.capabilities ?? []).includes('thinking') : null;
+  } catch {
+    return null;
+  }
 }
 
 const OllamaChunkSchema = z.object({
