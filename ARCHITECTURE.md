@@ -516,7 +516,7 @@ src/
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
     rescore-status.ts           ← pure: the status after a re-score (a saved or hand-picked job is never dismissed)
     posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure; an Ashby URL is read from its board API)
-    posting-extract.ts          ← one cheap classifier-model call: company, title, location, salary of a pasted posting
+    posting-extract.ts          ← one cheap classifier-model call: company, title, location, salary of a pasted or saved posting (a saved page's <title> beside it), and whether it is a posting at all
     description-diff.ts         ← pure: what "Refresh the description" is about to do (sizes, folded diff rows, the flashes — ADR 0043)
     description-refresh.ts      ← the swap: replace / restore Job.description, keep the original, re-fingerprint, re-classify
     manual-job.ts               ← pasted posting → MANUAL company + Job, classified unless the caller passes classify: false
