@@ -33,7 +33,11 @@ export interface ApplicationPackProps {
   automatic: boolean;
   /** With no pack here: another source's copy of this posting that has one (#380). */
   sameRoleJobId: number | null;
-  /** What preparing a pack spends, said before the press (#387): how many calls, and on what kind of money. */
+  /**
+   * What preparing a pack spends, said before the press (#387): how many
+   * calls, and what a pack has cost here once three are on record (#487),
+   * else on what kind of money. Empty while there is a pack.
+   */
   cost: string;
 }
 

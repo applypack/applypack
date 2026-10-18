@@ -118,6 +118,7 @@ export async function runChain(
       billing: ctx.billingOf(id),
       jobId: req.subject?.jobId,
       resumeId: req.subject?.resumeId,
+      packId: req.subject?.packId,
     });
     if (attempt.text !== null) {
       deps.cooldowns.success(id);

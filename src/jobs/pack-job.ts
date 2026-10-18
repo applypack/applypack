@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { forPack } from '../ai-subject';
 import { logger } from '../logger';
 import { alertChannel, dashboardAddress, sendPackNotice } from '../notifier';
 import { DEFAULT_MIN_CEILING, runVerdict } from '../pack/gate';
@@ -128,7 +129,8 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
 
   let prepared: Prepared;
   try {
-    prepared = await preparePosting(posting, resume, {
+    // Every call the preparing makes is this pack's on AI usage, wherever in it the call is made.
+    prepared = await forPack(packId, () => preparePosting(posting, resume, {
       minCeiling: DEFAULT_MIN_CEILING,
       policy: pack.policy,
       verify: true,
@@ -137,7 +139,7 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
       angles: readCoverAngles(settings.coverAngles),
       onStep: (step) => void setPackStep(packId, step).catch((err: unknown) => logger.warn({ err, packId }, 'pack: could not record the step')),
       cancelled: () => stopping,
-    });
+    }));
   } catch (err) {
     logger.error({ err, packId, jobId }, 'pack: preparing threw');
     if (stopping) return requeue(packId);

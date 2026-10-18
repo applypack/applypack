@@ -23,6 +23,8 @@ import { tRich } from '../rich';
 export interface AiUsageProps {
   period: SpendPeriod;
   view: SpendView;
+  /** What the application packs' own calls came to in the period (#487); null when none spent anything. */
+  packs: string | null;
   models: ModelUsage[];
   hints: UsageHint[];
   plan: AiPlanRow[];
@@ -70,7 +72,7 @@ const TAIL_MIN_CALLS = 10;
 /** A suggestion is a quiet box; only a warning and an all-clear take a tone. */
 const NEUTRAL_HINT = 'rounded-md border border-line bg-surface-overlay/60 px-3.5 py-2.5 text-note leading-5 text-ink';
 
-export const AiUsagePage: FC<AiUsageProps> = ({ period, view, models, hints, plan, budget, flash }) => (
+export const AiUsagePage: FC<AiUsageProps> = ({ period, view, packs, models, hints, plan, budget, flash }) => (
   <Layout title={t('nav.ai')} active="ai">
     <PageHeader title={t('nav.ai')} actions={<CardLink href="/settings?tab=ai">{t('ai.aiEngines')}</CardLink>}>
       {t('ai.whichModelDidWhatHow')}
@@ -81,22 +83,26 @@ export const AiUsagePage: FC<AiUsageProps> = ({ period, view, models, hints, pla
         label={t('ai.period')}
         tabs={SPEND_PERIODS.map((p) => ({ href: p === '7d' ? '/ai' : `/ai?period=${p}`, label: t(PERIOD_LABEL[p]), current: p === period }))}
       />
-      <dl class="grid gap-4 sm:grid-cols-3">
-        {TOTALS.map((kind) => {
-          const total = view.totals[kind.billing];
-          return (
-            <div class="rounded-lg border border-line bg-surface-raised px-5 py-4 shadow-card">
-              <dt class="text-label text-ink-muted">{t(kind.label)}</dt>
-              <dd class="mt-1 text-kpi tabular-nums text-ink">
-                {kind.billing === 'local' ? formatNumber(total.calls) : money(kind.billing, total.micro)}
-              </dd>
-              <dd data-ui="hint" class="mt-0.5 text-meta text-ink-faint">
-                {t(kind.sub, { n: total.calls })}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
+      <div>
+        <dl class="grid gap-4 sm:grid-cols-3">
+          {TOTALS.map((kind) => {
+            const total = view.totals[kind.billing];
+            return (
+              <div class="rounded-lg border border-line bg-surface-raised px-5 py-4 shadow-card">
+                <dt class="text-label text-ink-muted">{t(kind.label)}</dt>
+                <dd class="mt-1 text-kpi tabular-nums text-ink">
+                  {kind.billing === 'local' ? formatNumber(total.calls) : money(kind.billing, total.micro)}
+                </dd>
+                <dd data-ui="hint" class="mt-0.5 text-meta text-ink-faint">
+                  {t(kind.sub, { n: total.calls })}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+        {/* Inside the totals above, never beside them: a pack's calls are the features' own calls. */}
+        {packs && <Hint class="mt-2">{packs}</Hint>}
+      </div>
 
       {hints.length > 0 && (
         <Card>

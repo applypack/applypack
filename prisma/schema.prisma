@@ -433,9 +433,13 @@ model AiCall {
   // history outlives a deleted job or resume.
   jobId              Int?
   resumeId           Int?
+  // The application pack whose preparation made the call (ADR 0063, #487);
+  // NULL for every other call and for the calls made before the column.
+  packId             Int?
 
   @@index([at])
   @@index([jobId])
+  @@index([packId])
   // The estimate under a button reads the last twenty of one feature.
   @@index([feature, at])
   @@map("ai_call")

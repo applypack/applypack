@@ -16,6 +16,7 @@ import { SETTINGS_ID } from './settings';
 import { aiKeySource, parseAiKeys, resolveAiKey, type AiKeys, type AiKeySource } from './ai-keys';
 import { createCooldownTracker } from './ai-cooldown';
 import { recordAiCall } from './ai-ledger';
+import { currentPack } from './ai-subject';
 import { listOllamaModels, listServerModels, LOCAL_LIST_TIMEOUT_MS } from './server-models';
 import { billingOf, isLocalUrl, type AiFeature, type BillingFacts } from './ai-usage';
 import type { AiTask } from './ai-tasks';
@@ -60,8 +61,12 @@ export interface AiCallRequest {
   maxTokens: number;
   /** What the call is for — its log tag and its ledger feature, a closed set (ai-usage.ts, ADR 0055). */
   label: AiFeature;
-  /** The posting and the resume the call serves, where the caller knows — so a page can say what they cost. */
-  subject?: { jobId?: number; resumeId?: number };
+  /**
+   * The posting and the resume the call serves, where the caller knows — so a
+   * page can say what they cost. `packId` is filled in here from the pack
+   * being prepared (ai-subject.ts), never by a caller.
+   */
+  subject?: { jobId?: number; resumeId?: number; packId?: number };
   /** Picks the per-engine model slot (classifier vs resume calls). */
   role: AiRole;
   timeoutMs?: number;
@@ -144,9 +149,10 @@ async function completeWithFailover(
   req: AiCallRequest,
 ): Promise<AiCallResult | null> {
   const billing = billingFacts(keys, servers.openAiBaseUrl);
+  const packId = currentPack();
   return runChain(
     engine,
-    req,
+    packId === undefined ? req : { ...req, subject: { ...req.subject, packId } },
     {
       keyFor: (id) => resolveAiKey(id, keys),
       openAiBase: openAiBase(servers.openAiBaseUrl),

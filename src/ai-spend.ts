@@ -27,6 +27,8 @@ export interface LedgerInput {
   billing: AiBilling;
   jobId?: number;
   resumeId?: number;
+  /** The application pack whose preparation made the call (ai-subject.ts). */
+  packId?: number;
 }
 
 /** The `ai_call` columns for one attempt. A local call is free and carries no cost at all. */
@@ -55,6 +57,7 @@ export function ledgerRow(i: LedgerInput) {
     priceAsOf: priced === null ? null : PRICES_AS_OF,
     jobId: i.jobId ?? null,
     resumeId: i.resumeId ?? null,
+    packId: i.packId ?? null,
   };
 }
 
@@ -408,6 +411,44 @@ export function jobSpendText(spend: Partial<Record<AiBilling, number>> | null): 
     ...(spend.local !== undefined ? [t('spend.job.local')] : []),
   ];
   return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+/** What the application packs' own calls came to in a period (#487): how many packs, how many calls, the money by kind. */
+export interface PackSpend {
+  packs: number;
+  calls: number;
+  spend: Partial<Record<AiBilling, number>>;
+}
+
+/** "Application packs: 3 packs, 14 calls — $0.40 billed · ≈ $1.20 covered by your plan"; null when no pack spent anything. */
+export function packSpendText(packs: PackSpend): string | null {
+  const money = packs.calls > 0 ? jobSpendText(packs.spend) : null;
+  return money && t('ai.packs', { packs: packs.packs, calls: packs.calls, money });
+}
+
+/**
+ * The middle pack of the last few, by kind of money — never one sum, as
+ * everywhere else (ADR 0055). A kind most packs never spent is left out, so a
+ * single fallback onto a billed key does not read as what a pack costs. Null
+ * under three packs, as for a single call (`typicalMicro`).
+ */
+export function typicalPackSpend(packs: readonly Partial<Record<AiBilling, number>>[]): Partial<Record<AiBilling, number>> | null {
+  const typical: Partial<Record<AiBilling, number>> = {};
+  for (const kind of AI_BILLING) {
+    const spent = packs.filter((p) => p[kind] !== undefined).length;
+    if (spent * 2 < packs.length) continue;
+    const micro = typicalMicro(packs.map((p) => p[kind] ?? 0));
+    if (micro === null) return null;
+    typical[kind] = micro;
+  }
+  return Object.keys(typical).length > 0 ? typical : null;
+}
+
+/** The line under Prepare the pack once the ledger has packs to go by; null until it has three. */
+export function packCostHint(packs: readonly Partial<Record<AiBilling, number>>[]): string | null {
+  const typical = typicalPackSpend(packs);
+  const money = typical && jobSpendText(typical);
+  return money && t('pack.card.costUsual', { money, n: packs.length });
 }
 
 /** One UTC day of one engine and model, as the hand-run report prints it. */

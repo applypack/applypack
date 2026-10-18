@@ -147,6 +147,17 @@ Before a line of the feature was written, the pipeline was run dry over those
    the features it reuses. Rows written before
    this cannot be told apart from packs nobody pressed and are left as they
    are: one such pack may still be announced once.
+   *Amended 2026-10-18 (#487).* What a pack costs can now be read. Every
+   call made while a pack is prepared is marked with it (`ai_call.packId`):
+   the runner wraps `preparePosting` in `ai-subject.ts:forPack`, and the
+   runtime files each call it makes under that pack — ambient rather than
+   passed, so the suggestion floor and a refused summary written again,
+   made from inside the comparison, are counted too. AI usage says what
+   packs came to in the period, by kind of money; the line under **Prepare
+   the pack** quotes the middle of the last packs prepared to the end, by
+   kind of money, once three are on record — the calls of each one's latest
+   preparation only, since a pack prepared again keeps its row. Calls made
+   before the column are not counted, and nothing says so.
 4. **The worker calls the resume module.** A pack is the chain of calls the
    dashboard's buttons make, with nobody there to press them, and the worker
    is the process with the clock. Both run the same image; nothing else about
@@ -246,7 +257,7 @@ measurement and the feature cannot drift.
 comparison that judged it.
 ❌ The worker now spends AI beyond the classifier with nobody watching. The
 daily limit bounds it; the ledger (ADR 0055) prices it under its existing
-features.
+features, and since 2026-10-18 under the pack as well (rule 3).
 ❌ A stop on a failed requirement trusts the model's reading of the posting's
 gates. On the dry run all 17 were right. A wrong one stops the pack, and
 preparing it again stops in the same place while that comparison stands; the
