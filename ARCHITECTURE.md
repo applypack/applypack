@@ -507,6 +507,7 @@ src/
     stale-applications-format.ts ← pure formatStaleMessage
     applied-with.ts             ← pure "Senior Backend v3" label for the applied resume
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
+    dismissed-store.ts          ← the keys of deleted dismissals (dismissed_posting, #474): deleteDismissed, forgetOldDismissals, dismissedKeys, knownIds
     hn-hiring-job.ts            ← runHnHiringJob (the 1st of the month, 06:mm)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:mm, validation probe)
     pack-job.ts                 ← runPackJob: the queued application packs, one at a time, then one message (every minute; ADR 0063)
@@ -733,9 +734,9 @@ src/
       health.ts                 ← JSON liveness for external monitoring
 
 prisma/
-  schema.prisma                 ← 25 models: Company, SourceFile, Job, JobScore, CronRun, FunnelDay, AiCall, CompanyMute, AppSettings,
-                                  CompanyCandidate, NotificationTarget, Profile, Resume, ResumeReview, ResumeMatch, CandidateFact,
-                                  CoverLetter, JobStageEvent, PostingBrief, JobVerification, Screening, Applicant,
+  schema.prisma                 ← 27 models: Company, SourceFile, DismissedPosting, Job, JobScore, CronRun, FunnelDay, AiCall, CompanyMute,
+                                  AppSettings, CompanyCandidate, NotificationTarget, Profile, Resume, ResumeReview, ResumeMatch, CandidateFact,
+                                  CoverLetter, ApplicationPack, JobStageEvent, PostingBrief, JobVerification, Screening, Applicant,
                                   ApplicantLetter, ScreeningComparison, ScreeningVerdict; 6 enums: AtsType, JobStatus, Workplace,
                                   CronRunStatus, CandidateStatus, NotificationKind
   migrations/                   ← real Prisma migrations from phase-3.0 baseline
@@ -806,6 +807,7 @@ erDiagram
   Job ||--o{ JobScore : "jobId (Cascade)"
   Company ||--o{ Job : "companyId (Cascade)"
   Company ||--o{ SourceFile : "companyId (Cascade)"
+  Company ||--o{ DismissedPosting : "companyId (Cascade), #474"
   Job |o--o{ Job : "crossListedOfJobId (SetNull)"
   Resume |o--o{ Job : "appliedResumeId (SetNull)"
   CompanyCandidate |o..o| Company : "the same atsType + atsToken, no foreign key"
@@ -943,6 +945,12 @@ erDiagram
     DateTime readAt
   }
 
+  DismissedPosting {
+    Int companyId PK "with externalId"
+    String externalId PK
+    DateTime seenAt "the deleted job's fetchedAt; forgotten 180 days on"
+  }
+
   Job {
     Int id PK
     Int companyId FK
@@ -956,6 +964,7 @@ erDiagram
     String descriptionOriginal "kept when a refresh replaced it (ADR 0043)"
     DateTime descriptionRefreshedAt
     DateTime postedAt
+    Boolean postedAtKnown "false: the source gave no date, postedAt is first seen (#458)"
     DateTime fetchedAt
     Workplace workplace "REMOTE, HYBRID, ONSITE or UNKNOWN (ADR 0031)"
     String[] countries "ISO-2: where to live (remote) or the office"

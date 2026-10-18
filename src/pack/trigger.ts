@@ -1,4 +1,6 @@
 import type { PackSettings } from './settings';
+import type { NormalizedJob } from '../types';
+import { sourceFamily } from '../web/source-groups';
 
 /*
  * Whether the tick queues a pack for a posting it has just stored. Pure.
@@ -13,17 +15,27 @@ export type AutoPack = 'queue' | 'off' | 'low-fit' | 'undated' | 'old' | 'limit'
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The moment a new posting's age is counted from, or null when nothing shows
+ * it. The date its source gave, first; a posting the person saved counts
+ * from when they saved it, its file's time. With neither (#379), a company's
+ * own board still tells (#459): it lists every role it has open, so a posting
+ * new to us since its previous read went up after that read. An aggregator's
+ * window can bring an old posting back, a feed may be such a window, a file
+ * of rows says nothing of when it was put together, and a board's first read
+ * has no read before it.
+ */
+export function ageCountsFrom(job: Pick<NormalizedJob, 'postedAt' | 'undated' | 'handPicked' | 'previousRead'>, atsType: string | null): Date | null {
+  if (job.undated !== true || job.handPicked === true) return job.postedAt;
+  return atsType !== null && sourceFamily(atsType) === 'vendor' ? (job.previousRead ?? null) : null;
+}
+
 export function autoPack(input: {
   settings: PackSettings;
   /** The classifier's fit for the search that scored the posting best. */
   fit: number | null;
-  postedAt: Date;
-  /**
-   * Whether `postedAt` is a date the source gave. One the clock or a file
-   * supplied — an imported row with no date, a board that publishes none —
-   * shows nothing about the posting's age (#379).
-   */
-  dated: boolean;
+  /** `ageCountsFrom`: when the posting's age starts, null when nothing shows it. */
+  countsFrom: Date | null;
   now: Date;
   /** Packs the worker has queued on its own since the UTC day began. */
   queuedToday: number;
@@ -34,10 +46,10 @@ export function autoPack(input: {
   // "Published recently" is what keeps the backlog out, and a date nobody
   // gave would let it all in: a file of last month's postings, or every role
   // on a board that has just been added, would each read as published today.
-  if (!input.dated) return 'undated';
+  if (input.countsFrom === null) return 'undated';
   // A first fetch brings postings that have been up for weeks; those are the
   // ones an application is least likely to still matter for.
-  if (input.now.getTime() - input.postedAt.getTime() > settings.maxAgeDays * DAY_MS) return 'old';
+  if (input.now.getTime() - input.countsFrom.getTime() > settings.maxAgeDays * DAY_MS) return 'old';
   if (settings.dailyLimit > 0 && input.queuedToday >= settings.dailyLimit) return 'limit';
   return 'queue';
 }

@@ -169,8 +169,9 @@ model Company {
   // which column is the title, the link, the text (datasets/map.ts) and, for
   // a folder, which file names count. Parsed with zod on every read; NULL on
   // every other kind of source.
-  sourceConfig Json?
-  sourceFiles  SourceFile[]
+  sourceConfig      Json?
+  sourceFiles       SourceFile[]
+  dismissedPostings DismissedPosting[]
 
   @@unique([atsType, atsToken])
   @@index([active, nextCheckAt])
@@ -215,6 +216,22 @@ model SourceFile {
   @@map("source_file")
 }
 
+// #474 — what is kept of a Dismissed posting once the weekly cleanup deletes
+// it: its source, its id and when it was first seen (the job's `fetchedAt`),
+// no text. The tick reads the key as already stored, so a source that still
+// lists the posting does not bring it back to be scored and dismissed again.
+// Deleted 180 days after `seenAt` (jobs/dismissed-store.ts), and with its
+// source.
+model DismissedPosting {
+  companyId  Int
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  externalId String
+  seenAt     DateTime
+
+  @@id([companyId, externalId])
+  @@map("dismissed_posting")
+}
+
 model Job {
   id                     Int       @id @default(autoincrement())
   companyId              Int
@@ -242,6 +259,11 @@ model Job {
   descriptionOriginal    String?   @db.Text
   descriptionRefreshedAt DateTime?
   postedAt               DateTime
+  // #458: false when the source gave no date (`NormalizedJob.undated`, a
+  // paste), so `postedAt` is when the posting was first seen — the job page
+  // says so and the Posted filter files it under "Date unknown". Rows stored
+  // before the column say true: nothing recorded where their date came from.
+  postedAtKnown          Boolean   @default(true)
   fetchedAt              DateTime  @default(now())
 
   // ADR 0031: the structured reading of `location`, which itself is never
