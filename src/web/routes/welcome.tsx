@@ -205,8 +205,8 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
  * Step 1's "Use it" on a model found on this computer (TASKS S1): the address
  * is stored for the engine that server is used through — Ollama's own API
  * (ADR 0057), or the OpenAI-compatible one for LM Studio — that engine goes
- * first with the model in every slot, and whatever was in the list stays
- * behind it as the fallback.
+ * first with the model in every slot and scoring postings its one task (#411),
+ * and whatever was in the list stays behind it as the fallback.
  */
 welcomeRoute.post('/welcome/ai/local', async (c) => {
   const form = await c.req.parseBody();

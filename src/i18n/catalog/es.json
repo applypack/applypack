@@ -1747,7 +1747,7 @@
   "welcome.flash.notLocal": "No es un servidor de este equipo; no se cambió nada.",
   "welcome.flash.localUnlisted": "No se cambió nada — {reason}.",
   "welcome.flash.modelUnknown": "El servidor no incluye “{model}”; no se cambió nada. Elige uno de los modelos que ejecuta.",
-  "welcome.flash.localFirst": "El modelo de este equipo va primero ahora: {model}, para todas las tareas. Envía un mensaje de prueba — la primera llamada carga el modelo y puede tardar un minuto.",
+  "welcome.flash.localFirst": "El modelo de este equipo va primero ahora: {model}, para puntuar ofertas. Para darle también las demás tareas, márcalas en su tarjeta en Configuración → IA y costes. Envía un mensaje de prueba — la primera llamada carga el modelo y puede tardar un minuto.",
   "welcome.flash.noEngine": "Todavía no se ha detectado ningún motor de IA utilizable.",
   "welcome.flash.pickResume": "Primero elige un archivo de currículum.",
   "welcome.flash.noPrimary": "No hay búsqueda principal — crea una en Configuración → Búsqueda de empleo.",
