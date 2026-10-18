@@ -45,7 +45,17 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'crossListed', words: 'runs.fact.crossListed' },
   { key: 'classified', words: 'runs.fact.classified' },
   { key: 'classifyFailed', words: 'runs.fact.classifyFailed' },
+  // A re-score (Save & re-classify) and the wizard's first scoring of stored postings.
+  { key: 'reclassified', words: 'runs.fact.rescored' },
   { key: 'matched', words: 'runs.fact.matched' },
+  { key: 'promoted', words: 'runs.fact.promoted' },
+  { key: 'demoted', words: 'runs.fact.demoted' },
+  { key: 'keptSaved', words: 'runs.fact.keptSaved' },
+  { key: 'failed', job: 'reclassify-all', words: 'runs.fact.scoreFailed' },
+  { key: 'failed', job: 'score-unscored', words: 'runs.fact.scoreFailed' },
+  { key: 'filterDismissed', words: 'runs.fact.filterDismissed' },
+  { key: 'remaining', job: 'score-unscored', words: 'runs.fact.remaining' },
+  { key: 'priorityBoosted', words: 'runs.fact.priorityBoosted' },
   { key: 'alerted', words: 'runs.fact.alerted' },
   { key: 'alertHeld', words: 'runs.fact.alertHeld' },
   { key: 'alertsOffHeld', words: 'runs.fact.alertsOffHeld' },
@@ -83,6 +93,11 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
  */
 const ELSEWHERE = new Set([
   'durationMs',
+  // A re-score's machinery: how wide it ran, what it read, what stayed as it was.
+  'concurrency',
+  'scanned',
+  'unchanged',
+  'unscored',
   'sources',
   'sourcesUnchanged',
   'skipped',

@@ -5,7 +5,8 @@ import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { classifyJob } from '../classifier';
 import { anyBaseFilterReason, passesAnyBaseFilter } from '../filter';
-import { DISMISS_KEY, FILTER_KEY } from '../funnel';
+import { DISMISS_KEY, FILTER_KEY, scorePassCounts } from '../funnel';
+import { addCountsToDay } from './funnel-store';
 import { getActiveProfile, listActiveProfiles } from '../profiles';
 import { getSettings } from '../settings';
 import { isBlankProfile } from '../profile-guards';
@@ -92,18 +93,20 @@ export async function runScoreUnscored(
       data: { status: JobStatus.DISMISSED },
     });
   }
+  const started = new Date();
   const ranked = rankByProfileFit(passing, ranker);
   const ids = ranked.slice(0, opts.limit ?? SCORE_BATCH).map((r) => r.id);
   const { stats } = await reclassify({ ids, onProgress: opts.onProgress });
-  return {
-    stats: {
-      ...stats,
-      unscored: unscored.length,
-      filterDismissed: rejectedIds.length,
-      ...rejectedBy,
-      remaining: ranked.length - ids.length,
-    },
+  const out = {
+    ...stats,
+    unscored: unscored.length,
+    filterDismissed: rejectedIds.length,
+    ...rejectedBy,
+    remaining: ranked.length - ids.length,
   };
+  // These postings were never scored before: the Overview's chart and /runs's funnel count what this found.
+  await addCountsToDay(started, scorePassCounts(out));
+  return { stats: out };
 }
 
 async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }> {
@@ -141,6 +144,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   let demoted = 0; // moved NEW/ALERTED → DISMISSED
   let keptSaved = 0; // a hand-picked posting no search wants: NEW/ALERTED → SAVED
   let unchanged = 0;
+  let matched = 0; // kept by a search, whatever its status was
   let failed = 0;
   let filterRejected = 0;
   let priorityBoosted = 0;
@@ -248,6 +252,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
         continue;
       }
       reclassified++;
+      if (merged.kept) matched++;
       priorityBoosted += boosted;
 
       if (!merged.kept && merged.winner.dismissReason) dismissedBy[DISMISS_KEY[merged.winner.dismissReason]]++;
@@ -280,6 +285,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     demoted,
     keptSaved,
     unchanged,
+    matched,
     filterRejected,
     ...dismissedBy,
     priorityBoosted,

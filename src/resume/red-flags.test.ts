@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { countableFlags } from './red-flags';
+import { annotateEvidence } from './evidence';
+import { annotateAliasOnly, anchorStatuses } from './keyword-anchor';
+import { withTableAliases } from './keyword-aliases';
 import { readKeywords, type MatchKeyword } from './prompts';
 import type { KeywordMatcher } from './keyword-matcher';
 
@@ -81,4 +84,30 @@ test('"only in the skills line" is an evidence level, not a blocker', async () =
     await matcher(),
   );
   assert.equal(shown.counted.length, 1);
+});
+
+test('a flag naming a term the resume spells only through an alias restates the badge (#204)', async () => {
+  const flag = 'Resume shows PHP but nothing that says PHP 8 specifically';
+  const aliased = kw({ term: 'PHP 8', status: 'present', evidence: 'measured', aliases: ['php'], aliasOnly: 'PHP' });
+  const out = countableFlags([flag], [aliased], await matcher());
+  assert.deepEqual(out.counted, []);
+  assert.deepEqual(out.exempt, [{ flag, term: 'PHP 8' }]);
+
+  // Written in the posting's own spelling, the term is no gap: the flag is about something else.
+  const own = countableFlags([flag], [{ ...aliased, aliasOnly: null }], await matcher());
+  assert.deepEqual(own.counted, [flag]);
+});
+
+test('the case of #204 in match.ts order: anchored present through "php", the flag stays free', async () => {
+  // @ts-expect-error — plain JS with no declaration file.
+  const full = (await import('../web/public/target.mjs')) as KeywordMatcher;
+  const text = 'Backend Developer\nBuilt order flows in PHP for 200 shops, cutting checkout time by 30%.';
+  // The model called it cannot_claim; the alias table folds "PHP 8" to "php" (ADR 0045's measured case).
+  const keywords = [withTableAliases(kw({ term: 'PHP 8' }))];
+  const anchored = anchorStatuses(keywords, text, full).keywords;
+  const graded = annotateEvidence(annotateAliasOnly(anchored, text, full), text, full).keywords;
+  assert.equal(graded[0]?.status, 'present');
+  assert.equal(graded[0]?.evidence, 'measured');
+  assert.equal(graded[0]?.aliasOnly, 'PHP');
+  assert.deepEqual(countableFlags(['No PHP 8 experience shown, only PHP'], graded, full).counted, []);
 });

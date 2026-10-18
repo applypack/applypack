@@ -7,6 +7,7 @@ import { LETTER_FAILED, UNEXPECTED_FAILURE, type RunStep, type TargetRun } from 
 import { stepBand, type LaneTimes } from '../lane';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
+import { runNav } from '../run-nav';
 
 /** Every step a run can show; its label is `target.step.<step>` and the line under it `target.step.<step>.detail`. */
 const STEPS = [
@@ -77,7 +78,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
   const copy = run.heading ?? runCopy(run.steps);
   const heading = failed ? copy.failed : copy.running;
   return (
-    <Layout title={failed ? heading : t('target.run.titleRunning', { heading })} active={run.heading ? undefined : 'target'}>
+    <Layout title={failed ? heading : t('target.run.titleRunning', { heading })} active={runNav(run.backUrl)}>
       <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-entity text-ink">{heading}</div>
@@ -121,7 +122,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
                   {t(
                     run.backUrl.startsWith('/screen')
                       ? 'target.run.closeScreening'
-                      : run.backUrl.startsWith('/jobs/import')
+                      : run.backUrl.startsWith('/jobs/import') || run.backUrl === '/jobs'
                         ? 'target.run.closeImport'
                         : run.heading
                           ? 'target.run.closeSetup'
