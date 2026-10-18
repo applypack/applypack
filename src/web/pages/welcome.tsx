@@ -331,7 +331,9 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
             ))}
           </ul>
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <Button href="/welcome?step=search">{t('welcome.continue')}</Button>
+            <ActionForm action="/welcome/ai/continue">
+              <Button>{t('welcome.continue')}</Button>
+            </ActionForm>
             <ActionForm action="/welcome/ai/test">
               <Button variant="violet" title={t('welcome.ai.test.title')}>
                 {t('welcome.ai.test')}
