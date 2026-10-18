@@ -53,7 +53,7 @@ Three facts decided the shape, each read on the vendors' own pages on
   row with no answer between (`ai-health.ts`, pure). The engine's card and
   the AI usage page say so before anything else; the probe behind
   "available" reads what is on disk and cannot. A reply that does not parse
-  is still `ok` here (#463).
+  is still `ok` here (#463) — until the 2026-10-18 addendum.
 - **What the vendor did not report is NULL, never 0.** A timeout has no
   usage; a local server has usage and no price. `AiProvider.complete()`
   returns an attempt `{ text, outcome, spend }` instead of a string, and
@@ -114,9 +114,42 @@ Three facts decided the shape, each read on the vendors' own pages on
   separately rather than pretend.
 - ⚠️ The classifier's calls for new postings carry no posting id — the
   posting does not exist yet when it is scored — so the per-posting row
-  counts the analyses of that posting, not its first scoring.
+  counts the analyses of that posting, not its first scoring. *(Lifted by
+  the 2026-10-18 addendum.)*
 - ⚠️ Codex names no model in its events: a Codex call on the CLI's own
   default model is "not priced".
 - The comparison with a vendor's report through its admin API is not built:
   it needs an organisation admin key to verify against, and the hand-run
   report covers the question until one is at hand.
+
+## Addendum (2026-10-18): two updates, for what is known only after the row
+
+The ledger was append-only. Two facts arrive after an attempt's row is
+written, and each now updates that row; nothing else ever does
+(`ai-ledger.ts:markUnparsed`, `attributeCalls`). The runtime hands every
+caller the ids of the rows its call wrote (`AiCallResult.ledgerIds`: the
+failed attempts, then the answer's), which is how the caller finds them.
+
+- **A reply the caller could not read is `unparsed`** (#463). The row is
+  still written when the transport answers, so a crash before the caller
+  has read the reply still leaves it on the record — the reason the row is
+  not written after the caller's verdict instead. `askForJson`, the
+  classifier, the prefilter and the posting extract call
+  `AiRuntime.unparsed`, which turns the answer's row from `ok` to
+  `unparsed` (an `ok` row only). It is a failure wherever failures are
+  counted: the AI usage table, the failure hint, and an engine's trouble on
+  its card (`ai-health.ts`), whose advice for it is another model — the one
+  ending where that advice is right, and one Test cannot show, since it
+  asks for a single word. It is worded as what it is, an answer that could
+  not be read, never as "did not answer". A retry after a bad reply is a
+  row of its own, as before.
+- **The posting a tick scored is named on its calls afterwards** (#483). A
+  re-classify knows its posting and passes it as the call's subject. The
+  tick scores a posting before its row exists: the classifier returns the
+  ids of every call it made with its verdicts, and `process-jobs.ts`
+  stamps them with the job once the row is inserted (rows with no job
+  only). The job page's **AI spent** counts the scoring now. Not named: the
+  attempts of a chain in which no engine answered (a posting whose scoring
+  failed is not stored, and a failed prefilter falls open to a classifier
+  call that is named), and the posting extract before a pasted or saved
+  posting is stored.

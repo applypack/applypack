@@ -19,6 +19,10 @@ import type { MatchKeyword } from './prompts';
  * red flags, `evidence: listed` measures exactly that, and the product already
  * answers it with a suggestion rather than a penalty. Five runs after the first
  * fix, one run in five still wrote that sentence and it was the whole residual.
+ * Nor does one naming a keyword the resume spells only through an alias — "PHP"
+ * for the posting's "PHP 8": the row's badge already says to write the posting's
+ * spelling (`annotateAliasOnly`), and once anchoring (ADR 0045) has called the
+ * term present, a flag about the version was ten points for the same fact (#204).
  *
  * What still counts is the list that is not made of keywords at all and that no
  * edit can fix: a location or on-site mismatch, work authorization, a minimum
@@ -42,11 +46,12 @@ export function countableFlags(
   keywords: MatchKeyword[],
   matcher: Pick<KeywordMatcher, 'findTerm'>,
 ): FlagReport {
-  // A keyword the resume does not have, or has only as a name on a skills line
-  // — both are already priced, one by its zero credit and one by the suggestion
-  // that puts it in a bullet. A keyword genuinely shown in the work is not a
-  // gap, so a flag naming that one is about something else and counts.
-  const gaps = keywords.filter((k) => k.status !== 'present' || k.evidence === 'listed');
+  // A keyword the resume does not have, has only as a name on a skills line, or
+  // spells only through an alias — each already answered, by its zero credit, by
+  // the suggestion that puts it in a bullet, or by the badge that asks for the
+  // posting's spelling. A keyword genuinely shown in the work, in the posting's
+  // own words, is not a gap, so a flag naming that one is about something else and counts.
+  const gaps = keywords.filter((k) => k.status !== 'present' || k.evidence === 'listed' || Boolean(k.aliasOnly));
   const counted: string[] = [];
   const exempt: { flag: string; term: string }[] = [];
   for (const flag of flags) {

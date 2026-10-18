@@ -9,6 +9,10 @@
  * Membership means the same sector named differently — payments and banking
  * are fintech — never a neighbour. A sector the vocabulary does not know
  * keeps its own words. Pure.
+ *
+ * Shared with the resume side, which reads it for whether a posting's sector
+ * is one the resume shows (`resume/domain.ts`, #207) — so it lives outside
+ * `src/screening/`, which the worker never imports.
  */
 
 export interface SectorGroup {

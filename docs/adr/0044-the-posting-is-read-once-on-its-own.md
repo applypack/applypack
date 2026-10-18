@@ -3,7 +3,7 @@
 **Status:** Accepted (2026-09-06) — amended by
 [0045](./0045-the-resume-text-decides-presence.md) (the addendum's anchoring
 rule: the resume text decides presence for every status);
-see the 2026-09-24 addendum
+see the 2026-09-24 and 2026-10-18 addenda
 
 ## Context
 
@@ -218,3 +218,23 @@ the thing the user needs to hear.
 - "the quick check is the path the user waits on": since v1.70.0 every
   Compare in the dashboard runs the full report (see the 2026-09-24
   addendum to [0029](./0029-quick-check-and-lazy-suggestions.md)).
+
+## Addendum (2026-10-18): Rebuild keywords reads the posting again (#410)
+
+The memo key is the posting, not the engine, so a brief one engine wrote is
+reused by every later comparison on any engine. With tasks per engine
+(ADR 0060) that happened without anyone choosing it: a local model at 16k
+wrote a brief of six keywords and no groups, the match was too large for its
+window and went to Claude, and Claude copied that frame. **Rebuild keywords**
+withheld the stored keyword list, but with a brief present that list is
+never sent (§3): the button handed the match the same frame again.
+
+**Rebuild keywords** now writes the brief again: `briefForPosting` with
+`rebuild` skips the stored reading, and the new one replaces it for the
+comparisons after it. It costs one more call, on a button pressed
+by someone who has just said the keyword list is wrong; its help line says
+the posting is read again. Two other ways out were turned down: treating a
+brief from an engine that is no longer first as stale, and routing the
+analysis by its largest prompt so the engine that cannot hold the match
+does not write the brief. Both spend without a press, after any change to
+the engines, on every posting.

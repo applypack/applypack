@@ -24,7 +24,7 @@ export async function compareApplicants(
   screening: ScreeningWithJob,
   rubric: Rubric,
   applicants: Shortlisted[],
-  runtime: Pick<AiRuntime, 'complete'>,
+  runtime: Pick<AiRuntime, 'complete' | 'unparsed'>,
   matcher: Pick<KeywordMatcher, 'locateQuote'>,
 ): Promise<CompareOutcome> {
   const texts = new Map(applicants.map((a) => [a.number, a.redactedText]));
