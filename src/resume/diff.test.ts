@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diffMatches } from './diff';
+import { diffMatches, RERUN_SPREAD, withinRerunSpread } from './diff';
 import type { MatchKeyword } from './prompts';
 import { scoreMatch } from './score';
 
@@ -42,4 +42,13 @@ test('component deltas come from the two breakdowns', () => {
   assert.equal(d.components.capBefore, 30);
   assert.equal(d.components.capAfter, null);
   assert.equal(d.components.score, next.breakdown.score - prev.breakdown.score);
+});
+
+test('a move a re-run of the same text could make on its own is within the spread, in either direction', () => {
+  assert.equal(withinRerunSpread(-RERUN_SPREAD), true);
+  assert.equal(withinRerunSpread(3), true);
+  assert.equal(withinRerunSpread(-(RERUN_SPREAD + 1)), false);
+  assert.equal(withinRerunSpread(RERUN_SPREAD + 1), false);
+  // No move has nothing to explain.
+  assert.equal(withinRerunSpread(0), false);
 });

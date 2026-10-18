@@ -2688,6 +2688,7 @@
   "match.delta.cap": "обмеження {before} → {after}",
   "match.delta.capNone": "немає",
   "match.delta.score": "оцінка {delta}",
+  "match.delta.withinSpread": "Повторні аналізи того самого тексту дають розкид до {n, plural, one {# бала} few {# балів} many {# балів} other {# бала}}; ця зміна не виходить за нього.",
   "match.strengthTitle": "Це резюме саме по собі: оцінка сили",
   "match.tailorResume": "Адаптувати резюме →",
   "match.judgedOnText": "Оцінено лише за текстом цього файлу: ваші підтверджені факти та інші резюме не враховано, бо файл може бути не вашим.",

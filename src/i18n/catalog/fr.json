@@ -2688,6 +2688,7 @@
   "match.delta.cap": "plafond {before} → {after}",
   "match.delta.capNone": "aucun",
   "match.delta.score": "score {delta}",
+  "match.delta.withinSpread": "Une nouvelle analyse du même texte fait varier le score de {n, plural, one {# point} many {# de points} other {# points}} au plus ; cette variation reste dans cette marge.",
   "match.strengthTitle": "Ce CV seul : l'évaluation de la solidité",
   "match.tailorResume": "Adapter le CV →",
   "match.judgedOnText": "Évalué sur le seul texte de ce fichier : vos faits confirmés et vos autres CV ont été laissés de côté, car il n'est peut-être pas le vôtre.",
