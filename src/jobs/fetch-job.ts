@@ -10,7 +10,7 @@ import {
   type Entry as ValidatorEntry,
 } from '../fetchers/conditional';
 import { beginPageChangeTick } from '../watchlist/page-changes';
-import { beginFolderTick, looksToKeep, takeFolderLooks } from '../fetchers/folder-ledger';
+import { beginFolderTick, looksToKeep, takeFolderLooks, withTurnedAway, type TurnedAwayTally } from '../fetchers/folder-ledger';
 import { keepFolderLooks } from './source-file-store';
 import { deliverPageChanges, recordPageChanges } from './page-change-alerts';
 import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
@@ -227,12 +227,14 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   const inner = emptyProcessStats();
   // The sources a posting came from and was not stored for want of a verdict.
   const unstored = new Set<number>();
+  const turnedAway: TurnedAwayTally = new Map();
   await processNormalizedJobs(fetched, profiles, inner, {
     classifierMode,
     classify,
     isCancelled: paused,
     schedule,
     unstored,
+    turnedAway,
   });
 
   // Only now may this tick's validators be sent, and only if it stored
@@ -241,7 +243,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   if (tickStoredEverything(inner)) await keepValidators(commitConditionalCache());
   // The same rule for a folder's ledger, asked a folder at a time: a file is "read" only once its rows
   // are stored, and a posting no model scores on another source is no reason to read this folder again.
-  await keepFolderLooks(looksToKeep(takeFolderLooks(), inner, unstored)).catch((err) =>
+  await keepFolderLooks(withTurnedAway(looksToKeep(takeFolderLooks(), inner, unstored), turnedAway)).catch((err) =>
     logger.warn({ err }, 'fetch-job: folder ledger not kept; the files are read again next tick'),
   );
 

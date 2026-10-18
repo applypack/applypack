@@ -11,6 +11,7 @@ import { dismissedKeys } from './dismissed-store';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { withApplyLinkFlags } from '../apply-link';
 import { validDate } from '../fetchers/dates';
+import { countTurnedAway, type TurnedAwayTally } from '../fetchers/folder-ledger';
 import { parseLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
 import { attributeCalls } from '../ai-ledger';
@@ -173,6 +174,8 @@ export interface ProcessOptions {
    * had every row of its look stored (fetchers/folder-ledger.ts:looksToKeep).
    */
   unstored?: Set<number>;
+  /** Filled with what the filter and the employer gate turned away of each folder file's rows (fetchers/folder-ledger.ts, #448). */
+  turnedAway?: TurnedAwayTally;
 }
 
 /** How far back the cross-listing scan looks. */
@@ -266,6 +269,11 @@ export async function processNormalizedJobs(
     if (turnedAway !== null) {
       stats.filterRejected++;
       stats[FILTER_KEY[turnedAway]]++;
+      // A folder's file is read once: what was turned away of it, and by what, is how a look knows to read it again.
+      if (opts.turnedAway && item.job.sourceFile !== undefined) {
+        const windowEndsAt = turnedAway === 'applied' && employerKey !== null ? employers.appliedUntil.get(employerKey) : undefined;
+        countTurnedAway(opts.turnedAway, item.job.companyId, item.job.sourceFile, windowEndsAt);
+      }
       continue;
     }
     const key = `${item.job.companyId}:${item.job.externalId}`;

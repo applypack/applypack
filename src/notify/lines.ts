@@ -4,6 +4,7 @@ import { workplaceName } from '../i18n/places';
 import { t } from '../i18n/t';
 import type { AlertJob } from '../types';
 import { safeHref } from '../web/format';
+import { statusBranch } from '../web/health-label';
 
 /*
  * The words every channel says the same way, before its own markup goes on
@@ -79,8 +80,8 @@ export interface QuietSourceAlert {
 export function quietSourceList(sources: readonly QuietSourceAlert[]): string {
   const named = sources
     .slice(0, MAX_QUIET_NAMED)
-    // A status the build does not know, or none yet, reads as "not fetched yet" (the select's `other`).
-    .map((s) => t('sourceHealth.item', { name: s.name, ats: s.atsType, status: s.status ?? 'none', streak: s.streak }));
+    // A status the build does not know, or none yet, reads as "not fetched yet"; a folder's in a folder's words (#478).
+    .map((s) => t('sourceHealth.item', { name: s.name, ats: s.atsType, status: statusBranch(s.status, s.atsType), streak: s.streak }));
   const hidden = sources.length - named.length;
   return [...named, ...(hidden > 0 ? [t('sourceHealth.more', { n: hidden })] : [])].join(', ');
 }
