@@ -682,3 +682,18 @@ company the page does not name. One answered the job board in its title
 model did not know the name for a board's, and a sentence more in the
 prompt did not change that. One title names a recruiter whose text says
 "our client", and that page stays without a company, as the rule asks.
+
+*Amended 2026-10-18 (#451).* **A page that is no posting is kept, and not
+scored.** The same call answers `is_job_posting`; only a stated `false`
+counts. Such a page still becomes its job — setting it aside would lose a
+posting on a wrong "no", and the user saved the file by hand — but it is
+stored **Saved** and unscored, with the red flag `not-a-posting`
+(`posting-file.ts:NOT_A_POSTING_FLAG`): the scoring call is skipped, and the
+job page and the Files line say it may not be a posting. Re-classify scores
+it as any job and the flag goes; the status stays Saved, the person's own
+list. Measured on six pages that are no posting (a sign-in page, a cookie
+wall, a list of results, a 404, an "About us", a newsletter) and eighteen
+real ones (the twelve above, and six short or oddly laid out: a vacancy
+notice in fields, a table, a Spanish posting, a page in its board's chrome,
+a short text over an application form, a 300-character teaser): six of six
+caught, none of the eighteen called no posting.

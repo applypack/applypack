@@ -29,13 +29,15 @@ export interface PostingFacts {
   salaryMin: number | null;
   salaryMax: number | null;
   workplace: 'remote' | 'hybrid' | 'onsite' | null;
+  /** False only when the model said the text is no job posting at all: a sign-in page, a list of results (#451). */
+  isPosting: boolean;
 }
 
 const EXTRACT_SYSTEM = `You read one job posting (pasted, or a page someone saved, possibly with page chrome around it) and extract facts.
 
 ${untrustedDirective()}
 
-Reply with ONLY JSON: {"company": string|null, "title": string|null, "location": string|null, "salary_min": number|null, "salary_max": number|null, "workplace": "remote"|"hybrid"|"onsite"|null}.
+Reply with ONLY JSON: {"company": string|null, "title": string|null, "location": string|null, "salary_min": number|null, "salary_max": number|null, "workplace": "remote"|"hybrid"|"onsite"|null, "is_job_posting": true|false}.
 Rules:
 - company: the hiring company's name — not a recruiting agency, a job board, or a client mentioned in passing. null when never named.
 - title: the advertised role title, verbatim from the posting (drop marketing suffixes like "- Join us!"). null when absent.
@@ -43,6 +45,7 @@ Rules:
 - salary_min / salary_max: yearly amounts in the posting's currency as plain integers ("$120K/yr - $160K/yr" → 120000 and 160000; a single figure fills both). Convert hourly to yearly only when the posting itself does; otherwise null.
 - workplace: "remote", "hybrid" or "onsite" only when the posting states the arrangement; null otherwise.
 - PAGE TITLE, when given, is the saved page's own title as the browser showed it. It often names the role and the hiring company ("Senior Backend Engineer at Fennel Works | Careers"): read them from it when the posting does not say them. A job board's or a site's name in it ("… | Indeed", "… | LinkedIn") is not the hiring company.
+- is_job_posting: false only when the text is plainly not one job advertisement — a sign-in or cookie page, an error page, a list of several jobs, a company's own page, an article or a newsletter. A short posting, a posting in an odd layout or with page chrome around it is a posting; when unsure, true.
 - Never invent or guess a fact that neither the posting nor its page title contains.`;
 
 /** `pageTitle`: a saved page's own <title> (datasets/saved-page.ts), fenced as the posting is. */
@@ -71,6 +74,13 @@ const WorkplaceSchema = z
   .catch(null)
   .transform((v) => v ?? null);
 
+/* Only a stated false says "not a posting": a wrong "no" costs a posting someone saved by hand. */
+const IsPostingSchema = z
+  .boolean()
+  .nullish()
+  .catch(null)
+  .transform((v) => v !== false);
+
 const ReplySchema = z.object({
   company: FieldSchema,
   title: FieldSchema,
@@ -78,6 +88,7 @@ const ReplySchema = z.object({
   salary_min: SalarySchema.optional().default(null),
   salary_max: SalarySchema.optional().default(null),
   workplace: WorkplaceSchema.optional().default(null),
+  is_job_posting: IsPostingSchema,
 });
 
 /** Tolerant parse of the model reply; null when nothing usable came back. */
@@ -99,6 +110,7 @@ export function parseExtractReply(raw: string): PostingFacts | null {
     salaryMin,
     salaryMax,
     workplace: r.workplace,
+    isPosting: r.is_job_posting,
   };
 }
 

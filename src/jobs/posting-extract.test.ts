@@ -35,11 +35,12 @@ test('parseExtractReply reads clean and fenced replies, trims, nulls empties', (
       salaryMin: 120000,
       salaryMax: 160000,
       workplace: 'remote',
+      isPosting: true,
     },
   );
   assert.deepEqual(
     parseExtractReply('Sure! ```json\n{"company":"Acme","title":null,"location":"  "}\n```'),
-    { company: 'Acme', title: null, location: null, salaryMin: null, salaryMax: null, workplace: null },
+    { company: 'Acme', title: null, location: null, salaryMin: null, salaryMax: null, workplace: null, isPosting: true },
   );
 });
 
@@ -53,6 +54,14 @@ test('a saved page’s own title is a fenced block of its own, before the postin
   assert.equal(forged.split(fenceClose('PAGE TITLE')).length, 2, 'a forged closing marker in the title is neutralised');
 });
 
+test('only a stated false says the page is no posting (#451)', () => {
+  const reply = (value: string) => parseExtractReply(`{"company":null,"title":null,"location":null,"is_job_posting":${value}}`)?.isPosting;
+  assert.equal(reply('false'), false);
+  assert.equal(reply('true'), true);
+  assert.equal(reply('null'), true);
+  assert.equal(reply('"no"'), true, 'an answer that is not a boolean keeps the page a posting');
+  assert.equal(parseExtractReply('{"company":null,"title":null,"location":null}')?.isPosting, true);
+});
 
 test('parseExtractReply rejects garbage instead of guessing', () => {
   assert.equal(parseExtractReply('no json here'), null);

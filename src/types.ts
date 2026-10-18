@@ -33,6 +33,11 @@ export interface NormalizedJob {
    */
   handPicked?: boolean;
   /**
+   * The model that read a saved page took it for something else than a job
+   * posting (#451): stored Saved, unscored and flagged, never set aside.
+   */
+  notAPosting?: boolean;
+  /**
    * The source gave no date this posting was published on, so `postedAt` is
    * the clock's or a file's (#379). It still orders and shows the posting; it
    * is no evidence that the posting is recent, and nothing is prepared on its
