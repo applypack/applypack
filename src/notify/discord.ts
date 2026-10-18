@@ -2,7 +2,16 @@ import type { NotificationTarget } from '@prisma/client';
 import type { MessageKey } from '../i18n/catalog';
 import type { MessageParams } from '../i18n/message';
 import type { AlertJob } from '../types';
-import { formatPlaceLine, formatSalary, hasApplyLink, type PageChangeNotice, type QuietSourceAlert, quietSourceList } from './lines';
+import {
+  formatPlaceLine,
+  formatSalary,
+  hasApplyLink,
+  jobPageLink,
+  type MessageLine,
+  type PageChangeNotice,
+  type QuietSourceAlert,
+  quietSourceList,
+} from './lines';
 import { tMarkup, type ChannelMarkup } from './markup';
 import { packMessages } from './pack';
 
@@ -41,7 +50,7 @@ function discordText(key: MessageKey, params?: MessageParams): string {
 }
 
 /** One posting, the same lines as the Telegram message, in Discord's markup. */
-export function formatDiscordAlert(job: AlertJob): string {
+export function formatDiscordAlert(job: AlertJob, address: string | null = null): string {
   const score = job.fitScore;
   const headline = job.watched
     ? `★ ${discordText('notify.alert.headerWatched', { score })}`
@@ -63,6 +72,8 @@ export function formatDiscordAlert(job: AlertJob): string {
   if (job.attribution) lines.push(escapeDiscord(job.attribution));
   // Angle brackets keep Discord from unfurling the posting into an embed.
   if (hasApplyLink(job)) lines.push(`${discordText('notify.alert.apply')} <${job.url}>`);
+  const page = jobPageLink(job, address);
+  if (page) lines.push(`${discordText('notify.alert.open')} <${page}>`);
   return lines.join('\n');
 }
 
@@ -78,6 +89,7 @@ export function formatDiscordDigest(
   title: string,
   more = 0,
   unscored = 0,
+  address: string | null = null,
 ): string[] {
   const health = formatDiscordHealthLine(quiet);
   const waiting = unscored > 0 ? discordText('digest.unscored', { n: unscored }) : '';
@@ -85,7 +97,7 @@ export function formatDiscordDigest(
     return [[discordText('digest.empty'), waiting, health].filter((part) => part !== '').join('\n\n')];
   }
   const header = `**${discordText('digest.header', { title, n: jobs.length + more })}**${health ? `\n${health}` : ''}`;
-  const blocks = jobs.map(formatDiscordAlert);
+  const blocks = jobs.map((job) => formatDiscordAlert(job, address));
   if (more > 0) blocks.push(discordText('digest.more', { n: more }));
   if (waiting) blocks.push(waiting);
   return packMessages(header, blocks, '\n\n———\n\n', DISCORD_MAX_LENGTH);
@@ -95,6 +107,12 @@ export function formatDiscordPageChanges(pages: readonly PageChangeNotice[]): st
   const header = `**★ ${discordText('pageChange.header', { n: pages.length })}**`;
   const lines = pages.map((p) => `• **${escapeDiscord(p.companyName)}** — <${p.url}>`);
   return [header, ...lines, discordText('pageChange.footer')].join('\n');
+}
+
+/** The packs message in Discord's markup: each line escaped, under a pack's line its tab, packed under the 2000-character limit. */
+export function formatDiscordPackNotice(lines: readonly MessageLine[]): string[] {
+  const blocks = lines.map((l) => escapeDiscord(l.text) + (l.link ? `\n  <${l.link}>` : ''));
+  return packMessages('', blocks, '\n', DISCORD_MAX_LENGTH);
 }
 
 export interface DiscordSendResult {

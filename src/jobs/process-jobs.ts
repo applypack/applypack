@@ -504,6 +504,7 @@ export async function processNormalizedJobs(
     try {
       delivery = await sendAlert(
         {
+          jobId: created.id,
           title: created.title,
           companyName: starred(fetchedHiringName(job.employer, companyName) ?? t('notify.companyNotNamed'), item.watch),
           watched: item.watch?.watched === true,

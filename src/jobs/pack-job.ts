@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
+import { forPack } from '../ai-subject';
 import { logger } from '../logger';
-import { alertChannel, sendPackNotice } from '../notifier';
+import { alertChannel, dashboardAddress, sendPackNotice } from '../notifier';
 import { DEFAULT_MIN_CEILING, runVerdict } from '../pack/gate';
 import { preparePosting, type Prepared } from '../pack/prepare';
 import { wantsCoverLetter } from '../pack/settings';
@@ -128,7 +129,8 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
 
   let prepared: Prepared;
   try {
-    prepared = await preparePosting(posting, resume, {
+    // Every call the preparing makes is this pack's on AI usage, wherever in it the call is made.
+    prepared = await forPack(packId, () => preparePosting(posting, resume, {
       minCeiling: DEFAULT_MIN_CEILING,
       policy: pack.policy,
       verify: true,
@@ -137,7 +139,7 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
       angles: readCoverAngles(settings.coverAngles),
       onStep: (step) => void setPackStep(packId, step).catch((err: unknown) => logger.warn({ err, packId }, 'pack: could not record the step')),
       cancelled: () => stopping,
-    });
+    }));
   } catch (err) {
     logger.error({ err, packId, jobId }, 'pack: preparing threw');
     if (stopping) return requeue(packId);
@@ -166,8 +168,11 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
     return 'failed';
   }
 
+  const kept = made.checks.length === 0;
   const edits: PackEdits = {
-    applied: made.checks.length === 0 ? made.outcome.done.length : 0,
+    applied: kept ? made.outcome.done.length : 0,
+    // The Tailor page opens these as applied cards, each with its Undo (#487).
+    done: kept ? made.outcome.done : [],
     unplaced: made.outcome.failed.map((f) => f.error),
     held: made.plan.held,
     checks: made.checks,
@@ -203,7 +208,7 @@ async function requeue(packId: number): Promise<'requeued'> {
  */
 async function deliverNotices(): Promise<number> {
   const due = await noticesDue();
-  const lines = packNoticeLines(due);
+  const lines = packNoticeLines(due, await dashboardAddress());
   if (lines.length === 0) return 0;
   try {
     const delivery = await sendPackNotice(lines);

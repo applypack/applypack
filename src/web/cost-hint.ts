@@ -1,7 +1,7 @@
 import { billingFacts, getAiEngineEnv } from '../ai-runtime';
 import { resolveAiEngine } from '../ai-engine';
-import { typicalCost } from '../ai-ledger';
-import { billingHint, costHintText } from '../ai-spend';
+import { recentPackSpends, typicalCost } from '../ai-ledger';
+import { billingHint, costHintText, packCostHint } from '../ai-spend';
 import { taskOf } from '../ai-tasks';
 import { billingOf, type AiFeature } from '../ai-usage';
 import { getAiKeys, getSettings } from '../settings';
@@ -17,12 +17,16 @@ export async function spendHint(feature: AiFeature): Promise<string> {
 }
 
 /**
- * What kind of money the engine that answers this feature's task first
- * spends, with no figure. For a button behind which several calls of
- * different kinds run — an application pack: its calls are filed under the
- * features it reuses, so there is no measured cost of one pack to quote.
+ * The sentence under Prepare the pack (#487): what a pack prepared to the end
+ * has cost here, read off the calls the ledger files under each pack; before
+ * three such packs are on record, the kind of money the analysis spends.
  */
-export async function kindHint(feature: AiFeature): Promise<string> {
+export async function packSpendHint(): Promise<string> {
+  return packCostHint(await recentPackSpends()) ?? kindHint('resume-match');
+}
+
+/** What kind of money the engine that answers this feature's task first spends, with no figure. */
+async function kindHint(feature: AiFeature): Promise<string> {
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const first = resolveAiEngine(settings.aiEngine, getAiEngineEnv(keys, settings.openAiBaseUrl)).chainFor(taskOf(feature))[0];
   return first ? billingHint(billingOf(first, billingFacts(keys, settings.openAiBaseUrl))) : '';

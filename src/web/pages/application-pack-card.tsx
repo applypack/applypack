@@ -33,7 +33,11 @@ export interface ApplicationPackProps {
   automatic: boolean;
   /** With no pack here: another source's copy of this posting that has one (#380). */
   sameRoleJobId: number | null;
-  /** What preparing a pack spends, said before the press (#387): how many calls, and on what kind of money. */
+  /**
+   * What preparing a pack spends, said before the press (#387): how many
+   * calls, and what a pack has cost here once three are on record (#487),
+   * else on what kind of money. Empty while there is a pack.
+   */
   cost: string;
 }
 
@@ -111,7 +115,8 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
   const busy = packBusy(pack);
   // What "I sent this file" posts: the same answer the rail's picker offers.
   const sentValue = packChoiceValue(pack);
-  const tailorHref = pack.tailoredMatchId ?? pack.matchId ? `/jobs/${jobId}/target?match=${pack.tailoredMatchId ?? pack.matchId}` : null;
+  // The comparison the edits came from, with the edits on it as applied cards (pack/view.ts:tailorSeed).
+  const tailorHref = pack.matchId ? `/jobs/${jobId}/target?match=${pack.matchId}&from=pack` : null;
   const again = !busy && !pack.sentAt && !kept && (
     <ConfirmAction
       action={prepare}

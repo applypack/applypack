@@ -165,6 +165,17 @@ Before a line of the feature was written, the pipeline was run dry over those
    the features it reuses. Rows written before
    this cannot be told apart from packs nobody pressed and are left as they
    are: one such pack may still be announced once.
+   *Amended 2026-10-18 (#487).* What a pack costs can now be read. Every
+   call made while a pack is prepared is marked with it (`ai_call.packId`):
+   the runner wraps `preparePosting` in `ai-subject.ts:forPack`, and the
+   runtime files each call it makes under that pack — ambient rather than
+   passed, so the suggestion floor and a refused summary written again,
+   made from inside the comparison, are counted too. AI usage says what
+   packs came to in the period, by kind of money; the line under **Prepare
+   the pack** quotes the middle of the last packs prepared to the end, by
+   kind of money, once three are on record — the calls of each one's latest
+   preparation only, since a pack prepared again keeps its row. Calls made
+   before the column are not counted, and nothing says so.
 4. **The worker calls the resume module.** A pack is the chain of calls the
    dashboard's buttons make, with nobody there to press them, and the worker
    is the process with the clock. Both run the same image; nothing else about
@@ -183,6 +194,19 @@ Before a line of the feature was written, the pipeline was run dry over those
    (`Job.employerKey`, ADR 0056): a copy an agency lists under its own name
    is another company to check, and a row that names no company borrows
    nothing. On the live check that step was 189–216 s a posting.
+   *Measured 2026-10-18 (#487), not changed.* The tailored text is judged
+   with the full report, which also writes suggestions nobody reads there; a
+   quick check (ADR 0029) reads everything the score needs. Whether it gives
+   the same number: the scratch install's fictional resume against three
+   postings, each tailored text judged twice in full and three times as a
+   quick check, on the Claude CLI (Sonnet 5), 22 calls. A backend posting:
+   48, 48 in full, 63, 54, 49 quick. A full-stack posting: 76, 76 and 77,
+   76, 77. A posting whose brief held two keywords: 60, 45 and 55, 85, 85.
+   On two of the three the quick check read higher, by 7 and 22 points at
+   the mean, and it moved more between runs of one text (14 and 30 points,
+   against 0 and 15). The number a pack shows is the one read before
+   deciding whether to send, so the full report stays: about 9 s and
+   $0.016 at API prices a pack (21 s and $0.038 against 12.6 s and $0.022).
 6. **What may change is a policy held in code** (`pack/policy.ts`): the
    sections open to an edit, at most two experience bullets, nothing removed,
    only keywords the resume backs. Two rules came from the dry run: the
@@ -239,6 +263,19 @@ Before a line of the feature was written, the pipeline was run dry over those
    comparison a pack made of its own tailored text: that draft judges a
    file nobody has saved, and "Resume match · 100" headed a resume that
    scores 70 (`web/job-tabs.ts:shownMatch`).
+   *Amended 2026-10-18 (#487).* The message named the packs and gave
+   nothing to press: an install does not know the address it is opened at
+   (127.0.0.1:4747 by default, perhaps behind a proxy). Settings →
+   Notifications takes it, optional and empty by default
+   (`AppSettings.dashboardUrl`, `notify/dashboard-link.ts`: http(s), no user
+   name or password — the link goes into a chat). With it every pack's line
+   has its tab under it, and a match alert its job under Apply, written out
+   as addresses rather than text links: a chat may refuse a link to
+   127.0.0.1 or a host on the home network, and a refused link must not
+   cost the message. Without it the messages are as they were. Holding a
+   match's own alert until its pack is ready, so a strong match is one
+   message, is not done: it is a rule about when alerts arrive that nobody
+   asked for, and it would hold a match back by the minutes a pack takes.
 9. **Nothing is submitted.** The person applies.
 
 ## Consequences
@@ -249,9 +286,22 @@ alerts; the 61 % that are not worth tailoring say why in a sentence.
 measurement and the feature cannot drift.
 ✅ The Tailor page opens on the tailored text: the pack stores the id of the
 comparison that judged it.
+*Amended 2026-10-18 (#487).* It opened on that comparison, the tailored
+text standing in for the resume with nothing marked and nothing to undo. The
+pack now keeps each edit it applied with its Undo (`edits.done`), and **Go on
+in the Tailor page** opens the comparison the edits came from, the pack's
+text as the draft and every edit an applied card, as Apply all leaves them
+(`pack/view.ts:tailorSeed`, `target-page.mjs:openWithPack`): a card's Undo,
+or Undo all, lands on the resume as that comparison read it. The comparison
+of the tailored text could not do that — its cards are new advice about the
+edited text, none of them an edit to take back. The seed is written once and
+only over nothing: a draft the person made on that comparison is never
+replaced, and the address drops its `from=pack`, so a reload after Undo all
+does not bring the edits back. A pack prepared before this opens with its
+text and no cards marked.
 ❌ The worker now spends AI beyond the classifier with nobody watching. The
 daily limit bounds it; the ledger (ADR 0055) prices it under its existing
-features.
+features, and since 2026-10-18 under the pack as well (rule 3).
 ❌ A stop on a failed requirement trusts the model's reading of the posting's
 gates. On the dry run all 17 were right. A wrong one stops the pack, and
 preparing it again stops in the same place while that comparison stands; the
