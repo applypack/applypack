@@ -39,6 +39,11 @@ const SEPARATORS = [',', ' · ', ' | ', ';', ' • '];
 const METRIC =
   /\d+\s*%|[$€£]\s?\d|\b\d[\d,.]*\s*(?:k|m|bn|b|x|ms|s|gb|tb|qps|rps|hrs?|hours?|days?|weeks?|months?|users?|customers?|requests?|events?|services?|engineers?|people|clients?|sites?|websites?)\b/i;
 
+/** Does this sentence carry a number that means something — what tells "measured" from "described". */
+export function isMeasured(sentence: string): boolean {
+  return METRIC.test(sentence);
+}
+
 /** The line a span sits on, and where on it. */
 export function lineAt(text: string, index: number): { line: string; column: number } {
   const start = text.lastIndexOf('\n', index - 1) + 1;
@@ -118,7 +123,7 @@ export function evidenceFor(
   for (const span of spans) {
     const at = lineAt(resumeText, span.start);
     const line = segmentAt(at.line, at.column);
-    const level: EvidenceLevel = isTermList(line) ? 'listed' : METRIC.test(line) ? 'measured' : 'described';
+    const level: EvidenceLevel = isTermList(line) ? 'listed' : isMeasured(line) ? 'measured' : 'described';
     if (EVIDENCE_LEVELS.indexOf(level) > EVIDENCE_LEVELS.indexOf(best)) best = level;
   }
   return best;
