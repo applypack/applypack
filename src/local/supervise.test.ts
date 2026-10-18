@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NO_ANSWER } from './postgres-setup';
-import { MAX_RESTARTS, RESTART_WINDOW_MS, isLauncherCommand, isLauncherMessage, lockHolder, restartDecision } from './supervise';
+import { MAX_RESTARTS, RESTART_WINDOW_MS, childExecArgv, isLauncherCommand, isLauncherMessage, lockHolder, restartDecision } from './supervise';
 
 test('a crash is retried after a delay that grows with each recent crash', () => {
   const now = 1_000_000;
@@ -45,4 +45,11 @@ test('who holds the lock: no answer in time is never read as nobody', () => {
   assert.equal(lockHolder(NO_ANSWER, true), 'unsure');
   // The look got nothing, and no such process exists: nothing to be unsure about.
   assert.equal(lockHolder(NO_ANSWER, false), 'nobody');
+});
+
+test('a child keeps the launcher flags and starts with Web Storage off where its Node has it', () => {
+  // Node 26 printed "localStorage is not available" on every start: the docx library looks for it.
+  assert.deepEqual(childExecArgv(['--enable-source-maps'], new Set(['--experimental-webstorage'])), ['--enable-source-maps', '--no-experimental-webstorage']);
+  // A Node without Web Storage is passed nothing it does not know.
+  assert.deepEqual(childExecArgv([], new Set(['--enable-source-maps'])), []);
 });
