@@ -23,6 +23,11 @@ export type FetchScope = 'every' | 'aggregators' | { companyId: number; name: st
 
 export const FETCH_RUN_STEPS: FetchRunStage[] = ['fetch', 'store'];
 
+/** The wizard's test search: the aggregators, back to setup — the run its own words are for. */
+export function isSetupSearch(run: Pick<FetchRun, 'scope' | 'backUrl'>): boolean {
+  return run.scope === 'aggregators' && run.backUrl === '/welcome';
+}
+
 /** The tick threw: what is safe (stored jobs stay) and where to look, then the way forward. A key: the page words it when it is read. */
 export const FETCH_FAILED = 'fetch.stoppedOnError' satisfies MessageKey;
 

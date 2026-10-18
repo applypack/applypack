@@ -17,6 +17,13 @@ test('a paused-pipeline run reports unscored storage and no AI spend', () => {
   assert.match(text, /no AI spent/);
 });
 
+test("the setup wizard's test search leaves the scoring to its last step, and never says paused", () => {
+  const { kind, text } = summarizeFetchRun({ ...base, classify: false, filterRejected: 55, rejectedWorkplace: 55 }, 'Test search', true);
+  assert.equal(kind, 'ok');
+  assert.match(text, /^Test search: 312 jobs from 71 sources in 40\.0s — 118 new stored\. The filter set aside 55: 55 .*\. Setup scores the best of them at its last step/);
+  assert.doesNotMatch(text, /paused|Save & re-classify/);
+});
+
 test('a running-pipeline run reports scored and alerted counts', () => {
   const { kind, text } = summarizeFetchRun({ ...base, classified: 100, alerted: 5, sourcesFailed: 3 });
   assert.equal(kind, 'ok');

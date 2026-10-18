@@ -317,13 +317,14 @@ test('gemini args omit --model when empty (CLI default)', () => {
 test('buildClaudeCodeArgs disables tools by default and allow-lists web tools on request', () => {
   const base = { system: 'S', user: 'U', model: 'claude-x' };
   const plain = buildClaudeCodeArgs(base);
-  assert.deepEqual(plain.slice(-5), ['--tools', '', '--no-session-persistence', '--', 'U']);
+  assert.deepEqual(plain.slice(-6), ['--tools', '', '--strict-mcp-config', '--no-session-persistence', '--', 'U']);
   assert.ok(plain.includes('--print') && plain.includes('claude-x') && plain.includes('S'));
 
   const web = buildClaudeCodeArgs({ ...base, webTools: true });
-  assert.deepEqual(web.slice(-7), [
+  assert.deepEqual(web.slice(-8), [
     '--tools', 'WebSearch,WebFetch',
     '--allowedTools', 'WebSearch,WebFetch',
+    '--strict-mcp-config',
     '--no-session-persistence', '--', 'U',
   ]);
 });

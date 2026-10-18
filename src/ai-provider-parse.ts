@@ -413,6 +413,10 @@ export function buildClaudeCodeArgs(req: {
     '--model', req.model,
     '--system-prompt', req.system,
     ...tools,
+    // `--tools` reaches the built-in tools only: without this, the user's own MCP
+    // servers ride along, and their schemas were 98k of the 98k input tokens of
+    // a one-word call (measured 2026-10-18; 159 tokens with the flag).
+    '--strict-mcp-config',
     '--no-session-persistence',
     // The prompt is the positional argument and it carries untrusted text, so
     // end option parsing first: without this, a user prompt starting with "-"
