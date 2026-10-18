@@ -95,3 +95,28 @@ measurement (ADR 0057, stage C), and the tab makes no recommendation.
 When a task needs a model of its own inside one engine (a slot per task), or
 when measured results exist that would justify a default list for a kind of
 engine.
+
+## Addendum (2026-10-18): an engine is tried on the user's own postings
+
+The third ❌ above now has a measurement behind it, for scoring (#412).
+**Try it on my postings**, under an engine's tasks, scores up to 20 stored,
+scored postings again on that engine and its classifier model and sets the
+result beside the scores on record: agreement on each search's threshold as
+it stands now, false and missed matches, the mean fit distance, the seconds
+per posting, replies that were no score, and how many scores on record
+predate the search's last edit.
+
+- **One engine, no fallback.** `AiCallRequest.engine` sends the call to that
+  engine alone, whatever the chain and the task lists say: an engine behind
+  it that answered would measure the wrong model. Every call is in the
+  ledger as `engine-trial`, which belongs to no task, as `engine-test` does;
+  the hints leave both out of the usage they read.
+- **The record is the reference, not the truth.** The trial compares; it
+  never says a model is good enough, and it changes no task list. The AI
+  usage hints quote the last trial where they offer a local model the
+  scoring, instead of "not measured".
+- **The last result per engine and model** is a row in `engine_trial`,
+  counts only — no posting, no reply.
+- **Scoring only.** Reading a pasted posting, the issue's last bullet, would
+  compare the extracted title and company with the stored row; it is not
+  built. The other tasks have no answer on record to compare with.

@@ -5,6 +5,7 @@ import { RELOCATION_PROMPT, isRelocation } from './eligibility';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
 import { getAiRuntime } from './ai-runtime';
+import type { AiProviderId } from './ai-engine';
 import { preClassify } from './classifier-prefilter';
 import { capFitForMissingStack } from './profile-guards';
 import { isCountryCode, isRegionCode } from './countries';
@@ -147,6 +148,11 @@ function unique(list: string[]): string[] {
 
 export { decideStageStrategy } from './text-utils';
 
+/** The reply's ceiling for one posting scored against `searches` searches at once. */
+function classifyMaxTokens(searches: number): number {
+  return BASE_MAX_TOKENS + MAX_TOKENS_PER_PROFILE * searches;
+}
+
 /** System + user for one classification. Pure — the only untested seam left is the call. */
 export function buildClassifyPrompt(
   input: ClassifyInput,
@@ -242,7 +248,7 @@ async function classifyWithClaude(
       json: true,
       system: systemPrompt,
       user: userText,
-      maxTokens: BASE_MAX_TOKENS + MAX_TOKENS_PER_PROFILE * profiles.length,
+      maxTokens: classifyMaxTokens(profiles.length),
       label: 'classifier',
       role: 'classifier',
       onError,
@@ -272,6 +278,31 @@ async function classifyWithClaude(
     );
   }
   return { results: new Map(), location: null };
+}
+
+/**
+ * One reading on one engine, as the engine trial takes it (#412): the tick's
+ * prompt, no retry and no fallback — a reply that is no score is part of what
+ * the trial measures. Null when the engine did not answer; `parsed` is null
+ * when it answered with something that is no score.
+ */
+export async function classifyOnEngine(
+  input: ClassifyInput,
+  profiles: Profile[],
+  engine: AiProviderId,
+  onError?: (reason: string) => void,
+): Promise<{ parsed: Classifications | null } | null> {
+  const ai = await getAiRuntime();
+  const out = await ai.complete({
+    ...buildClassifyPrompt(input, profiles),
+    json: true,
+    maxTokens: classifyMaxTokens(profiles.length),
+    label: 'engine-trial',
+    role: 'classifier',
+    engine,
+    onError,
+  });
+  return out && { parsed: parseClassifications(out.text, profiles) };
 }
 
 /** One block per search — the only part of the prompt that repeats. */

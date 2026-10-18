@@ -102,6 +102,7 @@ const AI_FEATURES = [
   'screening-compare',
   'screening-bench',
   'engine-test',
+  'engine-trial',
 ] as const;
 export type AiFeature = (typeof AI_FEATURES)[number];
 

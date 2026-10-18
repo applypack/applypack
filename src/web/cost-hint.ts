@@ -1,9 +1,10 @@
 import { billingFacts, getAiEngineEnv } from '../ai-runtime';
-import { resolveAiEngine } from '../ai-engine';
+import { resolveAiEngine, type AiProviderId } from '../ai-engine';
 import { typicalCost } from '../ai-ledger';
-import { billingHint, costHintText } from '../ai-spend';
+import { billingHint, costHintText, formatUsd } from '../ai-spend';
 import { taskOf } from '../ai-tasks';
-import { billingOf, type AiFeature } from '../ai-usage';
+import { billingOf, type AiBilling, type AiFeature } from '../ai-usage';
+import { t } from '../i18n/t';
 import { getAiKeys, getSettings } from '../settings';
 
 /**
@@ -26,4 +27,17 @@ export async function kindHint(feature: AiFeature): Promise<string> {
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const first = resolveAiEngine(settings.aiEngine, getAiEngineEnv(keys, settings.openAiBaseUrl)).chainFor(taskOf(feature))[0];
   return first ? billingHint(billingOf(first, billingFacts(keys, settings.openAiBaseUrl))) : '';
+}
+
+/**
+ * The line under an engine trial's button (#412): free on a local model; else
+ * the middle of the recent scoring calls on that engine and model, times the
+ * postings a press reads — or, with none on record, the kind of money alone.
+ */
+export async function trialCostHint(engine: AiProviderId, model: string, billing: AiBilling, postings: number): Promise<string> {
+  if (billing === 'local') return t('cost.local');
+  const on = { engine, model };
+  const typical = (await typicalCost('classifier', on)) ?? (await typicalCost('engine-trial', on));
+  if (!typical || typical.billing !== billing) return billingHint(billing);
+  return t(billing === 'plan' ? 'trial.cost.plan' : 'trial.cost.billed', { money: formatUsd(typical.micro * postings), n: postings });
 }

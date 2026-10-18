@@ -243,6 +243,7 @@ const FEATURE_LABEL = {
   'screening-compare': 'spend.feature.screeningCompare',
   'screening-bench': 'spend.feature.screeningBench',
   'engine-test': 'spend.feature.engineTest',
+  'engine-trial': 'spend.feature.engineTrial',
 } as const satisfies Record<AiFeature, MessageKey>;
 
 /** A stored feature as words; one this version does not know reads as itself. */

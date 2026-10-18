@@ -441,6 +441,29 @@ model AiCall {
   @@map("ai_call")
 }
 
+// #412: the last engine trial per engine and model — scored postings read
+// again on that one engine, beside the scores on record. Only the counts are
+// kept (web/engine-trial.ts:TrialReport); nothing about a posting is.
+model EngineTrial {
+  engine       String
+  // As the classifier slot named it ('' = the CLI's default).
+  model        String
+  at           DateTime @default(now())
+  postings     Int
+  compared     Int
+  agreed       Int
+  falseMatches Int
+  missed       Int
+  meanDistance Float?
+  msPerPosting Int?
+  unparsed     Int
+  failed       Int
+  stale        Int
+
+  @@id([engine, model])
+  @@map("engine_trial")
+}
+
 // Singleton table — always one row with id=1.
 model AppSettings {
   id                             Int       @id @default(1)

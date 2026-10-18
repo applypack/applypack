@@ -396,6 +396,12 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/settings?tab=ai'),
     },
     {
+      // #412: no posting carries a score yet, so the trial waits and nothing is spent.
+      name: 'POST /settings/ai/trial with no scored posting (refused)',
+      init: form({ provider: 'claude_code' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=ai' && /at least 5 scored postings/.test(flashOf(res)),
+    },
+    {
       // TASKS N8: the text of a page drawn in the browser, read into lines.
       name: 'POST /companies/:id/paste',
       init: form({ page: 'Acme careers\nSenior Backend Engineer (Remote)\nSales Manager' }),
@@ -632,6 +638,7 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}/status`,
     '/facts',
     '/settings/ai/budget',
+    '/settings/ai/trial',
     `/companies/${f.browserPageId}/paste`,
     '/companies/mutes',
     '/jobs',

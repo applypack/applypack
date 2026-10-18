@@ -115,6 +115,7 @@ import {
 import { groupSources, type SourceCount, fetchedSource } from '../source-groups';
 import { profileLine } from '../profile-line';
 import { testAiEngine } from '../ai-test';
+import { startEngineTrial, trialViews } from '../engine-trial-run';
 import {
   blankProfileInput,
   createProfile,
@@ -355,6 +356,12 @@ async function loadSettingsProps() {
       maskedKey: storedKey ? maskToken(storedKey) : '',
     };
   }).sort((a, b) => cardRank(a) - cardRank(b));
+  // A trial sits under an engine's tasks, which only an engine in the list shows.
+  const trials = await trialViews(
+    aiEngines.filter((e) => e.enabled).map((e) => e.id),
+    (id) => engine.modelFor(id, 'classifier'),
+    billingFor,
+  );
   // What actually runs on this install, per family (#147): the enum is the
   // menu, the Company rows are the order.
   const sourceCounts: Record<string, SourceCount> = {};
@@ -403,7 +410,7 @@ async function loadSettingsProps() {
     sourceKeyRows: sourceKeyRows(keys),
     fetchingEnabled: settings.fetchingEnabled,
     schedule: scheduleView,
-    aiEngines,
+    aiEngines: aiEngines.map((e) => ({ ...e, trial: trials.get(e.id) ?? null })),
     aiStatus,
     aiBudget,
     targets: targets.map((target) => ({
@@ -882,6 +889,16 @@ settingsRoute.post('/settings/ai/test', async (c) => {
   if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
   const result = await testAiEngine(provider);
   return flashRedirect('/settings?tab=ai', result.ok ? 'ok' : 'err', result.text);
+});
+
+/** #412: scored postings read again on one engine, beside the scores on record — a run on the progress page. */
+settingsRoute.post('/settings/ai/trial', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
+  const started = await startEngineTrial(provider);
+  if ('refused' in started) return flashRedirect('/settings?tab=ai', 'err', started.refused);
+  return c.redirect(`/target/runs/${started.runId}`, 303);
 });
 
 function cleanModelId(value: unknown): string | null {

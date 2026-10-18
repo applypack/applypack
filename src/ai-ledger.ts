@@ -159,10 +159,17 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
   }));
 }
 
-/** What a kind of call usually costs here: the middle of the last twenty that answered, on the kind of money they spent. */
-export async function typicalCost(feature: AiFeature): Promise<{ micro: number; billing: AiBilling } | null> {
+/**
+ * What a kind of call usually costs here: the middle of the last twenty that
+ * answered, on the kind of money they spent — on one engine and model when
+ * `on` names them.
+ */
+export async function typicalCost(
+  feature: AiFeature,
+  on?: { engine: string; model: string },
+): Promise<{ micro: number; billing: AiBilling } | null> {
   const rows = await prisma.aiCall.findMany({
-    where: { feature, outcome: 'ok' },
+    where: { feature, outcome: 'ok', ...on },
     orderBy: { at: 'desc' },
     take: TYPICAL_OF,
     select: { billing: true, costMicroUsd: true, reportedMicroUsd: true },

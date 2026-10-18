@@ -62,7 +62,7 @@ export async function runChain(
 ): Promise<AiCallResult | null> {
   // A fingerprint, never the key: a refusal is lifted by a different one.
   const credential = (id: AiProviderId) => hashShortId(ctx.keyFor(id) ?? '');
-  const takers = engine.chainFor(taskOf(req.label));
+  const takers = req.engine ? [req.engine] : engine.chainFor(taskOf(req.label));
   // Verification asks for web tools — prefer engines that have them, but a
   // tool-less engine is still better than no answer at all.
   const chain = req.webTools ? preferWebTools(takers) : takers;
