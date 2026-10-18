@@ -210,6 +210,9 @@ model SourceFile {
   // The last look that listed it, and the last one that read it.
   seenAt    DateTime
   readAt    DateTime?
+  // The first look that did not list it (#478); NULL while it is in the
+  // folder. A row whose file brought no job is deleted a while after.
+  goneAt    DateTime?
 
   @@unique([companyId, relPath])
   @@map("source_file")

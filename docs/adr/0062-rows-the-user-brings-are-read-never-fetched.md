@@ -420,6 +420,33 @@ call that was left behind cannot be cancelled and holds a thread, so while
 it is out the folder is asked nothing more: the next looks fail at once,
 and the folder is read again when the disk comes back.
 
+*Amended 2026-10-18 (#478).* **A folder moves, and its ledger is kept to
+what it holds.**
+
+- The path is the source's identity, so a folder moved or renamed failed as
+  "Folder not found" until it was deleted — with every job and application
+  it brought — and added again, everything read and scored again. The Files
+  page now takes a new path ("The folder moved", linked from the card while
+  the folder is not found), checked by the rules Add checks one by. The row,
+  its jobs, its switch and its ledger stay: the ledger is keyed by a file's
+  path inside the folder, so the files that moved with it stay read. The
+  source's health is cleared, since it spoke of the old path.
+- A file the last look did not list is marked gone (`source_file.goneAt`),
+  and its row is deleted 30 days later when no job names the file
+  (`Job.sourceFile`); a row whose file brought jobs stays, as their record.
+  Before, every file a tool ever wrote stayed a row, and every look loaded
+  them all.
+- The Files page reads three jobs a file, and how many there are, in one
+  query. A file of 30,000 rows took 0.8 s and 244 MB to show its three.
+- The folder's card counts the files the last check set aside ("1 set
+  aside", linked to the Files page): JSON cut short and a quote never closed
+  were said on the Files page only. The quiet-source line a chat gets names
+  a folder's trouble in a folder's words, as the dashboard does.
+- Not changed: Check and Add read the files on the dashboard's event loop,
+  and the reads already give the loop back between files. Measured, another
+  request waits at most one file's parse (about 110 ms for a 4.5 MB CSV, 25
+  ms for JSON), with or without an explicit yield.
+
 **ApplyPack never writes into the folder.** No "processed" subfolder, no
 rename, no delete. `datasets/folder-io.ts` is the one module that touches
 such a folder, it opens files for reading only and without following a

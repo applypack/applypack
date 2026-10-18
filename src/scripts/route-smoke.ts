@@ -1062,7 +1062,7 @@ async function folderChecks(): Promise<Check[]> {
       'GET /companies with a folder that is off and failing (its card: the switch, the failure)',
       '/companies',
       offPage,
-      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row'),
+      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row') && card.includes(`/companies/${folder.id}/files#moved`),
     );
     await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: null, consecutiveFailures: 0 } });
 
@@ -1080,6 +1080,7 @@ async function folderChecks(): Promise<Check[]> {
     const second = await checkNow(folder.id);
     const after = await prisma.company.findUnique({ where: { id: folder.id }, select: { lastFetchStatus: true } });
     check('POST /companies/:id/check-now again (nothing read, nothing new)', `/companies/${folder.id}/check-now`, second, second.status === 303 && (await stored()) === 2 && after?.lastFetchStatus === 'empty');
+    out.push(...(await movedFolderChecks(folder.id, inbox, checkNow, stored)));
     const files = await app.request(`/companies/${folder.id}/files`, { headers: ORIGIN });
     check('GET /companies/:id/files (the per-file list)', `/companies/${folder.id}/files`, files, files.status === 200 && (await files.text()).includes('2 rows read as jobs'));
     const list = await app.request('/companies', { headers: ORIGIN });
@@ -1102,6 +1103,40 @@ async function folderChecks(): Promise<Check[]> {
   } finally {
     await setFetchingEnabled(wasFetching);
     await fs.rm(inbox, { recursive: true, force: true });
+  }
+  return out;
+}
+
+/**
+ * #478: "The folder moved". A path outside the root is refused; a folder of
+ * its own inside it is taken, the source keeping its jobs; the check there
+ * marks the file it does not list gone; moved back, the file is seen again
+ * and not read twice.
+ */
+async function movedFolderChecks(id: number, inbox: string, checkNow: (id: number) => Promise<Response>, stored: () => Promise<number>): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, res: Response, ok: boolean): void => {
+    out.push({ route, url: `/companies/${id}/folder/move`, status: res.status, ok });
+  };
+  const elsewhere = path.join(inbox, 'elsewhere');
+  await fs.mkdir(elsewhere);
+  // A source keeps the folder's real path: the temp directory is a link on some systems.
+  const token = async (): Promise<string | undefined> => (await prisma.company.findUnique({ where: { id }, select: { atsToken: true } }))?.atsToken;
+  try {
+    const refused = await app.request(`/companies/${id}/folder/move`, form({ path: path.dirname(inbox) }));
+    check('POST /companies/:id/folder/move outside the named root (refused)', refused, refused.status === 303 && (await token()) === (await fs.realpath(inbox)));
+    const moved = await app.request(`/companies/${id}/folder/move`, form({ path: elsewhere }));
+    check('POST /companies/:id/folder/move (the source reads the new folder, its jobs stay)', moved, moved.status === 303 && (await token()) === (await fs.realpath(elsewhere)) && (await stored()) === 2);
+    await checkNow(id);
+    const gone = await prisma.sourceFile.findFirst({ where: { companyId: id } });
+    const page = await app.request(`/companies/${id}/files`, { headers: ORIGIN });
+    check('GET /companies/:id/files after the move (the file the folder no longer holds is gone, kept with its jobs)', page, page.status === 200 && gone?.goneAt !== null && (await page.text()).includes('The last check did not find it'));
+    const back = await app.request(`/companies/${id}/folder/move`, form({ path: inbox }));
+    await checkNow(id);
+    const found = await prisma.sourceFile.findFirst({ where: { companyId: id } });
+    check('POST /companies/:id/folder/move back (the file is seen again, not read twice)', back, back.status === 303 && found?.goneAt === null && found.status === 'done' && (await stored()) === 2);
+  } finally {
+    await fs.rm(elsewhere, { recursive: true, force: true });
   }
   return out;
 }

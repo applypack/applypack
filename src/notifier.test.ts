@@ -306,6 +306,12 @@ describe('formatSourceHealthLine', () => {
     assert.ok(!/[^\\]\(GREENHOUSE|[^\\]\(LEVER/.test(line));
   });
 
+  it('names a folder in a folder’s words, not a board’s (#478)', () => {
+    const line = formatSourceHealthLine([{ name: 'Inbox', atsType: 'FOLDER', status: 'slug_gone', streak: 3 }]);
+    assert.match(line, /folder not found ×3/);
+    assert.doesNotMatch(line, /slug/);
+  });
+
   it('never calls a rate limit a dead slug', () => {
     const line = formatSourceHealthLine([
       { name: 'X', atsType: 'WORKABLE', status: 'rate_limit', streak: 3 },

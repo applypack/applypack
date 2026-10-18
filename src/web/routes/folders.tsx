@@ -41,10 +41,10 @@ import {
 import { needsModel, readPostingFile } from '../../datasets/posting-file';
 import { previewCounts } from '../../datasets/preview';
 import { decodeBody, type Row, type RowFormat } from '../../datasets/rows';
-import { prisma } from '../../db';
+import { isUniqueViolation, prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
-import { folderSummaries, listSourceFiles, loadLedger, misfitsWaitAgain, readFilesAgain } from '../../jobs/source-file-store';
+import { folderSummaries, jobsByFile, listSourceFiles, loadLedger, misfitsWaitAgain, readFilesAgain } from '../../jobs/source-file-store';
 import { localInstall } from '../../local/install';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
@@ -379,12 +379,7 @@ foldersRoute.get('/companies/:id/files', async (c) => {
   });
   if (!company) return c.text(t('http.notFound'), 404);
   const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
-  // The job each file became, by the file the job names (Job.sourceFile): one query, the files shown.
-  const jobs = await prisma.job.findMany({
-    where: { companyId: id, sourceFile: { in: files.map((f) => f.relPath) } },
-    select: { id: true, title: true, fitScore: true, status: true, sourceFile: true },
-    orderBy: { id: 'asc' },
-  });
+  const jobs = await jobsByFile(id, files.map((f) => f.relPath));
   const kept = readSourceConfig(company.sourceConfig);
   return c.html(
     <FolderFilesPage
@@ -406,6 +401,35 @@ foldersRoute.get('/companies/:id/files', async (c) => {
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
+});
+
+/**
+ * "The folder moved" (#478): the source reads another path, checked under the
+ * rules Add checks one by. The row stays, and with it its jobs, its switch and
+ * its ledger: files that moved with the folder keep their place in it and are
+ * not read again, and the next look marks the others gone. What its health
+ * said was about the old path, so the source waits for its next check.
+ */
+foldersRoute.post('/companies/:id/folder/move', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const company = await prisma.company.findFirst({ where: { id, atsType: AtsType.FOLDER }, select: { name: true, atsToken: true } });
+  if (!company) return c.text(t('http.notFound'), 404);
+  const back = `/companies/${id}/files`;
+  const form = await c.req.parseBody();
+  const folder = await resolveFolder(text(form.path));
+  if ('error' in folder) return flashRedirect(`${back}#moved`, 'err', `${t('folders.moved.notMoved')} ${folder.error}`);
+  if (folder.root === company.atsToken) return flashRedirect(back, 'warn', t('folders.moved.same', { name: company.name }));
+  try {
+    await prisma.company.update({ where: { id }, data: { atsToken: folder.root, lastFetchStatus: null, consecutiveFailures: 0, nextCheckAt: null } });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    // One folder, one source: another reads it already.
+    const other = await prisma.company.findUnique({ where: { atsType_atsToken: { atsType: AtsType.FOLDER, atsToken: folder.root } }, select: { name: true } });
+    return flashRedirect(`${back}#moved`, 'err', `${t('folders.moved.notMoved')} ${t('folders.moved.taken', { name: other?.name ?? folder.root })}`);
+  }
+  logger.info({ companyId: id }, 'web: folder source pointed at its new place');
+  return flashRedirect(back, 'ok', t('folders.moved.done', { name: company.name, path: folder.root }));
 });
 
 /**

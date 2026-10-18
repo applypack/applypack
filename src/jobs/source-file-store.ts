@@ -18,6 +18,14 @@ import type { FolderLook } from '../fetchers/folder-ledger';
 const IN_CHUNK = 10_000;
 /** The per-file list shows the most recent of a folder's files. */
 const FILES_SHOWN = 500;
+/** The jobs the per-file list names beside a file; the rest are counted. */
+const JOBS_SHOWN = 3;
+/**
+ * How long the ledger keeps a file that left the folder and brought no job
+ * (#478): a tool that writes a file an hour and deletes it would otherwise
+ * grow the ledger, and every look's read of it, for ever.
+ */
+const GONE_KEPT_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** A folder's ledger as the scan plan reads it. */
 export async function loadLedger(companyId: number): Promise<LedgerEntry[]> {
@@ -67,6 +75,7 @@ async function keepLook(look: FolderLook): Promise<void> {
         jobCount: change.jobCount,
         rowsRead: change.rowsRead,
         seenAt: look.at,
+        goneAt: null,
         // A file whose bytes were read, whatever became of them.
         ...(change.sha256 !== null && { readAt: look.at }),
       };
@@ -80,9 +89,16 @@ async function keepLook(look: FolderLook): Promise<void> {
     for (let i = 0; i < look.seen.length; i += IN_CHUNK) {
       await tx.sourceFile.updateMany({
         where: { companyId: look.companyId, relPath: { in: look.seen.slice(i, i + IN_CHUNK) } },
-        data: { seenAt: look.at },
+        data: { seenAt: look.at, goneAt: null },
       });
     }
+    // What it did not list has left the folder, or the name filter: gone as of this look.
+    await tx.sourceFile.updateMany({ where: { companyId: look.companyId, seenAt: { lt: look.at }, goneAt: null }, data: { goneAt: look.at } });
+    // A file whose jobs name it stays on the list with them; one that brought none is forgotten after a while.
+    await tx.$executeRaw`
+      DELETE FROM source_file f
+      WHERE f."companyId" = ${look.companyId} AND f."goneAt" < ${new Date(look.at.getTime() - GONE_KEPT_MS)}
+        AND NOT EXISTS (SELECT 1 FROM job j WHERE j."companyId" = f."companyId" AND j."sourceFile" = f."relPath")`;
   });
 }
 
@@ -97,6 +113,8 @@ export interface FolderSummary {
   failed: number;
   /** Files of rows read with a part lost: a quote never closed, characters that could not be read (datasets/read-notes.ts). */
   partial: number;
+  /** Set aside unread: a copy, too large, damaged, not rows or not a posting (#478). */
+  skipped: number;
 }
 
 /**
@@ -111,7 +129,8 @@ export async function folderSummaries(): Promise<Map<number, FolderSummary>> {
            count(*) FILTER (WHERE f."readAt" = l.last AND f.status = 'done')::int AS fresh,
            count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'waiting')::int AS waiting,
            count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'failed')::int AS failed,
-           count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'done' AND f.detail IS NOT NULL AND f.kind IN ('json', 'jsonl', 'csv', 'tsv'))::int AS partial
+           count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'done' AND f.detail IS NOT NULL AND f.kind IN ('json', 'jsonl', 'csv', 'tsv'))::int AS partial,
+           count(*) FILTER (WHERE f."seenAt" = l.last AND f.status = 'skipped')::int AS skipped
     FROM source_file f
     JOIN (SELECT "companyId", max("seenAt") AS last FROM source_file GROUP BY "companyId") l ON l."companyId" = f."companyId"
     GROUP BY f."companyId", l.last`;
@@ -153,10 +172,8 @@ export async function misfitsWaitAgain(companyId: number): Promise<void> {
  * be read, and its row would say "waiting" for ever. Returns how many wait.
  */
 export async function readFilesAgain(companyId: number): Promise<number> {
-  const last = await prisma.sourceFile.aggregate({ where: { companyId }, _max: { seenAt: true } });
-  if (last._max.seenAt === null) return 0;
   const { count } = await prisma.sourceFile.updateMany({
-    where: { companyId, seenAt: last._max.seenAt, status: { in: ['done', 'waiting'] }, sha256: { not: null } },
+    where: { companyId, goneAt: null, status: { in: ['done', 'waiting'] }, sha256: { not: null } },
     data: { status: 'waiting', sha256: null, rowsRead: 0, detail: null },
   });
   return count;
@@ -169,4 +186,44 @@ export async function listSourceFiles(companyId: number) {
     orderBy: [{ seenAt: 'desc' }, { mtime: 'desc' }, { relPath: 'asc' }],
     take: FILES_SHOWN,
   });
+}
+
+/** A job a file became, for the link beside it on the per-file list. */
+interface FileJob {
+  id: number;
+  title: string;
+  fitScore: number | null;
+}
+
+/** The first jobs a file became, and how many it became. */
+export interface JobsOfFile {
+  shown: FileJob[];
+  total: number;
+}
+
+/**
+ * The first jobs each file became, by the file the job names
+ * (`Job.sourceFile`), and how many it became: three a file in one query,
+ * whatever a file holds. A file a tool appends to can have brought tens of
+ * thousands, and reading them all took a second to show three (#478).
+ */
+export async function jobsByFile(companyId: number, relPaths: readonly string[]): Promise<Map<string, JobsOfFile>> {
+  const rows = await prisma.$queryRaw<(FileJob & { sourceFile: string; total: number })[]>`
+    SELECT id, title, "fitScore", "sourceFile", total
+    FROM (
+      SELECT id, title, "fitScore", "sourceFile",
+             row_number() OVER (PARTITION BY "sourceFile" ORDER BY id) AS n,
+             (count(*) OVER (PARTITION BY "sourceFile"))::int AS total
+      FROM job
+      WHERE "companyId" = ${companyId} AND "sourceFile" = ANY(${[...relPaths]})
+    ) j
+    WHERE n <= ${JOBS_SHOWN}
+    ORDER BY id`;
+  const byFile = new Map<string, JobsOfFile>();
+  for (const { sourceFile, total, ...job } of rows) {
+    const entry = byFile.get(sourceFile) ?? { shown: [], total };
+    entry.shown.push(job);
+    byFile.set(sourceFile, entry);
+  }
+  return byFile;
 }
