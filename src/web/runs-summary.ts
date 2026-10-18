@@ -28,6 +28,11 @@ const REASON: Record<string, MessageKey> = {
   'no-targets': 'runs.reason.noTargets',
 };
 
+/** A code two jobs share that means something else for one of them: a pack run stands down for a pack run, not for a fetch. */
+const REASON_FOR: Record<string, Record<string, MessageKey>> = {
+  pack: { overlap: 'runs.reason.packOverlap' },
+};
+
 /**
  * Known counts in reading order. `always` facts show at zero too — "0 new" is
  * the news of an uneventful tick; the rest speak only when they happened.
@@ -46,10 +51,21 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'alertsOffHeld', words: 'runs.fact.alertsOffHeld' },
   { key: 'alertFailed', words: 'runs.fact.alertFailed' },
   { key: 'alertNoTarget', words: 'runs.fact.alertNoTarget' },
+  { key: 'alertSourceOff', words: 'runs.fact.alertSourceOff' },
+  { key: 'alertCounted', words: 'runs.fact.alertCounted' },
   { key: 'sourcesFailed', words: 'runs.fact.sourcesFailed' },
   // Bare words a second job could reuse for something else: worded for the job that writes them.
   { key: 'found', job: 'stale-applications', words: 'runs.fact.staleFound', always: true },
   { key: 'count', job: 'digest', words: 'runs.fact.digestCount', always: true },
+  // The application-pack runner (ADR 0063), and the tick that queued one for it.
+  { key: 'packsQueued', words: 'runs.fact.packsQueued' },
+  { key: 'ready', job: 'pack', words: 'runs.fact.packReady' },
+  { key: 'stopped', job: 'pack', words: 'runs.fact.packStopped' },
+  { key: 'failed', job: 'pack', words: 'runs.fact.packFailed' },
+  { key: 'requeued', job: 'pack', words: 'runs.fact.packRequeued' },
+  { key: 'dropped', job: 'pack', words: 'runs.fact.packDropped' },
+  { key: 'notified', job: 'pack', words: 'runs.fact.packNotified' },
+  { key: 'unscored', job: 'digest', words: 'runs.fact.digestUnscored' },
   { key: 'deleted', job: 'cleanup', words: 'runs.fact.jobsDeleted', always: true },
   { key: 'screeningsDeleted', words: 'runs.fact.screeningsDeleted' },
   { key: 'runsDeleted', words: 'runs.fact.runsDeleted' },
@@ -103,7 +119,7 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
   const num = (key: string): number | null => (typeof stats[key] === 'number' ? (stats[key] as number) : null);
 
   if (typeof stats.reason === 'string') {
-    const known = REASON[stats.reason];
+    const known = REASON_FOR[name]?.[stats.reason] ?? REASON[stats.reason];
     // A code this file has never heard of is shown as its own words, never dropped.
     out.push(known ? t(known) : t('runs.reason.other', { reason: stats.reason.replace(/-/g, ' ') }));
   }
@@ -123,6 +139,23 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
     out.push(`${formatNumber(value)} ${humanise(key)}`);
   }
   return out;
+}
+
+/**
+ * A run that finished and scored nothing it tried to (#366): postings reached
+ * the classifier, and not one came back with a verdict — neither scored nor
+ * set aside by the prefilter. The run itself did not fail, so its status is
+ * OK, and a row of green badges is how a dead engine stayed out of sight for
+ * a night. A run where some were scored is the engine having a bad moment,
+ * and its "N failed to classify" says so already.
+ */
+export function unscoredRun(status: string, stats: unknown): boolean {
+  if (status !== 'OK' || typeof stats !== 'object' || stats === null) return false;
+  const n = (key: string): number => {
+    const value = (stats as Record<string, unknown>)[key];
+    return typeof value === 'number' ? value : 0;
+  };
+  return n('classifyFailed') > 0 && n('classified') === 0 && n('preFiltered') === 0;
 }
 
 /** What is safe after a failed run of each job, and what comes next — the second and third parts of the sentence. */

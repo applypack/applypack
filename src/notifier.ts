@@ -3,7 +3,7 @@ import { getSettings, listActiveNotificationTargets, markTargetUsed } from './se
 import { prisma } from './db';
 import type { NotificationTarget } from '@prisma/client';
 import type { AlertJob } from './types';
-import { formatPlaceLine, formatSalary, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './notify/lines';
+import { formatPlaceLine, formatSalary, hasApplyLink, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './notify/lines';
 import { deliverDiscord, escapeDiscord, formatDiscordAlert, formatDiscordDigest, formatDiscordPageChanges } from './notify/discord';
 import { tMarkup, type ChannelMarkup } from './notify/markup';
 import { packMessages } from './notify/pack';
@@ -95,9 +95,14 @@ export async function sendDigest(
   title = t('digest.title'),
   /** Matches counted in the header but not listed — a long wait's backlog stays on the dashboard. */
   more = 0,
+  /** New jobs stored without a score (found while paused): one line, never a match and never in the count. */
+  unscored = 0,
 ): Promise<Delivery> {
   return broadcast(
-    { telegram: formatTelegramDigest(jobs, quiet, title, more), discord: formatDiscordDigest(jobs, quiet, title, more) },
+    {
+      telegram: formatTelegramDigest(jobs, quiet, title, more, unscored),
+      discord: formatDiscordDigest(jobs, quiet, title, more, unscored),
+    },
     targetId,
   );
 }
@@ -108,16 +113,18 @@ export function formatTelegramDigest(
   quiet: readonly QuietSourceAlert[],
   title: string,
   more = 0,
+  unscored = 0,
 ): string[] {
   const healthLine = formatSourceHealthLine([...quiet]);
+  const waiting = unscored > 0 ? telegramText('digest.unscored', { n: unscored }) : '';
   if (jobs.length === 0) {
-    const empty = telegramText('digest.empty');
-    return [healthLine ? `${empty}\n\n${healthLine}` : empty];
+    return [[telegramText('digest.empty'), waiting, healthLine].filter((part) => part !== '').join('\n\n')];
   }
   const header = `*${telegramText('digest.header', { title, n: jobs.length + more })}*${healthLine ? `\n${healthLine}` : ''}`;
   const blocks = jobs.map(formatJobMessage);
   // The last line of a delivery that lists only the best of a long wait; the rest are still New on the dashboard.
   if (more > 0) blocks.push(telegramText('digest.more', { n: more }));
+  if (waiting) blocks.push(waiting);
   return packMessages(header, blocks, '\n\n———\n\n', MAX_MESSAGE_LENGTH);
 }
 
@@ -256,7 +263,7 @@ export function formatJobMessage(job: AlertJob): string {
   if (job.attribution) {
     lines.push(escapeMarkdownV2(job.attribution));
   }
-  lines.push(`[${telegramText('notify.alert.apply')}](${escapeMarkdownV2Url(job.url)})`);
+  if (hasApplyLink(job)) lines.push(`[${telegramText('notify.alert.apply')}](${escapeMarkdownV2Url(job.url)})`);
   return lines.join('\n');
 }
 

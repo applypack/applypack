@@ -2,7 +2,9 @@
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
+import { companyOnPage } from '../../employer';
 import {
+  CompanyName,
   ActionForm,
   Badge,
   Button,
@@ -24,6 +26,7 @@ import {
 import { toCheckInterval } from '../../watchlist/interval';
 import { formatDate, formatRelative, formatSalary, safeHref } from '../format';
 import { techLabel } from '../tech-label';
+import { sourceLabel } from '../source-names';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf } from '../../countries';
@@ -44,7 +47,8 @@ import { wordedStage, type StageDef } from '../stage-config';
 import type { AiBilling } from '../../ai-usage';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
-import { ApplicationPackCard, type ApplicationPackProps } from './application-pack-card';
+import { ApplicationPackCard, PACK_LINE_ID, type ApplicationPackProps } from './application-pack-card';
+import { packBusy } from '../../pack/view';
 
 interface JobDetail {
   id: number;
@@ -117,7 +121,9 @@ export interface MuteState {
 export interface CrossListedJob {
   id: number;
   title: string;
-  company: { name: string };
+  /** Who the copy says hires; null when it names nobody. */
+  employer: string | null;
+  company: { name: string; atsType: string };
 }
 
 /** One running search's verdict on this posting (ADR 0028). */
@@ -135,7 +141,8 @@ export interface ProfileScore {
 export interface JobDetailProps {
   job: JobDetail;
   /** Resumes offered by "Mark applied", and the one it starts on. */
-  appliedResumePicker: { resumes: { id: number; name: string }[]; suggestedId: number | null };
+  /** `packValue`: the picker's value for the application pack's file, while a ready pack no one froze exists (applied-resume.ts:packChoiceValue). */
+  appliedResumePicker: { resumes: { id: number; name: string }[]; suggestedId: number | null; packValue: string | null };
   /** Every search that has scored this posting, best first. */
   profileScores: ProfileScore[];
   applicationTrackingEnabled: boolean;
@@ -194,12 +201,14 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   tabs,
   flash,
 }) => (
-  // A pack in the queue or in flight is the one thing on this page that changes by itself.
+  // A pack in the queue or in flight is the one thing on this page that changes by itself. The tab asks
+  // for its state (public/pack-tab.mjs) rather than reloading: the rail beside it holds forms, and a
+  // reload every few seconds threw away whatever was being typed into them (#378).
   <Layout
     title={job.title}
     titleIsData
     active="jobs"
-    refresh={tab === 'pack' && (applicationPack.pack?.status === 'queued' || applicationPack.pack?.status === 'running') ? PACK_REFRESH_SECONDS : undefined}
+    refreshWithoutScript={tab === 'pack' && packBusy(applicationPack.pack) ? PACK_REFRESH_SECONDS : undefined}
   >
     {/* One solid button a tab: the comparison and the letter bring their own
         ("Tailor resume", "Copy letter"), so the header's steps back on those. */}
@@ -270,7 +279,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
             {job.alertedAt && <FactRow label={t('job.alerted')}>{formatDate(job.alertedAt)}</FactRow>}
             <AppliedWithRow job={job} />
             <FactRow label={t('job.source')}>
-              <span translate="no">{job.company.atsType.replace('_', ' ')}</span>
+              {/* A vendor's name is a name; a kind that is no vendor ("Folder on this computer") is worded (#405). */}
+              <span translate="no">{sourceLabel(job.company.atsType)}</span>
             </FactRow>
             {job.sourceFile && (
               <FactRow label={t('job.from')}>
@@ -423,8 +433,15 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     {/* Copy on the suggestion cards and the change sheet; the card itself is
         server-rendered, so this is all the JavaScript this page needs. */}
     <script type="module" dangerouslySetInnerHTML={{ __html: COPY_BOOT }} />
+    {tab === 'pack' && packBusy(applicationPack.pack) && <script type="module" dangerouslySetInnerHTML={{ __html: packBoot(job.id) }} />}
   </Layout>
 );
+
+/** The pack tab while a pack is queued or in flight: its state is asked for, the page is not reloaded. */
+const packBoot = (jobId: number): string => `
+import { init } from '/static/pack-tab.mjs';
+init({ url: '/jobs/${jobId}/pack/state', line: document.getElementById('${PACK_LINE_ID}') });
+`;
 
 const COPY_BOOT = `
 import { wireCopy } from '/static/copy.mjs';
@@ -527,6 +544,15 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
  * this one duplicates, and later arrivals that duplicate it. Nothing is
  * merged or hidden — the point is to stop you applying twice (ADR 0018).
  */
+/**
+ * The sentence for one other copy (#444): who hires and, apart from it, where
+ * the copy is listed. "<job> at <source>" read the source as the employer.
+ */
+function crossListedKey(copy: CrossListedJob): MessageKey {
+  const { name, via } = companyOnPage(copy.employer, copy.company);
+  return via === null ? 'job.crossListed' : name === null ? 'job.crossListedUnnamed' : 'job.crossListedVia';
+}
+
 const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
   const others = [
     ...(job.crossListedOf ? [job.crossListedOf] : []),
@@ -541,7 +567,7 @@ const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
       <ul class="mt-1.5 space-y-1 text-note text-ink-muted">
         {others.map((o) => (
           <li>
-            {tRich('job.crossListed', {}, {
+            {tRich(crossListedKey(o), {}, {
               job: () => (
                 <a
                   href={`/jobs/${o.id}`}
@@ -551,7 +577,8 @@ const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
                   {o.title}
                 </a>
               ),
-              company: () => <span translate="no">{o.company.name}</span>,
+              company: () => <span translate="no">{companyOnPage(o.employer, o.company).name}</span>,
+              source: () => <span translate="no">{o.company.name}</span>,
             })}
           </li>
         ))}
@@ -588,8 +615,8 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
         </h1>
         <div class="mt-1 text-sm text-ink-muted">
           {job.company.watched && <span aria-label={t('job.watchedCompany')}>★ </span>}
-          <span translate="no">{job.employer ?? job.company.name}</span>
-          {job.employer && job.company.atsType !== 'ADZUNA' && job.company.atsType !== 'FRANCETRAVAIL' && (
+          <CompanyName name={companyOnPage(job.employer, job.company).name} />
+          {companyOnPage(job.employer, job.company).via !== null && job.company.atsType !== 'ADZUNA' && job.company.atsType !== 'FRANCETRAVAIL' && (
             <span class="text-ink-faint"> · {tRich('job.via', {}, { source: () => <span translate="no">{job.company.name}</span> })}</span>
           )}{' '}
           · {job.location ? <span translate="no">{job.location}</span> : workplaceName('REMOTE')}
@@ -698,8 +725,14 @@ const MarkAppliedPicker: FC<{
         >
           <Select name="appliedResumeId" form={MARK_APPLIED_FORM}>
             <option value="">{t('job.dontRecordAResume')}</option>
+            {/* A pack is ready: its file is the likely answer, and choosing it keeps that file for good. */}
+            {picker.packValue && (
+              <option value={picker.packValue} selected>
+                {t('job.applied.packFile')}
+              </option>
+            )}
             {picker.resumes.map((r) => (
-              <option value={r.id} selected={r.id === picker.suggestedId} translate="no">
+              <option value={r.id} selected={!picker.packValue && r.id === picker.suggestedId} translate="no">
                 {r.name}
               </option>
             ))}
@@ -742,6 +775,7 @@ const AppliedWithField: FC<{ job: JobDetail; picker: JobDetailProps['appliedResu
         <option value="" selected={job.appliedResumeId === null}>
           {t('job.notRecorded')}
         </option>
+        {picker.packValue && <option value={picker.packValue}>{t('job.applied.packFile')}</option>}
         {picker.resumes.map((r) => (
           <option value={r.id} selected={r.id === job.appliedResumeId} translate="no">
             {r.name}

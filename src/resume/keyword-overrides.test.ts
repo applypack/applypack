@@ -294,3 +294,22 @@ test('confirmable offers what the model asked and what it could not back, minus 
   assert.deepEqual(asks.map((x) => x.term), ['Docker']);
   assert.deepEqual(unproven.map((x) => x.term), ['WordPress', 'SASS']);
 });
+
+// #348: "do you have Sr. Software Engineer, Marine?" — a job title is not something a person has or lacks.
+test('confirmable never asks about the posting\'s own title, in either spelling', () => {
+  const k = (term: string, status: MatchKeyword['status'], extra: Partial<MatchKeyword> = {}): MatchKeyword =>
+    ({ term, priority: 1, requirement: 'must', primary: false, status, aliases: [], where: null, note: null, ...extra }) as MatchKeyword;
+  const asked = (title: string | null | undefined, keywords: MatchKeyword[]) => {
+    const { asks, unproven } = confirmable(keywords, title);
+    return { asks: asks.map((x) => x.term), unproven: unproven.map((x) => x.term) };
+  };
+  // The six of the issue's live comparisons, by shape: the title in full, and the title cut short.
+  assert.deepEqual(asked('Sr. Software Engineer, Marine', [k('Sr. Software Engineer, Marine', 'cannot_claim', { priority: 2 }), k('Go', 'cannot_claim')]), { asks: [], unproven: ['Go'] });
+  assert.deepEqual(asked('Product Lead (Strategy + Full Stack)', [k('Product Lead', 'ask_user', { priority: 2 }), k('SQL', 'ask_user')]), { asks: ['SQL'], unproven: [] });
+  // A skill is asked as before, also one that is a word of the title, and one an earlier prompt kept at priority 2.
+  assert.deepEqual(asked('Senior PHP Developer', [k('PHP', 'cannot_claim'), k('Symfony', 'ask_user', { priority: 2 })]), { asks: ['Symfony'], unproven: ['PHP'] });
+  // A term the person added themselves is theirs to answer, whatever it spells.
+  assert.deepEqual(asked('Product Lead', [k('Product Lead', 'ask_user', { priority: 2, override: { added: true } })]), { asks: ['Product Lead'], unproven: [] });
+  // With no title at hand nothing is left out: the caller that knows none asks as it did.
+  assert.deepEqual(asked(undefined, [k('Product Lead', 'cannot_claim', { priority: 2 })]), { asks: [], unproven: ['Product Lead'] });
+});

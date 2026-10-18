@@ -10,7 +10,7 @@ import {
   type Entry as ValidatorEntry,
 } from '../fetchers/conditional';
 import { beginPageChangeTick } from '../watchlist/page-changes';
-import { beginFolderTick, takeFolderLooks } from '../fetchers/folder-ledger';
+import { beginFolderTick, looksToKeep, takeFolderLooks } from '../fetchers/folder-ledger';
 import { keepFolderLooks } from './source-file-store';
 import { deliverPageChanges, recordPageChanges } from './page-change-alerts';
 import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
@@ -23,7 +23,7 @@ import { deliverHeldAlerts } from './alert-delivery';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
-import { tryFetchLock } from './fetch-lock';
+import { tryFetchLock, type FetchLock } from './fetch-lock';
 import { addToFunnel } from './funnel-store';
 import type { CronStats, SourceStat } from './cron-run';
 
@@ -40,6 +40,12 @@ export interface FetchJobOptions {
   /** The wizard's test search: a subset of the sources, a place typed before any search exists. */
   only?: FetchWalkOptions['only'];
   places?: FetchWalkOptions['places'];
+  /**
+   * The fetch lock, already taken by the caller, who then records the run
+   * knowing it will happen (jobs/fetch-tick.ts): a run that only met another
+   * fetch leaves no row behind. Released here, as one taken here is.
+   */
+  lock?: FetchLock;
 }
 
 /**
@@ -48,7 +54,7 @@ export interface FetchJobOptions {
  * `overlap` and does nothing — no source read, no alert sent, no AI spent.
  */
 export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: CronStats }> {
-  const lock = await tryFetchLock();
+  const lock = opts.lock ?? (await tryFetchLock());
   if (!lock) {
     logger.warn({ manual: opts.manual === true }, 'fetch-job: another fetch is running; skipped');
     return { stats: { skipped: 1, reason: 'overlap' } };
@@ -219,21 +225,25 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
 
   opts.onProcessing?.();
   const inner = emptyProcessStats();
+  // The sources a posting came from and was not stored for want of a verdict.
+  const unstored = new Set<number>();
   await processNormalizedJobs(fetched, profiles, inner, {
     classifierMode,
     classify,
     isCancelled: paused,
     schedule,
+    unstored,
   });
 
   // Only now may this tick's validators be sent, and only if it stored
   // everything it fetched — see tickStoredEverything for why each counter
   // costs us a full re-read next tick instead of a skipped posting.
-  if (tickStoredEverything(inner)) {
-    await keepValidators(commitConditionalCache());
-    // The same rule for a folder's ledger: a file is "read" only once its rows are stored.
-    await keepFolderLooks(takeFolderLooks()).catch((err) => logger.warn({ err }, 'fetch-job: folder ledger not kept; the files are read again next tick'));
-  }
+  if (tickStoredEverything(inner)) await keepValidators(commitConditionalCache());
+  // The same rule for a folder's ledger, asked a folder at a time: a file is "read" only once its rows
+  // are stored, and a posting no model scores on another source is no reason to read this folder again.
+  await keepFolderLooks(looksToKeep(takeFolderLooks(), inner, unstored)).catch((err) =>
+    logger.warn({ err }, 'fetch-job: folder ledger not kept; the files are read again next tick'),
+  );
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {

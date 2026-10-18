@@ -82,8 +82,23 @@ export const JsonTree: FC<{ value: unknown; depth?: number }> = ({ value, depth 
   return <span class="whitespace-pre-wrap">{String(value)}</span>;
 };
 
+/**
+ * Where a posting in a message came from, when the message owes a line about
+ * it: the person's own folder and file, or what a vendor's terms ask for. The
+ * alert, the held list and the daily recap all ask here — the recap and the
+ * held list used to drop "From your folder" (#391).
+ */
+export function sourceLine(
+  sourceFile: string | null | undefined,
+  sourceName: string,
+  source: { atsType: string; atsToken: string } | undefined,
+): string | null {
+  if (sourceFile) return `From your folder: ${sourceName} / ${sourceFile}`;
+  return source ? attributionLine(source.atsType, source.atsToken) : null;
+}
+
 /** The plain-text form for a Telegram line, where an image cannot go. */
-export function attributionLine(atsType: string, atsToken: string): string | null {
+function attributionLine(atsType: string, atsToken: string): string | null {
   if (atsType === 'FRANCETRAVAIL') return `Source: France Travail — licence: ${FRANCE_TRAVAIL_LICENCE_URL}`;
   if (atsType !== 'ADZUNA') return null;
   try {

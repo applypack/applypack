@@ -2,9 +2,13 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
+  CLOCK_SLACK_MS,
   FILE_NOTES,
   MAX_FILES_PER_LOOK,
   MAX_FILE_BYTES,
+  MAX_ROW_BYTES_PER_LOOK,
+  MAX_ROW_FILES_PER_LOOK,
+  OPEN_ROW_SETTLE_MS,
   SETTLE_MS,
   guessHolds,
   includeMatcher,
@@ -17,18 +21,18 @@ import {
   newestIsMisfit,
   planScan,
   rowFileKind,
+  unreachedChanges,
   unreadChange,
   type FileRead,
   type LedgerEntry,
   type ListedFile,
 } from './folder-scan';
 import { emptyMapping, type Mapping } from './map';
-import { MAX_ROWS } from './rows';
 
 const NOW = Date.UTC(2026, 9, 5, 12);
 const MINUTE = 60_000;
 const file = (relPath: string, ageMs = 10 * MINUTE, size = 1_000): ListedFile => ({ relPath, size, mtimeMs: NOW - ageMs });
-const seen = (f: ListedFile, status: LedgerEntry['status'] = 'done'): LedgerEntry => ({ ...f, sha256: 'a'.repeat(64), status });
+const seen = (f: ListedFile, status: LedgerEntry['status'] = 'done'): LedgerEntry => ({ ...f, sha256: 'a'.repeat(64), status, rowsRead: 0, jobCount: 0 });
 const names = (files: readonly ListedFile[]): string[] => files.map((f) => f.relPath);
 
 describe('rowFileKind', () => {
@@ -137,25 +141,69 @@ describe('planScan', () => {
     assert.equal(plan.other, 3);
   });
 
-  it('reads a bounded number of files a look and leaves the rest for the next', () => {
-    const many = Array.from({ length: MAX_FILES_PER_LOOK + 3 }, (_, i) => file(`run-${String(i).padStart(2, '0')}.json`, (100 - i) * MINUTE));
-    const plan = planScan(many, [], NOW);
+  // Oldest first, as the plan orders them: run-000 is the oldest.
+  const runs = (n: number, ext: string, size = 1_000): ListedFile[] =>
+    Array.from({ length: n }, (_, i) => file(`run-${String(i).padStart(3, '0')}.${ext}`, (10_000 - i) * MINUTE, size));
+
+  it('reads a bounded number of saved postings a look and leaves the rest for the next', () => {
+    // A posting can be a model call: twenty a look is its spending limit, and stays (#432).
+    const plan = planScan(runs(MAX_FILES_PER_LOOK + 3, 'html'), [], NOW, undefined, 'postings');
     assert.equal(plan.read.length, MAX_FILES_PER_LOOK);
-    assert.deepEqual(names(plan.later), ['run-20.json', 'run-21.json', 'run-22.json']);
-    assert.equal(plan.read[0]!.relPath, 'run-00.json');
+    assert.deepEqual(names(plan.later), ['run-020.html', 'run-021.html', 'run-022.html']);
+    assert.equal(plan.read[0]!.relPath, 'run-000.html');
+  });
+
+  it('reads files of rows by what they cost: twenty-five small ones in one look, a few hundred at most (#432)', () => {
+    // The live case: 25 one-row files took two looks, and a 1,000-file run two days.
+    assert.equal(planScan(runs(25, 'json'), [], NOW).read.length, 25);
+    const plan = planScan(runs(MAX_ROW_FILES_PER_LOOK + 3, 'json'), [], NOW);
+    assert.equal(plan.read.length, MAX_ROW_FILES_PER_LOOK);
+    assert.deepEqual(names(plan.later), ['run-400.json', 'run-401.json', 'run-402.json']);
+  });
+
+  it('stops a look of rows at its bytes, in order: nothing is read out of turn', () => {
+    const big = Math.floor(MAX_ROW_BYTES_PER_LOOK / 5);
+    // Five files of that size fill a look; the small one after them waits its turn behind the sixth.
+    const files = [...runs(6, 'csv', big), file('small.csv', MINUTE, 10)];
+    const plan = planScan(files, [], NOW);
+    assert.equal(plan.read.length, 5);
+    assert.deepEqual(names(plan.later), ['run-005.csv', 'small.csv']);
+    // One file larger than what is left never blocks a look that has read nothing.
+    assert.equal(planScan([file('one.csv', 10 * MINUTE, big)], [], NOW).read.length, 1);
   });
 
   it('reads new and changed files before the ones it looks at again, so a heap of those cannot starve them', () => {
-    const retried = Array.from({ length: MAX_FILES_PER_LOOK }, (_, i) => file(`stuck-${String(i).padStart(2, '0')}.json`, (500 - i) * MINUTE));
+    const retried = Array.from({ length: MAX_ROW_FILES_PER_LOOK }, (_, i) => file(`stuck-${String(i).padStart(3, '0')}.json`, (5_000 - i) * MINUTE));
     const fresh = file('new.json', MINUTE);
     const plan = planScan([...retried, fresh], retried.map((f) => seen(f, 'waiting')), NOW);
     assert.equal(plan.read[0]!.relPath, 'new.json');
-    assert.equal(plan.read.length, MAX_FILES_PER_LOOK);
-    assert.deepEqual(names(plan.later), ['stuck-19.json']);
+    assert.equal(plan.read.length, MAX_ROW_FILES_PER_LOOK);
+    assert.deepEqual(names(plan.later), ['stuck-399.json']);
   });
 
-  it('reads a file dated in the future instead of waiting for it forever', () => {
+  it('notes a file a look did not reach as waiting, once, and only one the ledger has never heard of', () => {
+    const [a, b, c] = runs(3, 'json');
+    const changes = unreachedChanges([a!, b!, c!], [seen(b!, 'failed')]);
+    // b keeps the row that says why it could not be opened.
+    assert.deepEqual(changes.map((ch) => ch.relPath), ['run-000.json', 'run-002.json']);
+    assert.deepEqual(changes[0], { ...a!, kind: 'json', sha256: null, status: 'waiting', detail: 'Not reached yet: a check reads only so much at a time. The next check reads it.', jobCount: 0, rowsRead: 0 });
+    // Noted, it is in the ledger: the next look that still does not reach it writes nothing.
+    assert.deepEqual(unreachedChanges([a!], [{ ...changes[0]!, sha256: null }]), []);
+    assert.equal(unreachedChanges([file('page.html')], [], 'postings')[0]?.kind, 'html');
+  });
+
+  it('reads a file dated far in the future instead of waiting for it forever', () => {
     assert.deepEqual(names(planScan([file('ahead.json', -10 * MINUTE)], [], NOW).read), ['ahead.json']);
+    assert.deepEqual(names(planScan([file('edge.json', -CLOCK_SLACK_MS)], [], NOW).read), ['edge.json']);
+  });
+
+  // #396: against a walk's clock, a file written minutes into the walk was dated ahead and read half-written.
+  it('lets a file dated a little ahead of the clock wait, like one just written', () => {
+    const plan = planScan([file('ahead.json', -3 * MINUTE), file('skew.json', -1_000), file('old.json')], [], NOW);
+    assert.deepEqual(names(plan.waiting), ['ahead.json', 'skew.json']);
+    assert.deepEqual(names(plan.read), ['old.json']);
+    // Once the clock has passed it by the settle time, it is read.
+    assert.deepEqual(names(planScan([file('ahead.json', -3 * MINUTE)], [], NOW + 3 * MINUTE + SETTLE_MS).read), ['ahead.json']);
   });
 
   it('is not troubled by a file that disappeared: the ledger keeps its row and the plan says nothing', () => {
@@ -175,7 +223,7 @@ describe('judgeFile', () => {
     { title: 'Backend Developer', url: 'https://rows.example/1', company: 'Fennel Works', posted: '2026-09-25' },
     { title: 'Mobile Developer', url: 'https://rows.example/2', company: 'Fennel Works' },
   ];
-  const judge = (got: FileRead, readAs: ReadonlyMap<string, string> = new Map()) => judgeFile(listed, got, mapping, 9, readAs);
+  const judge = (got: FileRead, readAs: ReadonlyMap<string, string> = new Map()) => judgeFile(listed, got, mapping, 9, readAs, undefined, undefined, NOW);
 
   it('hands over the rows of a file that fits, and records it as read with its hash', () => {
     const got = bytesOf(rows);
@@ -185,7 +233,8 @@ describe('judgeFile', () => {
       [9, 'Backend Developer', 'Fennel Works'],
       [9, 'Mobile Developer', 'Fennel Works'],
     ]);
-    assert.deepEqual(verdict.change, { relPath: 'run-1.json', kind: 'json', status: 'done', detail: null, jobCount: 2, size: got.ok ? got.size : 0, mtimeMs: listed.mtimeMs, sha256: got.ok ? got.sha256 : '' });
+    assert.deepEqual(verdict.change, { relPath: 'run-1.json', kind: 'json', status: 'done', detail: null, jobCount: 2, rowsRead: 2, size: got.ok ? got.size : 0, mtimeMs: listed.mtimeMs, sha256: got.ok ? got.sha256 : '' });
+    assert.equal(verdict.taken, 2);
   });
 
   it('gives a row that names no date the file’s own time', () => {
@@ -225,15 +274,275 @@ describe('judgeFile', () => {
     assert.equal(withClosed.change?.jobCount, 1);
   });
 
-  it('notes a file cut at the row ceiling', () => {
-    const many = Array.from({ length: MAX_ROWS + 5 }, (_, i) => ({ title: `Role ${i}`, url: `https://rows.example/${i}` }));
-    const verdict = judge(bytesOf(many));
-    assert.equal(verdict.change?.jobCount, MAX_ROWS);
-    assert.equal(verdict.change?.detail, 'The first 2,000 of 2,005 rows.');
+  describe('a file that holds one JSON object (#395)', () => {
+    const one = (value: unknown) => judge(bytesOf(value));
+
+    it('reads a posting saved as JSON, its list of places inside, as one job', () => {
+      const posting = { title: 'Backend Developer', url: 'https://rows.example/1', company: 'Fennel Works', jobLocation: [{ '@type': 'Place', address: { addressLocality: 'Lisbon' } }, { '@type': 'Place', address: { addressLocality: 'Porto' } }] };
+      const verdict = one(posting);
+      assert.deepEqual([verdict.rows, verdict.jobs.map((j) => j.title), verdict.change?.status, verdict.change?.jobCount], ['fit', ['Backend Developer'], 'done', 1]);
+    });
+
+    it('sets aside a stats file instead of calling it a misfit', () => {
+      const verdict = one({ startedAt: '2026-10-06T10:00:00Z', finishedAt: '2026-10-06T10:02:11Z', pages: 14, rowsWritten: 2, errors: 0 });
+      assert.deepEqual([verdict.rows, verdict.change?.status, verdict.change?.detail], ['none', 'skipped', FILE_NOTES.notAPosting]);
+      // Settled with its hash like any file set aside: read again only when it changes.
+      assert.notEqual(verdict.change?.sha256, null);
+    });
+
+    it('still calls one posting under other column names a misfit: the tool changed what it writes', () => {
+      const verdict = one({ position: 'Backend Developer', link: 'https://rows.example/1', organisation: 'Fennel Works' });
+      assert.deepEqual([verdict.rows, verdict.change?.status], ['misfit', 'failed']);
+    });
+
+    it('and a list of things that are no postings is a misfit as before, not one object', () => {
+      assert.equal(one([{ startedAt: 'x' }, { startedAt: 'y' }]).rows, 'misfit');
+    });
+
+    it('does not let a stats file newer than the rows fail the look that reads nothing', () => {
+      const data = file('run-1.json', 30 * MINUTE);
+      const stats = file('stats.json', 20 * MINUTE);
+      const ledger: LedgerEntry[] = [seen(data), { ...seen(stats, 'skipped') }];
+      assert.equal(newestIsMisfit([data, stats], ledger, () => true), false);
+      // What it was before: the stats file judged a misfit, and newer than the data.
+      assert.equal(newestIsMisfit([data, stats], [seen(data), seen(stats, 'failed')], () => true), true);
+    });
+  });
+
+  describe('a table still being written (#396)', () => {
+    const columns: Mapping = { ...emptyMapping(), id: 'id', title: 'title', url: 'url' };
+    const at = (ageMs: number): ListedFile => file('slow.csv', ageMs);
+    const read = (listedAs: ListedFile, body: string): Extract<FileRead, { ok: true }> => {
+      const bytes = Buffer.from(body);
+      return { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length, mtimeMs: listedAs.mtimeMs };
+    };
+    const look = (listedAs: ListedFile, body: string, known?: LedgerEntry) => judgeFile(listedAs, read(listedAs, body), columns, 9, new Map(), known, undefined, NOW);
+    const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
+      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
+      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+    };
+    const head = 'id,title,url\n1,One,https://rows.example/1\n2,Two,https://rows.example/2\n3,Thr';
+    const rest = 'ee,https://rows.example/3\n4,Four,https://rows.example/4\n';
+
+    it('leaves a last row with no line end for a later look while the file is young', () => {
+      const young = at(30_000);
+      const verdict = look(young, head);
+      assert.deepEqual(verdict.jobs.map((j) => j.title), ['One', 'Two']);
+      assert.deepEqual([verdict.change?.status, verdict.change?.detail, verdict.change?.rowsRead, verdict.taken], ['waiting', FILE_NOTES.openRow, 2, 2]);
+      assert.match(FILE_NOTES.openRow, /still for 2 minutes\.$/);
+    });
+
+    it('reads the row whole once the tool has ended it, and every later row once', () => {
+      const first = look(at(30_000), head);
+      const second = look(at(20 * MINUTE), head + rest, kept(first));
+      assert.deepEqual(second.jobs.map((j) => [j.title, j.url]), [['Three', 'https://rows.example/3'], ['Four', 'https://rows.example/4']]);
+      assert.deepEqual([second.change?.status, second.change?.rowsRead, second.change?.jobCount], ['done', 4, 4]);
+    });
+
+    it('reads a whole file that simply ends without a line break, one look later', () => {
+      const whole = 'id,title,url\n1,One,https://rows.example/1\n2,Two,https://rows.example/2';
+      const first = look(at(30_000), whole);
+      assert.deepEqual([first.jobs.map((j) => j.title), first.change?.status], [['One'], 'waiting']);
+      // The same bytes, still for long enough: its last row is a row.
+      const second = look(at(OPEN_ROW_SETTLE_MS), whole, kept(first));
+      assert.deepEqual([second.jobs.map((j) => j.title), second.change?.status, second.change?.detail, second.change?.rowsRead], [['Two'], 'done', null, 2]);
+      // And a file found already still is read in one look.
+      assert.deepEqual(look(at(10 * MINUTE), whole).jobs.map((j) => j.title), ['One', 'Two']);
+    });
+
+    it('holds nothing back from a file that ends its last row, or from one whose rows are JSON', () => {
+      assert.equal(look(at(30_000), `${head}\n`).change?.status, 'done');
+      const lines = judgeFile(file('run.jsonl', 30_000), read(file('run.jsonl', 30_000), '{"id":"1","title":"One","url":"https://rows.example/1"}\n{"id":"2","title":"Two","url":"https://rows.example/2"}'), columns, 9, new Map(), undefined, undefined, NOW);
+      assert.deepEqual([lines.jobs.length, lines.change?.status], [2, 'done']);
+    });
+
+    it('waits with a young file of one row rather than calling it a misfit', () => {
+      const verdict = look(at(30_000), 'id,title,url\n1,One');
+      assert.deepEqual([verdict.rows, verdict.jobs.length, verdict.change?.status], ['fit', 0, 'waiting']);
+    });
+  });
+
+  describe('the date a row takes (#396)', () => {
+    const rowsOf = [
+      { title: 'Backend Developer', url: 'https://rows.example/1', company: 'Fennel Works', posted: '2026-09-25' },
+      { title: 'Mobile Developer', url: 'https://rows.example/2', company: 'Fennel Works' },
+    ];
+    const dated = (mtimeMs: number) => {
+      const bytes = Buffer.from(JSON.stringify(rowsOf));
+      const listedAs = { relPath: 'run-1.json', size: bytes.length, mtimeMs };
+      const got: FileRead = { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length, mtimeMs };
+      return judgeFile(listedAs, got, mapping, 9, new Map(), undefined, undefined, NOW).jobs.map((j) => j.postedAt.toISOString());
+    };
+
+    it('holds a stated date against the clock, not against the file: a file stamped 1980 keeps its rows’ dates', () => {
+      // The file's time was the "now" a date could not be after, so 2026-09-25 was "in the future" and became 1980.
+      assert.deepEqual(dated(Date.UTC(1980, 0, 1, 12)), ['2026-09-25T00:00:00.000Z', new Date(NOW).toISOString()]);
+    });
+
+    it('dates an undated row now when the file’s time is ahead of the clock', () => {
+      assert.deepEqual(dated(NOW + 2 * 24 * 60 * MINUTE), ['2026-09-25T00:00:00.000Z', new Date(NOW).toISOString()]);
+    });
+
+    it('still gives an undated row the time of a file written in the past', () => {
+      assert.deepEqual(dated(NOW - 40 * 24 * 60 * MINUTE)[1], new Date(NOW - 40 * 24 * 60 * MINUTE).toISOString());
+    });
+  });
+
+  describe('a file that cannot be read whole (#394)', () => {
+    const csv = file('export.csv');
+    const columns: Mapping = { ...emptyMapping(), id: 'id', title: 'title', url: 'url' };
+    const read = (body: string | Uint8Array): Extract<FileRead, { ok: true }> => {
+      const bytes = Buffer.from(body);
+      return { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length, mtimeMs: csv.mtimeMs };
+    };
+    const look = (body: string | Uint8Array, known?: LedgerEntry, maxRows?: number) => judgeFile(csv, read(body), columns, 9, new Map(), known, maxRows, NOW);
+    const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
+      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
+      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+    };
+    const cut = ['id,title,url', '1,One,https://rows.example/1', '2,Two,https://rows.example/2', '3,"Three,https://rows.example/3', '4,Four,https://rows.example/4', ''].join('\n');
+
+    it('hands over the rows above a quote that never closes, and the ledger says what was lost', () => {
+      const verdict = look(cut);
+      assert.deepEqual([verdict.rows, verdict.jobs.map((j) => j.title), verdict.taken], ['fit', ['One', 'Two'], 2]);
+      assert.deepEqual([verdict.change?.status, verdict.change?.rowsRead, verdict.change?.jobCount], ['done', 2, 2]);
+      assert.match(verdict.change?.detail ?? '', /^A quote opened on line 4 is never closed, so nothing from that line on could be read\./);
+      assert.deepEqual(verdict.notes, [verdict.change!.detail]);
+    });
+
+    it('reads a file that was cut while being written on from the rows it had, once it is whole', () => {
+      const head = 'id,title,url\n1,One,https://rows.example/1\n2,"Two, the';
+      const first = look(head);
+      assert.deepEqual([first.jobs.map((j) => j.title), first.change?.status, first.change?.rowsRead], [['One'], 'done', 1]);
+      const second = look(`${head} second",https://rows.example/2\n3,Three,https://rows.example/3\n`, kept(first));
+      assert.deepEqual(second.jobs.map((j) => j.title), ['Two, the second', 'Three']);
+      assert.deepEqual([second.change?.status, second.change?.detail, second.change?.rowsRead, second.notes], ['done', null, 3, []]);
+    });
+
+    it('lets a long cut file wait like any long file, and says the cut when its last sound row is read', () => {
+      const first = look(cut, undefined, 1);
+      assert.equal(first.change?.status, 'waiting');
+      assert.match(first.change?.detail ?? '', /^1 of 2 rows read so far/);
+      const second = look(cut, kept(first), 1);
+      assert.deepEqual([second.jobs.map((j) => j.title), second.change?.status, second.change?.rowsRead], [['Two'], 'done', 2]);
+      assert.match(second.change?.detail ?? '', /line 4/);
+    });
+
+    it('sets aside JSON that stops short in its own words, and a table with no sound row in its own', () => {
+      const json = judgeFile(listed, bytesOf('[{"title":"a","url":"u1"},\n{"title":"b","ur'), mapping, 9, new Map());
+      assert.deepEqual([json.change?.status, json.change?.detail, json.rows, json.notes], ['skipped', FILE_NOTES.brokenJson, 'none', [FILE_NOTES.brokenJson]]);
+      const table = look('id,title,url\n1,"One');
+      assert.equal(table.change?.status, 'skipped');
+      assert.match(table.change?.detail ?? '', /^A quote opened on line 2 is never closed, and there is no row above/);
+      // A file that simply holds no rows has nothing the Check page needs to say.
+      assert.deepEqual(look('just some notes\nabout nothing').notes, []);
+    });
+
+    it('reads a file that is not UTF-8, and notes the encoding it took without calling anything lost', () => {
+      const verdict = look(Buffer.from('id,title,url\n1,Entwickler Z\u00fcrich,https://rows.example/1\n', 'latin1'));
+      assert.equal(verdict.jobs[0]!.title, 'Entwickler Zürich');
+      assert.deepEqual([verdict.change?.status, verdict.change?.detail], ['done', null]);
+      assert.equal(verdict.notes.length, 1);
+      assert.match(verdict.notes[0]!, /read as Windows-1252/);
+    });
+
+    it('counts characters that could not be read as a part of the file lost', () => {
+      const bytes = Buffer.from('id,title,url\n1,Розробник,https://rows.example/1\n2,Тестувальник,https://rows.example/2\n', 'utf8');
+      bytes[bytes.indexOf(0xd0) + 1] = 0x20;
+      const verdict = look(bytes);
+      assert.deepEqual([verdict.jobs.length, verdict.change?.status], [2, 'done']);
+      assert.match(verdict.change?.detail ?? '', /^1 character could not be read and shows as \uFFFD\./);
+    });
+  });
+
+  describe('a file longer than one look takes', () => {
+    const role = (i: number) => ({ title: `Role ${i}`, url: `https://rows.example/${i}` });
+    const lines = (from: number, to: number): string => Array.from({ length: to - from }, (_, i) => `${JSON.stringify(role(from + i))}\n`).join('');
+    /** The ledger's row after a look, as the next look is handed it. */
+    const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
+      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
+      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+    };
+    const look = (got: FileRead, known?: LedgerEntry, maxRows = 3) => judgeFile(listed, got, mapping, 9, new Map(), known, maxRows);
+    const titles = (verdict: ReturnType<typeof judgeFile>): string[] => verdict.jobs.map((j) => j.title);
+
+    it('is read a look’s worth at a time, every row once, and waits until its end', () => {
+      const got = bytesOf(lines(0, 8));
+      const first = look(got);
+      assert.deepEqual(titles(first), ['Role 0', 'Role 1', 'Role 2']);
+      assert.deepEqual([first.change?.status, first.change?.rowsRead, first.change?.jobCount, first.taken], ['waiting', 3, 3, 3]);
+      assert.equal(first.change?.detail, '3 of 8 rows read so far. The next check reads on from there.');
+      assert.notEqual(first.change?.sha256, null);
+
+      const second = look(got, kept(first));
+      assert.deepEqual(titles(second), ['Role 3', 'Role 4', 'Role 5']);
+      assert.deepEqual([second.change?.status, second.change?.rowsRead, second.change?.jobCount], ['waiting', 6, 6]);
+
+      const third = look(got, kept(second));
+      assert.deepEqual(titles(third), ['Role 6', 'Role 7']);
+      assert.deepEqual([third.change?.status, third.change?.detail, third.change?.rowsRead, third.change?.jobCount, third.taken], ['done', null, 8, 8, 2]);
+    });
+
+    it('reads past the 2,000th row: one file may take the whole look', () => {
+      const verdict = judge(bytesOf(lines(0, 2_100)));
+      assert.deepEqual([verdict.change?.status, verdict.change?.rowsRead, verdict.jobs.length], ['done', 2_100, 2_100]);
+    });
+
+    it('reads a file that only grew from its old end', () => {
+      const before = look(bytesOf(lines(0, 5)), undefined, 100);
+      assert.equal(before.change?.status, 'done');
+      const grown = look(bytesOf(lines(0, 7)), kept(before), 100);
+      assert.deepEqual(titles(grown), ['Role 5', 'Role 6']);
+      assert.deepEqual([grown.change?.status, grown.change?.rowsRead, grown.change?.jobCount], ['done', 7, 7]);
+    });
+
+    it('reads on from where it stopped when the file grew before its end was reached', () => {
+      const first = look(bytesOf(lines(0, 5)));
+      const grown = look(bytesOf(lines(0, 7)), kept(first));
+      assert.deepEqual(titles(grown), ['Role 3', 'Role 4', 'Role 5']);
+      assert.deepEqual([grown.change?.status, grown.change?.rowsRead], ['waiting', 6]);
+    });
+
+    it('reads a file written anew from its start', () => {
+      const before = look(bytesOf(lines(0, 5)), undefined, 100);
+      // Newest first: longer, and no longer opening with the bytes read then.
+      const rewritten = look(bytesOf(lines(5, 7) + lines(0, 5)), kept(before), 100);
+      assert.deepEqual(titles(rewritten).slice(0, 3), ['Role 5', 'Role 6', 'Role 0']);
+      assert.deepEqual([rewritten.change?.rowsRead, rewritten.change?.jobCount], [7, 7]);
+    });
+
+    it('hands over nothing from a file touched but not changed', () => {
+      const got = bytesOf(lines(0, 5));
+      const before = look(got, undefined, 100);
+      const again = look(got, kept(before), 100);
+      assert.deepEqual([again.jobs.length, again.taken, again.change?.status, again.change?.rowsRead, again.change?.jobCount], [0, 0, 'done', 5, 5]);
+    });
+
+    it('starts over when the file holds fewer rows than were read, whatever its first bytes say', () => {
+      const array = `[\n${[0, 1, 2].map((i) => JSON.stringify(role(i))).join(',\n')}\n]`;
+      const before = look(bytesOf(array), undefined, 100);
+      assert.equal(before.change?.rowsRead, 3);
+      // A second array after the first is no longer one JSON value: line by line, only the last row of the first reads as one.
+      const appended = look(bytesOf(`${array}\n[${JSON.stringify(role(3))}]`), kept(before), 100);
+      assert.deepEqual([titles(appended), appended.change?.rowsRead], [['Role 2'], 1]);
+    });
+
+    it('keeps what was read when later rows stop fitting the mapping', () => {
+      const first = look(bytesOf(lines(0, 3) + '{"position":"QA"}\n{"position":"Ops"}\n'));
+      const misfit = look(bytesOf(lines(0, 3) + '{"position":"QA"}\n{"position":"Ops"}\n'), kept(first));
+      assert.deepEqual([misfit.rows, misfit.change?.status, misfit.change?.rowsRead, misfit.change?.jobCount, misfit.jobs.length], ['misfit', 'failed', 3, 3, 0]);
+    });
+
+    it('starts over after a look that could not read the file', () => {
+      const first = look(bytesOf(lines(0, 8)));
+      const unread = judgeFile(listed, { ok: false, why: 'changing' }, mapping, 9, new Map(), kept(first), 3);
+      assert.deepEqual([unread.change?.sha256, unread.change?.rowsRead], [null, 0]);
+      assert.deepEqual(titles(look(bytesOf(lines(0, 8)), kept(unread))), ['Role 0', 'Role 1', 'Role 2']);
+    });
   });
 
   it('turns each way a read can fail into what the ledger should say', () => {
-    assert.deepEqual(judge({ ok: false, why: 'gone' }), { change: null, jobs: [], rows: 'none' });
+    assert.deepEqual(judge({ ok: false, why: 'gone' }), { change: null, jobs: [], rows: 'none', taken: 0, notes: [] });
     assert.deepEqual([judge({ ok: false, why: 'changing' }).change?.status, judge({ ok: false, why: 'changing' }).change?.detail], ['waiting', FILE_NOTES.changing]);
     assert.deepEqual([judge({ ok: false, why: 'refused' }).change?.status, judge({ ok: false, why: 'refused' }).change?.detail], ['failed', FILE_NOTES.refused]);
     assert.equal(judge({ ok: false, why: 'too-large' }).change?.detail, tooLargeNote('json'));
@@ -274,7 +583,7 @@ describe('newestIsMisfit', () => {
 
 describe('unreadChange', () => {
   it('records a file the plan did not read: one that waits, one too large', () => {
-    assert.deepEqual(unreadChange(file('a.csv'), 'fresh'), { ...file('a.csv'), kind: 'csv', sha256: null, status: 'waiting', detail: FILE_NOTES.fresh, jobCount: 0 });
+    assert.deepEqual(unreadChange(file('a.csv'), 'fresh'), { ...file('a.csv'), kind: 'csv', sha256: null, status: 'waiting', detail: FILE_NOTES.fresh, jobCount: 0, rowsRead: 0 });
     assert.equal(unreadChange(file('a.csv'), 'tooLarge').status, 'skipped');
   });
 });
@@ -282,6 +591,9 @@ describe('unreadChange', () => {
 describe('saved postings in a folder', () => {
   it('knows a saved posting by its extension, and keeps the kinds of a folder apart', () => {
     assert.deepEqual(['a.html', 'a.HTM', 'b.txt', 'c.md', 'c.markdown', 'd.pdf', 'e.docx'].map(postingFileKind), ['html', 'html', 'txt', 'md', 'md', 'pdf', 'docx']);
+    // #399: what a browser saves a page as in one file is a saved posting too, not "another file".
+    assert.deepEqual(['Job.mhtml', 'Job.MHT', 'Job.webarchive'].map(postingFileKind), ['mhtml', 'mhtml', 'webarchive']);
+    assert.equal(kindsFor('rows')('Job.mhtml'), null);
     for (const name of ['a.json', 'a.doc', 'a.png', 'a.eml', '.html']) assert.equal(postingFileKind(name), null, name);
     assert.equal(kindsFor('postings')('a.json'), null);
     assert.equal(kindsFor('rows')('a.html'), null);
@@ -291,8 +603,12 @@ describe('saved postings in a folder', () => {
     assert.equal(maxBytesOf('json'), MAX_FILE_BYTES);
     assert.ok(maxBytesOf('html') < maxBytesOf('pdf'));
     assert.match(tooLargeNote('pdf'), /5 MB, which is more than a document/);
+    // A page saved as one file carries its images inside it.
+    assert.ok(maxBytesOf('mhtml') > maxBytesOf('pdf'));
+    assert.match(tooLargeNote('mhtml'), /10 MB, which is more than a saved posting/);
+    assert.match(tooLargeNote('csv'), /a file of rows/);
     const page = file('big.html', 10 * MINUTE, maxBytesOf('html') + 1);
-    const plan = planScan([page, file('ok.pdf', 10 * MINUTE, maxBytesOf('html') + 1)], [], NOW, undefined, postingFileKind);
+    const plan = planScan([page, file('ok.pdf', 10 * MINUTE, maxBytesOf('html') + 1)], [], NOW, undefined, 'postings');
     assert.deepEqual([names(plan.tooLarge), names(plan.read)], [['big.html'], ['ok.pdf']]);
     assert.equal(unreadChange(page, 'tooLarge', postingFileKind).detail, tooLargeNote('html'));
   });
@@ -310,5 +626,12 @@ describe('pageResources', () => {
     const listing = [file('Job at Acme.html'), file('Job at Acme_files/frame.html'), file('Job at Acme_files/deep/x.html'), file('sub/Role.htm'), file('sub/Role-Dateien/a.html'), file('old_files/real.html'), file('Job at Acme Two.html')];
     const isResource = pageResources(listing);
     assert.deepEqual(listing.map((f) => f.relPath).filter(isResource), ['Job at Acme_files/frame.html', 'Job at Acme_files/deep/x.html', 'sub/Role-Dateien/a.html']);
+  });
+
+  // #399: any folder that started like a page's name was taken for that page's files, and the postings in it were never listed.
+  it('leaves a folder of the user’s own alone, however it is named after a page', () => {
+    const listing = [file('Acme.html'), file('Acme interviews/backend-posting.txt'), file('Acme-2026/role.pdf'), file('Acme_notes/a.html'), file('Acme.old/b.html'), file('Acme_FILES/frame.html'), file('Acme_fichiers/x.html'), file('Acme.files/y.html')];
+    const isResource = pageResources(listing);
+    assert.deepEqual(listing.map((f) => f.relPath).filter(isResource), ['Acme_FILES/frame.html', 'Acme_fichiers/x.html', 'Acme.files/y.html']);
   });
 });

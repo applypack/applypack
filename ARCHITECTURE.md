@@ -331,14 +331,18 @@ src/
     suggest.ts                 ← pure: suggestSources / packsForSearches, what a search's places and stack call for
 
   datasets/                    ← rows the user brings (ADR 0062): pure, the reader and the mapper every such source shares
-    delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, a BOM, the delimiter read off the first line)
-    rows.ts                    ← pure: findRows — a JSON array, a wrapper object, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings
-    map.ts                     ← pure: detectMapping (names, then values), mapRow / mapRows → NormalizedJob, the stored mapping's zod schema
+    decode.ts                  ← pure: a file's bytes → text — UTF-8, UTF-16 behind its mark, a page's declared charset, else Windows-1251 or -1252 told apart by the letters
+    delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, the delimiter read off the first line; a quote never closed is reported by its line)
+    rows.ts                    ← pure: findRows — a JSON array, a wrapper object, rows held by key, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings; JSON that stops short is refused as that
+    read-notes.ts              ← pure: what a reader is told about how a file was read — the part that was lost, an encoding that was assumed
+    map.ts                     ← pure: detectMapping (names, then values), mapRow / mapRows → NormalizedJob, the stored mapping's zod schema; findJobRows / postingFields — a posting that holds a list is one row
     preview.ts                 ← pure: previewCounts — rows already stored, and new rows the running searches' base filter admits
     fixtures/                  ← hand-written rows: four shapes, a spreadsheet with its own headers, hostile rows
     folder-path.ts             ← pure: which folder a source may read (home on a local install, named roots elsewhere), a typed path made absolute
     folder-scan.ts             ← pure: planScan — read, wait, leave alone — the ceilings, the name filter, judgeFile → jobs + the ledger row
-    folder-io.ts               ← the one module that touches a user's folder, and it only reads: listFolder, readFolderFile, realFolder
+    folder-io.ts               ← the one module that touches a user's folder, and it only reads: listFolder, readFolderFile, realFolder; every call has a time to answer in
+    folder-deadline.ts         ← pure: a time for a folder's disk to answer in; a folder with a call still out is asked nothing more
+    mhtml.ts                   ← pure: a page saved as one file (.mhtml, .mht) → its first text/html part as bytes, and where the browser says it came from
     saved-page.ts              ← pure: a saved web page → its text, its own address, its JobPosting block; never rendered, never followed
     posting-file.ts            ← pure: a saved posting's bytes → text by kind (pages, text, the resume module's PDF/.docx readers) → the job
 
@@ -393,6 +397,7 @@ src/
     review-gate.ts             ← pure: a strength review's example bullet fact-checked; a blocked one asks instead (TASKS R3)
     json-resume.ts             ← pure: the JSON Resume subset ApplyPack renders (ADR 0039)
     structure-anchor.ts        ← pure: anchorStructure, every string a verbatim span of the text
+    structure-complete.ts      ← pure: structureGaps, whether an AI reading holds every role and line the text has
     structure-from-text.ts     ← pure: a resume's shape from the extracted text alone
     style-infer.ts             ← the typeface a resume is set in, read from its own runs (ADR 0039); a PDF's layout beside it
     pdf-geometry.ts            ← a PDF's text items with place, size, weight and per-character colour, and its rules (ADR 0059)
@@ -462,7 +467,7 @@ src/
     feed.ts                    ← a generic RSS / Atom job feed; the atsToken is the feed URL (ADR 0036)
     career-page.ts             ← the change watch: hashes a careers page and never returns a job (ADR 0036)
     folder.ts                  ← a folder source: one look — a tool's row files, or saved postings one a file (a model only for what a page does not say) → jobs, no request (ADR 0062)
-    folder-ledger.ts           ← what a look learned about the folder's files, staged until the tick stored its jobs
+    folder-ledger.ts           ← what a look learned about the folder's files, staged until the tick stored its jobs; looksToKeep (pure): a folder at a time
     {larajobs,golangprojects}.ts ← single RSS feed
     weworkremotely.ts          ← per-category RSS (atsToken = category slug)
     {remoteok,remotive,arbeitnow}.ts ← aggregator JSON
@@ -481,7 +486,9 @@ src/
 
   jobs/
     fetch-job.ts                ← runFetchJob (cron entry; {manual:true} from "Fetch now"), under the fetch lock
-    fetch-lock.ts               ← tryFetchLock: the Postgres advisory lock that keeps one fetch running across processes
+    fetch-lock.ts               ← tryFetchLock / waitForFetchLock: the Postgres advisory lock that keeps one fetch running across processes
+    lock-wait.ts                ← pure: asking for a lock again until it is free, a time is up or the worker stops
+    fetch-tick.ts               ← the worker's own two fetch starters: the hourly tick (waits for the lock) and a folder check (asks once); the lock first, the run row after
     funnel-store.ts             ← addToFunnel (the fetch + HN wrappers) into funnel_day; loadFunnel, loadSourceYield for the pages
     employer-store.ts           ← the mute list, the tick's employer rules, the one-time fill of older rows' keys (ADR 0056)
     fetch-pause.ts              ← makeFetchPauseProbe: a pause on /settings stops a running tick within seconds
@@ -494,7 +501,7 @@ src/
     held-alerts.ts              ← pure: groupHeldByTarget (one delivery per routing target, the best twenty listed), heldReason
     page-change-alerts.ts       ← recordPageChanges + deliverPageChanges: a change waits on the row, then one message and the hash advances
     france-travail-sync.ts      ← the licence's daily re-check of the stored France Travail offers (ADR 0034)
-    digest-job.ts               ← runDigestJob (hourly beat; works on the user's digest hours)
+    digest-job.ts               ← runDigestJob (hourly beat; works on the user's digest hours): the scored NEW / ALERTED rows since the last recap, minus held ones and folders set to "No alerts"; unscored rows are one line, never matches
     stale-applications-job.ts   ← runStaleApplicationsJob (hourly beat; the day's first digest hour)
     stale-applications-format.ts ← pure formatStaleMessage
     applied-with.ts             ← pure "Senior Backend v3" label for the applied resume
@@ -505,6 +512,7 @@ src/
     reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
     score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 5)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
+    rescore-status.ts           ← pure: the status after a re-score (a saved or hand-picked job is never dismissed)
     posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure; an Ashby URL is read from its board API)
     posting-extract.ts          ← one cheap classifier-model call: company, title, location, salary of a pasted posting
     description-diff.ts         ← pure: what "Refresh the description" is about to do (sizes, folded diff rows, the flashes — ADR 0043)
@@ -513,7 +521,7 @@ src/
                                   (used by /jobs/new, /target, /letter and /screen/new; the last three pass it,
                                   and /target classifies a new job in the background instead)
     import-job.ts               ← runImportJob: imported rows through processNormalizedJobs under the fetch lock (ADR 0062)
-    source-file-store.ts        ← a folder source's ledger (source_file): loadLedger, keepFolderLooks, folderSummaries, listSourceFiles
+    source-file-store.ts        ← a folder source's ledger (source_file): loadLedger, keepFolderLooks, folderSummaries, listSourceFiles, readFilesAgain
     folder-watch.ts             ← under the launcher: watches the folders of saved postings, runs the scoped fetch once a change settled
     folder-watch-plan.ts        ← pure: which folders to watch, and how long a burst of changes settles
     blocked-hosts.ts            ← pure: isBlockedPostingHost — the hosts ADR 0005 names, for posting-url.ts and the dataset mapper

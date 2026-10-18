@@ -12,7 +12,7 @@ import type { HeldReason } from './policy';
 
 const isPackStop = (v: unknown): v is PackStop => (PACK_STOPS as readonly unknown[]).includes(v);
 
-const HELD_REASONS = ['no-wording', 'drops-figure', 'section', 'over-limit', 'removals-off'] as const satisfies readonly HeldReason[];
+const HELD_REASONS = ['no-wording', 'check-first', 'drops-figure', 'section', 'over-limit', 'removals-off'] as const satisfies readonly HeldReason[];
 
 const EditsSchema = z.object({
   applied: z.number().int().min(0).catch(0).default(0),
@@ -35,14 +35,36 @@ export function readPackEdits(v: unknown): PackEdits {
 /** Why a suggestion was left for the person, as the end of "… — <reason>": catalog keys, worded on the page. */
 export const HELD_WORDS = {
   'no-wording': 'pack.held.noWording',
+  'check-first': 'pack.held.checkFirst',
   'drops-figure': 'pack.held.dropsFigure',
   section: 'pack.held.section',
   'over-limit': 'pack.held.overLimit',
   'removals-off': 'pack.held.removalsOff',
 } as const satisfies Record<HeldReason, MessageKey>;
 
+/** Why an edit the plan allowed was not made in the text: the errors the editor's operations answer (text-edits.mjs). */
+const UNPLACED_WORDS: Record<string, MessageKey> = {
+  'not-found': 'pack.card.unplaced',
+  protected: 'pack.card.unplaced.protected',
+  'no-replacement': 'pack.card.unplaced.noWording',
+};
+
+/**
+ * The edits that could not be made, one sentence per reason with its count.
+ * The card said one reason for all of them — the quoted text is not in the
+ * resume — and an edit refused for touching a contact line is not that (#384).
+ */
+export function unplacedLines(unplaced: readonly string[]): string[] {
+  const counts = new Map<MessageKey, number>();
+  for (const error of unplaced) {
+    const key = Object.hasOwn(UNPLACED_WORDS, error) ? UNPLACED_WORDS[error]! : 'pack.card.unplaced.other';
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts].map(([key, n]) => t(key, { n }));
+}
+
 /** The step a pack is on, as catalog keys: "Reading the posting". */
-export const STEP_WORDS = {
+const STEP_WORDS = {
   liveness: 'pack.step.liveness',
   brief: 'pack.step.brief',
   match: 'pack.step.match',
@@ -52,6 +74,18 @@ export const STEP_WORDS = {
   document: 'pack.step.document',
   letter: 'pack.step.letter',
 } as const satisfies Record<PrepareStep, MessageKey>;
+
+/** Whether a pack is still in the queue or being prepared: the one state of the tab that changes by itself. */
+export function packBusy(pack: { status: string } | null): boolean {
+  return pack?.status === 'queued' || pack?.status === 'running';
+}
+
+/** The sentence a pack in the queue or in flight is told by: where it waits, or the step it is on. */
+export function preparingLine(pack: { status: string; step: string | null }): string {
+  const step = STEP_WORDS[pack.step as PrepareStep] as MessageKey | undefined;
+  const now = pack.status === 'queued' ? t('pack.card.queued') : t('pack.card.onStep', { step: step ? t(step) : t('pack.card.preparing') });
+  return `${now} ${t('pack.card.refreshes')}`;
+}
 
 /**
  * Why a pack stopped, as the case the catalog's stop messages select on
@@ -114,7 +148,8 @@ const NOTICE_MAX = 8;
 /**
  * One grouped message for the packs that finished since the last one, as
  * plain lines: the ready ones first, then the ones not worth the evening —
- * knowing which postings to skip is half of what a pack is for.
+ * knowing which postings to skip is half of what a pack is for — and last
+ * the ones that could not be prepared, which the job's page explains.
  */
 export function packNoticeLines(packs: PackNotice[]): string[] {
   const name = (p: PackNotice): string => `${p.title} — ${p.company}`;
@@ -134,6 +169,13 @@ export function packNoticeLines(packs: PackNotice[]): string[] {
       lines.push(`• ${name(p)}: ${t('pack.notice.stop', { stop: stopCase(p.stop) })}`);
     }
     if (stopped.length > NOTICE_MAX) lines.push(t('pack.notice.more', { n: stopped.length - NOTICE_MAX }));
+  }
+  const failed = packs.filter((p) => p.status === 'failed');
+  if (failed.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push(t('pack.notice.failed', { n: failed.length }));
+    for (const p of failed.slice(0, NOTICE_MAX)) lines.push(`• ${name(p)}`);
+    if (failed.length > NOTICE_MAX) lines.push(t('pack.notice.more', { n: failed.length - NOTICE_MAX }));
   }
   return lines;
 }

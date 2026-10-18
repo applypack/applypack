@@ -25,6 +25,11 @@
  *    warns — the rule as written blocked a good rewrite of a bullet whose one
  *    "SQL" was the phrase "SQL injection".
  *
+ *  - wording that is a note to the writer and not resume text is refused
+ *    (`instructionIn`): the prompt sends "ask the candidate for the real
+ *    number" to `why`, and the model still writes it, or a slot to fill in,
+ *    into the wording itself — one press then put that sentence in the resume.
+ *
  * A blocked action keeps everything but its replacement, which becomes an
  * explicit null — proposalOf reads that as "judged, do not parse `what`".
  *
@@ -38,7 +43,11 @@
  *  - the quote may not carry the contact line's email or phone;
  *  - the quote may not carry a keyword this posting wants and this resume has
  *    — a must or primary one blocks, anything lighter warns, exactly as a
- *    replacement that drops the same keyword does.
+ *    replacement that drops the same keyword does;
+ *  - nor may it take a whole labelled line that is what SHOWS such a keyword
+ *    without spelling it: eleven tools under "AI / LLM Automation" are the
+ *    evidence for "AI tooling", and one press deleted them while the term
+ *    was written onto another line with nothing behind it (#350).
  * A blocked removal keeps its advice and loses its `quote`: nothing is
  * highlighted, nothing is deletable in one press, and `why` says why.
  */
@@ -88,6 +97,58 @@ export function splitRefusal(action: Pick<MatchAction, 'why' | 'replacement'>): 
   return { why: action.why.slice(0, at), refusal: action.why.slice(at + BLOCK_NOTE.length) };
 }
 
+/**
+ * Whether the gate let this wording through with a note for the person to
+ * check (" · check: …" on `why`). On the Tailor page they read it on the card
+ * before pressing Apply; anything that applies with nobody reading asks here.
+ * Only the first note is written, so one about a dropped term can stand in
+ * front of one about a skill nobody confirmed: every note counts.
+ */
+export function hasCheckNote(item: { why: string }): boolean {
+  return item.why.includes(WARN_NOTE);
+}
+
+/**
+ * What gives a note to the writer away. Each is something a resume line does
+ * not say: a request to the candidate, a slot left to fill in, a question.
+ * Kept narrow on purpose — "N+1 queries", "(check processing)", "(insert,
+ * update, delete)" and "add-on" are resume text.
+ */
+const INSTRUCTION_PATTERNS: RegExp[] = [
+  /\bask(?:ing)? (?:the |your )?(?:candidate|applicant|user)\b/gi,
+  /\b(?:confirm|check|verify) with (?:the )?(?:candidate|applicant|user)\b/gi,
+  /\b(?:candidate|applicant) (?:to|should|must|needs to) (?:confirm|provide|supply|add|fill|specify|verify)\b/gi,
+  /\bif (?:yes|so|true|applicable),? (?:add|include|mention|describe)\b/gi,
+  // A parenthesis that opens with an order: "(confirm which role used JIRA)", "(add your real number)".
+  /\((?:ask\b|(?:confirm|verify|specify|check) (?:the|which|whether|if|your|with|this|that)\b|fill in\b|add (?:your|the real|a real|real|actual)\b|replace with\b)[^)]*\)?/gi,
+  // A slot: "[add your real number]", "[X]", "[company]".
+  /\[[^[\]\n]+\]/g,
+  /\b(?:TBD|TODO)\b/g,
+  // Placeholder figures: "XX%", "$XXk", "from Xs to Ys" (the brief's own shapes use these letters).
+  /\bX{1,3}\s?%|[$€£]X+\w?\b|\bXX+\b|\bN\s?%|\bfrom X\w{0,2} to Y\w{0,2}\b/g,
+];
+/** A resume line never asks. Not the "?" of an address: that one has no space after it. */
+const QUESTION_MARK = /\?(?=\s|$)/g;
+
+/**
+ * The span that makes a wording a note to the writer instead of resume text,
+ * or null. A span the quoted line already carried is the candidate's own text
+ * and is never held against the rewrite.
+ */
+export function instructionIn(wording: string, quote = ''): string | null {
+  for (const pattern of INSTRUCTION_PATTERNS) {
+    for (const [found] of wording.matchAll(pattern)) {
+      if (!quote.includes(found)) return found.trim();
+    }
+  }
+  for (const { index } of wording.matchAll(QUESTION_MARK)) {
+    const from = Math.max(wording.lastIndexOf('. ', index), wording.lastIndexOf('\n', index)) + 1;
+    const question = wording.slice(from, index + 1).trim();
+    if (!quote.includes(question)) return question;
+  }
+  return null;
+}
+
 /** Confirmed facts as lines the fact check can index — the same shape the cover letter feeds it. */
 function factLines(facts: FactLike[]): string[] {
   return facts
@@ -115,6 +176,10 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
       sources: [sources.resumeText, sources.posting, ...factLines(sources.facts)],
       facts: sources.facts,
     });
+    // First on purpose: of the reasons a card can show, this one says the wording was never a line.
+    const instruction = instructionIn(text, quote);
+    if (instruction) blocks.push(`"${instruction}" is a note to the writer, not resume text`);
+
     if (check.verdict === 'block') blocks.push(...check.reasons);
     else if (check.verdict === 'warn') warns.push(...check.reasons);
 
@@ -153,9 +218,42 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
   return { actions: gated, blocked, warned };
 }
 
+/** Letters and digits alone, so "AI / LLM Automation" and "AI/LLM Automation" are one name. */
+const lettersOf = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+/** A name shorter than this is in every sentence: "CI" proves nothing by standing in a keyword's note. */
+const MIN_NAME_LETTERS = 4;
+/** A quote this much of a line's terms takes the line; less leaves a line that still shows what it showed. */
+const WHOLE_LINE = 0.8;
+/** Words a place is described with that name no place: "Key Skills, AI / LLM Automation line" is the "AI / LLM Automation" one. */
+const PLACE_FILLER = new Set(['key', 'core', 'technical', 'skills', 'skill', 'section', 'line', 'lines', 'row', 'list', 'category', 'group', 'the', 'of', 'in']);
+
+/**
+ * The names a keyword's `where` may know the line by, when a removal takes
+ * that line whole; none when the quote is only part of its line.
+ *  - The label the line carries: "AI / LLM Automation" of "AI / LLM
+ *    Automation: OpenAI, Claude, …", or of the same row out of a .docx table,
+ *    where the reader writes " | " between the cells (gotcha 18).
+ *  - For a skills line, what the removal itself calls it. A PDF's skills
+ *    table reaches us as a stack of labels and a stack of value lines, so the
+ *    line that goes has no label on it — but the same reply that wrote the
+ *    keyword's note named the line it wants cut.
+ */
+function namesOfLineTaken(resumeText: string, removal: MatchRemoval, quote: string): string[] {
+  const squeeze = (s: string): string => s.replace(/\s+/g, ' ').trim();
+  const first = squeeze(quote.split('\n')[0] ?? '');
+  const line = first === '' ? undefined : resumeText.split('\n').map(squeeze).find((l) => l.includes(first));
+  if (!line) return [];
+  const cut = line.search(/: | \| /);
+  const terms = cut > 0 ? line.slice(cut) : line;
+  if (lettersOf(quote).length < lettersOf(terms).length * WHOLE_LINE) return [];
+  const named = removal.where.split(/[^\p{L}\p{N}]+/u).filter((w) => !PLACE_FILLER.has(w.toLowerCase())).join('');
+  const names = [cut > 0 ? line.slice(0, cut) : '', removal.section === 'skills' ? named : ''];
+  return names.map(lettersOf).filter((n) => n.length >= MIN_NAME_LETTERS);
+}
+
 /**
  * The same judgment over the delete list. A removal has no wording to check,
- * so only the two span rules apply — and both are about what the quote covers,
+ * so only the span rules apply — and they are about what the quote covers,
  * never about whether the advice is good.
  */
 export function gateRemovals(removals: MatchRemoval[], sources: GateSources): RemovalGateReport {
@@ -173,12 +271,19 @@ export function gateRemovals(removals: MatchRemoval[], sources: GateSources): Re
     // whatever it was aiming at (gotcha 11 — a ZIP code took the email with it).
     if (hasContactDetail(quote)) blocks.push('the span covers contact details — keep the email and phone');
 
-    // KEEP WANTED KEYWORDS: deleting the span deletes the evidence with it.
+    // KEEP WANTED KEYWORDS: deleting the span deletes the evidence with it —
+    // the keyword it spells, or the one its whole line is the evidence for.
+    // The comparison says which line that is: the keyword's own `where`.
+    const names = namesOfLineTaken(sources.resumeText, removal, quote);
     for (const k of sources.keywords) {
       if (k.status !== 'present' && k.status !== 'add') continue;
-      if (!has(quote, k)) continue;
-      if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`the span covers "${k.term}", a must-have this posting wants`);
-      else warns.push(`the span covers "${k.term}", which this posting asks for`);
+      const spelled = has(quote, k);
+      const noted = lettersOf(k.where ?? '');
+      const shown = !spelled && names.some((name) => noted.includes(name));
+      if (!spelled && !shown) continue;
+      const what = spelled ? `the span covers "${k.term}"` : `this line is what shows "${k.term}"`;
+      if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`${what}, a must-have this posting wants`);
+      else warns.push(`${what}, which this posting asks for`);
     }
 
     if (blocks.length > 0) {

@@ -1,6 +1,7 @@
 import { AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
+import { markClockDated } from '../fetchers/dates';
 import { fetchHnHiring, findLatestHiringThread } from '../fetchers/hn-hiring';
 import { listActiveProfiles } from '../profiles';
 import { getSchedule, getSettings } from '../settings';
@@ -79,7 +80,10 @@ async function pullHnThread(): Promise<{ stats: CronStats }> {
     },
   });
 
+  const readBegan = Date.now();
   const fetched = await fetchHnHiring(company.id);
+  // A comment with no time of its own is dated now by the mapper: that is not when it was posted (#379).
+  markClockDated(fetched, readBegan);
   const items = fetched.map((job) => ({ job, companyName: HN_COMPANY_NAME }));
 
   // Same mid-run pause handling as runFetchJob: the classify loop below can

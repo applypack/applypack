@@ -46,6 +46,40 @@ test('safeBack keeps a redirect on this site', () => {
   assert.equal(safeBack(undefined, '/runs'), '/runs');
 });
 
+test('safeBack reads the value as a browser would: every spelling of another host is refused', () => {
+  // Found live (#354): `back=/\\evil.example/x` answered 303 with that Location, and a browser went there.
+  const hostile = [
+    '/\\evil.example/x',
+    '/\\/evil.example',
+    '/\\\\evil.example',
+    '/.//evil.example',
+    '/..//evil.example/x',
+    '/jobs/..//evil.example',
+    '/%2e//evil.example',
+    '\\/evil.example',
+    '\\\\evil.example',
+    'javascript:alert(1)',
+    ' //evil.example',
+  ];
+  for (const back of hostile) {
+    const kept = safeBack(back, '/');
+    assert.equal(kept, '/', back);
+    assert.equal(new URL(kept, 'http://127.0.0.1:4747').origin, 'http://127.0.0.1:4747', back);
+  }
+});
+
+test('safeBack keeps what stays on the site, in the spelling a header takes', () => {
+  assert.equal(safeBack('/companies#muted', '/'), '/companies#muted');
+  assert.equal(safeBack('/jobs/7?tab=match&match=12#resume-match', '/'), '/jobs/7?tab=match&match=12#resume-match');
+  // A backslash inside the path is a slash to a browser, and the path it makes is still ours.
+  assert.equal(safeBack('/jobs\\7', '/'), '/jobs/7');
+  assert.equal(safeBack('/@evil.example', '/'), '/@evil.example');
+  // Not ASCII: `new Response` refused the header and the request answered 500.
+  const encoded = safeBack('/jobs?q=програміст', '/');
+  assert.equal(encoded, '/jobs?q=%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D1%96%D1%81%D1%82');
+  assert.equal(flashRedirect(encoded, 'ok', 'Saved.').headers.get('location'), encoded);
+});
+
 test('safeBack refuses a control character, so a Location cannot be split', () => {
   assert.equal(safeBack('/jobs\r\nSet-Cookie: a=b', '/'), '/');
   assert.equal(safeBack('/jobs\nSet-Cookie: a=b', '/'), '/');

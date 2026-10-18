@@ -82,8 +82,9 @@ export function storedReadNote(note: string): string | null {
   return null;
 }
 
-export function docxToText(docx: Buffer): string {
-  const part = readZipEntry(docx, DOCUMENT_PART);
+/** `maxBytes` is what word/document.xml may inflate to; past it the read throws ZipLimitError (zip.ts). */
+export function docxToText(docx: Buffer, maxBytes?: number): string {
+  const part = readZipEntry(docx, DOCUMENT_PART, maxBytes);
   if (part === null) throw new ResumeTextError('notDocx');
   return documentXmlToText(part.toString('utf8'));
 }

@@ -55,6 +55,12 @@ consecutiveFailures Int  @default(0)
 lastOkAt            DateTime?  // advances ONLY on ok
 ```
 
+*Amended 2026-10-12 (v2.55.43, #405):* the vocabulary has since gained
+`not_modified` (ADR 0035) and `too_many`: a folder source whose folder
+holds more entries than a look lists (ADR 0062). The closed list is
+`source-health.ts:FETCH_STATUSES`; a failure added to it counts toward the
+streak without further code, as this ADR intends.
+
 Two pure, unit-tested functions carry all the logic
 (`src/fetchers/source-health.ts`): `classifyFetchError(err)` implements the
 table above, and `nextStreak(status, current)` implements the streak.

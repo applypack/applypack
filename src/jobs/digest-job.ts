@@ -1,8 +1,10 @@
 import { JobStatus } from '@prisma/client';
+import { companyForMessage } from '../employer';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sendDigest, type QuietSourceAlert } from '../notifier';
-import { attributionLine } from '../web/pages/attribution';
+import { sourceLine } from '../web/pages/attribution';
+import { alertsOff } from '../datasets/map';
 import { QUIET_STREAK } from '../fetchers/source-health';
 import { getSettings, pausedFamilies } from '../settings';
 import { lastSuccessfulRunAt, type CronStats } from './cron-run';
@@ -23,7 +25,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   const since = previous ?? new Date(Date.now() - DIGEST_WINDOW_MS);
   logger.info({ since: since.toISOString(), firstEver: previous === null }, 'digest-job: start');
 
-  const jobs = await prisma.job.findMany({
+  const found = await prisma.job.findMany({
     where: {
       status: { in: [JobStatus.NEW, JobStatus.ALERTED] },
       fetchedAt: { gte: since },
@@ -49,7 +51,8 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
       redFlags: true,
       summary: true,
       fetchedAt: true,
-      company: { select: { name: true, atsType: true, atsToken: true } },
+      sourceFile: true,
+      company: { select: { name: true, atsType: true, atsToken: true, sourceConfig: true } },
       // The search that scored each posting best, so a reader running several
       // can tell the hunts apart in one list (ADR 0028).
       scores: {
@@ -60,12 +63,19 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     },
     orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
   });
+  // A folder set to "No alerts" is left out here as well: its match was never
+  // sent and never held, which made it exactly the row this query finds (#391).
+  const loud = found.filter((j) => !alertsOff(j.company));
+  // A row stored while fetching was paused has no score yet: it is news, in
+  // one line, and not a match — the recap used to list each as "fit 0/100" (#392).
+  const jobs = loud.filter((j) => j.fitScore !== null);
+  const unscored = loud.length - jobs.length;
 
   const alerts: AlertJob[] = jobs.map((j) => ({
     title: j.title,
-    companyName: j.employer ?? j.company.name,
+    companyName: companyForMessage(j.employer, j.company),
     location: j.location,
-    attribution: attributionLine(j.company.atsType, j.company.atsToken),
+    attribution: sourceLine(j.sourceFile, j.company.name, j.company),
     countries: j.countries,
     workplace: j.workplace,
     url: j.url,
@@ -85,7 +95,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   // Broadcast, not routed: the digest spans every search, so it goes to every
   // active target rather than to any one search's chat. A send every chat
   // refused throws, and the failed run keeps the mark where it was.
-  const delivery = await sendDigest(alerts, undefined, await quietSources());
+  const delivery = await sendDigest(alerts, undefined, await quietSources(), undefined, 0, unscored);
   const durationMs = Date.now() - started;
   if (delivery.skipped !== null) {
     // Alerts off, or no chat: nothing to recap into. The matches found
@@ -93,8 +103,8 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     logger.info({ reason: delivery.skipped, durationMs }, 'digest-job: nothing sent');
     return { stats: { skipped: 1, reason: delivery.skipped, durationMs } };
   }
-  logger.info({ count: alerts.length, durationMs }, 'digest-job: done');
-  return { stats: { count: alerts.length, durationMs } };
+  logger.info({ count: alerts.length, unscored, durationMs }, 'digest-job: done');
+  return { stats: { count: alerts.length, unscored, durationMs } };
 }
 
 /**

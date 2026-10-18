@@ -170,3 +170,19 @@ test('an abbreviation or a decimal does not end a sentence', () => {
   assert.equal(countSentences('Sr. PHP Developer with 10+ years. Kept 99.9% uptime, e.g. on Node.js services.'), 2);
   assert.equal(countSentences(''), 0);
 });
+
+// #348: the list once said "name the role: Sr. PHP Developer" and, three lines down, "leave out Sr. PHP Developer".
+test('the posting\'s own title is never among the terms to leave out', async () => {
+  const titled = [
+    keyword({ term: 'Sr. PHP Developer', priority: 2, requirement: 'must', status: 'cannot_claim' }),
+    keyword({ term: 'Kafka', priority: 1, requirement: 'must', status: 'cannot_claim' }),
+  ];
+  const checks = byKey(summaryGuide(await input({ keywords: titled, brief: null })).checks);
+  assert.equal(checks.avoid!.detail, 'leave out Kafka');
+  assert.match(checks.role!.detail, /Sr\. PHP Developer/);
+  // Written into the summary, the role is the role, not a claim the resume cannot back.
+  const named = byKey(summaryGuide(await input({ keywords: titled, brief: null, resumeText: RESUME.replace(SUMMARY, `Sr. PHP Developer with eight years in fintech. ${SUMMARY}`) })).checks);
+  assert.equal(named.avoid!.state, 'ok');
+  // The title alone unbacked: nothing to leave out at all.
+  assert.equal(byKey(summaryGuide(await input({ keywords: [titled[0]!], brief: null })).checks).avoid, undefined);
+});

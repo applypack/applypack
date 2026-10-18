@@ -35,6 +35,46 @@ and a table is at most 200 columns wide; rows past the ceiling are counted
 and said, never read and never dropped in silence. A row is built from the
 cells it has, so what a file costs in memory follows its size.
 
+*Amended 2026-10-11 (v2.55.23, #394).* A file that is damaged, or not
+UTF-8, was read wrong with nothing said. Four rules now hold for every
+reader of rows, and the first for saved postings too:
+
+- **Bytes that are not UTF-8** (`datasets/decode.ts`). A file that is
+  neither UTF-8 nor marked UTF-16 is in the one-byte encoding of its
+  language. A saved page says which in its head, and is believed; a table
+  says nothing, so it is read as Windows-1251 when most of its letters past
+  ASCII stand in runs of three or more (words), else as Windows-1252, and
+  the preview says the encoding was assumed. UTF-8 with a few bytes damaged
+  stays UTF-8, and the characters that could not be read are counted.
+- **A quote that never closes** (`delimited.ts`) used to run to the end of
+  the file as one cell, so every row after it became part of one row and the
+  file was counted as read. The rows before that quote's row are read, the
+  line is named, and the caller is told (`FoundRows.cutAt`).
+- **JSON that stops short** is refused as that. It was handed to the table
+  reader, which made columns out of its first line.
+- **An object that holds its rows by key** (`{ "a1": {…}, "a2": {…} }`) is
+  those rows when they are alike; a tab that opens the first line of a table
+  is an empty first header, not a blank to trim.
+
+What was lost is said where the file is judged: on the import's preview, on
+a folder's Check page, and in the folder's ledger (addendum below).
+
+*Amended 2026-10-11 (v2.55.25, #395).* "The only list of objects inside"
+was taken for the rows even when the object around it was itself a posting:
+a schema.org `JobPosting` saved as `.json`, with two places in
+`jobLocation`, read as two rows of `@type, address`, and a folder of one
+posting a file failed as "files do not fit the mapping". The mapper now
+says how much of a posting an object names (`map.ts:postingFields`: its
+title, link, text, company, place, date), and a list inside an object is
+that object's own — its places, its skills, its company's offices — when
+the object names a posting and the list's entries do not, or name much less
+of one. A key that says "rows" (`data`, `items`, `results`, `records`,
+`jobs`) is still believed outright, and an object that names little more
+than its entries is still their wrapper: a feed with its title and text, a
+company with its openings. In a folder, a file holding one object that names
+no posting — a tool's stats, a manifest — is set aside, not counted as a
+misfit: counted as one, it failed every look that read nothing newer.
+
 **The mapping is detected, shown, corrected and kept.** `datasets/map.ts`
 decides which column is which from the names (an alias table, with case,
 spaces and punctuation set aside) and, where the names say nothing, from the
@@ -112,9 +152,90 @@ ask the question.
   such rows unscored as leads is a later decision.
 - **A wrong mapping stores wrong jobs.** The preview is the guard: nothing
   is stored before the user has seen three rows as they would be kept.
+  *Amended 2026-10-12 (v2.55.42, #404):* the guard held only through a
+  hint — Import posted the selects as they stood, so a column changed and
+  never previewed was stored unseen. The import route now compares the
+  posted mapping with the one the preview was drawn from
+  (`map.ts:sameMapping`); when they differ it keeps the new one, stores
+  nothing and answers with the preview. The rows of an upload also wait a
+  fresh half hour when an import ends with anything but a full store
+  (`import-stash.ts:keepImport`): its warning names the preview, and an
+  import can outlast the half hour its upload had.
+- **An id column is believed.** A column named like an id tells the rows
+  apart; the link is the fallback.
+  *Amended 2026-10-12 (v2.55.55, #403):* an `ID` that only counts the rows
+  names another posting once the sheet is sorted again, ids that repeat fold
+  two postings into one, and a number past 2^53 arrives from `JSON.parse`
+  without its last digits. `map.ts:weakId` reads the sample for those three,
+  and `detectMapping` passes such a column over when a link can tell the
+  rows apart; the select says why (`idNote`). `mapRow` is unchanged on
+  purpose: a source keeps the mapping its rows were stored under, so a
+  newer export into it still recognises what it holds — changing how its
+  ids are read would store every row again, and score it again.
+- **Pay and dates are read as written, or not at all.** An amount is a
+  number; a date is ISO, a month's name with a year, or an epoch.
+  *Amended 2026-10-12 (v2.55.56, #403):* "as written" left out how pay is
+  written. `"$90,000"`, `"90k"`, `"€65.000"` and `"65000 EUR"` in the from
+  and to columns read as nothing, so no `Salary:` line was written and the
+  low-pay dismissal never saw the pay. `map.ts:money` reads a sign or a
+  currency code around the digits and a `k` or `m` after them; a sign only
+  one currency uses is that currency, and `$` stays `$` — it names several.
+  A date with a space before its zone (`2026-10-05 10:00:00 +02:00`, as a
+  database prints it) is read; and a month's name with a year is a date
+  only when nothing else is in the cell: "You may apply 2026" was 1 May.
+- **Markup is stripped once, from the description.** A body that carries
+  tags goes through `stripHtml`; every other field is kept as written.
+  *Amended 2026-10-12 (v2.55.57, #403):* "as written" stored a title
+  `<img src=x onerror=…>Staff Engineer` and a company `Evil <b>Corp</b>`
+  with their tags — escaped on every page, so never run, and shown as tags
+  on Jobs, the job page and in each message. A title, a company and a place
+  now go through `http.ts:stripInlineTags`: entities decoded, then every tag
+  the text itself closes, and the ones nothing closes. A "<" that is not
+  markup stays ("C++ <-> Rust", "A < B Ltd", and `a<b and c>d`, which has a
+  tag's shape and closes nothing). The description has three readings
+  instead of two: markup that makes the lines (`<p>`, `<li>`, `<br>`…) is
+  rebuilt by `stripHtml` as before; markup that only dresses words — a link,
+  a bold phrase, written out or escaped — is taken out and the text's own
+  newlines stay, where `stripHtml` flattened every paragraph of a plain-text
+  posting that held one `<a>`; anything else is text.
+- **An import is a burst of postings.** Every row takes the path a fetched
+  posting takes, alert included.
+  *Amended 2026-10-12 (v2.55.54, #402):* so a file of 2,000 rows, 300 of
+  them matches, sent 300 messages in one run, and the preview said nothing
+  of it. A file is one event: its matches are held as they are scored
+  (`ProcessOptions.groupAlerts`) and leave as one message a chat when the
+  import ends, the best twenty listed and the rest counted
+  (`alert-delivery.ts:deliverHeldAlerts` narrowed to the source); what the
+  schedule or the Alerts switch keeps back leaves with the next heartbeat.
+  The preview has the folder's **Alerts** choice — with "No alerts" nothing
+  is sent or held and no pack is queued — offered with no alerts above
+  `preview.ts:QUIET_ABOVE` (20) new rows, and it says how many rows could
+  match and how many packs at most (`packsUpTo`).
 - **The people filter knows names and two shapes of value, not meaning.** A
   person's name in a column called `Field7` cannot be told from a company's.
   The preview shows what each field took, and the user decides.
+  *Amended 2026-10-12 (v2.55.58, #403):* it also hid facts about the job
+  whose names hold one of its words: `workAuthorization` ("author"),
+  `isRecruiter`. `map.ts:JOB_FACT_RE` cuts those fragments out of a name
+  before it is asked about people — a permit to work, a yes/no about who
+  posted, working in person, ownership, a membership — so `authorEmail` and
+  `personalEmail` are still left out for what remains.
+- **A column is known by its English name.** The alias table held English
+  only.
+  *Amended 2026-10-12 (v2.55.58, #403):* a sheet with Ukrainian headers
+  found neither its title nor its company. `MORE_ALIASES` adds the usual
+  header words of the interface's other languages (Ukrainian, Spanish,
+  French) and German, tried after the English ones.
+- **Reading a file's shape.** Three more readings changed in v2.55.58
+  (#403). A table wider than 200 columns was refused whole; it now keeps
+  200 — the columns named like a job's fields, then the first of the rest
+  (`rows.ts:keptColumns`, the same for objects with more keys than are
+  offered) — and only a header past 5,000 cells is refused. The delimiter
+  was read off the first line alone, a tie going to the comma; it is now
+  the one that cuts each of the first ten lines into the same number of
+  cells, so a TSV whose header holds a comma is a TSV. And a posting's
+  place is read from a schema.org `Place` (its parts are in `address`) and
+  from a list of them, joined: "Lisbon, Portugal; Porto, Portugal".
 - **The public count of sources does not move.** An import is not a kind of
   source ApplyPack reads from the web; `source-count.test.ts` lists it with
   the pasted job.
@@ -155,6 +276,17 @@ dashboard. `datasets/folder-path.ts` bounds it, on real paths:
 - Anywhere else only a folder inside a root named in `APPLYPACK_INBOX_ROOTS`,
   which whoever runs the machine sets in the environment, never in the
   browser. In Docker that is one read-only mount into both services.
+- *Amended 2026-10-12 (v2.55.48, #398).* "Under the launcher" was asked of
+  the process's IPC channel alone, so a fetch run on a local install from
+  anything but the launcher — `node dist/scripts/fetch-once.js`, a dev
+  watcher — took the machine for a server, refused a folder under the home
+  directory and added to its failure streak. A process that found its
+  database through the install's own data folder (`db.json`) is that
+  install too (`local/install.ts:localInstall`), and the same rule applies
+  to it. A server is given its database in the environment and is not. And
+  the refusal for the system's own folders now names the way out: a cloud
+  drive lives under `~/Library` on a Mac, and a synced folder named in
+  `APPLYPACK_INBOX_ROOTS` is read like any other root.
 - The rules are asked again on every look, not only when the row is added.
 - The path is typed. A browser cannot hand a server a folder, and the form
   does not pretend it can.
@@ -170,11 +302,54 @@ dashboard. `datasets/folder-path.ts` bounds it, on real paths:
   nothing and is set aside by name.
 - Ceilings: 20 files and 5 000 rows a look, 5 MB a file, and a folder of
   more than 20 000 entries is refused whole.
+- *Amended 2026-10-12 (v2.55.46, #432).* Twenty files a look, whatever
+  their size, made a tool that writes one small file a posting bring twenty
+  jobs an hour: a run of 455 files took 23 hourly checks. What a look of
+  rows costs is rows and bytes, so those are its ceilings now: 5 000 rows
+  as before, 25 MB read (`MAX_ROW_BYTES_PER_LOOK`: five files of the
+  largest size), and 400 files (`MAX_ROW_FILES_PER_LOOK`) to bound a folder
+  of tiny ones. The same 455 files take three checks. A folder of saved
+  postings keeps twenty a look: a posting can be a model call, and that is
+  its spending limit. And a file a look did not reach — past a ceiling, or
+  behind the rows the look used up — is noted in the ledger as waiting
+  (`folder-scan.ts:unreachedChanges`), once, when the ledger has no row for
+  it: before, the per-file list did not show it and the folder's row did
+  not count it.
+- *Amended 2026-10-10 (v2.55.11, #393).* The import's 2 000 rows a body
+  first applied to a folder's file too: it was read to its 2 000th row and
+  marked done, and a tool that appends to one file stopped yielding there.
+  The ledger now keeps how many rows of a file were read
+  (`source_file.rowsRead`). A file with more rows than the look has left
+  waits and is read on at the next look; a file that only grew — its first
+  bytes still hash to what was read — is read from its old end; any other
+  change is a file written anew, read from its start, where the rows
+  already stored are duplicates. The count is kept only with the hash of
+  the bytes it was read from, so a look that could not read the file starts
+  it over. A file rewritten whole more often than its rows can be paged
+  through is read at its head each time and keeps saying so.
 - A file where fewer than half the rows read as a job no longer fits the
   mapping: none of it is handed over, and it is not read again until it
   changes or the mapping is saved again. When every file a look reads
   misfits, the look fails as `bad_payload`, which is how a tool that changed
   its output shows on the source's row.
+- *Amended 2026-10-12 (v2.55.43, #405).* A folder that holds more entries
+  than a look lists (`MAX_ENTRIES`) was filed under the same `bad_payload`,
+  so its row read "Files do not fit the mapping" and the flash pointed at
+  the mapping. It is a status of its own, `too_many`, worded "Too many
+  entries in the folder". A status the last check failed with also shows
+  in the folder's own card (`folder-words.ts:folderTrouble`), whose line is
+  built from the ledger and said only what earlier checks had read; and the
+  card carries the switch for a folder added switched off.
+- *Amended 2026-10-11 (v2.55.23, #394).* A file read to the end of what
+  can be read, with a part lost — a quote never closed, characters that
+  could not be read — is `done` and its ledger row says what was lost: the
+  per-file list calls it "Read in part" and the folder's row counts it
+  ("1 read in part"). It is settled like any file that was read: read again
+  when it changes, from its old end when it only grew, which is how a file
+  caught half-written is completed. JSON that stops short is set aside with
+  those words rather than as "no rows in it". Files read before this version
+  keep the row they have; nothing is read again on the upgrade, because a
+  second reading would also score rows an older search turned away.
 
 **The ledger advances only after the jobs are stored.** The fetcher never
 touches the database. It stages what the look learned
@@ -185,6 +360,66 @@ paused mid-run, or lost a classification, drops the staged look; the next
 one reads the same files again, and rows already stored are duplicates that
 cost nothing.
 
+*Amended 2026-10-11 (v2.55.24, #396).* The folder's ledger decided once,
+from the moment of a look, and four of those decisions were wrong or never
+revisited:
+
+- **The look's own clock.** A look measured a file's age against the time
+  the walk started, so a file written minutes into a long walk was dated
+  ahead, counted as settled and read half-written. A look now takes its own
+  time; a file dated up to five minutes ahead of it waits like one just
+  written, and one dated further ahead (a clock set wrong) is read, since
+  waiting for it would never end.
+- **A table's last row with no line end** is left for a later look until
+  the file has been still for two minutes (`OPEN_ROW_SETTLE_MS`). A tool
+  that writes through a buffer leaves half a row at a file's end long after
+  the ten seconds above; read at once it was stored with half a title and
+  no link, and the whole row never, because the next look read on after it.
+  A whole file that simply ends without a line break has its last row read
+  one look later. JSON Lines needs no such rule: a cut line is not a row.
+- **"Everything stored" is asked a folder at a time**
+  (`folder-ledger.ts:looksToKeep`). One posting no model would score, on any
+  source, failed every tick and so dropped every folder's look every tick:
+  each folder read its first twenty files again each hour and never reached
+  the twenty-first. A tick that ran to its end keeps the look of every
+  folder none of whose postings went without a verdict; a tick that stopped
+  early still keeps none. Validators keep the stricter rule: a full read is
+  all it costs them.
+- **"Read every file again"** on the Files page of a folder of rows. A file
+  is read once, so a row a search or a mute turned away was never looked at
+  again when the search changed or the company was unmuted, which
+  [ADR 0056](./0056-mute-an-employer-and-a-reapply-window.md) promises ("the next tick meets
+  the posting as new"). The button puts the files the last look listed back
+  to waiting; the next looks read them from their first row, twenty a look,
+  behind any new file. Rows already stored are duplicates; rows admitted now
+  are scored. Doing this by itself when a search or a mute changes is not
+  built (#448).
+  *Amended 2026-10-12 (v2.55.59, #448):* the person at least learns of it
+  where the change is made. Saving a search whose filter fields changed
+  (`filter.ts:filterChanged`), or one that starts to run, and unmuting a
+  company add a sentence when switched-on folders of rows hold files already
+  read (`source-file-store.ts:foldersReadOnce`): how many, and where the
+  button is. Nothing is read again by that.
+- **A row's date.** A stated date was held against the *file's* time, so a
+  file stamped 1980 (out of an archive) turned every later date away as "in
+  the future" and gave all its rows 1980. It is held against the clock. A
+  row that states none takes the file's time only when that can be a date:
+  not ahead of the clock, not before 2000 — else now, as an uploaded row
+  does. A saved posting's file follows the same rule. Saying "Saved" rather
+  than "Posted" for such a date needs the row to know whose date it is
+  (#379).
+
+*Amended 2026-10-11 (v2.55.28, #397).* **A folder's disk is given 30
+seconds to answer** (`datasets/folder-deadline.ts`, `FOLDER_ANSWER_MS`). A
+folder on a sleeping NAS or a hard NFS mount never settled a file call, and
+the fetch that asked held the fetch lock for ever: every source stopped
+until the worker was restarted. Every call the reader makes now has a time
+to answer in; a look whose folder does not answer fails as unreachable
+(`network`, counted in the failure streak) and the lock is given back. The
+call that was left behind cannot be cancelled and holds a thread, so while
+it is out the folder is asked nothing more: the next looks fail at once,
+and the folder is read again when the disk comes back.
+
 **ApplyPack never writes into the folder.** No "processed" subfolder, no
 rename, no delete. `datasets/folder-io.ts` is the one module that touches
 such a folder, it opens files for reading only and without following a
@@ -192,6 +427,11 @@ link, a file's real path must lie beneath the folder's, and a test holds
 the module to that call by call. The one folder ApplyPack creates is an
 empty `~/ApplyPack/inbox`, on a local install, when the user presses the
 button for it.
+*Amended 2026-10-12 (v2.55.49, #398).* Two more conditions on a file
+before its bytes are read: its path is resolved again once the file is
+held open and must still be what it was, and a file with a second name on
+the disk (a hard link) is passed over as a link is, with the same line on
+the per-file list.
 
 **What the user sees.** Check reads the folder and shows what a first look
 would do, with no AI spent and nothing stored; Add stores the row switched
@@ -273,6 +513,42 @@ cleanup deletes after a month. Its id is never something a model said: the
 page's own address when it names this posting alone, so the same posting
 saved twice is one job, else its text.
 
+*Amended 2026-10-10 (v2.55.12, #390).* Both halves of that id misfired. One
+opening in two cities shares a description and merged into one job, as did
+two postings whose block names the careers page as its `url`; the same
+address with another campaign parameter, or a note appended to a `.md`,
+split one posting into two. The rule now (`posting-file.ts`):
+
+- The id is the role and the place the page's block states, with the
+  page's own address reduced by `normalizeUrlKey`, else with its text. A
+  file that states nothing and has no address keeps the id it always had.
+- Of several postings on one page, the page is about the one whose `url`
+  is the page's own address (the browser's note, the canonical link,
+  `og:url`). With none named so the page is a list: no facts are read off
+  it and its address names no posting (`saved-page.ts:ownPosting`).
+- Changing the rule re-keys what is stored, so a file is first asked
+  whether the folder holds it already (`identifyPosting`): under the new
+  id; under the id the earlier rule gave it, when the stored job has the
+  title the page states — the earlier id was the one different postings
+  shared; or as the job this very file became, when it is still that
+  posting: the same stated title and company, or for a file that states
+  none the text it had with up to 4,000 characters of notes under or over
+  it (exact, by the hash that was its id, so a few lines about a job
+  qualify), or a fingerprint within 12 bits (measured on 437 stored
+  descriptions: a note appended moves it 11 at most, two different
+  postings stand 32 apart at the median). Stored rows are never rewritten.
+- That question comes before the model call, so a posting the folder
+  holds costs nothing, and its file says "The same posting as <file>".
+- Likeness is asked of the same file only. Across files it would join the
+  two cities again, so one posting printed to PDF twice under two names is
+  still two jobs. Replayed over 605 stored descriptions: a note of one or
+  of five lines kept the job in 605 of 605, and another posting saved over
+  the same name was taken for the old one in 3 of 6,593 pairs, each a twin
+  of it (one role, two teams).
+- A migration puts files that were counted as read and have no job that
+  names them back to waiting (read in the last 30 days only: past that a
+  dismissed job is deleted, and its file would bring it back).
+
 **A model is not paid twice for one file.** A look whose jobs were not all
 stored is dropped, and the next look reads the same files again (the rule
 above). What the model read off a file is remembered by the file's hash for
@@ -304,7 +580,10 @@ deeper than a look goes. Changes that arrive while a look waits add
 nothing. It runs outside the search hours — the user has just saved it — and
 never while fetching is paused. A look that meets another fetch tries again
 a minute later, and the hourly tick that meets a folder look does the same,
-so a saved posting never costs the hour its search. A folder deleted, or
+so a saved posting never costs the hour its search. *(Amended 2026-10-11,
+v2.55.28, #397: the tick waits for whoever holds the lock, up to 50 minutes,
+and a look that only met another fetch leaves no row on /runs —
+[ADR 0003](./0003-no-queue-just-node-cron.md).)* A folder deleted, or
 deleted and made again, is watched again at the next minute's refresh. A server stays on the hourly tick: a
 change seen through a Docker bind mount is not reliable. The watcher only
 notices; it reads nothing and writes nothing.
@@ -322,3 +601,70 @@ Consequences added:
 - **Not built, and not planned yet:** mail with job alerts, links saved as
   `.url` / `.webloc`, a screenshot. Each is skipped as another file, and
   counted.
+
+*Amended 2026-10-11 (v2.55.26, #399).* Four ways a saved posting was
+skipped or misread, with nothing said:
+
+- **A page saved as one file.** Chrome and Edge offer "Webpage, Single
+  File" (`.mhtml`) and Safari saves a Web Archive by default; both were
+  "other files". `.mhtml` (and `.mht`) is read (`datasets/mhtml.ts`): a MIME
+  message whose first `text/html` part is the page, with where it was saved
+  from in its head, which is taken as the browser's own "saved from" note.
+  Measured on a file Chrome 154 wrote: the browser leaves every `<script>`
+  out, the `JobPosting` block with them, so such a file gives the text and
+  the address and always asks a model for the title and the company.
+  `.webarchive` is listed and set aside with the way to save it instead;
+  reading it is #451. Up to 10 MB, since the page's images ride inside.
+  *Amended 2026-10-12 (v2.55.60, #451):* `.webarchive` is read
+  (`datasets/webarchive.ts`). It is a binary property list; the page is
+  `WebMainResource.WebResourceData`, as Safari received it, with its charset
+  and its address beside it. Three keys are looked up and nothing else in
+  the archive is walked; every offset is checked against the file first.
+  Safari keeps the page's scripts, so unlike an `.mhtml` the `JobPosting`
+  block is there and such a page usually states its own title and company.
+  An archive that cannot be read — damaged, or of something that is no page
+  — is still set aside with the way to save the page instead.
+- **A subfolder beside a page.** Any folder whose name began with a page's
+  name was taken for that page's saved files, so `Acme interviews/` next to
+  `Acme.html` was never listed. Only the names a browser gives such a
+  folder count now: `_files` and its forms in other languages.
+- **`<main` matched `<mainnav>`**, and a page's navigation was stored as
+  the posting. The tag's name is matched whole, opening and closing.
+- **Three shapes of the structured block fell to a model** though the page
+  states its title: a string broken across lines (mended and read again;
+  nothing else about a block is guessed), `hiringOrganization` as a list,
+  and `@type` as an IRI.
+
+What is shown to the model, and a page that is no posting at all, need a
+real engine to judge and are #451.
+
+*Amended 2026-10-11 (v2.55.39, #361).* **A page's `<main>` is not all
+posting.** A board that puts the application form in the same `<main>` as
+the posting, and carries no `JobPosting` block, had the form stored as the
+end of the description — on two real pages 3,705 and 2,584 characters of
+8,211 and 10,496: every question, each "Select…", "Submit application" —
+and read by the classifier and every comparison after. Inside the page's
+`<main>` or `<article>` two things are now left out
+(`saved-page.ts:postingOnly`):
+
+- an **application form**: a `<form>` with three or more fields to fill in
+  (`APPLICATION_FIELDS`; a hidden input and a button are not fields). A
+  search box has one, and a site whose every page is one form, the posting
+  inside it, has none;
+- **navigation**: a `<nav>`.
+
+When what is left would be too short to be a posting (under 200
+characters: the page of the form alone, or a posting written inside the
+form with its fields) the text stays whole. A page with no `<main>` and
+no `<article>` is read as it stands: with no container to say where the
+posting is, a form may be all of it. `<aside>` and `<footer>` stay — a
+page may state the place and the pay there — and nothing is cut by its
+words ("Apply for this job" is also the button at the head of a page), so
+a heading the board writes outside its form is still there.
+
+A page with neither a block nor an address of its own is keyed by its
+text, so this re-keys it. `identifyPosting` asks one more question before
+the last: the id over the text as it was read before, form and all
+(`SavedPage.former`), under both earlier rules. A page saved again is the
+job it was, and no model is asked. Stored rows are never rewritten: a job
+read before keeps the text it has.

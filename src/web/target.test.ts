@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fitTone } from './format';
+import { isNamedSkill } from '../resume/keyword-shape';
 
 // The matcher ships to the browser as a static ES module; node loads it the same way.
 // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
@@ -378,4 +379,120 @@ test('jobSpans carries the level class and says how often the posting repeats a 
   assert.equal(helm.length, 1);
   assert.equal(kafka[0]?.title, 'Kafka · must · primary stack · not written — your resume evidences it, add the word · ×4 in the posting');
   assert.equal(helm[0]?.title, 'Helm · nice · not written — your resume evidences it, add the word', 'a single mention says nothing extra');
+});
+
+/*
+ * Where a chip's click leads (#349). The resume below is the shape the live
+ * comparisons have: a name, a headline, a contact line, a summary, a skills
+ * section of labelled lists and one role.
+ */
+const CHIP_RESUME = [
+  'Dana Example',
+  'Senior PHP Developer',
+  'dana@example.com | +1 555 010 0199',
+  '',
+  'Summary',
+  'Twelve years of commerce back ends in PHP.',
+  '',
+  'Key Skills',
+  'Programming: PHP, JavaScript',
+  'Others: Docker, GitLab CI/CD',
+  '',
+  'Experience',
+  'Acme, Senior Developer, 2019 – Present',
+  '- Built REST integrations with three payment gateways.',
+].join('\n');
+
+type ChipRow = { term: string; status: string; where?: string | null; note?: string | null; priority?: number };
+type ChipCtx = {
+  jobTitle: string;
+  headline: string | null;
+  deniedNote: string;
+  unsureNote: string;
+  confirm: { asks: boolean; unproven: boolean };
+};
+type ChipTarget = { to: string; tier?: string; why?: string; start?: number; end?: number };
+
+async function chipTargetFn(): Promise<(row: ChipRow, text: string, ctx: ChipCtx) => ChipTarget> {
+  // @ts-expect-error — plain JS with no declaration file.
+  const page = (await import('./public/target-page.mjs')) as { chipTarget: (row: ChipRow, text: string, ctx: ChipCtx) => ChipTarget };
+  return page.chipTarget;
+}
+
+const CHIP_CTX: ChipCtx = {
+  jobTitle: 'Sr. PHP Developer',
+  headline: 'Senior PHP Developer',
+  deniedNote: 'DENIED',
+  unsureNote: 'UNSURE',
+  confirm: { asks: true, unproven: true },
+};
+
+/** The line of the resume a target points at, or what it says instead. */
+function chipLands(target: ChipTarget, text = CHIP_RESUME): string {
+  if (target.to === 'line') return `line: ${text.slice(target.start, target.end)}`;
+  return target.to === 'confirm' ? `confirm: ${target.tier}` : `nowhere: ${target.why}`;
+}
+
+test('a chip the model asks about opens the confirm card, as a chip with no evidence does', async () => {
+  const chipTarget = await chipTargetFn();
+  // An ask_user row carries no `where`: its click did nothing at all.
+  assert.equal(chipLands(chipTarget({ term: 'code deployments', status: 'ask_user' }, CHIP_RESUME, CHIP_CTX)), 'confirm: asks');
+  assert.equal(chipLands(chipTarget({ term: 'Kafka', status: 'cannot_claim' }, CHIP_RESUME, CHIP_CTX)), 'confirm: unproven');
+});
+
+test('the chip of the posting\'s own title leads to the line under the name', async () => {
+  const chipTarget = await chipTargetFn();
+  const title = { term: 'Sr. PHP Developer', status: 'ask_user', where: 'Title line' };
+  assert.equal(chipLands(chipTarget(title, CHIP_RESUME, CHIP_CTX)), 'line: Senior PHP Developer');
+  // The title is never a question, whatever the model called the row.
+  assert.equal(chipLands(chipTarget({ ...title, status: 'cannot_claim' }, CHIP_RESUME, CHIP_CTX)), 'line: Senior PHP Developer');
+  // A headline that shares its line with the contacts is still that line.
+  const oneLine = CHIP_RESUME.replace('Senior PHP Developer\ndana@example.com', 'Senior PHP Developer | dana@example.com');
+  assert.equal(
+    chipLands(chipTarget(title, oneLine, CHIP_CTX), oneLine),
+    'line: Senior PHP Developer | dana@example.com | +1 555 010 0199',
+  );
+  // No headline to point at: the click says where a title goes.
+  assert.equal(chipLands(chipTarget(title, CHIP_RESUME, { ...CHIP_CTX, headline: null })), 'nowhere: title');
+  assert.equal(chipLands(chipTarget(title, CHIP_RESUME.replace('Senior PHP Developer', 'Team Lead'), CHIP_CTX)), 'nowhere: title');
+});
+
+test('a term the resume backs goes to the skills line "+ add" would write it on', async () => {
+  const chipTarget = await chipTargetFn();
+  // The hint is a sentence, as the model writes it: no section word in it.
+  const sentence = { term: 'REST API', status: 'add', where: 'Implied by third-party gateway integrations across roles' };
+  assert.equal(chipLands(chipTarget(sentence, CHIP_RESUME, CHIP_CTX)), 'line: Others: Docker, GitLab CI/CD');
+  // A hint that names a list picks that list.
+  const named = { term: 'TypeScript', status: 'add', where: 'Key Skills, Programming line' };
+  assert.equal(chipLands(chipTarget(named, CHIP_RESUME, CHIP_CTX)), 'line: Programming: PHP, JavaScript');
+  // A hint that names another section goes to its heading.
+  const summary = { term: 'e-commerce', status: 'add', where: 'Summary, first sentence' };
+  assert.equal(chipLands(chipTarget(summary, CHIP_RESUME, CHIP_CTX)), 'line: Summary');
+});
+
+test('a click with no line to go to says why', async () => {
+  const chipTarget = await chipTargetFn();
+  const bare = 'Dana Example\ndana@example.com\n\nBuilt REST integrations with three payment gateways.';
+  // No skills list and no heading the hint names.
+  assert.equal(chipLands(chipTarget({ term: 'Kafka', status: 'add', where: 'Skills' }, bare, CHIP_CTX), bare), 'nowhere: no-place');
+  // The person's own answers are not asked again.
+  assert.equal(chipLands(chipTarget({ term: 'Kafka', status: 'cannot_claim', note: 'DENIED' }, CHIP_RESUME, CHIP_CTX)), 'nowhere: answered-no');
+  assert.equal(chipLands(chipTarget({ term: 'Kafka', status: 'cannot_claim', note: 'UNSURE' }, CHIP_RESUME, CHIP_CTX)), 'nowhere: answered-unsure');
+  // A file judged on its text alone has no confirm card to open.
+  const noCard = { ...CHIP_CTX, confirm: { asks: false, unproven: false } };
+  assert.equal(chipLands(chipTarget({ term: 'Kafka', status: 'cannot_claim' }, CHIP_RESUME, noCard)), 'nowhere: no-place');
+  assert.equal(chipLands(chipTarget({ term: 'code deployments', status: 'ask_user' }, CHIP_RESUME, noCard)), 'nowhere: no-place');
+});
+
+test('what a skills line takes unasked is decided the same way on the page and in a pack\'s plan (#351)', async () => {
+  // @ts-expect-error — plain JS with no declaration file.
+  const { namedSkill } = (await import('./public/target-page.mjs')) as { namedSkill: (row: { priority: number; added?: boolean }) => boolean };
+  for (const priority of [1, 2, 3, 4, 5]) {
+    assert.equal(namedSkill({ priority }), isNamedSkill({ priority }), `priority ${priority}`);
+    // A keyword the person typed at "nice" or "context" gets priority 3 or 4 from its level alone: it stays a skill.
+    assert.equal(namedSkill({ priority, added: true }), true, `added, priority ${priority}`);
+    assert.equal(isNamedSkill({ priority, added: true }), true, `added, priority ${priority}`);
+  }
+  // Methodology and process (3) and domain (4) are phrases for a sentence; a required skill and a term the person added are not.
+  assert.deepEqual([1, 2, 3, 4].map((priority) => namedSkill({ priority })), [true, true, false, false]);
 });

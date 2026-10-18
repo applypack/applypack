@@ -28,6 +28,7 @@ import path from 'node:path';
 import { JobStatus, type Prisma } from '@prisma/client';
 import { createLimiter } from '../concurrency';
 import { prisma } from '../db';
+import { companyForPrompt } from '../employer';
 import { dryReport, readDryRecords, type DryRecord, type DrySettings } from '../pack/dry-report';
 import { DEFAULT_MIN_CEILING } from '../pack/gate';
 import { DEFAULT_POLICY } from '../pack/policy';
@@ -84,7 +85,8 @@ async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | 
     {
       id: job.id,
       title: job.title,
-      companyName: company,
+      // What the worker's own run tells the model (pack/store.ts): never a folder's or a feed's name for a company.
+      companyName: companyForPrompt(job.employer, job.company),
       location: job.location,
       description: job.description,
       url: job.url,
@@ -92,6 +94,8 @@ async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | 
       postedAt: job.postedAt,
       atsType: job.company.atsType,
       atsToken: job.company.atsToken,
+      // The dry run measures every posting on its own, so no copy lends it a company check.
+      sameRole: [],
     },
     resume,
     { minCeiling: tools.settings.minCeiling, policy: tools.settings.policy, verify: tools.verify, rejudge: tools.rejudge, coverLetter: false },

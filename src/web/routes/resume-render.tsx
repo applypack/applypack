@@ -6,6 +6,7 @@ import { createResume, getResume, getResumeOriginal, versionFileName, type Resum
 import { readStructure, type JsonResume } from '../../resume/json-resume';
 import { structureFromText } from '../../resume/structure-from-text';
 import { anchorStructure, structureIsUsable } from '../../resume/structure-anchor';
+import { structureGaps, structureIsComplete } from '../../resume/structure-complete';
 import { blankStyle, type InferredStyle } from '../../resume/style-infer';
 import { resumeStyle } from '../resume-style';
 import { knobsFrom, readKnobs, type RenderKnobs } from '../../resume/render/knobs';
@@ -41,6 +42,8 @@ interface RenderContext {
   resume: ResumeSummary;
   structure: JsonResume;
   origin: Origin;
+  /** Lines under the roles that the AI reading on show lacks; 0 for the built-in reading, which loses none. */
+  lostLines: number;
   style: InferredStyle;
   /** Why this resume is offered a re-render at all — shown at the top of the page. */
   reason: string;
@@ -173,9 +176,14 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
   // words the resume no longer contains. Anchoring ~6 KB costs microseconds.
   const stored = readStructure(resume.structure);
   const guarded = stored ? anchorStructure(stored, resume.text) : null;
-  const usable = guarded !== null && structureIsUsable(guarded);
-  if (guarded && !usable) {
-    logger.info({ id, dropped: guarded.dropped }, 'resume: stored structure no longer matches the text');
+  // And against the whole text: a reading stored before #408 may have copied two roles of six faithfully.
+  const gaps = guarded ? structureGaps(guarded.structure, resume.text) : null;
+  const usable = guarded !== null && gaps !== null && structureIsUsable(guarded) && structureIsComplete(gaps);
+  if (guarded && gaps && !usable) {
+    logger.info(
+      { id, dropped: guarded.dropped, lostRoles: gaps.lostRoles.length, lostLines: gaps.lostLines },
+      'resume: stored structure no longer matches the text',
+    );
   }
   const row = await getResumeOriginal(id);
   const bytes = row ? Buffer.from(row.original) : null;
@@ -184,7 +192,7 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
   const structure = usable ? guarded.structure : structureFromText(resume.text, style.layout);
   const origin: Origin = usable ? 'ai' : 'text';
 
-  return { resume, structure, origin, style, reason: reasonFor(resume, bytes) };
+  return { resume, structure, origin, lostLines: usable ? gaps.lostLines : 0, style, reason: reasonFor(resume, bytes) };
 }
 
 /** Why this resume cannot simply be edited in place — the sentence the page opens with. */
@@ -215,6 +223,7 @@ async function page(ctx: RenderContext, knobs: RenderKnobs, flash: ReturnType<ty
       knobs={knobs}
       structure={ctx.structure}
       origin={ctx.origin}
+      lostLines={ctx.lostLines}
       styleSource={ctx.style.source}
       preview={preview}
       dropped={droppedByRender(ctx.structure, knobs)}

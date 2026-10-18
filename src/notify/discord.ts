@@ -2,7 +2,7 @@ import type { NotificationTarget } from '@prisma/client';
 import type { MessageKey } from '../i18n/catalog';
 import type { MessageParams } from '../i18n/message';
 import type { AlertJob } from '../types';
-import { formatPlaceLine, formatSalary, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './lines';
+import { formatPlaceLine, formatSalary, hasApplyLink, type PageChangeNotice, type QuietSourceAlert, quietSourceList } from './lines';
 import { tMarkup, type ChannelMarkup } from './markup';
 import { packMessages } from './pack';
 
@@ -62,7 +62,7 @@ export function formatDiscordAlert(job: AlertJob): string {
   if (job.summary) lines.push(`_${escapeDiscord(job.summary)}_`);
   if (job.attribution) lines.push(escapeDiscord(job.attribution));
   // Angle brackets keep Discord from unfurling the posting into an embed.
-  lines.push(`${discordText('notify.alert.apply')} <${job.url}>`);
+  if (hasApplyLink(job)) lines.push(`${discordText('notify.alert.apply')} <${job.url}>`);
   return lines.join('\n');
 }
 
@@ -72,15 +72,22 @@ export function formatDiscordHealthLine(quiet: readonly QuietSourceAlert[]): str
 }
 
 /** The digest, packed under Discord's 2000-character limit. `more` = matches counted in the header and not listed. */
-export function formatDiscordDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string, more = 0): string[] {
+export function formatDiscordDigest(
+  jobs: readonly AlertJob[],
+  quiet: readonly QuietSourceAlert[],
+  title: string,
+  more = 0,
+  unscored = 0,
+): string[] {
   const health = formatDiscordHealthLine(quiet);
+  const waiting = unscored > 0 ? discordText('digest.unscored', { n: unscored }) : '';
   if (jobs.length === 0) {
-    const empty = discordText('digest.empty');
-    return [health ? `${empty}\n\n${health}` : empty];
+    return [[discordText('digest.empty'), waiting, health].filter((part) => part !== '').join('\n\n')];
   }
   const header = `**${discordText('digest.header', { title, n: jobs.length + more })}**${health ? `\n${health}` : ''}`;
   const blocks = jobs.map(formatDiscordAlert);
   if (more > 0) blocks.push(discordText('digest.more', { n: more }));
+  if (waiting) blocks.push(waiting);
   return packMessages(header, blocks, '\n\n———\n\n', DISCORD_MAX_LENGTH);
 }
 

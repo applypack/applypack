@@ -347,7 +347,8 @@ class OpenAiApiProvider implements AiProvider {
       } catch (err) {
         logger.error({ err, label: req.label, model }, 'ai: openai request failed');
         req.onError?.(describeAiFailure(errorReason(err)));
-        return failed(ctrl.signal.aborted ? 'timeout' : 'error');
+        // The request threw before any status came back: nothing answered at that address.
+        return failed(ctrl.signal.aborted ? 'timeout' : 'unreachable');
       } finally {
         clearTimeout(timer);
       }
@@ -380,7 +381,7 @@ class LocalApiProvider implements AiProvider {
     if (need > contextTokens) {
       logger.warn({ label: req.label, need, contextTokens }, 'ai: prompt larger than the local context window');
       req.onError?.(t('engine.fail.contextTooSmall', { need, window: contextTokens }));
-      return failed('error');
+      return failed('too_large');
     }
     const deadline = Date.now() + (req.timeoutMs ?? CLI_TIMEOUT_MS);
     const slot = this.slots.get(root) ?? createLimiter(LOCAL_CALLS_AT_ONCE);
@@ -426,7 +427,7 @@ class LocalApiProvider implements AiProvider {
       const timedOut = ctrl.signal.aborted;
       logger.error({ err, label: req.label, model }, 'ai: local request failed');
       req.onError?.(timedOut ? t('engine.fail.noReplyWithin', { seconds: Math.round(remainingMs / 1000) }) : t('engine.fail.ollamaDown', { root }));
-      return failed(timedOut ? 'timeout' : 'error');
+      return failed(timedOut ? 'timeout' : 'unreachable');
     } finally {
       clearTimeout(timer);
     }

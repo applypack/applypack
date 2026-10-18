@@ -29,6 +29,7 @@ import {
   MappingSchema,
   columnsOf,
   detectMapping,
+  findJobRows,
   mapRows,
   readSourceConfig,
   usableMapping,
@@ -39,12 +40,12 @@ import {
 } from '../../datasets/map';
 import { needsModel, readPostingFile } from '../../datasets/posting-file';
 import { previewCounts } from '../../datasets/preview';
-import { decodeBody, findRows, type Row, type RowFormat } from '../../datasets/rows';
+import { decodeBody, type Row, type RowFormat } from '../../datasets/rows';
 import { prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
-import { folderSummaries, listSourceFiles, loadLedger } from '../../jobs/source-file-store';
-import { underLauncher } from '../../local/child';
+import { folderSummaries, listSourceFiles, loadLedger, misfitsWaitAgain, readFilesAgain } from '../../jobs/source-file-store';
+import { localInstall } from '../../local/install';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
@@ -53,7 +54,7 @@ import { getSettings } from '../../settings';
 import { t } from '../../i18n/t';
 import type { NormalizedJob } from '../../types';
 import { spendHint } from '../cost-hint';
-import { flashRedirect } from '../flash';
+import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { explainFolderFault } from '../folder-words';
 import { createInbox } from '../inbox-folder';
 import { FolderFilesPage, FolderPreviewPage, type PostingSample, type PostingsPreviewProps, type RowsPreviewProps } from '../pages/folder-source';
@@ -85,10 +86,10 @@ async function resolveFolder(typed: string): Promise<{ root: string } | { error:
   if (asked === null) return { error: t('folders.flash.typePath') };
   try {
     const root = await realFolder(asked);
-    const allowed = folderAllowed(root, await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS));
+    const allowed = folderAllowed(root, await currentFolderRules(localInstall(), config.APPLYPACK_INBOX_ROOTS));
     return allowed.ok ? { root } : { error: allowed.reason };
   } catch (err) {
-    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !underLauncher()) };
+    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !localInstall()) };
     throw err;
   }
 }
@@ -98,7 +99,7 @@ async function sampleRows(root: string, files: readonly ListedFile[]): Promise<R
   const rows: Row[] = [];
   for (const file of [...files].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, SAMPLE_FILES)) {
     const got = await readFolderFile(root, file.relPath);
-    const found = got.ok ? findRows(decodeBody(got.bytes)) : null;
+    const found = got.ok ? findJobRows(decodeBody(got.bytes)) : null;
     if (found?.ok) rows.push(...found.rows.slice(0, SAMPLE_ROWS - rows.length));
   }
   return rows;
@@ -135,7 +136,7 @@ async function previewFolder(root: string, form: Record<string, unknown>): Promi
   try {
     listing = await listFolder(root);
   } catch (err) {
-    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !underLauncher()) };
+    if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !localInstall()) };
     throw err;
   }
   const existing = await prisma.company.findUnique({
@@ -191,17 +192,23 @@ async function previewRows(
 
   // The first look, as the fetcher would take it (fetchers/folder.ts), with nothing staged and nothing stored.
   const readAs = new Map(ledger.filter((e) => e.status === 'done' && e.sha256 !== null).map((e) => [e.sha256!, e.relPath]));
+  const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const jobs: NormalizedJob[] = [];
+  // How each file read, whatever the mapping: a part that was lost is said before the folder is added.
+  const fileNotes: { file: string; note: string }[] = [];
+  const usable = usableMapping(detected.mapping);
+  let left = MAX_ROWS_PER_LOOK;
   let misfits = 0;
-  if (usableMapping(detected.mapping)) {
-    for (const file of plan.read) {
-      if (jobs.length >= MAX_ROWS_PER_LOOK) break;
-      const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs);
-      if (verdict.rows === 'misfit') misfits++;
-      if (verdict.rows === 'fit') {
-        readAs.set(verdict.change!.sha256!, file.relPath);
-        jobs.push(...verdict.jobs);
-      }
+  for (const file of plan.read) {
+    if (left <= 0) break;
+    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs, known.get(file.relPath), left, now.getTime());
+    fileNotes.push(...verdict.notes.map((note) => ({ file: file.relPath, note })));
+    if (!usable) continue;
+    left -= verdict.taken;
+    if (verdict.rows === 'misfit') misfits++;
+    if (verdict.rows === 'fit') {
+      readAs.set(verdict.change!.sha256!, file.relPath);
+      jobs.push(...verdict.jobs);
     }
   }
 
@@ -227,6 +234,7 @@ async function previewRows(
     // The sample as jobs: what the page shows, and what says the mapping reads these files at all.
     sample: mapRows(rows, detected.mapping, 0, now).jobs,
     misfits,
+    fileNotes,
     counts,
     scoring,
     searches: { running: active.length, usable: roster.length },
@@ -256,7 +264,7 @@ async function previewPostings(
     const kind = postingFileKind(file.relPath)!;
     kinds[kind] = (kinds[kind] ?? 0) + 1;
   }
-  const plan = planScan(listing, ledger, now.getTime(), take, postingFileKind);
+  const plan = planScan(listing, ledger, now.getTime(), take, 'postings');
   const newest: PostingSample[] = [];
   for (const file of [...files].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, NEWEST_SHOWN)) {
     const kind = postingFileKind(file.relPath)!;
@@ -292,15 +300,16 @@ async function previewPostings(
 foldersRoute.post('/companies/folder/check', async (c) => {
   const form = await c.req.parseBody();
   const folder = await resolveFolder(text(form.path));
-  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${folder.error}`);
+  // Check never adds anything, so its refusal does not say "Nothing was added" (#365).
+  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${folder.error}`);
   const preview = await previewFolder(folder.root, form);
-  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${preview.error}`);
+  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${preview.error}`);
   return c.html(<FolderPreviewPage {...preview} />);
 });
 
 /** A local install only: an empty folder of ApplyPack's own in the home directory, then its check. */
 foldersRoute.post('/companies/folder/inbox', async (c) => {
-  if (!underLauncher()) {
+  if (!localInstall()) {
     return flashRedirect(BACK, 'err', t('folders.flash.inboxServer'));
   }
   let inbox: string;
@@ -351,9 +360,7 @@ foldersRoute.post('/companies/folder', async (c) => {
     select: { id: true },
   });
   // A new mapping may read what the old one could not: files that misfit wait for the next look.
-  if (preview.existing && preview.holds === 'rows') {
-    await prisma.sourceFile.updateMany({ where: { companyId: saved.id, status: 'failed', sha256: { not: null } }, data: { status: 'waiting' } });
-  }
+  if (preview.existing && preview.holds === 'rows') await misfitsWaitAgain(saved.id);
   logger.info({ companyId: saved.id, existing: preview.existing !== null }, 'web: folder source saved');
   return flashRedirect(
     `${BACK}#folders`,
@@ -366,7 +373,10 @@ foldersRoute.post('/companies/folder', async (c) => {
 foldersRoute.get('/companies/:id/files', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const company = await prisma.company.findFirst({ where: { id, atsType: AtsType.FOLDER }, select: { id: true, name: true, atsToken: true, active: true, sourceConfig: true } });
+  const company = await prisma.company.findFirst({
+    where: { id, atsType: AtsType.FOLDER },
+    select: { id: true, name: true, atsToken: true, active: true, sourceConfig: true, lastFetchStatus: true, consecutiveFailures: true },
+  });
   if (!company) return c.text(t('http.notFound'), 404);
   const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
   // The job each file became, by the file the job names (Job.sourceFile): one query, the files shown.
@@ -378,9 +388,39 @@ foldersRoute.get('/companies/:id/files', async (c) => {
   const kept = readSourceConfig(company.sourceConfig);
   return c.html(
     <FolderFilesPage
-      folder={{ id, name: company.name, path: company.atsToken, active: company.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(id) }}
+      folder={{
+        id,
+        name: company.name,
+        path: company.atsToken,
+        active: company.active,
+        include: kept?.include ?? null,
+        holds: kept?.holds ?? 'rows',
+        summary: summaries.get(id),
+        lastFetchStatus: company.lastFetchStatus,
+        consecutiveFailures: company.consecutiveFailures,
+      }}
       files={files}
       jobs={jobs}
+      flash={parseFlashCookie(c.req.header('cookie'))}
     />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
   );
+});
+
+/**
+ * "Read every file again" (#396). A file of rows is read once, and a row a
+ * search or a mute turned away then was never looked at again, whatever
+ * changed. This puts the folder's read files back to waiting; the next look
+ * reads them from their first row, twenty a look, behind any new file.
+ */
+foldersRoute.post('/companies/:id/files/reread', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const company = await prisma.company.findFirst({ where: { id, atsType: AtsType.FOLDER }, select: { name: true, sourceConfig: true } });
+  // A saved posting is never turned away by a search or a mute: reading one again changes nothing.
+  if (!company || readSourceConfig(company.sourceConfig)?.holds !== 'rows') return c.text(t('http.notFound'), 404);
+  const n = await readFilesAgain(id);
+  logger.info({ companyId: id, files: n }, 'web: folder files put back to be read again');
+  return flashRedirect(`/companies/${id}/files`, n > 0 ? 'ok' : 'warn', t(n > 0 ? 'folders.flash.reread' : 'folders.flash.rereadNone', { n, name: company.name }));
 });

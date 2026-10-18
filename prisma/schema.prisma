@@ -202,6 +202,11 @@ model SourceFile {
   detail    String?
   // Rows of it handed to the pipeline as jobs.
   jobCount  Int       @default(0)
+  // Rows of it read so far. A file longer than one look takes waits with this
+  // short of its end, and a file that only grew is read on from here
+  // (folder-scan.ts:judgeFile). 0 unless `sha256` is the hash of the bytes
+  // those rows were read from.
+  rowsRead  Int       @default(0)
   // The last look that listed it, and the last one that read it.
   seenAt    DateTime
   readAt    DateTime?
@@ -885,8 +890,9 @@ model ApplicationPack {
   job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
   // queued | running | ready | stopped | failed (src/pack/store.ts)
   status          String    @default("queued")
-  // auto (the tick queued it) | manual (the person asked). Only auto counts
-  // toward the daily limit.
+  // Who asked for the preparing this row holds: auto (the tick queued it) |
+  // manual (the person asked — also for a pack the tick queued, once they
+  // start it over). Only auto counts toward the daily limit.
   trigger         String
   // The step a running pack is on (src/pack/gate.ts:PREPARE_STEPS) — what
   // the page says while it waits.

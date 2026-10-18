@@ -11,7 +11,7 @@ describe('heldLine', () => {
     });
     assert.deepEqual(heldLine(2, 'window'), {
       text: '2 matches are waiting for the alert window to open',
-      href: '/settings?tab=general',
+      href: '/settings?tab=notifications#alerts',
       action: 'change when alerts arrive',
     });
     assert.equal(heldLine(4, 'next-check').text, '4 matches are waiting to be sent at the next hourly check');

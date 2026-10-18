@@ -294,6 +294,11 @@ const MatchSchema = z.object({
         // spelling a present term was found as when the posting's own is
         // nowhere in the resume — what an ATS searching the posting's word misses.
         aliasOnly: nullableText.optional(),
+        // Set by post-processing (keyword-anchor.ts:anchorStatuses): the verdict
+        // the model gave when the resume's own text overruled it — a
+        // `cannot_claim` or an `ask_user` the text spells. The note beside the
+        // row was written for that verdict, and the page says so (#203).
+        overruled: z.enum(['ask_user', 'cannot_claim']).nullish(),
         // Set by post-processing when the posting contains the term in no
         // recognisable spelling — the panes cannot highlight it (F2 guard).
         unanchored: z.boolean().optional(),

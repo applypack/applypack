@@ -11,6 +11,7 @@ import {
   findSameDestination,
   deleteNotificationTarget,
   getAiKeys,
+  getPackSettings,
   getSchedule,
   getSettings,
   listNotificationTargets,
@@ -89,7 +90,9 @@ import { isReapplyChoice } from '../../employer';
 import { forgetUpdateNotice } from '../update-notice';
 import { billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
 import { billingNotes } from '../../ai-spend';
-import { billedThisMonth } from '../../ai-ledger';
+import { engineTroubles } from '../../ai-health';
+import { troubleLine } from '../usage-hints';
+import { billedThisMonth, loadRecentAttempts } from '../../ai-ledger';
 import {
   AI_KEY_ENV_VARS,
   aiKeySource,
@@ -110,6 +113,7 @@ import {
   type SourceKeys,
 } from '../../source-keys';
 import { groupSources, type SourceCount, fetchedSource } from '../source-groups';
+import { profileLine } from '../profile-line';
 import { testAiEngine } from '../ai-test';
 import {
   blankProfileInput,
@@ -136,9 +140,12 @@ import {
 } from '../../priority-rules';
 import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
+import { filterChanged } from '../../filter';
+import { foldersReadOnceHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
-import { packSettingsFromForm, parsePackSettings } from '../../pack/settings';
+import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
+import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
 import type { MessageKey } from '../../i18n/catalog';
@@ -250,7 +257,7 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
-  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth] =
+  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
     await Promise.all([
       getSettings(),
       listNotificationTargets(),
@@ -264,7 +271,10 @@ async function loadSettingsProps() {
         where: { pipelineStage: { not: null } },
       }),
       billedThisMonth(),
+      loadRecentAttempts(),
     ]);
+  // "available" is what the probe found on disk; whether calls get through is what the ledger's last rows say (#413).
+  const troubles = new Map(engineTroubles(recentAttempts).map((trouble) => [trouble.engine, troubleLine(trouble)]));
   const check = await loadNextCheck(settings.schedule);
   const scheduleView = {
     schedule: check.schedule,
@@ -318,6 +328,7 @@ async function loadSettingsProps() {
       desc: t(AI_PROVIDER_DESCS[id]),
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
+      trouble: troubles.get(id) ?? null,
       ...aiEngineCard(engine, id, aiEnv.provider),
       tasks: AI_TASKS.filter((task) => taskShown(task, settings.employerMode)).map((task) => ({
         id: task,
@@ -410,6 +421,7 @@ async function loadSettingsProps() {
       running: p.active,
       primary: active?.id === p.id,
       blank: isBlankProfile(p),
+      line: profileLine(p),
     })),
     activeProfile: active,
     availableTargets: targets.map((target) => ({
@@ -429,6 +441,7 @@ async function loadSettingsProps() {
       retentionDays: settings.screeningRetentionDays,
       retentionMin: SCREENING_RETENTION_DAYS.min,
       retentionMax: SCREENING_RETENTION_DAYS.max,
+      retentionDefault: SCREENING_RETENTION_DAYS.default,
       engineLabel: AI_PROVIDER_LABELS[screeningEngine],
       engineSubscription: billingFor(screeningEngine) === 'plan',
       screenings: screeningCount,
@@ -441,7 +454,7 @@ async function loadSettingsProps() {
 settingsRoute.get('/settings', async (c) => {
   const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
-  const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
+  const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
   // ?profile= points the editor at a specific (possibly inactive) profile.
   // "+ New profile" lands here: new profiles are born inactive (issue #50)
   // and must be editable before activation.
@@ -462,7 +475,7 @@ settingsRoute.get('/settings', async (c) => {
 settingsRoute.post('/settings/fetching-toggle', async (c) => {
   // The Overview quick control posts back="/" to land where it came from.
   const form = await c.req.parseBody();
-  const back = form.back === '/' ? '/' : '/settings?tab=general';
+  const back = form.back === '/' ? '/' : '/settings?tab=profile';
   const settings = await getSettings();
   const enabling = !settings.fetchingEnabled;
   await setFetchingEnabled(enabling);
@@ -480,7 +493,8 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
 
 
 /**
- * Saves the whole Schedule card (TASKS §16). Day and digest pills are
+ * Saves the schedule (TASKS §16), one part per form: when to search (Job
+ * search tab), when alerts arrive (Notifications), the zone (General). Day and digest pills are
  * repeated checkboxes, so the body is read with `{ all: true }` (gotcha 1);
  * an empty day set would silence the search forever, so it falls back to
  * every day rather than saving nothing.
@@ -488,31 +502,55 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
 settingsRoute.post('/settings/schedule', async (c) => {
   const form = await c.req.parseBody({ all: true });
   const current = parseSchedule((await getSettings()).schedule, config.TZ);
+  // Three forms on three tabs save one part each and keep the stored rest; a body with no part saves all of it.
+  const part = schedulePart(form.part);
+  const takes = (p: SchedulePart): boolean => part === null || part === p;
   const candidate = {
+    // The zone form always sends it; the other two only while no zone was ever saved — the browser's guess (TASKS S28).
     timezone: str(form.timezone) || current.timezone,
-    fetch: {
-      every: str(form.fetchEvery),
-      from: hour(form.fetchFrom, current.fetch.from),
-      to: hour(form.fetchTo, current.fetch.to),
-      days: pills(form.fetchDays, ALL_DAYS),
-    },
-    alerts: {
-      mode: str(form.alertMode),
-      from: hour(form.alertFrom, current.alerts.from),
-      to: hour(form.alertTo, current.alerts.to),
-      days: pills(form.alertDays, ALL_DAYS),
-      digestAt: pills(form.digestAt, current.alerts.digestAt).slice(0, MAX_DIGEST_HOURS),
-    },
+    fetch: takes('fetch')
+      ? {
+          every: str(form.fetchEvery),
+          from: hour(form.fetchFrom, current.fetch.from),
+          to: hour(form.fetchTo, current.fetch.to),
+          days: pills(form.fetchDays, ALL_DAYS),
+        }
+      : current.fetch,
+    alerts: takes('alerts')
+      ? {
+          mode: str(form.alertMode),
+          from: hour(form.alertFrom, current.alerts.from),
+          to: hour(form.alertTo, current.alerts.to),
+          days: pills(form.alertDays, ALL_DAYS),
+          digestAt: pills(form.digestAt, current.alerts.digestAt).slice(0, MAX_DIGEST_HOURS),
+        }
+      : current.alerts,
   };
+  const back = SCHEDULE_BACK[part ?? 'fetch'];
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
-    return flashRedirect('/settings?tab=general', 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   await setSchedule(parsed.data);
+  if (part === 'zone') return flashRedirect(back, 'ok', t('settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
   const held = await loadHeldLine(parsed.data);
-  const saved = t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
-  return flashRedirect('/settings?tab=general', 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
+  const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
+  return flashRedirect(back, 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
 });
+
+/** Where each part of the schedule is set: the search's hours, the alerts' timing, the zone every date is written in. */
+const SCHEDULE_BACK = {
+  fetch: '/settings?tab=profile#schedule',
+  alerts: '/settings?tab=notifications#alerts',
+  zone: '/settings?tab=general#timezone',
+} as const;
+
+type SchedulePart = keyof typeof SCHEDULE_BACK;
+
+function schedulePart(value: unknown): SchedulePart | null {
+  const s = str(value);
+  return Object.hasOwn(SCHEDULE_BACK, s) ? (s as SchedulePart) : null;
+}
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -527,7 +565,8 @@ function hour(value: unknown, fallback: number): number {
 /** Repeated checkboxes → numbers. An empty set means the user unticked them all, which is never what they meant. */
 function pills(value: unknown, fallback: readonly number[]): number[] {
   const raw = Array.isArray(value) ? value : value === undefined ? [] : [value];
-  const picked = raw.map((v) => Number(str(v))).filter((n) => Number.isInteger(n));
+  // An empty time picker ("—") sends "", which Number() would read as 00:00.
+  const picked = raw.filter((v) => str(v) !== '').map((v) => Number(str(v))).filter((n) => Number.isInteger(n));
   return picked.length > 0 ? picked : [...fallback];
 }
 
@@ -863,7 +902,7 @@ settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
   const settings = await getSettings();
   await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
   return flashRedirect(
-    '/settings?tab=general',
+    '/settings?tab=applications',
     'ok',
     t(!settings.applicationTrackingEnabled ? 'settingsRoute.tracking.enabled' : 'settingsRoute.tracking.disabled'),
   );
@@ -871,7 +910,7 @@ settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
 
 // ---- Board columns (ADR 0025) ------------------------------------------
 
-const STAGES_BACK = '/settings?tab=general#stages';
+const STAGES_BACK = '/settings?tab=applications#stages';
 
 const STAGE_ERROR_TEXT = {
   'empty-label': 'settingsRoute.stages.emptyLabel',
@@ -989,10 +1028,18 @@ settingsRoute.post('/settings/locale', async (c) => {
 
 /** ADR 0063: application packs — the whole form at once, as the schedule is saved. */
 settingsRoute.post('/settings/pack', async (c) => {
-  const pack = packSettingsFromForm(await c.req.parseBody({ all: true }));
+  const back = '/settings?tab=automation#packs';
+  const form = packSettingsFromForm(await c.req.parseBody({ all: true }));
+  // A value the form does not offer stores nothing — not even the switch — and the flash names the field (#383).
+  if (!form.ok) {
+    return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues) }), refusedField(c.req.path, form.issues));
+  }
+  const pack = switchedOn(form.settings, await getPackSettings(), new Date());
   await setPackSettings(pack);
+  // Off means off for what already waits: the flash says none is prepared on its own, and the queue may hold a day of them.
+  const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks();
   return flashRedirect(
-    '/settings?tab=general#packs',
+    back,
     'ok',
     pack.enabled
       ? t(pack.dailyLimit === 0 ? 'settingsRoute.pack.onNoLimit' : 'settingsRoute.pack.on', {
@@ -1000,7 +1047,9 @@ settingsRoute.post('/settings/pack', async (c) => {
           days: pack.maxAgeDays,
           limit: pack.dailyLimit,
         })
-      : t('settingsRoute.pack.off'),
+      : cancelled > 0
+        ? t('settingsRoute.pack.offCancelled', { n: cancelled })
+        : t('settingsRoute.pack.off'),
   );
 });
 
@@ -1010,11 +1059,11 @@ settingsRoute.post('/settings/reapply', async (c) => {
   const raw = typeof body.days === 'string' ? body.days.trim() : '';
   const days = raw === '' ? null : Number(raw);
   if (days !== null && !isReapplyChoice(days)) {
-    return flashRedirect('/settings?tab=general', 'err', t('settingsRoute.reapply.invalid'));
+    return flashRedirect('/settings?tab=applications#reapply', 'err', t('settingsRoute.reapply.invalid'));
   }
   await setReapplyDays(days);
   return flashRedirect(
-    '/settings?tab=general',
+    '/settings?tab=applications#reapply',
     'ok',
     days === null ? t('settingsRoute.reapply.off') : t('settingsRoute.reapply.set', { days }),
   );
@@ -1026,7 +1075,7 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
     !settings.staleApplicationsDigestEnabled,
   );
   return flashRedirect(
-    '/settings?tab=general',
+    '/settings?tab=notifications#messages',
     'ok',
     t(!settings.staleApplicationsDigestEnabled ? 'settingsRoute.staleDigest.enabled' : 'settingsRoute.staleDigest.disabled'),
   );
@@ -1357,6 +1406,9 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // Plan §4.3: a running search that names Ukraine, Germany or the UK has
   // feeds waiting on /companies — say so on the save, where the countries were picked.
   const sourcesHint = isActive ? await sourcesWaiting(saved) : '';
+  // A feed serves a posting again on its next tick; a file of rows was read once. When what the filter admits
+  // has changed — its fields, or the search starting to run — the save says which folders that leaves behind (#448).
+  const foldersHint = isActive && (activated || filterChanged(before, saved)) ? await foldersReadOnceHint() : '';
 
   if (f.action === 'save-and-reclassify') {
     if (!isActive) {
@@ -1374,11 +1426,12 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
         t(activated ? 'settingsRoute.search.savedStarted' : 'settingsRoute.search.saved'),
         t(started ? 'settingsRoute.reclassify.started' : 'settingsRoute.reclassify.joins'),
         sourcesHint,
+        foldersHint,
       ),
     );
   }
   if (activated) {
-    return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.savedStartedNext'), sourcesHint));
+    return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.savedStartedNext'), sourcesHint, foldersHint));
   }
   if (!isActive && isBlankProfile(input)) {
     return flashRedirect(
@@ -1387,7 +1440,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       t('settingsRoute.search.savedStaysPaused'),
     );
   }
-  return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.saved'), sourcesHint));
+  return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.saved'), sourcesHint, foldersHint));
 });
 
 /** "2 sources fit these countries — Companies → …", or '' when every suggested feed already runs. */

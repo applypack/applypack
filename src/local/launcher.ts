@@ -4,9 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { dataDirFor, localPaths } from './data-dir';
-import { LocalDatabaseError, commandLineOf, databaseAnswers, portIsFree, startLocalDatabase, type LocalDatabase } from './postgres';
+import { LocalDatabaseError, commandLineOf, databaseAnswers, pidAlive, portIsFree, startLocalDatabase, type LocalDatabase } from './postgres';
 import { firstLinePid } from './postgres-setup';
-import { MAX_RESTARTS, isLauncherCommand, isLauncherMessage, restartDecision, type LauncherMessage } from './supervise';
+import { MAX_RESTARTS, isLauncherMessage, lockHolder, restartDecision, type LauncherMessage } from './supervise';
 import { snapshotDay, snapshotPlan, snapshotSkips, snapshotsToKeep } from './snapshots';
 
 /*
@@ -215,10 +215,18 @@ async function takeLock(paths: Paths): Promise<void> {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
     }
     const pid = firstLinePid(readText(paths.lock));
-    if (pid !== null && pid !== process.pid && isLauncherCommand(await commandLineOf(pid))) {
+    const holder = pid === null || pid === process.pid ? 'nobody' : lockHolder(await commandLineOf(pid), pidAlive(pid));
+    if (holder === 'launcher') {
       say(`ApplyPack is already running → ${dashboardUrl()}`);
       say('Stop it with npm run stop, or Ctrl+C in its terminal.');
       process.exit(0);
+    }
+    // Alive, and nothing could say what it is: taking the lock could put a second launcher on one database.
+    if (holder === 'unsure') {
+      fail(
+        `Could not tell whether process ${pid}, named in ${paths.lock}, is ApplyPack: the system did not answer in time. ` +
+          'Try again in a moment. If ApplyPack is not running, delete that file and start again.',
+      );
     }
     fs.rmSync(paths.lock, { force: true });
   }
@@ -247,12 +255,18 @@ function stopChild(child: Child): Promise<void> {
 
 async function stopRunning(paths: Paths): Promise<void> {
   const pid = firstLinePid(readText(paths.lock));
-  if (pid === null || !isLauncherCommand(await commandLineOf(pid))) {
+  const holder = pid === null ? 'nobody' : lockHolder(await commandLineOf(pid), pidAlive(pid));
+  if (holder === 'nobody') {
     say('ApplyPack is not running.');
     return;
   }
+  // The request is a file only a launcher reads, so it is safe to leave for a process nothing could name.
   fs.writeFileSync(paths.stopRequest, '');
-  say('Asked ApplyPack to stop; waiting…');
+  say(
+    holder === 'unsure'
+      ? `The system did not say in time what process ${pid} is; asking it to stop as ApplyPack, and waiting…`
+      : 'Asked ApplyPack to stop; waiting…',
+  );
   const deadline = Date.now() + STOP_COMMAND_WAIT_MS;
   while (Date.now() < deadline) {
     if (!fs.existsSync(paths.lock)) {

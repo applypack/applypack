@@ -1,5 +1,6 @@
 import type { Applicant, Prisma, Screening, ScreeningComparison, ScreeningVerdict } from '@prisma/client';
 import { prisma } from '../db';
+import { companyForPrompt } from '../employer';
 import { readRubric, type Rubric } from './rubric';
 import { toDbBigInt } from '../fingerprint';
 import type { KnownApplicant, SameAs } from './intake';
@@ -20,15 +21,19 @@ export type ApplicantWithVerdict = ApplicantSummary & {
   stale: boolean;
 };
 export type ScreeningWithJob = Screening & {
-  job: { id: number; title: string; employer: string | null; location: string; company: { name: string } };
+  job: { id: number; title: string; employer: string | null; location: string; company: { name: string; atsType: string } };
 };
 
-/** The posting as a screening reads it — its own snapshot, never the Job's live text (plan §4). */
+/**
+ * The posting as a screening's calls read it — its own snapshot, never the
+ * Job's live text (plan §4) — with who hires as a prompt states it: a row
+ * that names no company has none, not its folder's or its feed's name (#444).
+ */
 export function postingOf(screening: ScreeningWithJob): { id: number; title: string; companyName: string; location: string; description: string } {
   return {
     id: screening.job.id,
     title: screening.job.title,
-    companyName: screening.job.employer ?? screening.job.company.name,
+    companyName: companyForPrompt(screening.job.employer, screening.job.company),
     location: screening.job.location,
     description: screening.postingText,
   };
@@ -95,7 +100,7 @@ export async function savePosting(id: number, postingText: string): Promise<void
 export async function getScreening(id: number): Promise<ScreeningWithJob | null> {
   return prisma.screening.findUnique({
     where: { id },
-    include: { job: { select: { id: true, title: true, employer: true, location: true, company: { select: { name: true } } } } },
+    include: { job: { select: { id: true, title: true, employer: true, location: true, company: { select: { name: true, atsType: true } } } } },
   });
 }
 
@@ -271,7 +276,7 @@ export async function getApplicant(id: number): Promise<(ApplicantWithVerdict & 
     include: {
       verdicts: { orderBy: { createdAt: 'desc' }, take: 1 },
       screening: {
-        include: { job: { select: { id: true, title: true, employer: true, location: true, company: { select: { name: true } } } } },
+        include: { job: { select: { id: true, title: true, employer: true, location: true, company: { select: { name: true, atsType: true } } } } },
       },
     },
   });

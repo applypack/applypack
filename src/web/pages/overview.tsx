@@ -2,7 +2,9 @@
 import type { Child, FC } from 'hono/jsx';
 import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
+import { companyOnPage } from '../../employer';
 import {
+  CompanyName,
   Avatar,
   Badge,
   Button,
@@ -50,6 +52,7 @@ import type { Tone } from '../format';
 import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { unscoredRun } from '../runs-summary';
 
 interface JobRow {
   id: number;
@@ -65,7 +68,7 @@ interface JobRow {
   status: 'NEW' | 'ALERTED' | 'APPLIED' | 'DISMISSED' | 'SAVED';
   /** ADR 0056: who hires, when an aggregator named them. */
   employer: string | null;
-  company: { name: string };
+  company: { name: string; atsType: string };
 }
 
 interface RunRow {
@@ -101,6 +104,8 @@ export interface OverviewProps {
   next: NextThing[] | null;
   /** Application packs prepared and not yet sent (ADR 0063); empty on an install that never asked for one. */
   readyPacks: ReadyPack[];
+  /** How many are ready in all: the card lists only the newest few. */
+  readyPacksTotal: number;
   flash?: FlashMessage | null;
 }
 
@@ -132,6 +137,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   finishSetup,
   next,
   readyPacks,
+  readyPacksTotal,
   flash,
 }) => {
   const byStatus = mapCounts(counts);
@@ -236,7 +242,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       </p>
 
       {next && <NextThingsCard steps={next} />}
-      {readyPacks.length > 0 && <ReadyPacksCard packs={readyPacks} />}
+      {readyPacks.length > 0 && <ReadyPacksCard packs={readyPacks} total={readyPacksTotal} />}
 
       <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,27%)]">
         <div class="min-w-0 space-y-4">
@@ -257,15 +263,15 @@ export const OverviewPage: FC<OverviewProps> = ({
               {latestRuns.map(({ name, run }) => (
                 <li class="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                   <span
-                    class={`h-2 w-2 shrink-0 rounded-full ${run ? TONE_FILL[runTone(run.status)] : 'bg-line-strong'}`}
+                    class={`h-2 w-2 shrink-0 rounded-full ${run ? TONE_FILL[runBadge(run).tone] : 'bg-line-strong'}`}
                     aria-hidden="true"
                   />
                   <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" translate="no">
                     {name}
                   </span>
                   {/* The word, not the dot alone: said aloud for a healthy run, shown for one that is not. */}
-                  {run && run.status === 'OK' && <span class="sr-only">{t('run.status.ok')}</span>}
-                  {run && run.status !== 'OK' && <Badge tone={runTone(run.status)}>{runLabel(run.status)}</Badge>}
+                  {run && runBadge(run).ok && <span class="sr-only">{t('run.status.ok')}</span>}
+                  {run && !runBadge(run).ok && <Badge tone={runBadge(run).tone}>{runBadge(run).label}</Badge>}
                   <span class="shrink-0 text-note tabular-nums text-ink-faint">
                     {run
                       ? `${formatRelative(run.startedAt)} · ${formatDuration(
@@ -406,21 +412,25 @@ const RecentAlerts: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }
       <ul class="divide-y divide-line border-t border-line">
         {jobs.map((j) => {
           const place = placeLine(j, places);
-          const who = j.employer ?? j.company.name;
+          // Who hires, and — only when the row names nobody — the source it came through (#444).
+          const { name, via } = companyOnPage(j.employer, j.company);
+          const who = name ?? t('job.companyNotNamed');
           return (
             <li>
               <a
                 href={`/jobs/${j.id}`}
                 class="flex items-center gap-3.5 px-5 py-3 transition-colors duration-150 hover:bg-surface-selected/40"
               >
-                <Avatar name={who} />
+                <Avatar name={name ?? ''} />
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-entity text-ink" translate="no">
                     {j.title}
                   </div>
                   {/* Who posted it (data, whatever language the page is in) and where — names in the reader's language, or the posting's own words. */}
                   <div class="mt-0.5 truncate text-note text-ink-faint" title={`${who} · ${place.title}`} translate="no">
-                    <span translate="no">{who}</span> · <span translate={place.asPosted ? 'no' : undefined}>{place.text}</span>
+                    <CompanyName name={name} />
+                    {name === null && via !== null && <> · {tRich('job.via', {}, { source: () => <span translate="no">{via}</span> })}</>} ·{' '}
+                    <span translate={place.asPosted ? 'no' : undefined}>{place.text}</span>
                   </div>
                 </div>
                 {j.techMatch.length > 0 && (
@@ -483,23 +493,29 @@ function mapCounts(rows: { status: string; count: number }[]): Record<string, nu
   return out;
 }
 
-export function runTone(status: CronRunStatus): Tone {
+function runTone(status: CronRunStatus): Tone {
   if (status === 'OK') return 'ok';
   if (status === 'FAILED') return 'danger';
   return 'info';
 }
 
-export function runLabel(status: CronRunStatus): string {
+function runLabel(status: CronRunStatus): string {
   if (status === 'OK') return t('run.status.ok');
   if (status === 'FAILED') return t('run.status.failed');
   return t('run.status.running');
 }
 
+/** A run's badge. A run that finished and scored nothing it tried to is not "OK" to a reader, whatever its status (runs-summary.ts:unscoredRun). */
+export function runBadge(run: { status: CronRunStatus; stats: unknown }): { tone: Tone; label: string; ok: boolean } {
+  if (unscoredRun(run.status, run.stats)) return { tone: 'warn', label: t('run.status.unscored'), ok: false };
+  return { tone: runTone(run.status), label: runLabel(run.status), ok: run.status === 'OK' };
+}
+
 /** The loop the product is for, in three steps, until the user has walked it once (TASKS N11). */
 /** What the worker prepared while nobody watched: read the edits, download the file, apply. */
-const ReadyPacksCard: FC<{ packs: ReadyPack[] }> = ({ packs }) => (
+const ReadyPacksCard: FC<{ packs: ReadyPack[]; total: number }> = ({ packs, total }) => (
   <Card class="mb-4">
-    <SectionTitle>{t('overview.packs.title', { n: packs.length })}</SectionTitle>
+    <SectionTitle>{t('overview.packs.title', { n: Math.max(total, packs.length) })}</SectionTitle>
     <ul class="mt-2 divide-y divide-line">
       {packs.map((p) => {
         const when = { when: () => <When at={p.finishedAt} /> };

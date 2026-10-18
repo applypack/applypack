@@ -1,5 +1,7 @@
+import type { ImportBlock } from '../datasets/preview';
 import type { CronStats } from '../jobs/cron-run';
 import { filteredReasons, funnelCounts, reasonsText } from '../funnel';
+import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
 import type { FlashKind } from './flash';
 
@@ -14,6 +16,19 @@ function num(stats: CronStats, key: string): number {
 }
 
 const say = (...sentences: (string | null)[]): string => sentences.filter((s) => s).join(' ');
+
+const BLOCK_WORDS = {
+  mapping: 'import.block.mapping',
+  'no-job': 'import.block.noJob',
+  'no-search': 'import.block.noSearch',
+  'blank-searches': 'import.allSearchesBlank',
+  nothing: 'import.block.nothing',
+} as const satisfies Record<ImportBlock, MessageKey>;
+
+/** Why Import is not offered (datasets/preview.ts:importBlock), as the sentence the preview shows and the route refuses with. */
+export function importBlockText(block: ImportBlock): string {
+  return t(BLOCK_WORDS[block]);
+}
 
 export function summarizeImport(stats: CronStats, fileName: string, source: string): { kind: FlashKind; text: string } {
   if (stats.reason === 'overlap') return { kind: 'warn', text: t('import.summary.overlap') };
@@ -34,7 +49,13 @@ export function summarizeImport(stats: CronStats, fileName: string, source: stri
     return { kind: 'warn', text: say(t('import.summary.pausedMidRun', head), ...tail, t('import.summary.importRest')) };
   }
   const failed = num(stats, 'classifyFailed');
-  const scored = say(t('import.summary.scored', { ...head, scored: num(stats, 'classified'), alerted: num(stats, 'alerted') }), ...tail);
+  // What became of the matches (#402): listed in the one message, counted in it, or stored quietly.
+  const alerted = num(stats, 'alerted');
+  const sent = [
+    num(stats, 'alertCounted') > 0 ? t('import.summary.counted', { listed: alerted, n: num(stats, 'alertCounted') }) : null,
+    num(stats, 'alertSourceOff') > 0 ? t('import.summary.quiet', { n: num(stats, 'alertSourceOff') }) : null,
+  ];
+  const scored = say(t('import.summary.scored', { ...head, scored: num(stats, 'classified'), alerted }), ...sent, ...tail);
   if (failed > 0) return { kind: 'warn', text: say(scored, t('import.summary.failed', { n: failed })) };
   return { kind: 'ok', text: scored };
 }

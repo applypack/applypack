@@ -102,6 +102,18 @@ the part being repeated every time.
    ("Web Developer at Acme") it would be a claim about the past, so the
    exemption stops at those two sections — and every other keyword blocks
    everywhere, as before.
+   *Amended 2026-10-11 (v2.55.35, #347).* The other side of that keyword: it
+   is no skill. Since v2.47.1 it was kept off the skills lines — by Add
+   missing keywords, Apply all, a chip's **+ add** and an unattended pack —
+   when its letters equalled the posted title's. The brief often shortens
+   the title ("Product Lead" for "Product Lead (Strategy + Full Stack)"),
+   and that one got through. `resume/title-keyword.ts:isTitleKeyword`
+   (mirrored for the page in `public/title-keyword.mjs`) now reads the title
+   in both spellings: equal letters, or priority 2 with two words or more,
+   every one a word of the title. Priority 2 alone is not the test: 15 of
+   the 43 priority-2 keywords of one backup are skills written under an
+   earlier prompt, and a term the person adds at "preferred" is stored with
+   priority 2 too.
 
 7. **Removal quotes are gated in code.** Gotcha 11's second lesson was
    paid for once with prompt text and broke again: the model quoted

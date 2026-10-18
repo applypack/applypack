@@ -8,7 +8,7 @@ import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
-import { withoutMuted } from '../../employer';
+import { companyForPage, withoutMuted } from '../../employer';
 import { mutedKeys } from '../../jobs/employer-store';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { readStackParam } from '../overview-numbers';
@@ -16,7 +16,7 @@ import { loadOverviewStats } from '../overview-stats';
 import { preferredPlaces } from '../place-line';
 import { DEFAULT_RANGE, isRangeKey } from '../stats-series';
 import { nextThings, type NextThing } from '../next-things';
-import { listReadyPacks } from '../../pack/store';
+import { countReadyPacks, listReadyPacks } from '../../pack/store';
 import { spendHint } from '../cost-hint';
 
 /** ★ How many companies the user watches, and what they put up today (ADR 0036). */
@@ -75,7 +75,7 @@ overviewRoute.get('/', async (c) => {
         alertedAt: true,
         status: true,
         employer: true,
-        company: { select: { name: true } },
+        company: { select: { name: true, atsType: true } },
       },
     }),
     Promise.all(
@@ -119,6 +119,7 @@ overviewRoute.get('/', async (c) => {
       finishSetup={currentStep(facts) !== null}
       next={await loadNextThings(unmuted)}
       readyPacks={await listReadyPacks(READY_PACKS_SHOWN)}
+      readyPacksTotal={await countReadyPacks()}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -146,7 +147,7 @@ async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[
       ...unmuted,
     },
     orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
-    select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true } } },
+    select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true, atsType: true } } },
   });
   if (top === null || top.fitScore === null) return null;
   const [resumes, compareCost] = await Promise.all([
@@ -154,7 +155,7 @@ async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[
     spendHint('resume-match'),
   ]);
   return nextThings({
-    top: { id: top.id, title: top.title, company: top.employer ?? top.company.name, fitScore: top.fitScore },
+    top: { id: top.id, title: top.title, company: companyForPage(top.employer, top.company), fitScore: top.fitScore },
     comparisons,
     resumes,
     compareCost,

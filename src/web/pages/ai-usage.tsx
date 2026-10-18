@@ -64,6 +64,8 @@ const COLUMNS = ['ai.col.feature', 'ai.col.calls', 'ai.col.time', 'ai.col.tokens
 
 /** The slow tail gets a line of its own once it is this far from the middle; under it the two say the same. */
 const SLOW_TAIL = 1.1;
+/** "9 in 10" needs ten answers to be about anything: from two calls it was the slower one, interpolated (#415). */
+const TAIL_MIN_CALLS = 10;
 
 /** A suggestion is a quiet box; only a warning and an all-clear take a tone. */
 const NEUTRAL_HINT = 'rounded-md border border-line bg-surface-overlay/60 px-3.5 py-2.5 text-note leading-5 text-ink';
@@ -131,12 +133,12 @@ export const AiUsagePage: FC<AiUsageProps> = ({ period, view, models, hints, pla
           </Empty>
         ) : (
           <div class="mt-4 overflow-x-auto" tabindex={0} role="region" aria-label={t(BY_MODEL_CAPTION[period])}>
-            <table class="w-full min-w-[40rem] text-sm">
+            <table class="w-full text-sm sm:min-w-[40rem]">
               <caption class="sr-only">{t(BY_MODEL_CAPTION[period])}</caption>
               <thead>
                 <tr class="text-left text-label text-ink-muted">
                   {COLUMNS.map((column, i) => (
-                    <th scope="col" class={`border-b border-line px-4 py-2.5 font-[550] first:pl-0 last:pr-0 ${i === 0 ? '' : 'text-right'}`}>
+                    <th scope="col" class={`border-b border-line px-4 py-2.5 font-[550] first:pl-0 last:pr-0 ${i === 0 ? '' : 'hidden text-right sm:table-cell'}`}>
                       {t(column)}
                     </th>
                   ))}
@@ -207,27 +209,37 @@ export const AiUsagePage: FC<AiUsageProps> = ({ period, view, models, hints, pla
   </Layout>
 );
 
-const FeatureRow: FC<{ row: SpendRow }> = ({ row: r }) => (
-  <tr class="transition-colors duration-150 hover:bg-surface-selected/50">
-    <td class="py-2.5 pr-4 text-ink">{r.feature}</td>
-    <td class="px-4 py-2.5 text-right tabular-nums">
-      {formatNumber(r.calls)}
-      {r.failed > 0 && <div class="text-meta text-warn">{t('ai.didNotAnswer', { n: r.failed })}</div>}
-    </td>
-    <td class="whitespace-nowrap px-4 py-2.5 text-right tabular-nums">
-      {formatDuration(r.medianMs)}
-      {r.medianMs !== null && r.p90Ms !== null && r.p90Ms > r.medianMs * SLOW_TAIL && (
-        <div class="text-meta text-ink-faint">{t('ai.nineInTenUnder', { time: formatDuration(r.p90Ms) })}</div>
-      )}
-    </td>
-    <td class="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink-muted">
-      {compact(r.tokensIn)} → {compact(r.tokensOut)}
-    </td>
-    <td class="whitespace-nowrap py-2.5 pl-4 text-right tabular-nums" title={t(MONEY_TITLE[r.billing])}>
-      {r.billing === 'local' ? t('ai.free') : r.unpriced > 0 && r.micro === 0 ? t('ai.notPriced') : money(r.billing, r.micro)}
-    </td>
-  </tr>
-);
+const FeatureRow: FC<{ row: SpendRow }> = ({ row: r }) => {
+  const cost = r.billing === 'local' ? t('ai.free') : r.unpriced > 0 && r.micro === 0 ? t('ai.notPriced') : money(r.billing, r.micro);
+  return (
+    <tr class="transition-colors duration-150 hover:bg-surface-selected/50">
+      <td class="py-2.5 pr-4 text-ink">
+        {r.feature}
+        {/* On a phone the other columns are folded into this line: the time and the money are what the page is for (#415). */}
+        <div class="text-meta tabular-nums text-ink-muted sm:hidden">
+          {t('ai.calls', { n: r.calls })} · {formatDuration(r.medianMs)} · {cost}
+          {r.failed > 0 && <span class="text-warn"> · {t('ai.didNotAnswer', { n: r.failed })}</span>}
+        </div>
+      </td>
+      <td class="hidden px-4 py-2.5 text-right tabular-nums sm:table-cell">
+        {formatNumber(r.calls)}
+        {r.failed > 0 && <div class="text-meta text-warn">{t('ai.didNotAnswer', { n: r.failed })}</div>}
+      </td>
+      <td class="hidden whitespace-nowrap px-4 py-2.5 text-right tabular-nums sm:table-cell">
+        {formatDuration(r.medianMs)}
+        {r.calls - r.failed >= TAIL_MIN_CALLS && r.medianMs !== null && r.p90Ms !== null && r.p90Ms > r.medianMs * SLOW_TAIL && (
+          <div class="text-meta text-ink-faint">{t('ai.nineInTenUnder', { time: formatDuration(r.p90Ms) })}</div>
+        )}
+      </td>
+      <td class="hidden whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink-muted sm:table-cell">
+        {compact(r.tokensIn)} → {compact(r.tokensOut)}
+      </td>
+      <td class="hidden whitespace-nowrap py-2.5 pl-4 text-right tabular-nums sm:table-cell" title={t(MONEY_TITLE[r.billing])}>
+        {cost}
+      </td>
+    </tr>
+  );
+};
 
 /** A bill as it is, what a plan covered as an estimate: "$0.12", "≈ $0.30". */
 function money(billing: AiBilling, micro: number): string {

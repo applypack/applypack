@@ -65,6 +65,43 @@ test('wording the gate refused, an instruction and an edit with no place are hel
   ]);
 });
 
+test('a wording the gate only warned about waits for the person: nobody reads a note on a pack', () => {
+  // The live case (#374): fourteen of ninety-eight stored wordings carried a note, and a pack applied every one.
+  const unconfirmed = action({
+    section: 'skills',
+    where: 'Cloud & DevOps',
+    why: 'the posting asks for it · check: says "client-go" — confirm you have it first',
+    quote: 'Cloud & DevOps: Kubernetes, CI/CD, Git',
+    replacement: 'Cloud & DevOps: Kubernetes (client-go, controller-runtime), CI/CD, Git',
+  });
+  const clean = action({ section: 'summary', where: 'Summary' });
+  const cut = removal({ where: 'warned cut', why: 'reads cleaner · check: the span covers "Memcached", which this posting asks for' });
+  const { ops, held } = plan({ actions: [unconfirmed, clean], removals: [cut] }, { removals: true });
+  assert.deepEqual(ops.map((o) => o.key), [suggestionKey(clean)]);
+  assert.deepEqual(held.map((h) => [h.where, h.reason]), [
+    ['Cloud & DevOps', 'check-first'],
+    ['warned cut', 'check-first'],
+  ]);
+});
+
+test('a wording that is a note to the writer is never pasted, on a comparison stored before the gate refused it', () => {
+  const note = action({
+    where: 'V Shred · new bullet',
+    quote: null,
+    insert_after: 'Built a billing service.',
+    replacement: 'Built and maintained Node.js services alongside the Laravel backend, ask the candidate for the real scope/number.',
+  });
+  const { ops, held } = plan({ actions: [note] });
+  assert.deepEqual(ops, []);
+  assert.deepEqual(held.map((h) => h.reason), ['no-wording']);
+});
+
+test('a warned edit does not use up the bullet limit', () => {
+  const warned = action({ where: 'warned', priority: 'high', quote: 'a', why: 'x · check: drops "SQL"' });
+  const kept = action({ where: 'kept', priority: 'low', quote: 'b' });
+  assert.deepEqual(plan({ actions: [warned, kept] }, { maxBullets: 1 }).ops.map((o) => o.key), [suggestionKey(kept)]);
+});
+
 test('the bullet limit keeps the highest priority first and leaves the report order alone', () => {
   const low = action({ where: 'low', priority: 'low', quote: 'a' });
   const high = action({ where: 'high', priority: 'high', quote: 'b' });
@@ -166,4 +203,28 @@ test("the posting's own title is never written as a skill, however it is punctua
   const keywords = [keyword('Senior Product Engineer (Laravel - Remote)'), keyword('Redis')];
   assert.deepEqual(plan({ keywords, postingTitle: 'Senior Product Engineer (Laravel – Remote)' }).terms, [{ term: 'Redis' }]);
   assert.deepEqual(plan({ keywords }).terms.length, 2);
+});
+
+test('keywords go onto skills lines, so a policy that closes Skills writes none (#384)', () => {
+  const keywords = [keyword('Redis', { where: 'Skills · Backend' }), keyword('Horizon')];
+  assert.deepEqual(plan({ keywords }).terms.map((k) => k.term), ['Redis', 'Horizon']);
+  // Skills unticked, the keywords box left as it was: nothing is written into the closed section.
+  assert.deepEqual(plan({ keywords }, { sections: ['title', 'summary', 'experience'] }).terms, []);
+  // The box alone still switches them off.
+  assert.deepEqual(plan({ keywords }, { keywords: false }).terms, []);
+});
+
+test('a methodology or domain phrase is not written onto a skills line (#351)', () => {
+  // The live list: only the named skills are written; "code deployments" and "AI tooling" were appended to a tools line.
+  const keywords = [
+    keyword('HTTP', { priority: 1 }),
+    keyword('code deployments', { priority: 3 }),
+    keyword('open-source contributions', { priority: 3 }),
+    keyword('SaaS', { priority: 4 }),
+    keyword('key-value data stores', { priority: 1 }),
+  ];
+  assert.deepEqual(plan({ keywords }).terms.map((k) => k.term), ['HTTP', 'key-value data stores']);
+  // A term the person added at "nice" carries priority 3 for its level alone, and is still theirs to have written.
+  const typed = [{ ...keyword('Redis', { priority: 3 }), added: true }];
+  assert.deepEqual(plan({ keywords: typed }).terms.map((k) => k.term), ['Redis']);
 });

@@ -89,3 +89,33 @@ The stage this ADR left for later (`local-always-on`, TASKS S5–S8):
   `shell: true` — cmd.exe would read the prompt, which carries a posting,
   as commands.
 
+## Addendum (2026-10-11): a look that gets no answer is not "no such process"
+
+The launcher recognises what a pid file names by that process's command
+line: PowerShell on Windows, `ps` elsewhere, fifteen seconds at most
+(`postgres.ts:commandLineOf`). Every failure of that look returned `null`,
+the answer for "no such process" — and on a busy Windows machine the look
+does run out of time. A CI run showed it: `npm run stop` printed "ApplyPack
+is not running." 15.3 seconds after it started, and left the launcher
+running (#470). The same `null` let a second `npm start` take a live
+launcher's lock, let a start delete the pid file of a database that might be
+running, and let `db:import` go ahead beside a worker.
+
+The look has three answers now — a command line, no such process,
+`NO_ANSWER` — and is made twice before the third is given. Whether the
+process exists at all is asked of the system directly (`process.kill(pid,
+0)`), so "no answer" about a number nobody holds is still nobody. For a
+process that is there and could not be named:
+
+- **`npm run stop`** asks it to stop anyway and waits. The request is a file
+  in the data folder that only a launcher reads; left for anything else it
+  does nothing.
+- **`npm start`** does not take the lock from under it, and does not delete
+  its `postmaster.pid`: it stops and says which file to remove if ApplyPack
+  is in fact not running. A start that is refused once is cheaper than two
+  servers on one data folder.
+- **`npm run db:import`** refuses, as it does beside a worker.
+
+The decisions are pure (`supervise.ts:lockHolder`,
+`postgres-setup.ts:leftoverAction`); only the look itself touches the
+system.

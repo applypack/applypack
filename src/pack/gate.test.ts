@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ScoreBreakdown } from '../resume/score';
-import { compareStop, DEFAULT_MIN_CEILING, livenessStop, verifyStop } from './gate';
+import { compareStop, DEFAULT_MIN_CEILING, livenessStop, runVerdict, verifyStop } from './gate';
 
 const breakdown = (over: Partial<ScoreBreakdown> = {}): ScoreBreakdown => ({
   v: 6,
@@ -69,4 +69,16 @@ test('a fake stops, a skip stops, a caution goes on', () => {
   });
   assert.equal(verifyStop({ verdict: 'suspicious', recommendation: 'caution', summary: 'Thin footprint' }), null);
   assert.equal(verifyStop({ verdict: 'legit', recommendation: 'apply', summary: 'Listed on the careers page' }), null);
+});
+
+test('a run the shutdown cut into goes back in the queue, whatever it returned', () => {
+  const done = { stopping: false, error: null, stopped: false, made: true };
+  assert.equal(runVerdict(done), 'ready');
+  assert.equal(runVerdict({ ...done, error: 'the comparison failed' }), 'failed');
+  assert.equal(runVerdict({ ...done, stopped: true, made: false }), 'stopped');
+  assert.equal(runVerdict({ ...done, made: false }), 'failed');
+  // A company check killed mid-call leaves a pack that looks finished: it is not announced as ready.
+  assert.equal(runVerdict({ ...done, stopping: true }), 'requeue');
+  assert.equal(runVerdict({ ...done, stopping: true, error: 'stopped: ApplyPack is shutting down' }), 'requeue');
+  assert.equal(runVerdict({ ...done, stopping: true, stopped: true, made: false }), 'requeue');
 });

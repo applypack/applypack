@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { packFact, packLine, packNoticeLines, readPackEdits, type PackNotice } from './view';
+import { packBusy, packFact, packLine, packNoticeLines, preparingLine, readPackEdits, unplacedLines, type PackNotice } from './view';
 
 const notice = (over: Partial<PackNotice> = {}): PackNotice => ({
   title: 'Senior Laravel Engineer',
@@ -52,7 +52,20 @@ test('one message: the ready packs, then the postings to skip', () => {
     '• Senior Laravel Engineer — Acme: the posting is closed',
     '• Senior Laravel Engineer — Acme: stopped',
   ]);
-  assert.deepEqual(packNoticeLines([notice({ status: 'failed' })]), []);
+});
+
+test('a pack that could not be prepared is said, not passed over (#381)', () => {
+  // Five failed rows a day and no word about them: the message listed ready and stopped packs only.
+  assert.deepEqual(packNoticeLines([notice({ status: 'failed' })]), ['One could not be prepared — open the job to see why:', '• Senior Laravel Engineer — Acme']);
+  assert.deepEqual(packNoticeLines([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'failed' }), notice({ title: 'QA Lead', company: 'Corex', status: 'failed' })]), [
+    'An application pack is ready:',
+    '• Senior Laravel Engineer — Acme (match 76 → 100 · company legit, apply)',
+    'Open the job in ApplyPack → Application pack: read the edits, download the resume, apply.',
+    '',
+    '2 could not be prepared — open each job to see why:',
+    '• Go Developer — Bright',
+    '• QA Lead — Corex',
+  ]);
 });
 
 test('a long wait lists the first eight and counts the rest', () => {
@@ -60,4 +73,26 @@ test('a long wait lists the first eight and counts the rest', () => {
   assert.equal(lines[0], '11 application packs are ready:');
   assert.equal(lines.filter((l) => l.startsWith('• ')).length, 8);
   assert.equal(lines[9], '…and 3 more.');
+});
+
+test('a pack in the queue or in flight says where it is, in one sentence', () => {
+  assert.equal(preparingLine({ status: 'queued', step: null }), 'Queued — the worker starts it within a minute. This page refreshes itself; you can leave it.');
+  assert.match(preparingLine({ status: 'running', step: 'verify' }), /… This page refreshes itself; you can leave it\.$/);
+  // A step this version does not know is still "Preparing".
+  assert.equal(preparingLine({ status: 'running', step: 'something-new' }), 'Preparing… This page refreshes itself; you can leave it.');
+  assert.deepEqual(['queued', 'running', 'ready', 'stopped', 'failed'].map((status) => packBusy({ status })), [true, true, false, false, false]);
+  assert.equal(packBusy(null), false);
+});
+
+test('unplacedLines: an edit that was not made says its own reason (#384)', () => {
+  assert.deepEqual(unplacedLines([]), []);
+  // The one sentence the card had is true of one error only.
+  assert.deepEqual(unplacedLines(['not-found', 'not-found']), ['2 edits could not be placed: the text it quoted is not in the resume as written.']);
+  assert.deepEqual(unplacedLines(['not-found', 'protected', 'no-replacement', 'protected']), [
+    '1 edit could not be placed: the text it quoted is not in the resume as written.',
+    '2 edits were not made: their lines carry your email or phone.',
+    '1 edit was not made: it had no wording to paste.',
+  ]);
+  // An error this file has never heard of is still counted, without a reason it cannot give.
+  assert.deepEqual(unplacedLines(['moved-on', 'something-new']), ['2 edits could not be made.']);
 });

@@ -50,16 +50,17 @@ import { fetchFranceTravail } from './francetravail';
 import { fetchFeed } from './feed';
 import { fetchCareerPage } from './career-page';
 import { fetchFolder } from './folder';
-import { readSourceConfig } from '../datasets/map';
+import { alertsOff } from '../datasets/map';
 import { currentFolderRules } from '../datasets/folder-io';
-import { loadLedger } from '../jobs/source-file-store';
+import { loadLedger, loadStoredPostings } from '../jobs/source-file-store';
 import { config } from '../config';
-import { underLauncher } from '../local/child';
+import { localInstall } from '../local/install';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
 import { dueCutoff, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
 import type { NormalizedJob } from '../types';
 import { forgetListing, wasListedInFull } from './listing';
+import { markClockDated } from './dates';
 import { DELISTED_CODE, delistPlan, RELISTED_CODE } from './delisted';
 
 export interface FetcherResult {
@@ -195,6 +196,8 @@ export async function runAllFetchers(
       }
       forgetListing(company.id);
       const jobs = await fetchOne(company, context);
+      // A date written while this answer was mapped is the clock's, not the posting's (#379).
+      markClockDated(jobs, startedAt);
       count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
       // that matches nothing is not a broken board (ADR 0019).
@@ -209,7 +212,7 @@ export async function runAllFetchers(
       );
       const watch = watchRules(company);
       // A folder whose alerts are off keeps its matches on /jobs and sends nothing (ADR 0062).
-      const quiet = company.atsType === AtsType.FOLDER && readSourceConfig(company.sourceConfig)?.alerts === 'off';
+      const quiet = alertsOff(company);
       for (const job of jobs) {
         out.push({ job, companyName: company.name, source: { atsType: company.atsType, atsToken: company.atsToken }, watch, ...(quiet && { quiet }) });
       }
@@ -425,9 +428,11 @@ export async function fetchOne(
       // A folder a tool writes into, or one the user saves postings into
       // (ADR 0062): read from the disk, no request. What it learns about each
       // file is staged in `folder-ledger.ts` and kept once the tick stored the jobs.
-      return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS), {
-        now: context.now,
+      // The look's own clock, not the walk's: a file written minutes into a long walk is younger than the walk (#396).
+      return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(localInstall(), config.APPLYPACK_INBOX_ROOTS), {
+        now: new Date(),
         scoring: context.scoring !== false,
+        stored: () => loadStoredPostings(company.id),
       });
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { failedRunLine, summarizeRun } from './runs-summary';
+import { failedRunLine, summarizeRun, unscoredRun } from './runs-summary';
 
 describe('summarizeRun', () => {
   it('reads a fetch tick as its facts, in a fixed order', () => {
@@ -67,8 +67,34 @@ describe('summarizeRun', () => {
     ]);
   });
 
+  it('words a pack run in the catalog: its counts are bare words another job would mean differently', () => {
+    // Found in CI: a pack the worker took mid-smoke wrote "1 failed" on /runs, English in every language.
+    assert.deepEqual(summarizeRun('pack', { ready: 2, stopped: 1, failed: 1, requeued: 1, notified: 3 }), [
+      '2 packs ready',
+      '1 pack stopped before the edits',
+      '1 pack failed',
+      '1 pack put back in the queue',
+      '3 packs announced',
+    ]);
+    assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, notified: 0 }), []);
+    // A pack the tick queued and nobody wanted by the time the runner took it.
+    assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, dropped: 3, notified: 0 }), ['3 packs no longer wanted, taken out of the queue']);
+    assert.deepEqual(summarizeRun('pack', { ready: 0, stopped: 0, failed: 0, requeued: 0, notified: 0, reason: 'overlap' }), [
+      'Another run was preparing packs; this one did nothing',
+    ]);
+    assert.deepEqual(summarizeRun('fetch', { reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
+    // The tick that queued them agrees in number ("1 packs queued" before).
+    assert.ok(summarizeRun('fetch', { fetched: 10, persisted: 1, packsQueued: 1 }).includes('1 pack queued'));
+    assert.ok(summarizeRun('import', { fetched: 10, persisted: 2, packsQueued: 2 }).includes('2 packs queued'));
+    // Another job's "failed" is still its own word.
+    assert.deepEqual(summarizeRun('reclassify-all', { failed: 2 }), ['2 failed']);
+  });
+
   it('words a bare count for the job that writes it, and humanises it for any other', () => {
     assert.deepEqual(summarizeRun('digest', { count: 3, durationMs: 527 }), ['3 jobs in the digest']);
+    // Rows found while paused are said apart from the matches, and only when there were some (#392).
+    assert.deepEqual(summarizeRun('digest', { count: 2, unscored: 40, durationMs: 14 }), ['2 jobs in the digest', '40 new jobs without a score']);
+    assert.deepEqual(summarizeRun('digest', { count: 2, unscored: 0, durationMs: 14 }), ['2 jobs in the digest']);
     assert.deepEqual(summarizeRun('stale-applications', { found: 0 }), ['0 stale applications']);
     assert.deepEqual(
       summarizeRun('cleanup', { deleted: 12, screeningsDeleted: 1, runsDeleted: 240, durationMs: 40 }),
@@ -127,14 +153,25 @@ describe('summarizeRun', () => {
     assert.deepEqual(summarizeRun('fetch', { skipped: 1, reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
   });
 
+  it('says a match from a folder with its alerts off in words, not as a humanised counter (#365)', () => {
+    const stats = { fetched: 3, persisted: 1, classified: 1, matched: 1, alertSourceOff: 1 };
+    // Worded for any source since an import can be stored with no alerts too (#402).
+    assert.deepEqual(summarizeRun('fetch', stats), ['3 fetched', '1 new', '1 classified', '1 match', '1 not alerted: alerts are off for its source']);
+    assert.equal(summarizeRun('folder-watch', { ...stats, alertSourceOff: 2 }).at(-1), '2 not alerted: alerts are off for their source');
+    // An import's one message lists the best and counts the rest.
+    assert.deepEqual(summarizeRun('import', { fetched: 300, persisted: 300, classified: 300, matched: 300, alerted: 20, alertCounted: 280 }).slice(-2), ['20 alerted', '280 more counted in the message']);
+  });
+
   it('has nothing to say about an empty record', () => {
     assert.deepEqual(summarizeRun('fetch', {}), []);
   });
 
-  it('reads an import in its own words: rows of a file, not a fetch', () => {
+  it('reads an import in its own words: jobs of a file, not a fetch', () => {
+    // The count is the rows that are jobs (import-job.ts): a row with no title and a repeat are not among them,
+    // so "rows read from the file" named a number the preview had called something else (#404).
     const stats = { source: 'September export', fetched: 250, persisted: 37, duplicate: 112, classified: 37, alerted: 4, filterRejected: 101, rejectedTitle: 101, durationMs: 9_000 };
-    assert.deepEqual(summarizeRun('import', stats), ['250 rows read from the file', '37 new', '112 duplicates', '37 classified', '4 alerted']);
-    assert.deepEqual(summarizeRun('import', { fetched: 1, persisted: 0 }), ['1 row read from the file', '0 new']);
+    assert.deepEqual(summarizeRun('import', stats), ['250 jobs in the file', '37 new', '112 duplicates', '37 classified', '4 alerted']);
+    assert.deepEqual(summarizeRun('import', { fetched: 1, persisted: 0 }), ['1 job in the file', '0 new']);
     assert.deepEqual(summarizeRun('import', { skipped: 1, reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
     // The shared wording stands for every other job.
     assert.equal(summarizeRun('fetch', { fetched: 250 })[0], '250 fetched');
@@ -161,4 +198,22 @@ describe('failedRunLine (TASKS U6)', () => {
   it('a long reason is cut to one sentence', () => {
     assert.ok(failedRunLine('cleanup', 'x'.repeat(400)).includes('…'));
   });
+});
+
+// #366: a run that scored nothing it tried to finished "OK", and a dead engine stayed green for a night.
+it('a run that scored nothing it tried to is not an OK to the reader', () => {
+  // The line the issue quotes: "1 fetched · 0 new · 1 failed to classify".
+  assert.equal(unscoredRun('OK', { fetched: 1, persisted: 0, classifyFailed: 1, classified: 0 }), true);
+  assert.equal(unscoredRun('OK', { fetched: 40, classifyFailed: 12 }), true);
+  // Some were scored, or the prefilter answered: the engine works, and the count says the rest.
+  assert.equal(unscoredRun('OK', { classifyFailed: 2, classified: 9 }), false);
+  assert.equal(unscoredRun('OK', { classifyFailed: 1, classified: 0, preFiltered: 5 }), false);
+  // Nothing reached the classifier: an uneventful tick, a pause, a run of another kind.
+  assert.equal(unscoredRun('OK', { fetched: 30, persisted: 0, classifyFailed: 0 }), false);
+  assert.equal(unscoredRun('OK', { deleted: 3 }), false);
+  assert.equal(unscoredRun('OK', null), false);
+  assert.equal(unscoredRun('OK', 'not stats'), false);
+  // A run that failed or is still running says so itself.
+  assert.equal(unscoredRun('FAILED', { classifyFailed: 3 }), false);
+  assert.equal(unscoredRun('RUNNING', { classifyFailed: 3 }), false);
 });

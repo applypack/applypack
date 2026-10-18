@@ -1,7 +1,10 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import { DROP_REASONS, usableMapping, type DropReason, type MappedRows } from '../../datasets/map';
-import type { PreviewCounts } from '../../datasets/preview';
+import { DROP_REASONS, usableMapping, type DropReason, type FolderAlerts, type MappedRows } from '../../datasets/map';
+import { QUIET_ABOVE, importBlock, type PreviewCounts } from '../../datasets/preview';
+import { HELD_LIST_MAX } from '../../jobs/held-alerts';
+import type { AlertChannel } from '../../notifier';
+import { assumedNote, lossNotes } from '../../datasets/read-notes';
 import { MAX_BODY_MB, MAX_ROWS, type RowFormat } from '../../datasets/rows';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import type { MessageKey } from '../../i18n/catalog';
@@ -9,8 +12,9 @@ import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import type { FlashMessage } from '../flash';
 import type { ImportStash } from '../import-stash';
+import { importBlockText } from '../import-summary';
 import { Layout } from '../layout';
-import { MappedRowsList, MappingFields, MappingNote } from './mapping-fields';
+import { MappedRowsList, MappingFields, MappingNote, ReadingNotes } from './mapping-fields';
 import {
   Button,
   Card,
@@ -139,21 +143,36 @@ export interface ImportPreviewProps {
   searches: { running: number; usable: number };
   /** The cost sentence for the scoring calls; '' when none would be made. */
   cost: string;
+  /** What the import would send, and the Alerts choice as it stands (#402); null when nothing would be scored. */
+  sends: ImportSends | null;
   flash?: FlashMessage | null;
 }
 
-/** Why Import is not offered, or null when it is. One reason, the first that holds. */
+export interface ImportSends {
+  alerts: FolderAlerts;
+  /** The person set it; otherwise it is what the file's size is offered with. */
+  chosen: boolean;
+  /** Whether a message could leave at all: a chat, and the switch. */
+  channel: AlertChannel;
+  /** The most automatic application packs these rows could get today; 0 when packs are off or no row has a recent date of its own. */
+  packs: number;
+  packFit: number;
+}
+
+const SENDS_WORDS = {
+  open: 'import.preview.oneMessage',
+  'alerts-off': 'import.preview.alertsSwitchedOff',
+  'no-targets': 'import.preview.noChat',
+} as const satisfies Record<AlertChannel, MessageKey>;
+
+/** Why Import is not offered, or null when it is: the reason the route refuses the same form for (datasets/preview.ts). */
 function blocker({ stash, mapped, counts, scoring, searches }: ImportPreviewProps): string | null {
-  if (!usableMapping(stash.mapping)) return t('import.block.mapping');
-  if (mapped.jobs.length === 0) return t('import.block.noJob');
-  if (searches.running === 0) return t('import.block.noSearch');
-  if (scoring && searches.usable === 0) return t('import.allSearchesBlank');
-  if (counts.passing === 0) return t('import.block.nothing');
-  return null;
+  const block = importBlock({ mappingUsable: usableMapping(stash.mapping), jobs: mapped.jobs.length, searches, scoring, passing: counts.passing });
+  return block && importBlockText(block);
 }
 
 export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
-  const { stash, columns, mapped, counts, scoring, cost, flash } = props;
+  const { stash, columns, mapped, counts, scoring, cost, sends, flash } = props;
   const action = `/jobs/import/${stash.id}`;
   const dropped = DROP_REASONS.filter((r) => mapped.dropped[r] > 0).map((r) => t(DROPPED_AS[r], { n: mapped.dropped[r] }));
   if (mapped.repeated > 0) dropped.push(t('import.dropped.repeated', { n: mapped.repeated }));
@@ -171,6 +190,7 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
           })}
         </PageHeader>
         <Flash flash={flash} />
+        <ReadingNotes lost={lossNotes(stash.reading)} assumed={assumedNote(stash.reading)} />
 
         <Card>
           <SectionTitle>{t('import.whichColumn')}</SectionTitle>
@@ -207,8 +227,27 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
             <li>{t('import.preview.passing', { fresh, passing: counts.passing, turnedAway: counts.turnedAway })}</li>
             {stash.mapping.employer === null && counts.passing > 0 && <li>{t('import.noCompanyColumn')}</li>}
             {counts.passing > 0 && <li>{scoring ? `${t('import.preview.cost', { n: counts.passing })} ${cost}` : t('import.preview.paused')}</li>}
+            {/* The import holds the one fetch lock while it scores (ADR 0062): said before the press, not found out an hour later (#397). */}
+            {scoring && counts.passing > 0 && <li>{t('import.preview.searchWaits')}</li>}
             {mapped.thin > 0 && <li>{t('import.preview.thin', { n: mapped.thin })}</li>}
+            {/* What a press sends, said before it (#402): one message a chat, and how many packs at most. */}
+            {sends && <li>{t(SENDS_WORDS[sends.channel], { n: counts.passing, max: HELD_LIST_MAX })}</li>}
+            {sends && sends.packs > 0 && <li>{t('import.preview.packs', { n: sends.packs, fit: sends.packFit })}</li>}
           </ul>
+          {sends && (
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label={t('folders.alerts')} hint={t(!sends.chosen && sends.alerts === 'off' ? 'import.alerts.hintQuiet' : 'import.alerts.hint', { n: QUIET_ABOVE })}>
+                <Select name="alerts" form="import-form">
+                  <option value="matches" selected={sends.alerts === 'matches'}>
+                    {t('folders.alerts.matches')}
+                  </option>
+                  <option value="off" selected={sends.alerts === 'off'}>
+                    {t('folders.alerts.off')}
+                  </option>
+                </Select>
+              </Field>
+            </div>
+          )}
           {stash.over > 0 && (
             <Notice tone="warn" class="mt-3">
               {t('import.preview.over', { over: stash.over, max: MAX_ROWS })}

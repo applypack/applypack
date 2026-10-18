@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   anyBaseFilterReason,
   baseFilterReason,
+  filterChanged,
   passesAnyBaseFilter,
   passesBaseFilter,
   placesOverlap,
@@ -284,5 +285,26 @@ describe('anyBaseFilterReason — the union', () => {
 
   it('with no search at all, the first gate is the reason', () => {
     assert.equal(anyBaseFilterReason(job('PHP Developer', 'Remote'), []), 'title');
+  });
+});
+
+describe('filterChanged (#448)', () => {
+  const search: FilterProfile = { stackRequired: ['backend'], roleTypes: ['developer'], stackExclude: ['junior'], countries: ['DE'], regions: ['EU'], workplace: ['REMOTE'], onsiteCities: ['Berlin'] };
+
+  it('is false for the same search, whatever the order or the case of its lists', () => {
+    assert.equal(filterChanged(search, { ...search }), false);
+    assert.equal(filterChanged({ ...search, stackRequired: ['backend', 'data'] }, { ...search, stackRequired: ['Data', ' backend '] }), false);
+    // What the filter never reads may differ.
+    assert.equal(filterChanged(search, { ...search, notes: 'x', minFitScore: 90 } as FilterProfile), false);
+  });
+
+  it('is true when any field the filter reads admits or turns away something else', () => {
+    assert.equal(filterChanged(search, { ...search, stackRequired: ['backend', 'data'] }), true);
+    assert.equal(filterChanged(search, { ...search, roleTypes: [] }), true);
+    assert.equal(filterChanged(search, { ...search, stackExclude: [] }), true);
+    assert.equal(filterChanged(search, { ...search, countries: ['DE', 'PL'] }), true);
+    assert.equal(filterChanged(search, { ...search, regions: [] }), true);
+    assert.equal(filterChanged(search, { ...search, workplace: ['REMOTE', 'HYBRID'] }), true);
+    assert.equal(filterChanged(search, { ...search, onsiteCities: ['Munich'] }), true);
   });
 });

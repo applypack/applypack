@@ -17,7 +17,41 @@
 export type AppliedResumeChoice =
   | { kind: 'keep' }
   | { kind: 'clear' }
-  | { kind: 'set'; id: number };
+  | { kind: 'set'; id: number }
+  /** The application pack's file (ADR 0063), as it was prepared at `at`: what the page showed when the choice was made. */
+  | { kind: 'pack'; at: number };
+
+const PACK_CHOICE = 'pack-';
+
+/** As much of a pack as saying "this file went out" reads. */
+interface SendablePack {
+  status: string;
+  sentAt: Date | null;
+  text: string | null;
+  resumeId: number | null;
+  finishedAt: Date | null;
+}
+
+/**
+ * The pack a form said went out, when it is still the one the page showed:
+ * ready, not yet frozen, and prepared at that moment. Null for a pack that
+ * was prepared again in another tab or is being prepared now — its file is
+ * not the one the person looked at, and is not recorded as sent.
+ */
+export function packAsShown<T extends SendablePack>(pack: T | null, at: number): (T & { text: string; resumeId: number }) | null {
+  const shown = pack !== null && pack.status === 'ready' && pack.sentAt === null && pack.text !== null && pack.resumeId !== null && pack.finishedAt?.getTime() === at;
+  return shown ? (pack as T & { text: string; resumeId: number }) : null;
+}
+
+/**
+ * The picker's value for "the application pack's file", while there is a
+ * ready pack nobody froze; null otherwise. It names the preparing the page
+ * shows, so a pack prepared again since is not taken for it.
+ */
+export function packChoiceValue(pack: SendablePack | null): string | null {
+  const at = pack?.finishedAt?.getTime();
+  return at !== undefined && packAsShown(pack, at) ? `${PACK_CHOICE}${at}` : null;
+}
 
 /**
  * A form field that is not there has said nothing — a page with no resume
@@ -28,6 +62,7 @@ export function readAppliedResumeChoice(raw: unknown): AppliedResumeChoice {
   if (raw === undefined || raw === null) return { kind: 'keep' };
   const value = String(raw).trim();
   if (value.length === 0) return { kind: 'clear' };
+  if (value.startsWith(PACK_CHOICE)) return { kind: 'pack', at: Number(value.slice(PACK_CHOICE.length)) };
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? { kind: 'set', id } : { kind: 'keep' };
 }

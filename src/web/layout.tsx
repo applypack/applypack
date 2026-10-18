@@ -32,6 +32,8 @@ interface LayoutProps {
   active?: NavKey;
   /** Full-page reload interval in seconds (Overview only). */
   refresh?: number;
+  /** Seconds between reloads for a browser that runs no script; a page that polls for its own changes sets this instead of `refresh`. */
+  refreshWithoutScript?: number;
   /**
    * App-frame mode: cap the content column at the viewport so a flex-1 region
    * inside the page can own its scrolling (Jobs table, Applications board).
@@ -200,6 +202,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
   titleIsData = false,
   active,
   refresh,
+  refreshWithoutScript,
   fill = false,
   children,
 }) => (
@@ -213,6 +216,12 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       {refresh && <meta http-equiv="refresh" content={String(refresh)} />}
+      {/* A page that updates itself by script: without one, the whole page is loaded again instead. */}
+      {refreshWithoutScript && (
+        <noscript>
+          <meta http-equiv="refresh" content={String(refreshWithoutScript)} />
+        </noscript>
+      )}
       <title translate={titleIsData ? 'no' : undefined}>{title} · ApplyPack</title>
       <link
         rel="icon"

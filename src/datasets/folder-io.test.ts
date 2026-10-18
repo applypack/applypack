@@ -90,6 +90,21 @@ describe('readFolderFile', () => {
     assert.deepEqual(await readFolderFile(root, 'linked-dir/inner.json'), { ok: false, why: 'outside' });
   });
 
+  it('passes over a file that has a second name on the disk, and still reads one that has not', async (t) => {
+    const twin = path.join(root, 'twin.json');
+    try {
+      await fs.link(path.join(outside, 'secret.json'), twin);
+    } catch {
+      return t.skip('no hard links here');
+    }
+    try {
+      assert.deepEqual(await readFolderFile(root, 'twin.json'), { ok: false, why: 'outside' });
+      assert.ok((await readFolderFile(root, 'sub/b.csv')).ok);
+    } finally {
+      await fs.unlink(twin);
+    }
+  });
+
   it('does not leave the folder by a path that climbs out of it', async () => {
     const climbed = path.relative(root, path.join(outside, 'secret.json')).split(path.sep).join('/');
     assert.deepEqual(await readFolderFile(root, climbed), { ok: false, why: 'outside' });

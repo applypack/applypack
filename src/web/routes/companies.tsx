@@ -44,7 +44,8 @@ import { config } from '../../config';
 import { inboxRoots } from '../../datasets/folder-path';
 import { readSourceConfig } from '../../datasets/map';
 import { folderSummaries } from '../../jobs/source-file-store';
-import { underLauncher } from '../../local/child';
+import { foldersReadOnceHint } from '../folder-words-io';
+import { localInstall } from '../../local/install';
 
 const NewCompanySchema = z.object({
   name: z.string().min(1).max(100),
@@ -182,7 +183,17 @@ companiesRoute.get('/companies', async (c) => {
     .filter((c) => c.atsType === AtsType.FOLDER)
     .map((c) => {
       const kept = readSourceConfig(c.sourceConfig);
-      return { id: c.id, name: c.name, path: c.atsToken, active: c.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(c.id) };
+      return {
+        id: c.id,
+        name: c.name,
+        path: c.atsToken,
+        active: c.active,
+        include: kept?.include ?? null,
+        holds: kept?.holds ?? 'rows',
+        summary: summaries.get(c.id),
+        lastFetchStatus: c.lastFetchStatus,
+        consecutiveFailures: c.consecutiveFailures,
+      };
     });
 
   const flash = parseFlashCookie(c.req.header('cookie'));
@@ -190,7 +201,7 @@ companiesRoute.get('/companies', async (c) => {
     <CompaniesPage
       companies={rows}
       folders={folders}
-      folderHost={{ launcher: underLauncher(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
+      folderHost={{ launcher: localInstall(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
       watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p))))}
       watchlistRun={activeWatchlistRun()}
       packs={packs}
@@ -229,7 +240,8 @@ companiesRoute.post('/companies/mutes/delete', async (c) => {
   const back = safeBack(body.back, '/companies#muted');
   const mute = typeof body.key === 'string' ? await findMute(body.key) : null;
   if (!mute || !(await unmuteEmployer(mute.key))) return flashRedirect(back, 'err', t('mute.flash.notMuted'));
-  return flashRedirect(back, 'ok', t('mute.flash.unmuted', { name: mute.name }));
+  // "The next search reads its postings again" is true of a feed and not of a file of rows, which was read once (#448).
+  return flashRedirect(back, 'ok', [t('mute.flash.unmuted', { name: mute.name }), await foldersReadOnceHint()].filter(Boolean).join(' '));
 });
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;

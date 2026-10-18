@@ -4,13 +4,1009 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [2.53.1] — 2026-10-06
+## [2.55.61] — 2026-10-12
+
+### Changed
+- **A keyword's stale note says it is stale.** When the resume's own text
+  shows a word the analysis had marked as not there, the row reads "in your
+  resume" — and beside it stood the model's reason for the opposite ("no WP
+  evidence to support it"). The note is kept and now opens with "The
+  analysis's note, written before this word was found in your resume:". A
+  note on a word you confirmed is shown as before. Comparisons stored before
+  this version read as they did (#203).
+
+## [2.55.60] — 2026-10-12
+
+### Added
+- **A page saved from Safari is read.** Safari saves a page as a Web Archive
+  (`.webarchive`) by default; in a folder of saved postings such a file was
+  listed and set aside with advice to save it another way. It is read now:
+  the page inside the archive, with the address it was saved from. Safari
+  keeps what Chrome's single-file save drops, so such a page usually states
+  its own title and company and needs no AI to be stored. An archive that
+  cannot be read is still set aside with the way to save the page instead
+  (#451, the part that needs no engine).
+
+## [2.55.59] — 2026-10-12
+
+### Changed
+- **A changed search or an unmute says which folders it does not reach.** A
+  file of rows in a folder is read once, so a row the search or a muted
+  company turned away is not met again when the search is widened or the
+  company unmuted — and the flash said "the next search reads its postings
+  again". When switched-on folders of rows hold files already read, saving a
+  search whose filter changed, or unmuting a company, now adds where to
+  press: Companies → Folders on this computer → Files → Read every file
+  again. Reading them again by itself is still open (#448).
+
+## [2.55.58] — 2026-10-12
 
 ### Fixed
-- After switching the language — or following any link to a section of a
-  page, such as Settings → General → Updates — the whole window no longer
-  slides up, hiding the top of the menu and leaving an empty band at the
-  bottom. Only the page's content scrolls to the section.
+- **Headers in Ukrainian, Spanish, French and German are recognised in an
+  imported file.** A sheet headed Посада, Компанія, Посилання, Опис found
+  neither its title nor its company, and nothing could be imported until
+  every column was chosen by hand (#403, last of four).
+- **Columns about the job are no longer hidden as columns about a person.**
+  `workAuthorization` holds the word "author" and `isRecruiter` the word
+  "recruiter", so neither was offered. A permit to work, a yes/no about who
+  posted, working in person, ownership and membership are offered now; an
+  author's, recruiter's or manager's name and contact details still are not
+  (#403).
+- **A wide table is read instead of refused.** More than 200 columns used to
+  stop the import. The columns named like a job's fields are kept first,
+  then the first of the others, 200 in all; only a header past 5,000 columns
+  is refused (#403).
+- **A tab-separated file whose header contains a comma is read as tabs.** The
+  delimiter was taken from the first line alone, and a tie went to the
+  comma (#403).
+- **A posting in two cities has a location.** A schema.org `JobPosting`
+  saved as `.json` keeps its places in a list, and each place's parts in an
+  `address`: neither was read. It is now "Lisbon, Portugal; Porto,
+  Portugal" (#403).
+
+## [2.55.57] — 2026-10-12
+
+### Fixed
+- **Markup in an imported title, company or place is not stored as text.** A
+  title `<img src=x onerror=…>Staff Node.js Engineer` and a company
+  `Evil <b>Corp</b>` were kept with their tags — never run, but shown as
+  tags on Jobs, the job page and in messages. They are stored as words now,
+  and `&amp;` as `&`. A "<" that is not markup stays: "C++ <-> Rust",
+  "A < B Ltd" (#403, third of four).
+- **A plain-text description with one link keeps its paragraphs.** Text with
+  line breaks of its own and a single `<a>` or `<b>` went through the HTML
+  reader, which treats line breaks as spaces: every paragraph ran into one.
+  Markup that only dresses words is now taken out and the lines stay; inline
+  markup that arrives escaped (`&lt;span&gt;`) is read the same way instead
+  of being stored literally; and prose such as "we compare a<b and c>d" is
+  no longer mistaken for a tag (#403).
+
+## [2.55.56] — 2026-10-12
+
+### Fixed
+- **Pay written the way people write it is read from an imported row.**
+  `$90,000`, `90k`, `€65.000`, `£45 000` and `65000 EUR` in the "pay from"
+  and "pay to" columns were read as nothing, so the row carried no pay and a
+  search's minimum never saw it. They are amounts now; `€`, `£`, `₴`, `₹`,
+  `₪`, `zł` and a currency code name the currency, and `$` stays `$` (#403,
+  second of four).
+- **Two dates an imported row can state.** `2026-10-05 10:00:00 +02:00` — a
+  zone after a space, as a database prints it — was not read, and the row
+  took the import's time. And "You may apply 2026" was read as 1 May 2026: a
+  month's name with a year is a date only when the cell holds nothing else
+  (#403).
+
+## [2.55.55] — 2026-10-12
+
+### Fixed
+- **A row-number column is no longer taken for the id of an imported row.**
+  An `ID` column always beat the link. When it only counted the rows (1, 2,
+  3…), a re-sorted export reported new postings as already stored and added
+  old ones again; ids that repeat folded two postings into one; and a numeric
+  id past 2^53 in a JSON file lost its last digits, so two postings arrived
+  with one id. With a link column in the file, such a column is now passed
+  over when a file is first read, and the **Id of the row** select says why.
+  A source you already imported keeps the column it was stored under, so what
+  it holds is still recognised; its select says the id is weak and how to
+  switch (#403, first of four).
+
+## [2.55.54] — 2026-10-12
+
+### Changed
+- **An import sends one message, not one per match.** A file of 2,000 rows
+  with 300 matches sent 300 Telegram or Discord messages in one run. The
+  matches of an import now arrive as one message per chat when it ends — the
+  best twenty listed, the rest counted and left New on Jobs. Outside your
+  alert hours, or with Alerts off, they wait and leave with the next check
+  as before (#402).
+- **An import can be stored with no alerts.** The preview has the folder's
+  **Alerts** choice. "No alerts" keeps the matches on Jobs with their scores,
+  sends nothing and prepares no application pack; a file that brings more
+  than twenty new rows is offered that way (#402).
+- **The preview says what an import would send**: how many rows could match,
+  that they come as one message, and how many application packs the rows
+  could get at most (#402).
+- On Runs, "not alerted: its folder's alerts are off" now reads "alerts are
+  off for its source": an import can be stored that way too.
+
+## [2.55.53] — 2026-10-12
+
+### Fixed
+- **One application pack for a role, however many sources list it.** The same
+  posting reaching ApplyPack from two sources got two packs: two comparisons,
+  two company checks with web search, and the role twice in the morning
+  message. Another source's copy of a stored posting now gets no pack of its
+  own when a posting of that role already has one, and its **Application
+  pack** tab points at the one that does (#380).
+- **A copy is no door into the backlog.** A copy of a posting stored before
+  packs were switched on queued a pack, though the settings say such a
+  posting is never prepared on its own. Packs now keep the moment they were
+  switched on; a copy whose original predates it is left to **Prepare the
+  pack**. On an install that already has packs on, that moment is the
+  upgrade (#380).
+- **A pack reuses the company check its copy already has.** A check under
+  fourteen days old on another source's copy of the same posting, at the same
+  hiring company, is used instead of running a new one (#380).
+
+## [2.55.52] — 2026-10-12
+
+### Changed
+- **Only named skills are written onto a skills line unasked.** "Add missing
+  keywords" ticked, and Apply all and an application pack wrote, phrases such
+  as "code deployments", "open-source contributions" and "AI tooling" onto a
+  tools line, where they read as filler. A methodology or domain keyword
+  (the posting's priority 3 and 4) is now listed unticked and marked "backed,
+  better said in a bullet"; Apply all and a pack leave it out. It still
+  counts in the score, keeps its chip, and can be ticked or added with
+  **+ add**; a keyword you added yourself is treated as a skill at any
+  level (#351).
+
+## [2.55.51] — 2026-10-12
+
+### Changed
+- **A posting that names no company says so, and its source stands apart.**
+  A row from an aggregator, an imported file or a folder that names no
+  employer showed its source where the company goes ("RemoteOK Feed",
+  "September export"). It now reads **Company not named** with "via
+  <source>" on the line under it, the same shape a named row has: on the
+  Jobs list, the job page, the Overview's lists, the applications board, the
+  pickers and the Tailor page.
+- **The applications export has a Source column.** `Company` holds who hires
+  and is empty when the posting names nobody; `Source` holds the aggregator,
+  file or folder it came through.
+- **The cross-listing banner says who hires and where the copy is listed:**
+  "Backend Engineer at Fennel Works — via RemoteOK Feed". It read "Backend
+  Engineer at RemoteOK Feed", as if the source were the employer (#444).
+
+## [2.55.50] — 2026-10-12
+
+### Added
+- **A pack waiting in the queue can be cancelled.** While a pack is queued
+  its tab has **Cancel**: the pack is taken out, and nothing is prepared or
+  spent. Once the worker has started it, Cancel says so and changes nothing.
+- **What a pack costs is said before the press.** Under **Prepare the pack**:
+  how many AI calls a pack is, and whether they are billed, covered by your
+  plan or run on this computer (#387).
+
+## [2.55.49] — 2026-10-12
+
+### Changed
+- **A folder's file is checked twice before it is read.** Its path is
+  resolved again once the file is open and must still be what it was, and a
+  file that has a second name on the disk (a hard link) is passed over like
+  a link: the Files page lists it as "A link, or a file outside the folder.
+  Not read." (#398).
+
+## [2.55.48] — 2026-10-12
+
+### Fixed
+- **A folder is read by a script run beside a local install.** On an install
+  started with `npm start`, a fetch run from anything but the launcher (`node
+  dist/scripts/fetch-once.js`, the dev watchers) took the machine for a
+  server: it refused every folder under your home folder ("On a server
+  ApplyPack reads only the folders named in APPLYPACK_INBOX_ROOTS") and
+  marked the source failing. A process that finds its database in the
+  install's own data folder now follows the local rules.
+- **The refusal for a cloud drive says the way out.** iCloud Drive, Dropbox,
+  Google Drive and OneDrive live under `~/Library` on a Mac, and a folder
+  there was refused with "The system's own folders (Library, AppData) are not
+  read" and nothing more. The message and `docs/install.md` now say to name
+  the synced folder in `APPLYPACK_INBOX_ROOTS` (#398).
+
+## [2.55.47] — 2026-10-12
+
+### Changed
+- **AI usage: four small improvements.**
+  - "9 in 10 under …" is shown from ten answered calls up. From two calls it
+    was the slower one, interpolated.
+  - On a phone the By model table no longer scrolls sideways with the time
+    and the money behind the scroll: each task's line carries its calls, its
+    typical time and its cost.
+  - A screen reader hears which engine each "Used for" group of task boxes
+    belongs to.
+  - The hint about scoring's volume on a plan names the steps for the model
+    on this computer from where it stands: enable it, leave only Scoring
+    postings ticked, put it above (#415).
+
+## [2.55.46] — 2026-10-12
+
+### Changed
+- **A folder of rows is read much faster.** A check read twenty files
+  whatever their size, so a tool that writes one small file per posting
+  brought twenty jobs an hour: 455 files took 23 hourly checks. A check now
+  reads up to 5,000 rows, 25 MB and 400 files, and the same 455 files take
+  three. A folder of saved postings still reads twenty a check, because a
+  posting can cost an AI call.
+- **A file a check did not reach is listed as waiting.** It was noted
+  nowhere: the Files page did not show it and the folder's line did not
+  count it, so a folder looked read when most of it was not (#432).
+
+## [2.55.45] — 2026-10-12
+
+### Fixed
+- **Application packs: seven small defects.**
+  - A pack you ask for is prepared before the ones the worker queued on its
+    own. Behind five of those it waited a quarter of an hour under "the worker
+    starts it within a minute".
+  - Pressing **Prepare** again on a pack still in the queue answers "This
+    pack is already in the queue", not "already being prepared".
+  - An edit that could not be made says its own reason: the quoted text is
+    not in the resume, the line carries your email or phone, or there was no
+    wording to paste. One sentence used to say the first for all three.
+  - The Overview's **Ready to send (N)** counts every ready pack, not the
+    eight it lists, and leaves out a posting found closed since.
+  - After a pack, the job's Resume match tab no longer headlines the pack's
+    own tailored draft ("Resume match · 100" for a resume that scores 70).
+    The draft is still in the list and opens from the pack.
+  - With **Skills** unticked under "What an automatic edit may touch",
+    keywords are no longer written onto skills lines; the keywords box says
+    it needs Skills ticked (#384).
+
+## [2.55.44] — 2026-10-12
+
+### Fixed
+- **Folder pages: five small things.**
+  - A refused **Check** no longer opens with "Nothing was added": Check never
+    adds anything. It says "Not checked."
+  - A saved text file, PDF or document with no title reads "No title in the
+    file"; only a saved page reads "No title on the page".
+  - On a phone the **Alerts** choices were cut ("A match sends an alert, like
+    every sour…"). They are "Alert on a match" and "No alerts", and the line
+    under them says the rest, including that a match with no alerts gets no
+    application pack.
+  - A file's name no longer breaks in the middle of a word ("page.h / tml"):
+    it breaks at a slash, a hyphen or a space first.
+  - Runs: a match from a folder whose alerts are off reads "1 not alerted:
+    its folder's alerts are off" instead of "1 alert source off".
+  - The three lines that still sent you to "the Companies table" to switch a
+    folder on name its card, where the switch is since 2.55.43 (#365).
+
+## [2.55.43] — 2026-10-12
+
+### Fixed
+- **A failing folder says so in its own card.** With a folder renamed away,
+  the Companies table read "Folder not found" while the folder's card under
+  **Folders on this computer** read "1 file · 1 new at the last check". The
+  card now carries the same status, in the folder's words, with how many
+  checks in a row failed.
+- **The switch is in the card.** A folder is added switched off, and the
+  message sent you to find its row among every other source. The card has
+  **Enable**, and the message names the card.
+- **A folder with too many entries is called that.** A folder holding more
+  entries than a check lists was reported as "Files do not fit the mapping",
+  and its message pointed at the mapping. It now reads "Too many entries in
+  the folder".
+- **The job page names the source as the rest of the dashboard does.**
+  "Source: FOLDER" is now "Folder on this computer", and every other source
+  reads by its name ("Greenhouse", "We Work Remotely", "Imported file")
+  instead of its internal code (#405).
+
+## [2.55.42] — 2026-10-12
+
+### Fixed
+- **An import stores rows only with the columns you were shown.** Changing a
+  column on the import's preview and pressing Import without "Update the
+  preview" stored the rows with a mapping no preview had shown. That press
+  now keeps the new columns, draws the preview with them and stores nothing
+  until Import is pressed again.
+- **A long import's warning is no longer replaced by "That preview is
+  gone".** An import that outlasted the half hour its upload is kept for, and
+  ended with a warning (rows that could not be scored, a pause mid-run, a
+  fetch that was running), sent you to a preview that had expired. The rows
+  now wait a fresh half hour from the end of such an import.
+- **An empty file is called empty**, instead of "Choose a .json, .jsonl, .csv
+  or .tsv file first".
+- **Runs: an import's count says what it counts.** "5 rows read from the
+  file" was the number of rows that are jobs, after the rows with no title
+  and the repeats were left out; it now reads "5 jobs in the file" (#404).
+
+## [2.55.41] — 2026-10-12
+
+### Fixed
+- **A click on a missing-keyword chip always does something.** On the Tailor
+  page most chips above the editor did nothing when pressed: no scroll, no
+  focus, no message (48 of 50 solid chips on one set of stored comparisons).
+  Now the chip of the posting's own title leads to the line under your name;
+  a term the model asks about opens its own question in the confirm card, as
+  a term with no evidence does; a term the resume backs leads to the section
+  its hint names, or to the skills line **+ add** would write it on; and when
+  there is no line to go to, a sentence under the chips says so (#349).
+
+## [2.55.40] — 2026-10-12
+
+### Fixed
+- **A long "Fetch now" keeps its result for the tab that started it.** The
+  dashboard remembered a "Fetch now" or "Check now" run for half an hour
+  counted from its start. A run that took longer was forgotten as soon as
+  another one was started, and a tab still on its page was told "That fetch
+  run is gone" instead of what the run found. A finished run is now kept for
+  half an hour from the moment it finished. A run whose work never returned
+  made every later press of Fetch now join it until the dashboard restarted;
+  after six hours it no longer counts as running (#407).
+
+## [2.55.39] — 2026-10-11
+
+### Fixed
+- **A saved posting no longer carries the application form in its text.**
+  A job board that puts the form on the same page as the posting had its
+  questions, every "Select…" and "Submit application" stored as the end of
+  the description — a quarter and nearly half of the text on two real pages —
+  and read by the scoring and by every comparison. A form to fill in and
+  the page's navigation are now left out of a saved page's text. A site
+  whose whole page is one form, and a page of the form alone, are read as
+  before; so is a page that states its posting in a `JobPosting` block.
+  Postings saved before keep the text they have, and a page saved again is
+  still the job it was (#361).
+
+## [2.55.38] — 2026-10-11
+
+### Fixed
+- **An import's numbers are all written the same way.** After a large file
+  the summary read "2,000 rows, 1480 new stored … The filter set aside 2000:
+  2,000 without a title keyword", and the preview "12,000 rows read from the
+  file … left out: 1034 without a title". Every count in the import's summary
+  and in the preview's "left out" list now takes the language's own grouping,
+  in all four languages (#367).
+
+## [2.55.37] — 2026-10-11
+
+### Fixed
+- **`npm run stop` no longer says "ApplyPack is not running" while it is.**
+  The stop command recognises a running ApplyPack by asking the system what
+  the process in its lock file is — PowerShell on Windows, `ps` elsewhere —
+  and took "no answer within 15 seconds" for "no such process". On a busy
+  Windows machine that happens: stop then reported nothing to stop and left
+  ApplyPack running. It now asks twice, and when the process is there and
+  still cannot be named it asks it to stop anyway and waits.
+- **A start never takes over from a process it could not identify.** The
+  same wrong answer could let a second `npm start` remove a running
+  ApplyPack's lock, or delete the pid file of a database that was still
+  running; `npm run db:import` could go ahead beside a worker. Each now
+  stops and says which file to remove if nothing is in fact running (#470).
+
+## [2.55.36] — 2026-10-11
+
+### Fixed
+- **The confirm card no longer asks whether you "have" the job's title.**
+  "Confirm your experience — the posting wants these" listed the posting's
+  own title among the skills, with **I have it**, and the line under the
+  score could read "Sr. Software Engineer, Marine is a must here and nothing
+  backs it yet — confirm it where it is true". A title is not something you
+  have or lack; and a stored "I have it" would have let a suggested rewrite
+  put the title into a work bullet, where it reads as having held the role.
+  The title is left out of the card and of that line, and its chip leads to
+  the title line instead of the card. It still counts in the score (#348).
+
+## [2.55.35] — 2026-10-11
+
+### Fixed
+- **A posting's title, shortened, is no longer offered as a skill.** The
+  title is kept off your skills lines, but only when the keyword spelled it
+  in full. When the analysis shortened it — "Product Lead" for "Product Lead
+  (Strategy + Full Stack)", "Backend PHP Developer" for "Backend PHP
+  Developer – AWS / Serverless" — it stood first under **Add missing
+  keywords to your skills**, went in with **Apply all**, and an application
+  pack prepared on its own would write it onto a skills line with nobody
+  reading. The shortened title is recognised now, on the Tailor page and in
+  packs alike. It still counts in the score and is still offered for the
+  title line, where it belongs (#347).
+
+## [2.55.34] — 2026-10-11
+
+### Fixed
+- **A search that scored nothing no longer shows as OK.** When the AI engine
+  gave no verdict for any posting of a run — every one "failed to classify"
+  — the run still finished with a green OK on Runs and a green dot under
+  Pipeline health on the Overview, because nothing had crashed. A night of
+  such runs looked like a healthy night with no matches. Such a run now
+  reads **nothing scored**, in the warning colour on both pages, with a line
+  that points at the engine's card on Settings → AI & costs. A run where
+  some postings were scored keeps its OK and its count of the ones that
+  failed (#366).
+
+## [2.55.33] — 2026-10-11
+
+### Fixed
+- **An AI engine that refuses every call no longer looks healthy.** With a
+  sign-in turned away, or a local server that had stopped, the engine's
+  card on Settings → AI & costs went on saying "available" and AI usage
+  showed its green "nothing was billed": the card reads what is installed,
+  and the usage page weighed twenty refusals against a week of answers.
+  Scoring was dead and nothing said so. An engine whose last calls all
+  failed now carries a **calls failing** badge and a line on its card, and
+  the same line stands first under **Worth a look** on AI usage: one refused
+  sign-in is enough, anything else from three failures in a row.
+- **The advice follows the cause.** A closed port and a prompt too large for
+  the local model's context window were both recorded as a plain error and
+  both answered with "try another model". They are told apart now: check
+  that the server is running; raise the context window or untick the task;
+  sign in again or paste a new key (#413).
+- Left for later: a reply that does not parse is still recorded as
+  answered, and an engine with a task unticked is never that task's last
+  resort (#463).
+
+## [2.55.32] — 2026-10-11
+
+### Fixed
+- **A saved PDF with only a little text is no longer called a scanned
+  image.** A PDF posting of under 200 characters — a short note, a page that
+  is mostly a picture — was listed on the folder's Files page as "No text
+  could be read from this PDF: a scanned image, a password, or a damaged
+  file", with the advice to save it another way, which would not have
+  helped. It now says what a text file of that length says: less than 200
+  characters, a note or an empty page, not a posting. A PDF with no text at
+  all, a locked one and a damaged one keep their note. PDFs already set
+  aside are looked at once more after the upgrade, so the ones with some
+  text get the right sentence; no AI is asked for that (#362).
+
+## [2.55.31] — 2026-10-11
+
+### Fixed
+- **Application packs are no longer prepared for postings that only look
+  new.** "Published within N days" read the posting's date, and a source
+  that gives none had it set to the moment the posting was read. A row
+  imported with no date column, a row of a folder's file, and every role of
+  a board that publishes no dates (BambooHR, Pinpoint, often Rippling) all
+  counted as published today: a file of last month's postings queued packs
+  up to the day's limit, and with no limit set, every one of them. A posting
+  whose source gives no date is now never prepared on its own; you can still
+  prepare any job by hand on its Application pack tab. A posting you saved
+  yourself counts from when you saved it, as before. The settings say so
+  (#379).
+- Left for later: such a date is still shown and filtered as "Posted"
+  (#458), and a board that never publishes dates gets no automatic pack even
+  for a role that appeared since it was last read (#459).
+
+## [2.55.30] — 2026-10-11
+
+### Fixed
+- **Application pack settings no longer swap a value you typed for the
+  default.** A number outside what a field takes — a fit of 40, 60 packs a
+  day, 0 days, 10 bullets, 91.5 — or an emptied field was stored as the
+  default, and the message said the settings were saved: a fit of 40 came
+  back as 90, the opposite of what was asked. Such a press now saves
+  nothing, the on/off box included; the message says which field and what it
+  takes, and the field is marked on the page. A browser stops most of these
+  before they are sent; a pasted value or a script got the silent swap
+  (#383).
+
+## [2.55.29] — 2026-10-11
+
+### Fixed
+- **Prepare again on a pack ApplyPack prepared by itself is now your own
+  run.** Pressing **Prepare again** (or **Try again**) on such a pack
+  started another automatic one: it took one of today's packs, so a strong
+  match later in the day could go without; it came back in the next "packs
+  ready" message although you had its page open; and pressed with packs
+  switched off, or for a job you had dismissed since, the pack was taken out
+  of the queue and deleted instead of prepared. A pack you start over is now
+  yours, whoever started the first one: it counts toward no limit, no
+  message announces it, and it is prepared whatever the settings say (#382).
+
+## [2.55.28] — 2026-10-11
+
+### Fixed
+- **A folder on a disk that stops answering no longer stops every source.**
+  A folder on a sleeping network drive, or a hard NFS mount in Docker, never
+  answered the read, and the check that asked kept the one fetch lock for
+  ever: every hourly search and every "Fetch now" after it said another
+  fetch was running, until the worker was restarted. A folder's disk now has
+  30 seconds to answer; the check then fails as "Unreachable" on the
+  folder's row, the lock is given back, and the folder is read again when
+  the disk comes back.
+- **The hourly search is no longer lost to something that held the lock for
+  a moment.** The tick asked for the lock once, so an import scoring its
+  rows, or a look at a folder of saved postings, at that minute cost the
+  hour its search, its held alerts and its licence re-check. It now waits
+  for whoever holds the lock, asking every minute for up to 50 minutes, and
+  runs when they are done.
+- **A folder check that meets a running fetch leaves no row on Runs.** It
+  asked again every minute and wrote "skipped: another fetch was running"
+  each time: a twenty-minute fetch left twenty rows.
+- The import's preview says that the hourly search waits while its rows are
+  scored (#397). What a long import should let run beside it is #454.
+
+## [2.55.27] — 2026-10-11
+
+### Fixed
+- **Comparing, rewriting and screening no longer tell the model a folder or
+  a feed is the company.** For a posting that names no company — a row of an
+  imported file, a saved posting, an aggregator's posting with no employer —
+  the prompts started from the dashboard still read `Company: September
+  export` or `Company: RemoteOK Feed`: the posting brief, Compare (on the
+  job page, from Tailor resume, with a new file, and Save as vN with a
+  posting), Rewrite all, Rewrite on one suggestion, and a screening's rubric
+  and scoring. They now say the posting does not name one, as the worker's
+  prompts have since 2.55.21. A posting that names its employer, a pasted
+  posting and a company's own board read as before. Pages still show the
+  source in the company's place; what they should say instead is laid out
+  in #444.
+
+## [2.55.26] — 2026-10-11
+
+### Fixed
+- **A page saved as a single file is read.** Chrome's and Edge's "Webpage,
+  Single File" (`.mhtml`) sat in a folder of saved postings and was counted
+  among the "other files left alone", with nothing said. It is now read: its
+  text, and the address the browser noted. A browser leaves the page's
+  structured data out of such a file, so the title and the company are read
+  by the AI engine, as for a PDF. Safari's Web Archive (`.webarchive`) is
+  listed on the Files page with the way to save the page instead.
+- **A folder beside a saved page is no longer hidden.** `Acme interviews/`
+  next to `Acme.html` was taken for that page's own saved files, and the
+  postings in it were never listed. Only the folder a browser makes for a
+  page (`Acme_files`, and its names in other languages) is passed over.
+- **A page's navigation is no longer stored as the posting.** A page with a
+  `<mainnav>` element had its menu read as the posting's text.
+- **Fewer pages ask the AI engine for a title they state.** A structured
+  block with a line break inside a string, with its company as a list, or
+  with its type written as a web address was not read, so the engine was
+  asked for the title and the company; while fetching was paused such a
+  page waited instead of being stored (#399).
+
+## [2.55.25] — 2026-10-11
+
+### Fixed
+- **One posting saved as a JSON file is read as that posting.** A file
+  holding a single posting with a list inside it — a schema.org
+  `JobPosting` with two places in `jobLocation`, a scraper's posting with
+  its skills — was read as that list: the import said "2 rows read from the
+  file, 0 of them jobs; left out: 2 without a title", and a folder of one
+  posting a file ended up failing as "Files do not fit the mapping". A list
+  inside an object that is itself a posting is now the posting's own. A
+  feed with its items, or a company with its openings, reads as before.
+- **A tool's stats file no longer makes its folder fail between runs.** A
+  JSON file holding one object that names no posting (a `stats.json`, a
+  manifest) was judged a file that does not fit the mapping. Written after
+  the rows, it was the newest file, so every check that found nothing new
+  reported the folder as failing until the tool ran again. It is now set
+  aside with a note on the Files page (#395).
+
+  On the upgrade, JSON files a folder had recorded as not fitting are judged
+  once more at the next check: a posting among them is read and scored like
+  any new file, a stats file is set aside, and a file that truly does not
+  fit says so again.
+
+## [2.55.24] — 2026-10-11
+
+### Fixed
+- **A folder's file is no longer read while it is still being written.** A
+  check measured a file's age against the time the whole fetch started, so a
+  file a tool wrote minutes into a long fetch counted as settled and was
+  read half-written: the last row was stored with half a title and no link,
+  and the finished row was never read, because the next check read on after
+  it. A check now takes its own time. The last row of a CSV or TSV that has
+  no line end is left until the file has been still for two minutes (the
+  Files page says so); a whole file that simply ends without a line break
+  has that row read one check later.
+- **One posting that no engine will score no longer stalls every folder.**
+  A check's notes on a folder's files were kept only when the whole fetch
+  stored everything, so a single posting on any source that failed to score
+  every hour made every folder read its first twenty files again every hour
+  and never reach the rest. A folder now keeps its notes unless one of its
+  own postings went without a score.
+- **A row's date no longer comes out as 1980, or in the future.** A date a
+  row states was compared with the file's time instead of the clock, so a
+  file extracted from an archive (stamped 1980) gave every row 1980,
+  whatever it said. A row with no date takes the file's time only when that
+  can be a date; a file dated ahead of the clock gives today.
+
+### Added
+- **Read every file again**, on the Files page of a folder of rows. A file
+  is read once, so a row a search or a muted company turned away was never
+  looked at again after you changed the search or unmuted the company. The
+  button puts the folder's files back to waiting: the next checks read them
+  from their first row, skip what is already stored at no cost, and score
+  what your searches admit now (#396). Doing this by itself when a search
+  changes is #448.
+
+## [2.55.23] — 2026-10-11
+
+### Fixed
+- **A damaged or non-UTF-8 file no longer loses rows or letters in
+  silence.** The import and both kinds of folder share their readers, and
+  four things went wrong without a word:
+  - A CSV row that opens a quote and never closes it swallowed every row
+    after it into one cell, and the file was counted as read: an 8-row file
+    gave 3 "rows", the third holding the rest of the file as its title. The
+    rows above that line are now read, and the preview, the folder's Check
+    page and its Files page name the line ("Read in part"; the folder's row
+    on Companies counts such files).
+  - A file that is not UTF-8 — a Windows spreadsheet's plain "CSV", a page
+    saved off an older board — came out as `Z�rich` and `Node.js ���������`.
+    It is now read in the encoding of its language: a saved page's own
+    `<meta charset>`, else Windows-1251 or Windows-1252, told apart by the
+    letters. Where the encoding had to be assumed, the preview says so.
+  - A JSON file cut short was read as a CSV with columns named
+    `[{"title":"a"`. It is now refused as cut off or not valid JSON.
+  - A TSV whose header starts with an empty cell (pandas with its index)
+    lost that cell, so every column shifted one to the left and no select
+    could put it right. An object that holds its rows by key
+    (`{"a1": {…}, "a2": {…}}`) was one row; it is now its rows.
+
+  Files a folder read before this version keep the row they have: nothing
+  is read again on the upgrade (#394).
+
+## [2.55.22] — 2026-10-11
+
+### Fixed
+- **An import that stores nothing no longer leaves an empty source.** The
+  preview disables Import when nothing in the file is both new and wanted
+  by a running search, but the server ran the same form when it was posted
+  anyway (an old tab, a double press): nothing was stored, and an empty
+  source appeared under "Sources you imported". The import now refuses for
+  the reason the page gives, before it writes anything. A source made by a
+  press that could store nothing — a fetch was running at that moment — is
+  taken back too, and comes with the second press (#364).
+
+## [2.55.21] — 2026-10-11
+
+### Fixed
+- **A folder or a feed is no longer named as the company.** When an imported
+  row, a saved posting or an aggregator's posting named no company, ApplyPack
+  took the source's own name for it: the classifier's prompt read
+  `Company: Saved postings`, the alert and the daily recap said "@ Export A",
+  the company check researched the folder's name on the web, and a cover
+  letter or an application pack was written to it. A posting that names no
+  company now has none: the model is told the posting does not name one, and
+  a message says "company not named". A posting that names its employer, and
+  a company's own board, read as before. Pages still show the source in the
+  company column (#401).
+
+## [2.55.20] — 2026-10-11
+
+### Fixed
+- **The Application pack tab no longer wipes what you type.** While a pack
+  was queued or being prepared the page reloaded itself every 8 seconds, and
+  the rail beside the card holds the application's forms: a note typed into
+  Notes was gone with the next reload, for as long as the company check ran
+  (up to ten minutes). The tab now asks for the pack's state and rewrites
+  its one line of progress in place. The page is loaded again only when the
+  pack has finished, and never over an unsaved edit: then the card says the
+  pack has finished and to save first. A browser with scripts off still gets
+  the reload (#378).
+
+## [2.55.19] — 2026-10-10
+
+### Fixed
+- **A posting pasted without a title is no longer named after its first
+  heading.** When neither you nor the model named the role, the first line
+  of the paste became the title, and a paste from a job board opens with a
+  heading: the job was listed as "Full job description", and the comparison
+  read that as the role, so the title line was never measured. A first line
+  that is a section heading ("Full job description", "About the job",
+  "About Acme", "Who we are", "The role") is not taken: the job is
+  "Untitled role" until you name it (#352).
+
+## [2.55.18] — 2026-10-10
+
+### Fixed
+- **Re-classify says what happened when no verdict comes back.** The button
+  on a job came back to the same page with no word in three cases: every
+  engine failed (a refused sign-in, a server down), no running search had a
+  stack or role types, or two-stage scoring turned the posting away at its
+  first pass. Each now says what failed, that the verdict is as it was, and
+  where to look — with the engine's own reason when it gave one. A posting
+  the first pass turns away is also handled as "Save & re-classify" handles
+  it, instead of staying Alerted under a verdict the prefilter had just
+  reversed: it is dismissed, unless you saved, applied to or pasted it
+  yourself (#414).
+
+## [2.55.17] — 2026-10-10
+
+### Fixed
+- **A pack no longer fails for want of a linked resume, and a failed one is
+  said.** "Resume for this search" is optional, and with it empty every
+  automatic pack failed ("No resume is linked to the search…"), took a slot
+  of the day's limit, and was mentioned nowhere: a person with one resume
+  who switched packs on got failed rows and no word. A pack now reads the
+  resume the job page would preselect — the search's own, else the one whose
+  skills the posting asks for most — and fails only when no resume is stored
+  at all. The "packs" message ends with the ones that could not be prepared
+  (an engine down overnight), by name, and a pack that failed before it
+  compared anything no longer uses the day's limit (#381).
+
+## [2.55.16] — 2026-10-10
+
+### Fixed
+- **An alert for a job with no link no longer ends in an empty "Apply →".**
+  A posting saved as text, Markdown, a PDF or a .docx has no page address,
+  and a row from a file may carry a link that is no web address. Their
+  alerts, and the daily recap, still wrote the Apply line: `[Apply →]()` on
+  Telegram, `Apply → <>` on Discord — a dead link, and one Telegram may
+  refuse the whole message for. The line is now written only for an http(s)
+  link; the "From your folder" line above it says where the posting is
+  (#360).
+
+## [2.55.15] — 2026-10-10
+
+### Fixed
+- **A queued pack is not prepared once you no longer want it.** The runner
+  spent on every row the search had queued without asking again: with packs
+  switched off, 30 queued ones were still prepared (comparisons, company
+  checks with web search) while the page said "none is prepared on its
+  own"; a job dismissed, applied to another way or from a company muted
+  since was prepared too, and a dismissed job's pack came in the morning
+  message. A pack the search queued is now asked once more when its turn
+  comes, and taken out of the queue instead; switching packs off cancels the
+  ones that wait and says how many. A pack you asked for by hand is prepared
+  whatever became of the job (#376).
+
+## [2.55.14] — 2026-10-10
+
+### Fixed
+- **A pack interrupted by a restart is not announced as ready.** When the
+  worker stopped (a Docker restart, `npm run stop`, an upgrade) while a pack
+  was on the company check — its longest step — the killed check read as
+  "the company was not checked", the rest ran inside the shutdown window,
+  and the pack ended ready and went into the next message with the check
+  missing. A pack the shutdown cut into now goes back in the queue whatever
+  it had got to, and the next run takes it up: the comparison and a check
+  that did finish are stored and not paid for again. Nothing more is asked
+  of a model once the stop is asked for, so no cover letter is written into
+  a shutdown either (#375).
+
+## [2.55.13] — 2026-10-10
+
+### Fixed
+- **The file you sent is kept, however you mark the job applied.** Only "I
+  sent this file" on the pack tab kept a pack's file. The rail's **Mark
+  applied** recorded the untailored resume as what went out and left the
+  pack free to be prepared again, and **Prepare again** then deleted the
+  file that had been sent; a card moved to Applied on the board did the
+  same. Now **The application pack's file** is an answer of "Applied with",
+  chosen already on the rail while a pack is ready, and it records the
+  pack's text and keeps its file for good. A ready pack of a job you applied
+  to is not prepared again, whichever way you applied. A pack prepared again
+  in another tab is no longer frozen from an older page: the page says so
+  and records nothing, and it no longer clears the resume already recorded.
+  Saving notes on an application no longer replaces the recorded text with
+  the resume's newest version (#377).
+
+## [2.55.12] — 2026-10-10
+
+### Fixed
+- **Saved postings no longer merge into one job, or split into two.** A
+  saved posting's id was its page's address, else its text, and both halves
+  misfired. One opening in two cities shares a description, and two postings
+  may name the same careers page as their address: the second was counted as
+  read and never became a job. The same address with another campaign
+  parameter, or a note added to a `.md`, made a second job, a second alert
+  and possibly a second pack. The id now holds the role and the place the
+  page states beside its address (without campaign parameters) or its text,
+  and a file is first matched to a job the folder already holds: by the id
+  earlier versions gave it, or as the same file with a note under it. A page
+  that carries several postings is read as the one its own address names
+  (not the first "similar job" on it), and a page of search results is no
+  longer taken for the first posting on its list. A posting the folder holds
+  costs no model call, and its file says "The same posting as <file>" on the
+  Files page. Files that were counted as read and never became a job are
+  read again at the next check; jobs already stored keep their ids (#390).
+
+## [2.55.11] — 2026-10-10
+
+### Fixed
+- **A file in a folder is read to its end.** A folder's file of rows was
+  read to its 2,000th row and marked done: the rest never became jobs, and a
+  tool that appends to one file stopped yielding there, every change
+  re-reading the same first 2,000 rows. A file is now read 5,000 rows a
+  check until its end, and the Files page says how far it is ("5,000 of
+  12,000 rows read so far"); a file that only grew is read from its old end,
+  so an appended row is one new job and not a second reading of the file. A
+  check also stops at 5,000 rows exactly, where it could hand over 6,999.
+  Files already cut at 2,000 rows are picked up again at the next check
+  (#393).
+
+## [2.55.10] — 2026-10-10
+
+### Fixed
+- **A small .docx can no longer exhaust the worker's memory.** A .docx is a
+  zip, and one of 111 KB can unpack to 32 MB of document; reading that took
+  3.4 seconds and 2.2 GB, and the limit of 64 MB a part was above what the
+  process survives. A file saved into a folder of postings is read with
+  nobody watching, and a worker that died on it read it again on the next
+  check. A saved posting's .docx may now unpack to 2 MB (a posting is tens
+  of kilobytes) and is otherwise set aside with "Too large once unpacked" on
+  the folder's Files page; a resume or an applicant's .docx to 8 MB, four
+  times the largest real one. Both are refused at the unpacker, in a
+  millisecond (#400).
+
+## [2.55.9] — 2026-10-10
+
+### Fixed
+- **Apply all no longer deletes the skills line that shows a must-have.** A
+  report advised cutting a whole line of eleven AI tools ("dense and
+  duplicative") while the same report named that line as the evidence for
+  "AI tooling", a must-have. The line spells no such term, so the check that
+  keeps wanted keywords let the cut through: one press deleted the line and
+  wrote "AI tooling" onto an unrelated line with nothing behind it. A
+  removal that takes a whole line is now also held when the comparison's own
+  note says that line is what shows a must-have: the advice stays on the
+  card, without the one-press delete, and the card says why. A lighter term
+  gets a note instead. Comparisons made before this keep the cut until the
+  resume is analysed again (#350).
+
+## [2.55.8] — 2026-10-10
+
+### Security
+- **A `back` value can no longer send a form's redirect off the site.** The
+  guard for every "go back where you were" field refused `//host` and
+  `https://…`, but read the value as a string: `/\host` and `/.//host` both
+  start with one slash, and a browser reads both as another host. It now
+  reads the value the way a browser reads a Location and keeps it only when
+  it stays on this site. Every POST already passes the same-origin check, so
+  another page could not submit one; no released page takes `back` from a
+  link (#354).
+
+### Fixed
+- A `back` value with characters outside ASCII (a search in Cyrillic) made
+  the redirect a header the server refuses, and the request answered 500. It
+  comes back percent-encoded.
+
+## [2.55.7] — 2026-10-10
+
+### Fixed
+- **A pack run on the Runs page is worded in your language.** Its counts were
+  bare words ("1 failed", "2 ready") in English whatever the interface
+  language, a tick's "1 packs queued" did not agree in number, and a pack run
+  that stood down for another said "Another fetch was running". They now
+  read "1 pack failed", "2 packs ready", "1 pack put back in the queue",
+  "1 pack queued" and "Another run was preparing packs", in all four
+  languages (part of #384).
+
+## [2.55.6] — 2026-10-10
+
+### Fixed
+- **The daily recap no longer lists unscored jobs as matches.** Rows stored
+  while fetching is paused (a "Fetch now", an import, a folder read) have no
+  score yet; the recap counted each as a match and printed it as "fit
+  0/100", so forty paused rows opened the morning message as "40 matches".
+  Only scored jobs are matches now. The unscored ones are one line at the
+  end ("40 new jobs are stored without a score and are not listed as a
+  match"), and the run's row on Runs says the same (#392).
+
+## [2.55.5] — 2026-10-10
+
+### Fixed
+- **A folder set to "No alerts" no longer reaches the chat through the daily
+  recap.** Its matches were never sent and never held, as promised, which
+  made them exactly the rows the recap lists: the morning message named them
+  with their fit. The recap now leaves such a folder out; its matches stay
+  on Jobs (#391).
+- **The daily recap and the "While you were away" message say "From your
+  folder" too.** Only the alert sent on the spot carried the folder and the
+  file a posting came from; the same posting in the recap, or held for the
+  alert window, had lost the line.
+
+## [2.55.4] — 2026-10-10
+
+### Fixed
+- **"Read the shape with AI" no longer keeps a reading that left jobs out.**
+  A model that copied two of a resume's six roles, every word of them
+  faithfully, passed the check that each string is the resume's own, and the
+  clean version was drawn four jobs short; **Save as a new resume** would
+  have written that file. A reading is now also held against the whole text:
+  every role, and every line under one, that the built-in reader finds is
+  looked up in it. With a role missing, or more than a tenth of those lines,
+  the reading is not stored and the page keeps the built-in one, which loses
+  no line; the run says what was missing ("the model read 2 of the 6 roles
+  in your resume"). A reading stored before this is checked the same way
+  each time the page opens. With a line or two missing the reading is still
+  drawn, and the page says how many lines are not in it (#408).
+
+## [2.55.3] — 2026-10-10
+
+### Fixed
+- **A re-score no longer dismisses a job you saved, and the cleanup no longer
+  deletes it.** A posting saved into a folder, a pasted one, or any job you
+  marked Saved turned **Dismissed** as soon as it was scored again and no
+  search wanted it: the job page's **Re-classify**, **Save & re-classify**
+  and the wizard's scoring all did it, and the weekly cleanup then deleted
+  the row a month after it was found. Saved now stays Saved through any
+  re-score, as Applied always did; only the scores change. A posting you
+  pasted or saved as a file is never dismissed by a score: when no search
+  wants it any more it is kept Saved, and it is scored whatever the filter
+  says, as it was when it came in. A row dismissed this way before the fix
+  cannot be told from one you dismissed yourself, so it is not brought back
+  (#389).
+
+## [2.55.2] — 2026-10-10
+
+### Fixed
+- **An application pack no longer writes wording the fact check only warned
+  about.** A suggestion the check let through with a note ("says
+  "Kubernetes" — confirm you have it first", a term the line loses) is a card
+  you read before pressing Apply on the Tailor page; a pack applied it to a
+  file nobody had read yet. Measured on 98 stored suggestions: 15 carried
+  such a note, and a pack would have written every one. They now wait under
+  **Left for you**, with the reason (#374).
+- **A note to the writer is no longer offered as resume text.** The model
+  sometimes put its own instruction into the wording: "(ask the candidate to
+  confirm which role used JIRA)", "[add your real number]", "XX%", a
+  question. One press of Apply pasted that into the resume, and a pack would
+  have sent it. Such a wording is refused when a comparison is made (the card
+  says why, and Copy and Edit & apply still work), and a pack leaves it out
+  on comparisons stored before this (#208).
+
+## [2.55.1] — 2026-10-10
+
+### Fixed
+- **An application pack no longer says "Preparing" for ever after the worker
+  stopped mid-pack.** A pack the worker was preparing when it was killed, or
+  when the computer shut down, stayed `running`: its tab kept refreshing,
+  **Prepare again** was hidden, and nothing took it up until some other pack
+  happened to be queued. The minute beat now counts such a pack as work, so
+  it goes back in the queue and is prepared again within a minute (#373).
+
+## [2.55.0] — 2026-10-06
+
+### Changed
+- **Settings, second readability pass.** Every on/off setting is a switch
+  with its state in words beside it, instead of a state pill next to an
+  Enable / Disable button; a press on the label flips it too, and it works
+  without JavaScript.
+- Every message is switched under **Notifications**: the follow-up reminders
+  moved there beside source problems, and Applications says whether they are
+  on. The daily summary's hours are up to four time pickers with "+ Add
+  another time", instead of 24 hour pills.
+- Each search profile on **Job search** carries one line of what it hunts —
+  target roles, core skills, where and the minimum fit — and the editor's
+  Save buttons stay at the bottom of the window while it scrolls.
+- **AI & costs** opens with one sentence: which engine answers every task,
+  on whose money, who stands behind it, and what was billed this month.
+- The interface language is one picker; a screening's retention is a choice
+  of 30 / 60 / 90 (recommended) / 180 / 365 days; **Employer tools** opens
+  with a short checklist of what is in place before applicants are read.
+- A kind of your own source with nothing in it yet (a feed, a careers page, a
+  folder) shows where to add one instead of a switch that would switch
+  nothing.
+- Long explanations under Sources, AI & costs, Automation and Employer tools
+  fold behind "How this works"; costs, limits and privacy warnings stay in
+  sight.
+
+## [2.54.0] — 2026-10-06
+
+### Changed
+- **Settings are grouped by what you came to change.** The catch-all General
+  tab is split up: the automatic search and when it runs sit with the search
+  profiles on **Job search**; tracking, follow-up reminders, duplicate
+  applications and the board columns on **Applications**; application packs
+  on **Automation**; when job matches arrive and the daily summary on
+  **Notifications**; the time zone stays under **General** with the language,
+  the resumes and updates. The AI tab is **AI & costs** and the screening tab
+  **Employer tools**. `/settings` opens on Job search, and every tab says in
+  one line what it holds.
+- Plainer words: core skills, target roles and preferred skills instead of
+  "tech stack — required / nice to have" and "role types", score adjustments
+  instead of priority rules, a monthly spending alert instead of a budget, and
+  best accuracy / lower AI cost instead of single / two-stage classifier.
+- Minimum fit, minimum salary and the title words to skip are in sight in the
+  search editor, no longer inside its Advanced block.
+- What most people never need folds away: an engine's models and tasks, the
+  key and server rows of an engine that is not switched on, the keys of the
+  sources that need an account, the per-company career platforms, the
+  applicant notice and the legal note. Telegram and Discord each open their
+  own Connect form, one at a time.
 
 ## [2.53.0] — 2026-10-06
 
@@ -240,7 +1236,8 @@ All notable changes to this project are documented here. The format follows
   same filter, scoring and alerts as every other job, with a row on Runs.
   While fetching is paused they are stored unscored and no AI is spent. A
   newer export into the same source adds only what is new, and each company
-  in the file is named on its own rows, so a mute works on it.
+  in the file is named on its own rows, so a mute works on it — for the rows
+  that name one: with no company column mapped there is nobody to mute.
 - ApplyPack reads the file and requests nothing. Columns about people (who
   posted, who recruits, an email, a phone) are never read, a link is kept
   only when it is http(s), and the file itself is never stored
@@ -4997,7 +5994,69 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[2.53.1]: https://github.com/applypack/applypack/compare/v2.53.0...v2.53.1
+[2.55.61]: https://github.com/applypack/applypack/compare/v2.55.60...v2.55.61
+[2.55.60]: https://github.com/applypack/applypack/compare/v2.55.59...v2.55.60
+[2.55.59]: https://github.com/applypack/applypack/compare/v2.55.58...v2.55.59
+[2.55.58]: https://github.com/applypack/applypack/compare/v2.55.57...v2.55.58
+[2.55.57]: https://github.com/applypack/applypack/compare/v2.55.56...v2.55.57
+[2.55.56]: https://github.com/applypack/applypack/compare/v2.55.55...v2.55.56
+[2.55.55]: https://github.com/applypack/applypack/compare/v2.55.54...v2.55.55
+[2.55.54]: https://github.com/applypack/applypack/compare/v2.55.53...v2.55.54
+[2.55.53]: https://github.com/applypack/applypack/compare/v2.55.52...v2.55.53
+[2.55.52]: https://github.com/applypack/applypack/compare/v2.55.51...v2.55.52
+[2.55.51]: https://github.com/applypack/applypack/compare/v2.55.50...v2.55.51
+[2.55.50]: https://github.com/applypack/applypack/compare/v2.55.49...v2.55.50
+[2.55.49]: https://github.com/applypack/applypack/compare/v2.55.48...v2.55.49
+[2.55.48]: https://github.com/applypack/applypack/compare/v2.55.47...v2.55.48
+[2.55.47]: https://github.com/applypack/applypack/compare/v2.55.46...v2.55.47
+[2.55.46]: https://github.com/applypack/applypack/compare/v2.55.45...v2.55.46
+[2.55.45]: https://github.com/applypack/applypack/compare/v2.55.44...v2.55.45
+[2.55.44]: https://github.com/applypack/applypack/compare/v2.55.43...v2.55.44
+[2.55.43]: https://github.com/applypack/applypack/compare/v2.55.42...v2.55.43
+[2.55.42]: https://github.com/applypack/applypack/compare/v2.55.41...v2.55.42
+[2.55.41]: https://github.com/applypack/applypack/compare/v2.55.40...v2.55.41
+[2.55.40]: https://github.com/applypack/applypack/compare/v2.55.39...v2.55.40
+[2.55.39]: https://github.com/applypack/applypack/compare/v2.55.38...v2.55.39
+[2.55.38]: https://github.com/applypack/applypack/compare/v2.55.37...v2.55.38
+[2.55.37]: https://github.com/applypack/applypack/compare/v2.55.36...v2.55.37
+[2.55.36]: https://github.com/applypack/applypack/compare/v2.55.35...v2.55.36
+[2.55.35]: https://github.com/applypack/applypack/compare/v2.55.34...v2.55.35
+[2.55.34]: https://github.com/applypack/applypack/compare/v2.55.33...v2.55.34
+[2.55.33]: https://github.com/applypack/applypack/compare/v2.55.32...v2.55.33
+[2.55.32]: https://github.com/applypack/applypack/compare/v2.55.31...v2.55.32
+[2.55.31]: https://github.com/applypack/applypack/compare/v2.55.30...v2.55.31
+[2.55.30]: https://github.com/applypack/applypack/compare/v2.55.29...v2.55.30
+[2.55.29]: https://github.com/applypack/applypack/compare/v2.55.28...v2.55.29
+[2.55.28]: https://github.com/applypack/applypack/compare/v2.55.27...v2.55.28
+[2.55.27]: https://github.com/applypack/applypack/compare/v2.55.26...v2.55.27
+[2.55.26]: https://github.com/applypack/applypack/compare/v2.55.25...v2.55.26
+[2.55.25]: https://github.com/applypack/applypack/compare/v2.55.24...v2.55.25
+[2.55.24]: https://github.com/applypack/applypack/compare/v2.55.23...v2.55.24
+[2.55.23]: https://github.com/applypack/applypack/compare/v2.55.22...v2.55.23
+[2.55.22]: https://github.com/applypack/applypack/compare/v2.55.21...v2.55.22
+[2.55.21]: https://github.com/applypack/applypack/compare/v2.55.20...v2.55.21
+[2.55.20]: https://github.com/applypack/applypack/compare/v2.55.19...v2.55.20
+[2.55.19]: https://github.com/applypack/applypack/compare/v2.55.18...v2.55.19
+[2.55.18]: https://github.com/applypack/applypack/compare/v2.55.17...v2.55.18
+[2.55.17]: https://github.com/applypack/applypack/compare/v2.55.16...v2.55.17
+[2.55.16]: https://github.com/applypack/applypack/compare/v2.55.15...v2.55.16
+[2.55.15]: https://github.com/applypack/applypack/compare/v2.55.14...v2.55.15
+[2.55.14]: https://github.com/applypack/applypack/compare/v2.55.13...v2.55.14
+[2.55.13]: https://github.com/applypack/applypack/compare/v2.55.12...v2.55.13
+[2.55.12]: https://github.com/applypack/applypack/compare/v2.55.11...v2.55.12
+[2.55.11]: https://github.com/applypack/applypack/compare/v2.55.10...v2.55.11
+[2.55.10]: https://github.com/applypack/applypack/compare/v2.55.9...v2.55.10
+[2.55.9]: https://github.com/applypack/applypack/compare/v2.55.8...v2.55.9
+[2.55.8]: https://github.com/applypack/applypack/compare/v2.55.7...v2.55.8
+[2.55.7]: https://github.com/applypack/applypack/compare/v2.55.6...v2.55.7
+[2.55.6]: https://github.com/applypack/applypack/compare/v2.55.5...v2.55.6
+[2.55.5]: https://github.com/applypack/applypack/compare/v2.55.4...v2.55.5
+[2.55.4]: https://github.com/applypack/applypack/compare/v2.55.3...v2.55.4
+[2.55.3]: https://github.com/applypack/applypack/compare/v2.55.2...v2.55.3
+[2.55.2]: https://github.com/applypack/applypack/compare/v2.55.1...v2.55.2
+[2.55.1]: https://github.com/applypack/applypack/compare/v2.55.0...v2.55.1
+[2.55.0]: https://github.com/applypack/applypack/compare/v2.54.0...v2.55.0
+[2.54.0]: https://github.com/applypack/applypack/compare/v2.53.0...v2.54.0
 [2.53.0]: https://github.com/applypack/applypack/compare/v2.52.0...v2.53.0
 [2.52.0]: https://github.com/applypack/applypack/compare/v2.51.0...v2.52.0
 [2.51.0]: https://github.com/applypack/applypack/compare/v2.50.0...v2.51.0

@@ -97,14 +97,29 @@ export function parseExtractReply(raw: string): PostingFacts | null {
   };
 }
 
-/** Deterministic last resort when neither the user nor the model named the role. */
+/**
+ * What a board or a careers page prints above a posting's text, and what a
+ * posting opens with when it carries no title: "Full job description"
+ * (Indeed), "About the job" (LinkedIn), "About Acme", "Who we are", "The
+ * role". A heading is not the role. Measured on 1,710 stored descriptions:
+ * one opens one in six of those whose first line is a title's length, and
+ * none of the 148 it caught was a role.
+ */
+const SECTION_HEADING =
+  /^(?:about\b.*|(?:full\s+)?job\s+(?:description|details|summary)|(?:role|position)\s+(?:description|summary|overview)|description|overview|summary|the\s+(?:role|job|position|opportunity)|who\s+we\s+are|what\s+you(?:['’]ll|\s+will)\s+do|responsibilities|requirements)\s*:?$/i;
+
+/**
+ * Deterministic last resort when neither the user nor the model named the
+ * role: the paste's first line when it is a title's length — and not a
+ * section heading, which says the text has no title line at all.
+ */
 export function fallbackTitle(description: string): string {
   const first =
     description
       .split('\n')
       .map((l) => l.trim())
       .find((l) => l.length > 0) ?? '';
-  return first.length >= 4 && first.length <= 90 ? first : 'Untitled role';
+  return first.length >= 4 && first.length <= 90 && !SECTION_HEADING.test(first) ? first : 'Untitled role';
 }
 
 export async function extractPostingFacts(description: string): Promise<PostingFacts | null> {

@@ -1,12 +1,12 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import { sampleValue, type Mapping, type MappingField } from '../../datasets/map';
+import { idNote, sampleValue, type Mapping, type MappingField } from '../../datasets/map';
 import { MAX_COLUMNS, type Row } from '../../datasets/rows';
 import type { NormalizedJob } from '../../types';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { formatDateShort } from '../format';
-import { Disclosure, Field, Hint, Select } from '../ui';
+import { Disclosure, Field, Hint, Notice, Select } from '../ui';
 
 /*
  * The two halves of a preview every source of rows shares (ADR 0062): which
@@ -14,6 +14,21 @@ import { Disclosure, Field, Hint, Select } from '../ui';
  * rows as they would be stored. The selects are named after the fields, so
  * the form they sit in posts a mapping (datasets/map.ts:MappingSchema).
  */
+
+/**
+ * How the file was read, said before anything the preview shows of it
+ * (datasets/read-notes.ts): a part that was lost, a warning each, and an
+ * encoding that had to be assumed.
+ */
+export const ReadingNotes: FC<{ lost: readonly string[]; assumed: string | null }> = ({ lost, assumed }) => (
+  <>
+    {[...lost, ...(assumed ? [assumed] : [])].map((note) => (
+      <Notice tone="warn" class="mb-4">
+        {note}
+      </Notice>
+    ))}
+  </>
+);
 
 /** What a column can be, in the user's words. The first eight are what most files have; the rest fold. */
 const FIELD_LABEL: Record<MappingField, MessageKey> = {
@@ -46,13 +61,23 @@ export interface MappingFieldsProps {
   columns: readonly string[];
 }
 
+/** What the id's select says when the column is a weak one, or was passed over for being one (map.ts:idNote). */
+function idWords(rows: readonly Row[], mapping: Mapping): string {
+  const note = idNote(rows, mapping);
+  if (note === null) return '';
+  const link = mapping.url !== null || mapping.applyUrl !== null ? 'yes' : 'no';
+  return note.used ? t('import.field.idWeak', { why: note.why, link }) : t('import.field.idPassedOver', { column: note.column, why: note.why });
+}
+
 const MappingSelect: FC<{ field: MappingField } & MappingFieldsProps> = ({ field, mapping, guessed, rows, columns }) => {
   const column = mapping[field];
   const sample = column === null ? '' : sampleValue(rows, column);
+  const weak = field === 'id' ? idWords(rows, mapping) : '';
   const hint =
     column === null
-      ? t('import.field.notFound')
-      : [guessed.includes(field) ? t('import.field.guessed') : '', sample ? t('import.field.example', { sample }) : t('import.field.emptyFirstRows')].filter(Boolean).join(' ');
+      ? weak || t('import.field.notFound')
+      : // The example closes the hint: it ends on the cell's own text, with no full stop of ours after it.
+        [guessed.includes(field) ? t('import.field.guessed') : '', weak, sample ? t('import.field.example', { sample }) : t('import.field.emptyFirstRows')].filter(Boolean).join(' ');
   const label = t(FIELD_LABEL[field]);
   return (
     <Field label={field === 'title' ? t('import.field.needed', { label }) : label} hint={hint}>

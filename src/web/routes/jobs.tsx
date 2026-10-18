@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
-import { appliedResumeColumns } from '../applied-resume';
+import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
   parsePlaces,
   parsePosted,
@@ -19,7 +19,8 @@ import {
 } from '../job-facets';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
-import { classifyExistingJob } from '../../jobs/classify-existing';
+import { classifyExistingJob, type Rescored } from '../../jobs/classify-existing';
+import { rescoreFlash } from '../rescore-flash';
 import { locationMismatchReason } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
@@ -35,8 +36,8 @@ import { readEvidence } from '../../verification/prompts';
 import { addresseeFromFinding } from '../../resume/addressee';
 import { livenessCodeLabel } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
-import { jobHref, jobTabLabels, resolveJobTab, type JobTab } from '../job-tabs';
-import { getPack, markPackSent } from '../../pack/store';
+import { jobHref, jobTabLabels, resolveJobTab, shownMatch, type JobTab } from '../job-tabs';
+import { getPack, markPackSent, type PackRow } from '../../pack/store';
 import { packFact } from '../../pack/view';
 import { loadPackView } from './pack';
 import { JobDetailPage } from '../pages/job-detail';
@@ -94,7 +95,7 @@ import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
-import { employerKey, hiringName, withoutMuted } from '../../employer';
+import { companyForPage, companyForPrompt, employerKey, hiringName, postingForPrompt, withoutMuted } from '../../employer';
 import { preferredPlaces } from '../place-line';
 import { t } from '../../i18n/t';
 
@@ -410,10 +411,10 @@ jobsRoute.get('/jobs/:id', async (c) => {
         // F3: the posting this one near-duplicates, and any that
         // near-duplicate it — the link is annotation only (ADR 0018).
         crossListedOf: {
-          select: { id: true, title: true, company: { select: { name: true } } },
+          select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } },
         },
         crossListings: {
-          select: { id: true, title: true, company: { select: { name: true } } },
+          select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } },
         },
         // Stage C: the resume this application went out with. Only the name is
         // read — the version and text snapshot live on the job itself.
@@ -460,7 +461,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
 
   // ?match=<id> shows an older comparison; default is the latest. Same for ?letter.
   const requestedMatch = idParam(c.req.query('match'));
-  const selected = matches.find((m) => m.id === requestedMatch) ?? matches[0] ?? null;
+  const applicationPack = await loadPackView(id, job.url);
+  const selected = shownMatch(matches, requestedMatch, applicationPack.pack?.tailoredMatchId ?? null);
   const requestedLetter = idParam(c.req.query('letter'));
   const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
   // The search that speaks for this posting is the one that scored it best,
@@ -486,7 +488,6 @@ jobsRoute.get('/jobs/:id', async (c) => {
       : null;
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
-  const applicationPack = await loadPackView(id, job.url);
   const selectedKeywords = await orderedKeywords(selected, job.description);
   const selectedSummaryGuide = selected
     ? await summaryGuideFor(
@@ -508,6 +509,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       appliedResumePicker={{
         resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
         suggestedId: appliedPick?.id ?? null,
+        packValue: packChoiceValue(applicationPack.pack),
       }}
       profileScores={job.scores.map((sc) => ({
         profileId: sc.profileId,
@@ -539,7 +541,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         selected,
         selectedKeywords,
         selectedSummaryGuide,
-        job: { title: job.title, companyName: job.employer ?? job.company.name },
+        job: { title: job.title, companyName: companyForPage(job.employer, job.company) },
         verification: verifications[0] ?? null,
         costHint: costHintText(matchCost),
       }}
@@ -568,16 +570,18 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
 
   const form = await c.req.parseBody();
+  // The picker's answer: a resume, none, or the application pack's file.
+  const choice = readAppliedResumeChoice(form.appliedResumeId);
   const parsed = StatusBodySchema.safeParse({
     status: form.status,
-    appliedResumeId: form.appliedResumeId === '' ? undefined : form.appliedResumeId,
+    appliedResumeId: choice.kind === 'set' ? choice.id : undefined,
   });
   if (!parsed.success) return c.text(t('http.invalidStatus'), 400);
   // The update below throws on a row that is not there; a missing job is a 404, not a 500.
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
 
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
-  let sentPack: Awaited<ReturnType<typeof getPack>> = null;
+  let sentPack: ReturnType<typeof packAsShown<PackRow>> = null;
   if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
     data.alertedAt = data.alertedAt ?? new Date();
   }
@@ -606,14 +610,17 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
     // the version alone would name v3 and hand back v5's words. The rules for
     // what counts live in applied-resume.ts, shared with the two paths on
     // /applications that used to record nothing at all (#75).
-    // "I sent this file" on the pack tab (ADR 0063): what went out is the
-    // pack's text, not the resume's as it stands — and the pack is frozen
-    // below, once the status is written.
-    sentPack = form.pack === '1' ? await getPack(id) : null;
-    if (sentPack?.status !== 'ready' || !sentPack.text || !sentPack.resumeId) sentPack = null;
+    // "The application pack's file" (ADR 0063), from the pack tab or the
+    // picker: what went out is the pack's text, not the resume's as it stands
+    // — and the pack is frozen below, once the status is written.
+    if (choice.kind === 'pack') {
+      sentPack = packAsShown(await getPack(id), choice.at);
+      // Prepared again since the page was drawn, or not ready: its file is not the one the person looked at.
+      if (!sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
+    }
     const requested = sentPack?.resumeId ?? parsed.data.appliedResumeId;
     const picked = requested ? await getResume(requested) : null;
-    const columns = appliedResumeColumns(picked && sentPack?.text ? { ...picked, text: sentPack.text } : picked);
+    const columns = appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
     data.appliedResume = columns.appliedResumeId
       ? { connect: { id: columns.appliedResumeId } }
       : { disconnect: true };
@@ -640,15 +647,19 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
   const tab = formTab((await c.req.parseBody()).tab);
   const job = await prisma.job.findUnique({
     where: { id },
-    include: { company: { select: { name: true, atsType: true } } },
+    include: { company: { select: { name: true, atsType: true, sourceConfig: true } } },
   });
   if (!job) return c.text(t('http.notFound'), 404);
+  let outcome: Rescored;
   try {
-    await classifyExistingJob(job, { keepStatus: false });
+    outcome = await classifyExistingJob(job, { keepStatus: false });
   } catch (err) {
     logger.error({ err, jobId: id }, 'web: reclassify failed');
+    outcome = { kind: 'failed', reason: '' };
   }
-  return c.redirect(jobHref(id, tab), 303);
+  // A press that formed no verdict says so: the page it comes back to looks exactly as it did.
+  const said = rescoreFlash(outcome, job.status);
+  return said ? flashRedirect(jobHref(id, tab), said.kind, said.text) : c.redirect(jobHref(id, tab), 303);
 });
 
 /**
@@ -659,7 +670,7 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
 jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } });
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
   if (!job) return c.text(t('http.notFound'), 404);
   const back = jobHref(id, 'verify', {}, 'verification');
   const [latest] = await listVerificationsForJob(id);
@@ -676,7 +687,7 @@ jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
   if (plan.unchanged) return flashRedirect(back, 'ok', describeRefresh(plan));
   return c.html(
     <DescriptionRefreshPage
-      job={{ id, title: job.title, companyName: job.employer ?? job.company.name }}
+      job={{ id, title: job.title, companyName: companyForPage(job.employer, job.company) }}
       url={url}
       plan={plan}
       rows={foldOps(ops)}
@@ -688,7 +699,7 @@ jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
 jobsRoute.post('/jobs/:id/description', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true, sourceConfig: true } } } });
   if (!job) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? normaliseDescription(form.text) : '';
@@ -705,7 +716,7 @@ jobsRoute.post('/jobs/:id/description', async (c) => {
 jobsRoute.post('/jobs/:id/description/restore', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true, sourceConfig: true } } } });
   if (!job) return c.text(t('http.notFound'), 404);
   const swap = await restoreDescription(job);
   if (!swap) return flashRedirect(`/jobs/${id}`, 'warn', t('jobRoute.restore.nothing'));
@@ -768,7 +779,8 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
       {
         id: job.id,
         title: job.title,
-        companyName: job.employer ?? job.company.name,
+        // The web check researches this name: a folder's or a feed's own is not a company to look up (#401).
+        companyName: companyForPrompt(job.employer, job.company),
         location: job.location,
         url: job.url,
         description: job.description,
@@ -809,7 +821,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
 
   const baseId = idParam(form.matchId);
   const [job, row, base] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(resumeId),
     Number.isFinite(baseId) ? getMatch(baseId) : null,
   ]);
@@ -827,7 +839,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const toTarget = form.next === 'target' || form.next === 'editor';
   return startComparison(c, {
     jobId: id,
-    job: { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+    job: postingForPrompt(job),
     resume,
     text,
     // The quick check unless the form asked for the full report (ADR 0029).
@@ -852,7 +864,7 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text(t('http.badId'), 400);
   const form = await c.req.parseBody();
   const [job, match] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getMatch(matchId),
   ]);
   if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
@@ -870,8 +882,7 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   if (form.rewrite !== '1' && readMatchMode(match.breakdown) === 'full') {
     return flashRedirect(resultUrl, 'warn', t('jobRoute.suggestions.already'));
   }
-  const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
-  return c.redirect(startSuggestionsRun({ match, job: jobInput, resumeName: resume.name, resultUrl }), 303);
+  return c.redirect(startSuggestionsRun({ match, job: postingForPrompt(job), resumeName: resume.name, resultUrl }), 303);
 });
 
 /**
@@ -891,7 +902,7 @@ jobsRoute.post(
     return c.text(t('http.badId'), 400);
   }
   const [job, match] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getMatch(matchId),
   ]);
   if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
@@ -901,7 +912,7 @@ jobsRoute.post(
   let reason = '';
   const row = await rewriteAction(
     match,
-    { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+    postingForPrompt(job),
     index,
     (r) => {
       reason = r;
@@ -948,7 +959,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
     : readCoverAngles((await getSettings()).coverAngles);
 
   const [job, resume] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(resumeId),
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
@@ -967,7 +978,8 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   startRun(run.id, async () => {
     const outcome = await generateCoverLetter(
       { id: resume.id, text: resume.text, version: resume.version, hidden: resume.hidden },
-      { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+      // The letter goes to an employer: never addressed to a folder's or a feed's own name (#401).
+      { id: job.id, title: job.title, companyName: companyForPrompt(job.employer, job.company), location: job.location, description: job.description },
       { tone, angles, addressee },
     );
     if (outcome.kind === 'ok') {
@@ -1037,7 +1049,7 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
   const letter = await getCoverLetter(letterId);
   if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
   const [job, resume, facts, snapshot] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(letter.resumeId),
     listFacts(),
     getLatestCompanySnapshot(id),
@@ -1077,7 +1089,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const [job, matches, verifications] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     listMatchesForJob(id),
     listVerificationsForJob(id),
   ]);
@@ -1100,7 +1112,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const file = await describeResumeFile(resume);
   return c.html(
     <TargetPage
-      job={{ id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description }}
+      job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
       resume={{ id: resume.id, name: match.resume.name, version: resume.version, ephemeral: resume.hidden }}
       match={match}
       keywords={await orderedKeywords(match, job.description)}
@@ -1129,7 +1141,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   if (!Number.isFinite(resumeId)) return c.text(t('http.badResumeId'), 400);
   const baseId = idParam(form.matchId);
   const [job, resume, base] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(resumeId),
     Number.isFinite(baseId) ? getMatch(baseId) : null,
   ]);
@@ -1147,7 +1159,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // own snapshot of the text (`draft`), and the resume row is untouched.
   return startComparison(c, {
     jobId: id,
-    job: { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description },
+    job: postingForPrompt(job),
     // A one-off comparison is named after its file, and the file as uploaded is not a draft (match-name.ts).
     resume: resume.hidden ? { ...resume, name: nameFromFilename(upload.sourceFilename) } : resume,
     ...(resume.hidden ? { draft: false } : {}),

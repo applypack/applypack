@@ -80,7 +80,18 @@ export function firstLinePid(fileText: string): number | null {
   return /^\d+$/.test(first) && Number(first) > 0 ? Number(first) : null;
 }
 
-export type LeftoverAction = 'stop' | 'remove';
+/**
+ * A look at a process that got no answer in time. The look runs PowerShell on
+ * Windows and `ps` elsewhere, and on a busy machine either can take longer
+ * than its limit. That is not "no such process": read as one, `npm run stop`
+ * said "ApplyPack is not running" and left it running, and a start could have
+ * taken a live launcher's lock or deleted a live database's pid file.
+ */
+export const NO_ANSWER = Symbol('no answer');
+/** What a look at a process found: its command line, null when there is no such process, or no answer. */
+export type ProcessLookup = string | null | typeof NO_ANSWER;
+
+export type LeftoverAction = 'stop' | 'remove' | 'unsure';
 
 /**
  * What to do with a postmaster.pid the last run left. A launcher killed hard
@@ -88,8 +99,13 @@ export type LeftoverAction = 'stop' | 'remove';
  * another process, and `pg_ctl stop` would signal that one — so the file is
  * only removed unless the process is a postgres serving this very folder. An
  * unreadable file is removed too: Postgres refuses to start over one.
+ *
+ * `unsure`: the process is there and nothing could say what it is. Removing
+ * the file then could start a second server on a folder a first one still
+ * writes to, so the start stops and says so.
  */
-export function leftoverAction(pid: number | null, commandLine: string | null, pgdata: string): LeftoverAction {
+export function leftoverAction(pid: number | null, commandLine: ProcessLookup, pgdata: string, alive = true): LeftoverAction {
+  if (commandLine === NO_ANSWER) return pid !== null && alive ? 'unsure' : 'remove';
   if (pid === null || commandLine === null) return 'remove';
   const normalise = (s: string) => s.replace(/\\/g, '/').toLowerCase();
   return normalise(commandLine).includes(normalise(pgdata)) ? 'stop' : 'remove';

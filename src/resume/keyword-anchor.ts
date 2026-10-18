@@ -72,13 +72,19 @@ export function anchorStatuses(
     if (written === (k.status === 'present')) return k;
     if (written) {
       upgraded++;
-      return { ...k, status: 'present' as const };
+      // The model's note stays beside the row, and it was written for the
+      // verdict being overruled: "no WP evidence to support it" under a status
+      // that now reads "in your resume" (#203). The verdict is kept so the page
+      // can say which reading the note belongs to. An `add` is not overruled —
+      // its note ("Candidate confirmed: 'ajax'") is still true of the row.
+      const overruled = k.status === 'ask_user' || k.status === 'cannot_claim' ? k.status : null;
+      return { ...k, status: 'present' as const, overruled };
     }
     // Only a `present` can be wrong in the other direction: an `ask_user` the
     // text does not carry is exactly what `ask_user` is for.
     if (k.status !== 'present') return k;
     downgraded++;
-    return { ...k, status: 'add' as const };
+    return { ...k, status: 'add' as const, overruled: null };
   });
   return { keywords: next, downgraded, upgraded };
 }

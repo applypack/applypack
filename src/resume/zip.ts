@@ -21,8 +21,14 @@ export class ZipError extends Error {}
 /** An entry that would inflate past the ceiling it was given — the archive's own size field is not consulted. */
 export class ZipLimitError extends ZipError {}
 
-/** One part of a .docx; the largest document.xml in the corpus is under 2 MB. */
-export const MAX_INFLATED_PART_BYTES = 64 * 1024 * 1024;
+/**
+ * One part of a .docx; the largest document.xml in the corpus is under 2 MB.
+ * The ceiling is what the reader survives, not what a zip may hold: reading
+ * the part costs about 50 MB of memory and 65 ms for every megabyte of XML
+ * (measured 2026-10-10: 8 MB → 0.5 s and 0.5 GB, 32 MB → 2.1 s and 1.8 GB).
+ * At the 64 MB this used to allow, a 220 KB file took the process down (#400).
+ */
+export const MAX_INFLATED_PART_BYTES = 8 * 1024 * 1024;
 /** Everything an archive of resumes may inflate to, in total — the web process holds it all at once. */
 const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
 /**

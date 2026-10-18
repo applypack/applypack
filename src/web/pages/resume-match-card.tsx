@@ -53,9 +53,15 @@ import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 
 /** A keyword's note: ours in the reader's language, the model's in its own English. */
-const KeywordNote: FC<{ note: string }> = ({ note }) => {
+const KeywordNote: FC<{ note: string; overruled?: boolean }> = ({ note, overruled = false }) => {
   const { text, ours } = keywordNote(note);
-  return <span lang={ours ? undefined : 'en'}>{text}</span>;
+  return (
+    <>
+      {/* The note is the model's reason for a verdict the resume's own text overruled: said, not dropped (#203). */}
+      {overruled && `${t('keyword.note.overruled')} `}
+      <span lang={ours ? undefined : 'en'}>{text}</span>
+    </>
+  );
 };
 
 export interface ResumeMatchCardProps {
@@ -373,7 +379,7 @@ export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ h
 
 /** One term the user can answer for. Answers persist as CandidateFact rows. */
 const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, matchId, back }) => (
-  <li class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
+  <li data-fact={k.term} class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
     <div class="min-w-0 flex-1 text-sm">
       <span class="font-medium text-ink" translate="no">
         {k.term}
@@ -426,7 +432,8 @@ const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, ma
  * The card takes both tiers of `keyword-overrides.ts:confirmable`. The asks are open; the
  * terms the model could not back sit behind a summary, because on a resume
  * from another profession there are twenty-five of them and a wall of forms
- * is not an offer. The dashed chips above the editor open it (target-page.mjs).
+ * is not an offer. A chip above the editor leads to its own row here, in
+ * either tier (target-page.mjs:chipTarget).
  */
 export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; matchId: number; back: string }> = ({
   asks,
@@ -438,7 +445,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
     <div>
       <div class={SUBHEAD}>{t('facts.heading')}</div>
       {asks.length > 0 && (
-        <ul class="divide-y divide-line rounded-md border border-line">
+        <ul id="confirm-asks" class="divide-y divide-line rounded-md border border-line">
           {asks.map((k) => (
             <FactRow k={k} matchId={matchId} back={back} />
           ))}
@@ -532,7 +539,7 @@ const MatchReport: FC<{
       <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
       <MatchSignals match={match} verification={verification} />
       {/* A file judged on its own text may not be the user's: its questions are not theirs to answer (R1). */}
-      {readMatchEvidence(match.breakdown) === 'own' && <ConfirmFacts {...confirmable(keywords)} matchId={match.id} back={factsBack} />}
+      {readMatchEvidence(match.breakdown) === 'own' && <ConfirmFacts {...confirmable(keywords, job.title)} matchId={match.id} back={factsBack} />}
 
       {readMatchMode(match.breakdown) === 'fast' ? (
         <SuggestionsPrompt matchId={match.id} jobId={match.jobId} />
@@ -1219,7 +1226,7 @@ const KeywordRow: FC<{ k: CountedKeyword & { usage?: TermUsage }; edit?: Keyword
       <span lang="en">{k.where ?? '—'}</span>
     </Td>
     <Td class="max-w-md text-meta text-ink-muted">
-      {k.note ? <KeywordNote note={k.note} /> : '—'}
+      {k.note ? <KeywordNote note={k.note} overruled={k.status === 'present' && k.overruled != null} /> : '—'}
     </Td>
   </Tr>
 );

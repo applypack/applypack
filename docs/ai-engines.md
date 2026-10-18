@@ -1,7 +1,7 @@
 # AI engines — setup guide
 
 The pipeline can run on any mix of seven AI backends. You enable the ones you
-have, put them in priority order on **`/settings` → AI engine**, and the app
+have, put them in priority order on **`/settings` → AI & costs**, and the app
 does the rest:
 
 - **The first engine that takes a task answers it** (job classification,
@@ -16,8 +16,8 @@ does the rest:
 
 ## Giving each engine its tasks
 
-Every engine card has a row of boxes, **Tasks it takes**, all ticked at
-first:
+Every engine card has a row of boxes, **Used for** (under **Models and
+tasks**), all ticked at first:
 
 | Task | What it covers |
 | --- | --- |
@@ -52,7 +52,7 @@ every setup step below.
 
 Every setup below shows the `.env` line, because that always works. Since
 ADR 0027 there is a shorter path for the four engines that take a key:
-**paste it into the engine's card on `/settings` → AI engine** (or into
+**paste it into the engine's card on `/settings` → AI & costs** (or into
 step 1 of `/welcome`) and press Save. No file to edit, no restart — the
 dashboard applies it at once and the worker on its next tick.
 
@@ -110,7 +110,7 @@ prompt caching on every call, but the classifier's prompt is under Haiku
 
 **Local:**
 1. Get a key at <https://console.anthropic.com/settings/keys>.
-2. Paste it into the engine card on `/settings` → AI engine, or add
+2. Paste it into the engine card on `/settings` → AI & costs, or add
    `ANTHROPIC_API_KEY=sk-ant-...` to `.env` and restart.
 3. Enable the engine and press **Test**.
 
@@ -171,7 +171,7 @@ Runs `agy -p` per call on your Google account / Antigravity workspace. Fast, hea
 ## OpenAI-compatible API (OpenAI, OpenRouter, Groq, local models)
 
 One engine covers every server that speaks `POST /chat/completions`. Its
-card on `/settings` → AI engine carries the **Server address** and the key;
+card on `/settings` → AI & costs carries the **Server address** and the key;
 both are stored in your database, `.env` is the fallback:
 
 | Target | Server address | Key |
@@ -232,7 +232,7 @@ network — ADR 0057. No key, no bill, and the text never leaves.
 
 - **Set it up:** install Ollama, `ollama pull llama3.1:8b` (or any chat
   model), and step 1 of `/welcome` finds it and offers **Use it**. Or, on
-  `/settings` → AI engine → **Local model (Ollama)**: the **Ollama address**
+  `/settings` → AI & costs → **Local model (Ollama)**: the **Ollama address**
   (default `http://127.0.0.1:11434`, `OLLAMA_URL` in `.env`), Enable, a model
   in each field (**Test** lists what Ollama has pulled; `LOCAL_MODEL` in
   `.env` fills an empty field).
@@ -289,7 +289,7 @@ it instead of running on to its timeout on your plan.
 
 ## Checking the whole setup
 
-1. `/settings` → AI engine: every engine you own shows **available**.
+1. `/settings` → AI & costs: every engine you own shows **available**.
 2. Press **Test** on each — a green flash with the response time means the
    full path works (binary, auth, model id, network).
 3. The "Active now" line at the top shows who serves calls and in which
@@ -324,8 +324,8 @@ The page keeps three totals apart and never adds them:
 
 Each engine card says which of the three it spends. A billed engine ahead
 of one your plan covers gets a warning: move the plan up to spend it first.
-Under **Monthly budget for billed calls** a ceiling sends one line to your
-alert chats at 80 % and at 100 % of it, once each a month (UTC). Nothing is
+Under **Monthly spending alert** (AI & costs tab) an amount sends one line
+to your alert chats at 80 % and at 100 % of it, once each a month (UTC). Nothing is
 ever stopped.
 
 To compare with the vendor's own numbers, pick closed UTC days (their

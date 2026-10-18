@@ -3,7 +3,9 @@ import type { Child, FC } from 'hono/jsx';
 import { parsedView } from '../parsed-view';
 import { ParsedViewBlock } from './parsed-view-block';
 import { Layout } from '../layout';
+import { companyOnPage } from '../../employer';
 import {
+  CompanyName,
   ActionForm,
   Badge,
   Button,
@@ -302,8 +304,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
                     )}
                   </Td>
                   <Td class="max-w-[14rem] text-ink-muted">
-                    <div class="truncate" translate="no">
-                      {h.job.employer ?? h.job.company.name}
+                    <div class="truncate">
+                      <CompanyName name={companyOnPage(h.job.employer, h.job.company).name} />
                     </div>
                   </Td>
                   <Td class="whitespace-nowrap font-mono text-meta text-ink-faint">

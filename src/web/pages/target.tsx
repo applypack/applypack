@@ -9,6 +9,7 @@ import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { VerificationForHint } from '../../resume/verification-hint';
 import { effectiveKeywords, confirmable } from '../../resume/keyword-overrides';
 import { DENIED_NOTE, UNSURE_NOTE } from '../../resume/facts';
+import { structureFromText } from '../../resume/structure-from-text';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchEvidence, readMatchMode } from '../../resume/match-mode';
 import { notEnglishNotice } from '../../text-language';
@@ -135,14 +136,14 @@ export const TargetPage: FC<TargetPageProps> = ({
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
   // A file judged on its own text may not be the user's: its questions are not theirs to answer (TASKS R1).
-  const { asks, unproven } = readMatchEvidence(match.breakdown) === 'text' ? { asks: [], unproven: [] } : confirmable(scored);
+  const { asks, unproven } = readMatchEvidence(match.breakdown) === 'text' ? { asks: [], unproven: [] } : confirmable(scored, job.title);
   const highActions = actions.filter((a) => a.priority === 'high').length;
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
   const breakdown = readBreakdown(match.breakdown);
   // The one move worth making next, ranked in code from the verdicts this row
   // already carries (score-lines.ts) — the editor is where it gets made.
-  const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions }) : null;
+  const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions, postingTitle: job.title }) : null;
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
     ? recent
@@ -156,6 +157,8 @@ export const TargetPage: FC<TargetPageProps> = ({
     // So a chip can tell the user's own "I don't" / "Not sure" from a term the model could not back.
     deniedNote: DENIED_NOTE,
     unsureNote: UNSURE_NOTE,
+    // The line under the name: where the chip of the posting's own title leads (#349).
+    headline: structureFromText(resumeText).basics.label,
     actions,
     removals,
     // The score parts the live count holds fixed; null on pre-ADR-0012
@@ -647,6 +650,8 @@ export const TargetPage: FC<TargetPageProps> = ({
             </div>
           </div>
           <div id="missing-chips" class="mb-3 flex flex-wrap gap-1.5"></div>
+          {/* What a chip's click says when it has no line to go to (target-page.mjs:chipTarget). */}
+          <p id="chips-status" hidden class="-mt-1.5 mb-3 text-meta text-ink-muted"></p>
           {/* Every keyword the text does not spell, in one list, ticked where the
               resume already backs it — one press instead of one chip at a time.
               Filled by target-page.mjs, which hides it while nothing is missing. */}

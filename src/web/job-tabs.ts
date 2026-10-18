@@ -43,6 +43,17 @@ export function jobHref(id: number, tab: JobTab = DEFAULT_TAB, params: Record<st
   return `/jobs/${id}${qs ? `?${qs}` : ''}${anchor ? `#${anchor}` : ''}`;
 }
 
+/**
+ * The comparison a job page opens on: the one asked for, else the latest —
+ * but not the one a pack made of its own tailored text (#384). That draft
+ * judges a file nobody has saved: headlined, the tab read "Resume match · 100"
+ * while the resume itself scored 70. It stays in the list of runs, and the
+ * pack's own tab opens it.
+ */
+export function shownMatch<M extends { id: number }>(matches: readonly M[], requested: number, packDraftId: number | null): M | null {
+  return matches.find((m) => m.id === requested) ?? matches.find((m) => m.id !== packDraftId) ?? matches[0] ?? null;
+}
+
 /** What each tab's label carries: a tab says what already exists behind it. */
 export interface JobTabFacts {
   /** The score of the comparison the page would show; null = none yet. */

@@ -2,7 +2,7 @@
 import type { SourceFile } from '@prisma/client';
 import type { FC } from 'hono/jsx';
 import { INBOX_ROOTS_ENV } from '../../datasets/folder-path';
-import { MAX_DEPTH, MAX_FILES_PER_LOOK, maxBytesOf, type FolderHolds, type PostingKind } from '../../datasets/folder-scan';
+import { MAX_DEPTH, MAX_FILES_PER_LOOK, MAX_ROW_FILES_PER_LOOK, maxBytesOf, type FolderHolds, type PostingKind } from '../../datasets/folder-scan';
 import { MAX_INCLUDE_CHARS, usableMapping, type FolderAlerts, type Mapping, type MappingField } from '../../datasets/map';
 import type { PreviewCounts } from '../../datasets/preview';
 import { MAX_BODY_MB, type Row, type RowFormat } from '../../datasets/rows';
@@ -11,7 +11,7 @@ import { formatList, formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import type { NormalizedJob } from '../../types';
 import type { FlashMessage } from '../flash';
-import { fileLine, folderLine } from '../folder-words';
+import { fileLine, folderLine, folderTrouble, untitledLine } from '../folder-words';
 import { Layout } from '../layout';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, Code, Empty, Field, Flash, Hint, Input, More, Notice, PageHeader, Radio, SectionTitle, Select, Table, Td, Tr, When } from '../ui';
@@ -34,7 +34,7 @@ export const AddFolderCard: FC<{ host: FolderHost }> = ({ host }) => {
       <More class="mb-4 mt-1">
         <p>{t('folders.add.savedPostings')}</p>
         <p>{t('folders.add.toolFiles')}</p>
-        <p>{t('folders.add.readOnce', { files: MAX_FILES_PER_LOOK, depth: MAX_DEPTH })}</p>
+        <p>{t('folders.add.readOnce', { files: MAX_ROW_FILES_PER_LOOK, postings: MAX_FILES_PER_LOOK, depth: MAX_DEPTH })}</p>
         <p>{t('folders.add.notDownloads')}</p>
       </More>
       {closed ? (
@@ -80,7 +80,22 @@ export interface FolderSourceRow {
   include: string | null;
   holds: FolderHolds;
   summary: FolderSummary | undefined;
+  /** The source's own health (ADR 0019): what the last check came to, and how many in a row failed. */
+  lastFetchStatus: string | null;
+  consecutiveFailures: number;
 }
+
+/** A failing folder says so in its card, as its row in the table does: the ledger's line cannot (#405). */
+const FolderTrouble: FC<{ folder: FolderSourceRow }> = ({ folder }) => {
+  const trouble = folderTrouble(folder.lastFetchStatus, folder.consecutiveFailures);
+  if (!trouble) return null;
+  return (
+    <span title={trouble.title}>
+      <Badge tone={trouble.tone}>{trouble.label}</Badge>
+      {folder.consecutiveFailures > 0 && <span class="sr-only">{t('sources.health.streakAfterLabel', { n: folder.consecutiveFailures })}</span>}
+    </span>
+  );
+};
 
 /** The folders among the sources: what each holds, its files, and a check on demand. */
 export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folders }) =>
@@ -103,10 +118,19 @@ export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folde
                     </>
                   )}
                 </span>
+                <FolderTrouble folder={f} />
                 {!f.active && <Badge tone="neutral">{t('folders.switchedOff')}</Badge>}
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+              {/* Added switched off: the switch is here, not only on its row among every other source (#405). */}
+              {!f.active && (
+                <ActionForm action={`/companies/${f.id}/toggle-active`}>
+                  <Button size="sm" aria-label={t('companies.enableNamed', { name: f.name })}>
+                    {t('ui.enable')}
+                  </Button>
+                </ActionForm>
+              )}
               <Button href={`/companies/${f.id}/files`} variant="secondary" size="sm">
                 {t('companies.files')}
               </Button>
@@ -196,6 +220,8 @@ export interface RowsPreviewProps extends PreviewBase {
   sample: NormalizedJob[];
   /** Files of the first check whose rows do not fit the mapping. */
   misfits: number;
+  /** What the first check could not read of a file, or had to assume about it (datasets/read-notes.ts). */
+  fileNotes: { file: string; note: string }[];
   counts: PreviewCounts;
 }
 
@@ -208,7 +234,7 @@ function blocker({ rows, mapping, sample }: RowsPreviewProps): string | null {
 }
 
 const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
-  const { path, name, include, existing, alerts, kinds, other, newest, plan, rows, columns, mapping, guessed, sample, misfits, counts, scoring, searches, cost, flash } = props;
+  const { path, name, include, existing, alerts, kinds, other, newest, plan, rows, columns, mapping, guessed, sample, misfits, fileNotes, counts, scoring, searches, cost, flash } = props;
   const blocked = blocker(props);
   const rowFiles = Object.values(kinds).reduce((sum, n) => sum + (n ?? 0), 0);
   const byKind = (Object.keys(KIND_NAME) as RowFormat[]).filter((k) => (kinds[k] ?? 0) > 0).map((k) => `${kinds[k]} ${KIND_NAME[k]}`);
@@ -226,8 +252,16 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
           <ul class="space-y-1 text-sm text-ink">
             <li>{t('folders.rows.contents', { files: rowFiles, kinds: byKind.join(', '), filtered: include ? 'yes' : 'no', include: include ?? '', other })}</li>
             {newest.length > 0 && <li>{t('folders.newest', { files: newest.join(', ') })}</li>}
-            {rowFiles > 0 && <li>{t('folders.rows.plan', { ...plan, perCheck: MAX_FILES_PER_LOOK, mb: MAX_BODY_MB })}</li>}
+            {rowFiles > 0 && <li>{t('folders.rows.plan', { ...plan, perCheck: MAX_ROW_FILES_PER_LOOK, mb: MAX_BODY_MB })}</li>}
           </ul>
+          {fileNotes.map(({ file, note }) => (
+            <Notice tone="warn" class="mt-3">
+              <span class="font-mono" translate="no">
+                {file}
+              </span>{' '}
+              {note}
+            </Notice>
+          ))}
         </Card>
 
         <form method="post" action="/companies/folder" class="contents">
@@ -307,7 +341,7 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
 };
 
 
-const POSTING_KIND_NAME: Record<PostingKind, string> = { html: '.html', txt: '.txt', md: '.md', pdf: '.pdf', docx: '.docx' };
+const POSTING_KIND_NAME: Record<PostingKind, string> = { html: '.html', txt: '.txt', md: '.md', pdf: '.pdf', docx: '.docx', mhtml: '.mhtml', webarchive: '.webarchive' };
 
 /** One of the newest saved files, as code reads it with no model. */
 export interface PostingSample {
@@ -364,21 +398,21 @@ const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, ex
               {newest.map((f) => (
                 <Tr>
                   <Td class="max-w-[16rem] font-mono text-meta text-ink">
-                    <div class="break-all">{f.relPath}</div>
+                    <div class="[overflow-wrap:anywhere]">{f.relPath}</div>
                   </Td>
                   <Td class="text-note">
                     {f.why !== null ? (
                       <span class="text-ink-muted">{f.why}</span>
                     ) : (
                       <>
-                        <span class="text-ink">{f.title ?? t('folders.postings.noTitle')}</span>
+                        <span class="text-ink">{f.title ?? untitledLine(f.relPath)}</span>
                         {f.company && <span class="text-ink-muted"> · {f.company}</span>}
                         {f.asksModel && <span class="block text-ink-faint">{t('folders.postings.asksModel')}</span>}
                       </>
                     )}
                   </Td>
                   <Td class="max-w-[16rem] text-meta text-ink-muted">
-                    <div class="break-all">{f.address ?? '—'}</div>
+                    <div class="[overflow-wrap:anywhere]">{f.address ?? '—'}</div>
                   </Td>
                 </Tr>
               ))}
@@ -481,7 +515,7 @@ export interface FileJob {
   sourceFile: string | null;
 }
 
-export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[]; jobs: FileJob[] }> = ({ folder, files, jobs }) => {
+export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[]; jobs: FileJob[]; flash?: FlashMessage | null }> = ({ folder, files, jobs, flash }) => {
   const lastLook = folder.summary?.lastLookAt?.getTime() ?? null;
   const byFile = new Map<string, FileJob[]>();
   for (const job of jobs) if (job.sourceFile) byFile.set(job.sourceFile, [...(byFile.get(job.sourceFile) ?? []), job]);
@@ -495,6 +529,7 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
             { path: () => <Code>{folder.path}</Code> },
           )}
         </PageHeader>
+        <Flash flash={flash} />
         {files.length === 0 ? (
           <Empty title={t('folders.files.empty')}>{t(folder.active ? 'folders.files.emptyActive' : 'folders.files.emptyOff')}</Empty>
         ) : (
@@ -509,7 +544,7 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
                 return (
                   <Tr>
                     <Td class="max-w-[20rem] font-mono text-meta text-ink">
-                      <div class="break-all">{file.relPath}</div>
+                      <div class="[overflow-wrap:anywhere]">{file.relPath}</div>
                     </Td>
                     <Td>
                       <div class="flex flex-wrap items-baseline gap-2">
@@ -526,6 +561,15 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
                 );
               })}
             </Table>
+          </Card>
+        )}
+        {/* A saved posting is never turned away by a search, so only a folder of rows has anything to read again. */}
+        {folder.holds === 'rows' && files.length > 0 && (
+          <Card class="mt-6">
+            <ActionForm action={`/companies/${folder.id}/files/reread`} once>
+              <Button variant="secondary">{t('folders.files.reread')}</Button>
+            </ActionForm>
+            <Hint class="mt-3">{t('folders.files.rereadHint')}</Hint>
           </Card>
         )}
       </div>

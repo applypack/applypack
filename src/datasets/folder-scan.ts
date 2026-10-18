@@ -1,14 +1,18 @@
 /*
  * One look at a folder a tool writes into (ADR 0062): which files are read
  * now, which wait and which the ledger already answers for. A file is read
- * once; a changed file is read again; a file still being written waits.
+ * once, a look's worth of rows at a time; a changed file is read again, from
+ * its old end when it only grew; a file still being written waits.
  * Nothing here touches the disk — the listing and the ledger are handed in.
  * Pure — tested in folder-scan.test.ts.
  */
 
+import { createHash } from 'node:crypto';
 import { t } from '../i18n/t';
-import { mapRows, type Mapping } from './map';
-import { MAX_BODY_MB, MAX_ROWS, decodeBody, findRows, type RowFormat } from './rows';
+import { decodeText } from './decode';
+import { fileDate, findJobRows, mapRows, postingFields, type Mapping } from './map';
+import { assumedNote, lossNotes, readingOf } from './read-notes';
+import { MAX_BODY_MB, type RowFormat } from './rows';
 import type { NormalizedJob } from '../types';
 
 /** A row file's state in the ledger (`source_file.status`). */
@@ -25,6 +29,9 @@ export interface ListedFile {
 export interface LedgerEntry extends ListedFile {
   sha256: string | null;
   status: FileStatus;
+  /** Rows of it read so far, and the jobs they gave: where a long file, or one that only grew, is taken up again. */
+  rowsRead: number;
+  jobCount: number;
 }
 
 /** What a look learned about one file: the row the ledger keeps for it. */
@@ -32,10 +39,17 @@ export interface FileChange extends ListedFile {
   kind: FileKind;
   sha256: string | null;
   status: FileStatus;
-  /** Why it waits, was skipped or failed — or a note on a read ("the first 2,000 of 3,500 rows"). */
+  /**
+   * Why it waits, was skipped or failed — or how far a long file was read
+   * ("5,000 of 12,000 rows read so far"). On a file of rows that is `done`:
+   * what of it could not be read (read-notes.ts:lossNotes), null when it was
+   * read whole.
+   */
   detail: string | null;
   /** Rows of it handed to the pipeline as jobs. */
   jobCount: number;
+  /** Rows of it read so far; 0 unless `sha256` is the hash of the bytes they were read from. */
+  rowsRead: number;
 }
 
 /** A file as the reader found it (folder-io.ts): its bytes, or why there are none. */
@@ -49,22 +63,54 @@ export type FileRead =
 export const MAX_DEPTH = 3;
 /** A folder with more entries than this is not a folder of job files, and is refused whole. */
 export const MAX_ENTRIES = 20_000;
-/** Files read in one look; the rest wait for the next one. */
+/** Saved postings read in one look; the rest wait for the next one. A posting can be a model call, so this is a spending limit. */
 export const MAX_FILES_PER_LOOK = 20;
-/** Rows handed over in one look: every one past the filter is an AI call, and the tick asks the database about them in one query. */
+/**
+ * Files of rows read in one look. What such a look costs is rows and bytes,
+ * which have ceilings of their own, so the count only bounds a folder of tiny
+ * files: at twenty a look, a tool that writes one file a posting brought
+ * twenty jobs an hour (#432).
+ */
+export const MAX_ROW_FILES_PER_LOOK = 400;
+/** Bytes of row files read in one look: five files of the largest size a file may be. */
+export const MAX_ROW_BYTES_PER_LOOK = 25 * 1024 * 1024;
+/** How much one look reads, by what the folder holds. */
+const LOOK_LIMITS: Record<FolderHolds, { files: number; bytes: number }> = {
+  rows: { files: MAX_ROW_FILES_PER_LOOK, bytes: MAX_ROW_BYTES_PER_LOOK },
+  postings: { files: MAX_FILES_PER_LOOK, bytes: Number.POSITIVE_INFINITY },
+};
+/** Rows read in one look, from one long file or from many: every one past the filter is an AI call, and the tick asks the database about them in one query. */
 export const MAX_ROWS_PER_LOOK = 5_000;
 /** A file changed more recently than this may still be written. */
 export const SETTLE_MS = 10_000;
+/**
+ * How far ahead of this clock a file's time may be and still be a file just
+ * written: a drive, or a machine, a few minutes off. One dated further ahead
+ * has a clock that is simply wrong, and waiting for it would never end.
+ */
+export const CLOCK_SLACK_MS = 5 * 60_000;
+/**
+ * How long a table must have been still before a last row with no line end
+ * is read. A tool that writes through a buffer leaves a file for a while
+ * with half a row at its end, long after the ten seconds above; a whole
+ * file that simply ends without a line break is read one look later.
+ */
+export const OPEN_ROW_SETTLE_MS = 2 * 60_000;
 export const MAX_FILE_BYTES = MAX_BODY_MB * 1024 * 1024;
 /** A saved page or a text file: a posting is a few kilobytes, and a page drags its markup along. */
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 /** A PDF or a .docx of a posting: its fonts and images weigh more than its words, and it is parsed on the event loop. */
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+/** A page saved as one file carries its images and fonts inside it; only its first part, the page, is decoded. */
+const MAX_ARCHIVE_BYTES = 10 * 1024 * 1024;
 
 /** What the per-file list says about a file that was not read, or not read as jobs: worded when read, in the language of the moment. */
 export const FILE_NOTES = {
   get fresh(): string {
     return t('datasets.file.fresh');
+  },
+  get later(): string {
+    return t('datasets.file.later');
   },
   get changing(): string {
     return t('datasets.file.changing');
@@ -78,16 +124,43 @@ export const FILE_NOTES = {
   get notRows(): string {
     return t('datasets.file.notRows');
   },
+  get brokenJson(): string {
+    return t('datasets.file.brokenJson');
+  },
+  get openRow(): string {
+    return t('datasets.file.openRow', { minutes: OPEN_ROW_SETTLE_MS / 60_000 });
+  },
+  get notAPosting(): string {
+    return t('datasets.file.notAPosting');
+  },
 };
 
 /** What a folder holds (ADR 0062): the files a tool writes, many rows a file, or postings the user saved, one a file. */
 export type FolderHolds = 'rows' | 'postings';
 
-/** A saved posting by its file's name: a web page, plain text, Markdown, a PDF or a Word document. */
-export type PostingKind = 'html' | 'txt' | 'md' | 'pdf' | 'docx';
+/**
+ * A saved posting by its file's name: a web page, plain text, Markdown, a PDF
+ * or a Word document — and the two forms a browser saves a page as one file
+ * in: `mhtml` (Chrome's and Edge's "Webpage, Single File") and `webarchive`
+ * (Safari's default) are both read; one that cannot be is set aside with
+ * the way to save the page instead. Both were passed over as "other files",
+ * with nothing said (#399), and the second was only listed until #451.
+ */
+export type PostingKind = 'html' | 'txt' | 'md' | 'pdf' | 'docx' | 'mhtml' | 'webarchive';
 export type FileKind = RowFormat | PostingKind;
 
-const POSTING_KIND_BY_EXTENSION: Record<string, PostingKind> = { html: 'html', htm: 'html', txt: 'txt', md: 'md', markdown: 'md', pdf: 'pdf', docx: 'docx' };
+const POSTING_KIND_BY_EXTENSION: Record<string, PostingKind> = {
+  html: 'html',
+  htm: 'html',
+  txt: 'txt',
+  md: 'md',
+  markdown: 'md',
+  pdf: 'pdf',
+  docx: 'docx',
+  mhtml: 'mhtml',
+  mht: 'mhtml',
+  webarchive: 'webarchive',
+};
 
 const KIND_BY_EXTENSION: Record<string, RowFormat> = { json: 'json', jsonl: 'jsonl', ndjson: 'jsonl', csv: 'csv', tsv: 'tsv' };
 
@@ -133,6 +206,41 @@ export function guessHolds(listing: readonly ListedFile[], include: (relPath: st
 }
 
 /**
+ * What a browser calls the folder it saves a page's files into, after the
+ * page's own name: `_files` in English, and the words Windows knows such a
+ * folder by in other languages. A folder that merely starts like a page —
+ * `Acme interviews` beside `Acme.html` — is the user's own, and the postings
+ * in it were never listed (#399).
+ */
+const RESOURCE_SUFFIXES = new Set(
+  [
+    '_files',
+    '.files',
+    '-Dateien',
+    '_fichiers',
+    '_archivos',
+    '_file',
+    '_arquivos',
+    '_ficheiros',
+    '_bestanden',
+    '-filer',
+    '_filer',
+    '_tiedostot',
+    '_pliki',
+    '_soubory',
+    '_elemei',
+    '_dosyalar',
+    '_datoteke',
+    '_fitxers',
+    '_failid',
+    '_fails',
+    '_bylos',
+    '_fajlovi',
+    '_fitxategiak',
+  ].map((suffix) => suffix.toLowerCase()),
+);
+
+/**
  * The files a browser's "Webpage, Complete" save puts beside a page: a folder
  * named after the page (`Job_files`, or localized, `Job-Dateien`) holding its
  * images, scripts and framed documents. A framed `.html` in there is not a
@@ -152,7 +260,7 @@ export function pageResources(listing: readonly ListedFile[]): (relPath: string)
     for (let i = 0; i < parts.length - 1; i++) {
       const dir = parts[i]!;
       const beside = stems.get(parts.slice(0, i).join('/')) ?? [];
-      if (beside.some((stem) => dir.length > stem.length && dir.startsWith(stem) && /[_\- .]/.test(dir[stem.length]!))) return true;
+      if (beside.some((stem) => dir.startsWith(stem) && RESOURCE_SUFFIXES.has(dir.slice(stem.length).toLowerCase()))) return true;
     }
     return false;
   };
@@ -160,6 +268,7 @@ export function pageResources(listing: readonly ListedFile[]): (relPath: string)
 
 /** The most a file of this kind is read at. */
 export function maxBytesOf(kind: FileKind): number {
+  if (kind === 'mhtml' || kind === 'webarchive') return MAX_ARCHIVE_BYTES;
   if (kind === 'pdf' || kind === 'docx') return MAX_DOCUMENT_BYTES;
   if (kind === 'html' || kind === 'txt' || kind === 'md') return MAX_TEXT_FILE_BYTES;
   return MAX_FILE_BYTES;
@@ -167,7 +276,7 @@ export function maxBytesOf(kind: FileKind): number {
 
 /** Why a file of this kind was not read, in the per-file list's words. */
 export function tooLargeNote(kind: FileKind): string {
-  const what = kind === 'pdf' || kind === 'docx' ? 'document' : kind === 'html' || kind === 'txt' || kind === 'md' ? 'posting' : 'rows';
+  const what = kind === 'pdf' || kind === 'docx' ? 'document' : rowFileKind(`file.${kind}`) === null ? 'posting' : 'rows';
   return t('datasets.file.tooLarge', { mb: maxBytesOf(kind) / (1024 * 1024), kind: what });
 }
 
@@ -252,16 +361,20 @@ function sameFile(a: ListedFile, b: ListedFile): boolean {
  * The files to read now, the oldest change first — new and changed files
  * before the ones looked at again (a file that waited, one the system would
  * not open), so a heap of the latter cannot keep what is new from being read.
- * A file dated in the future (a clock, a synced drive) counts as settled: the
- * read itself measures it twice.
+ * `now` is the moment of this look, not of the walk it is part of: against a
+ * walk's start a file written minutes into it was dated ahead, counted as
+ * settled and read half-written (#396). A file dated a little ahead waits like
+ * one just written; one dated far ahead (a clock set wrong) counts as settled,
+ * and the read itself measures it twice.
  */
 export function planScan(
   listing: readonly ListedFile[],
   ledger: readonly LedgerEntry[],
   now: number,
   include: (relPath: string) => boolean = () => true,
-  kindOf: (relPath: string) => FileKind | null = rowFileKind,
+  holds: FolderHolds = 'rows',
 ): ScanPlan {
+  const kindOf = kindsFor(holds);
   const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const plan: ScanPlan = { read: [], waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 };
   const fresh: ListedFile[] = [];
@@ -276,20 +389,40 @@ export function planScan(
     const age = now - file.mtimeMs;
     if (entry && sameFile(entry, file) && settled(entry)) plan.unchanged++;
     else if (file.size > maxBytesOf(kind)) plan.tooLarge.push(file);
-    else if (age >= 0 && age < SETTLE_MS) plan.waiting.push(file);
+    else if (age < SETTLE_MS && age > -CLOCK_SLACK_MS) plan.waiting.push(file);
     else (entry && sameFile(entry, file) ? again : fresh).push(file);
   }
   const oldestFirst = (a: ListedFile, b: ListedFile): number => a.mtimeMs - b.mtimeMs || a.relPath.localeCompare(b.relPath);
   const due = [...fresh.sort(oldestFirst), ...again.sort(oldestFirst)];
-  plan.read = due.slice(0, MAX_FILES_PER_LOOK);
-  plan.later = due.slice(MAX_FILES_PER_LOOK);
+  // In order, up to the look's ceilings; from the first file that does not fit, the rest wait, so none is read out of turn.
+  const limits = LOOK_LIMITS[holds];
+  let bytes = 0;
+  for (const file of due) {
+    if (plan.later.length === 0 && plan.read.length < limits.files && bytes + file.size <= limits.bytes) {
+      plan.read.push(file);
+      bytes += file.size;
+    } else plan.later.push(file);
+  }
   return plan;
 }
 
+/**
+ * The files a look did not reach, as ledger rows that say so (#432): past its
+ * ceilings they were noted nowhere, so the per-file list did not show them and
+ * the folder's row did not count them as waiting. Only files the ledger has
+ * never heard of: a row it already holds says more — what was read of the
+ * file before it changed, why it could not be opened — and stays.
+ */
+export function unreachedChanges(files: readonly ListedFile[], ledger: readonly LedgerEntry[], holds: FolderHolds = 'rows'): FileChange[] {
+  const known = new Set(ledger.map((entry) => entry.relPath));
+  return files.filter((file) => !known.has(file.relPath)).map((file) => unreadChange(file, 'later', kindsFor(holds)));
+}
+
 /** A file the plan could not read now, as the ledger row that says why. */
-export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge', kindOf: (relPath: string) => FileKind | null = rowFileKind): FileChange {
+export function unreadChange(file: ListedFile, why: 'fresh' | 'later' | 'tooLarge', kindOf: (relPath: string) => FileKind | null = rowFileKind): FileChange {
   const kind = kindOf(file.relPath)!;
-  return { ...file, kind, sha256: null, status: why === 'fresh' ? 'waiting' : 'skipped', detail: why === 'fresh' ? FILE_NOTES.fresh : tooLargeNote(kind), jobCount: 0 };
+  const detail = why === 'fresh' ? FILE_NOTES.fresh : why === 'later' ? FILE_NOTES.later : tooLargeNote(kind);
+  return { ...file, kind, sha256: null, status: why === 'tooLarge' ? 'skipped' : 'waiting', detail, jobCount: 0, rowsRead: 0 };
 }
 
 /**
@@ -297,7 +430,7 @@ export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge', kindOf
  * vanished between the listing and the read. Shared by both kinds of folder.
  */
 export function unreadVerdict(file: ListedFile, kind: FileKind, got: Exclude<FileRead, { ok: true }>): FileChange | null {
-  const note = (status: FileStatus, detail: string): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0 });
+  const note = (status: FileStatus, detail: string): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0 });
   if (got.why === 'gone') return null;
   if (got.why === 'changing') return note('waiting', FILE_NOTES.changing);
   if (got.why === 'refused') return note('failed', FILE_NOTES.refused);
@@ -329,6 +462,24 @@ export interface FileVerdict {
   jobs: NormalizedJob[];
   /** Whether its rows were read at all, and whether they fit the mapping: what tells a tool that changed its output. */
   rows: 'none' | 'fit' | 'misfit';
+  /** Rows of it handed over this look: what the look's ceiling counts. */
+  taken: number;
+  /** What a person should know about how it was read — what was lost, an encoding that was assumed — a sentence each; the Check page lists them. */
+  notes: string[];
+}
+
+/**
+ * The row a file is taken up at. After the rows already read when its bytes
+ * are the ones read then (a long file, a look's worth at a time), or when it
+ * only grew — a tool that appends: the bytes read then still open it. Any
+ * other change is a file written anew, read from its start: what is already
+ * stored comes back as duplicates, which cost no AI.
+ */
+function resumeAt(known: LedgerEntry | undefined, got: Extract<FileRead, { ok: true }>): number {
+  if (!known || known.sha256 === null || known.rowsRead === 0) return 0;
+  if (known.sha256 === got.sha256) return known.rowsRead;
+  const grew = got.size > known.size && createHash('sha256').update(got.bytes.subarray(0, known.size)).digest('hex') === known.sha256;
+  return grew ? known.rowsRead : 0;
 }
 
 /**
@@ -337,24 +488,72 @@ export interface FileVerdict {
  * a copy or a rename brings nothing new. A row that names no date takes the
  * file's — when the tool wrote it. A file where fewer than half the rows read
  * as a job no longer fits the mapping, and none of it is handed over.
+ *
+ * At most `maxRows` rows are read, from where `known` — the ledger's row for
+ * this file — says the last look stopped. A file with more waits, and the
+ * next look reads on, so every row of it is read once.
+ *
+ * `now` is the look's clock. A table's last row with no line end is left for
+ * a later look until the file has been still for `OPEN_ROW_SETTLE_MS`: read
+ * at once it was stored cut short, and the whole row never (#396).
  */
-export function judgeFile(file: ListedFile, got: FileRead, mapping: Mapping, companyId: number, readAs: ReadonlyMap<string, string>): FileVerdict {
+export function judgeFile(
+  file: ListedFile,
+  got: FileRead,
+  mapping: Mapping,
+  companyId: number,
+  readAs: ReadonlyMap<string, string>,
+  known: LedgerEntry | undefined = undefined,
+  maxRows: number = MAX_ROWS_PER_LOOK,
+  now: number = Date.now(),
+): FileVerdict {
   const kind = rowFileKind(file.relPath)!;
-  const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, ...extra });
-  if (!got.ok) return { change: unreadVerdict(file, kind, got), jobs: [], rows: 'none' };
+  const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0, ...extra });
+  const none = (change: FileChange | null, notes: string[] = []): FileVerdict => ({ change, jobs: [], rows: 'none', taken: 0, notes });
+  if (!got.ok) return none(unreadVerdict(file, kind, got));
   const measured = { size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256 };
   const twin = readAs.get(got.sha256);
-  if (twin !== undefined && twin !== file.relPath) {
-    return { change: note('skipped', t('datasets.file.sameContent', { file: twin }), measured), jobs: [], rows: 'none' };
+  if (twin !== undefined && twin !== file.relPath) return none(note('skipped', t('datasets.file.sameContent', { file: twin }), measured));
+  const decoded = decodeText(got.bytes);
+  const { text } = decoded;
+  let from = resumeAt(known, got);
+  let found = findJobRows(text, maxRows, from);
+  // Fewer rows than were read: not the file read then, whatever its first bytes say.
+  if (found.ok && from > found.total) {
+    from = 0;
+    found = findJobRows(text, maxRows);
   }
-  const found = findRows(decodeBody(got.bytes));
-  if (!found.ok) return { change: note('skipped', FILE_NOTES.notRows, measured), jobs: [], rows: 'none' };
-  const mapped = mapRows(found.rows, mapping, companyId, new Date(got.mtimeMs));
-  const judged = found.rows.length - mapped.dropped.closed - mapped.repeated;
+  if (!found.ok) {
+    // A damaged file is worth a word on the Check page; one that simply holds no rows is not.
+    const damage = found.why === 'broken-json' ? FILE_NOTES.brokenJson : found.why === 'unclosed-quote' ? found.error : null;
+    return damage === null ? none(note('skipped', FILE_NOTES.notRows, measured)) : none(note('skipped', damage, measured), [damage]);
+  }
+  const reading = readingOf(decoded, found.cutAt);
+  const lost = lossNotes(reading);
+  const notes = [...lost, ...[assumedNote(reading)].filter((n) => n !== null)];
+  const before = from > 0 ? known!.jobCount : 0;
+  // The file's last row, when it is among these and may still be written: left where it is for now.
+  const held = found.openRow && found.over === 0 && found.rows.length > 0 && now - got.mtimeMs < OPEN_ROW_SETTLE_MS;
+  const rows = held ? found.rows.slice(0, -1) : found.rows;
+  // A stated date is held against the look's clock, never the file's: a file stamped 1980 turned every later date away as "in the future".
+  const mapped = mapRows(rows, mapping, companyId, new Date(now), fileDate(got.mtimeMs, new Date(now)));
+  const judged = rows.length - mapped.dropped.closed - mapped.repeated;
+  // One object that names no posting — a tool's stats, a manifest — beside the files of rows: set aside, not a
+  // sign the tool changed its columns. Called a misfit, it failed every look that read nothing newer (#395).
+  if (found.single && mapped.jobs.length === 0 && postingFields(rows[0] ?? {}) < 2) return none(note('skipped', FILE_NOTES.notAPosting, measured));
   if (mapped.jobs.length * 2 < judged) {
-    const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: found.rows.length });
-    return { change: note('failed', detail, measured), jobs: [], rows: 'misfit' };
+    const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: rows.length });
+    // What was read before these rows stands: a mapping saved again reads on from there.
+    return { change: note('failed', detail, { ...measured, rowsRead: from, jobCount: before }), jobs: [], rows: 'misfit', taken: 0, notes };
   }
-  const detail = found.over > 0 ? t('datasets.file.firstRows', { first: MAX_ROWS, total: MAX_ROWS + found.over }) : null;
-  return { change: note('done', detail, { ...measured, jobCount: mapped.jobs.length }), jobs: mapped.jobs, rows: 'fit' };
+  const rowsRead = from + rows.length;
+  const progress = { ...measured, rowsRead, jobCount: before + mapped.jobs.length };
+  // Read to the end of what can be read: a file that lost a part is done, and says which part.
+  const change =
+    found.over > 0
+      ? note('waiting', t('datasets.file.partRows', { read: rowsRead, total: found.total }), progress)
+      : held
+        ? note('waiting', FILE_NOTES.openRow, progress)
+        : note('done', lost.length > 0 ? lost.join(' ') : null, progress);
+  return { change, jobs: mapped.jobs, rows: 'fit', taken: rows.length, notes };
 }

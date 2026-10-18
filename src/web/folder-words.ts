@@ -1,8 +1,10 @@
 import type { FolderFault } from '../datasets/folder-io';
+import { describeStatus } from '../fetchers/source-health';
 import { postingFileKind } from '../datasets/folder-scan';
 import type { CronStats } from '../jobs/cron-run';
 import type { FolderSummary } from '../jobs/source-file-store';
 import type { FlashKind } from './flash';
+import { healthLabel } from './health-label';
 import { t } from '../i18n/t';
 
 /*
@@ -17,7 +19,27 @@ export function folderLine(summary: FolderSummary | undefined): string {
   const parts = [t('folders.line.files', { files: summary.files, fresh: summary.fresh })];
   if (summary.waiting > 0) parts.push(t('folders.line.waiting', { n: summary.waiting }));
   if (summary.failed > 0) parts.push(t('folders.line.failed', { n: summary.failed }));
+  if (summary.partial > 0) parts.push(t('folders.line.partial', { n: summary.partial }));
   return parts.join(' · ');
+}
+
+/**
+ * A folder whose last check failed, in the folder's words, for its card: the
+ * line above is built from the ledger and says only what earlier checks read,
+ * so a folder renamed away looked healthy there (#405). Null while the source
+ * is healthy or was never checked.
+ */
+export function folderTrouble(status: string | null, streak: number): { label: string; tone: 'danger' | 'warn'; title: string } | null {
+  const { tone } = describeStatus(status, 'FOLDER');
+  if (tone !== 'bad' && tone !== 'warn') return null;
+  const label = healthLabel(status, 'FOLDER');
+  return { label, tone: tone === 'bad' ? 'danger' : 'warn', title: streak > 0 ? t('sources.health.withStreak', { label, n: streak }) : label };
+}
+
+/** What a saved posting with no title of its own is called: a saved page has a title to state, a text file, a PDF or a document has none to look for. */
+export function untitledLine(relPath: string): string {
+  const kind = postingFileKind(relPath);
+  return t(kind === 'html' || kind === 'mhtml' || kind === 'webarchive' ? 'folders.postings.noTitle' : 'folders.postings.noTitleFile');
 }
 
 export interface FileLine {
@@ -40,7 +62,9 @@ export function fileLine(file: { status: string; detail: string | null; jobCount
   const say = (...sentences: (string | null)[]): string => sentences.filter((s) => s).join(' ');
   if (file.status === 'done') {
     if (posting) return { label: t('folders.file.read'), tone: 'ok', text: say(file.detail ?? t('folders.file.readAsPosting'), gone) };
-    return { label: t('folders.file.read'), tone: 'ok', text: say(t('folders.file.rowsRead', { n: file.jobCount }), file.detail, gone) };
+    // A file of rows carries a note only for what of it could not be read (datasets/read-notes.ts).
+    if (file.detail) return { label: t('folders.file.readInPart'), tone: 'warn', text: say(t('folders.file.rowsRead', { n: file.jobCount }), file.detail, gone) };
+    return { label: t('folders.file.read'), tone: 'ok', text: say(t('folders.file.rowsRead', { n: file.jobCount }), gone) };
   }
   if (file.status === 'waiting') return { label: t('folders.file.waiting'), tone: 'neutral', text: say(file.detail ?? t('folders.file.nextCheckReads'), gone) };
   if (file.status === 'failed') return { label: t('folders.file.notRead'), tone: 'danger', text: say(file.detail ?? t('folders.file.couldNotRead'), gone) };

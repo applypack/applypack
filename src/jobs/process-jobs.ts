@@ -4,7 +4,8 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { anyBaseFilterReason } from '../filter';
-import { employerGate, hiringKey } from '../employer';
+import { COMPANY_NOT_NAMED, employerGate, fetchedHiringName, hiringKey } from '../employer';
+import { t } from '../i18n/t';
 import { loadEmployerRules } from './employer-store';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { withApplyLinkFlags } from '../apply-link';
@@ -16,9 +17,10 @@ import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
-import { autoPacksToday, queuePack } from '../pack/store';
-import { autoPack } from '../pack/trigger';
-import { attributionLine } from '../web/pages/attribution';
+import { packsOnSince } from '../pack/settings';
+import { autoPacksToday, queuePack, sameRole } from '../pack/store';
+import { autoPack, copyPack } from '../pack/trigger';
+import { sourceLine } from '../web/pages/attribution';
 import { getPackSettings, type ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
 import { alertsEveryPosting, starred, type WatchRules } from '../watchlist/interval';
@@ -156,6 +158,19 @@ export interface ProcessOptions {
    * existed.
    */
   schedule?: Schedule;
+  /**
+   * true = no match is sent on the spot: each is held, and the caller sends
+   * the run's matches as one grouped message (alert-delivery.ts). An import
+   * asks for it — a file of rows is one event, not three hundred (#402).
+   */
+  groupAlerts?: boolean;
+  /**
+   * Filled with the source (`companyId`) of every posting that passed the
+   * filter and was not stored because no verdict came for it: what
+   * `classifyFailed` counts, by where it came from. A folder not named here
+   * had every row of its look stored (fetchers/folder-ledger.ts:looksToKeep).
+   */
+  unstored?: Set<number>;
 }
 
 /** How far back the cross-listing scan looks. */
@@ -172,7 +187,7 @@ export async function processNormalizedJobs(
   stats: ProcessStats,
   opts: ProcessOptions,
 ): Promise<void> {
-  const { classifierMode, classify = true, isCancelled, schedule } = opts;
+  const { classifierMode, classify = true, isCancelled, schedule, groupAlerts = false } = opts;
   const mayAlert = schedule === undefined || canAlertNow(new Date(), schedule);
 
   // Issue #50: a search with no required stack and no role types has nothing
@@ -223,6 +238,7 @@ export async function processNormalizedJobs(
     if (Number.isNaN(item.job.postedAt.getTime())) {
       logger.warn({ title: item.job.title, companyName: item.companyName }, 'process-jobs: posting date unreadable, using now');
       item.job.postedAt = validDate(item.job.postedAt);
+      item.job.undated = true;
     }
     const place = parseLocation(item.job.location, item.job.locationHints);
     // A posting is admitted when ANY active search admits it (ADR 0028).
@@ -295,8 +311,8 @@ export async function processNormalizedJobs(
     outcome: limit(async (): Promise<ClassifyOutcome> => {
       if (cancelled) return { results: new Map(), location: null, preFiltered: false };
       return classifyJob(
-        // The employer an aggregator named, not the feed's own name (ADR 0056).
-        buildClassifyInput(item.job, item.job.employer ?? item.companyName, item.place),
+        // The employer an aggregator named — and when it named none, nobody: never the feed's or the folder's own name (ADR 0056).
+        buildClassifyInput(item.job, fetchedHiringName(item.job.employer, item.companyName) ?? COMPANY_NOT_NAMED, item.place),
         profiles,
         classifierMode,
         (reason) => {
@@ -346,6 +362,7 @@ export async function processNormalizedJobs(
     }
     if (results.size === 0) {
       stats.classifyFailed++;
+      opts.unstored?.add(job.companyId);
       continue;
     }
     stats.classified++;
@@ -357,6 +374,7 @@ export async function processNormalizedJobs(
     const merged = mergeVerdicts(verdicts);
     if (!merged) {
       stats.classifyFailed++;
+      opts.unstored?.add(job.companyId);
       continue;
     }
     const { winner, scoreLine } = merged;
@@ -398,7 +416,7 @@ export async function processNormalizedJobs(
     // DATA-3).
     const skipsAlert =
       finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
-    const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off');
+    const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off' || groupAlerts);
     const alertHeldAt = holds ? new Date() : null;
     const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {
       verdicts,
@@ -414,13 +432,20 @@ export async function processNormalizedJobs(
     if (
       !skipsAlert &&
       item.quiet !== true &&
-      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, now: new Date(), queuedToday: packsToday }) === 'queue'
+      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday: packsToday }) === 'queue'
     ) {
       // A pack is an extra: failing to queue one must never cost the match its alert.
       try {
-        await queuePack(created.id, 'auto');
-        packsToday++;
-        stats.packsQueued++;
+        // Another source's copy of a role already stored: one pack a role, and no way into the backlog (#380).
+        const role = crossListing ? await sameRole(created.id) : null;
+        const copy = role ? copyPack({ role, onSince: packsOnSince(packs) }) : 'queue';
+        if (copy === 'queue') {
+          await queuePack(created.id, 'auto');
+          packsToday++;
+          stats.packsQueued++;
+        } else {
+          logger.info({ jobId: created.id, originalJobId: crossListing?.job.id, reason: copy }, 'process-jobs: no pack for a copy of a stored posting');
+        }
       } catch (err) {
         logger.warn({ err, jobId: created.id }, 'process-jobs: could not queue an application pack');
       }
@@ -465,13 +490,9 @@ export async function processNormalizedJobs(
       delivery = await sendAlert(
         {
           title: created.title,
-          companyName: starred(job.employer ?? companyName, item.watch),
+          companyName: starred(fetchedHiringName(job.employer, companyName) ?? t('notify.companyNotNamed'), item.watch),
           watched: item.watch?.watched === true,
-          attribution: job.sourceFile
-            ? `From your folder: ${companyName} / ${job.sourceFile}`
-            : item.source
-              ? attributionLine(item.source.atsType, item.source.atsToken)
-              : null,
+          attribution: sourceLine(job.sourceFile, companyName, item.source),
           location: created.location,
           countries: created.countries,
           workplace: created.workplace,

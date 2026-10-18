@@ -10,13 +10,20 @@ import {
   columnsOf,
   detectMapping,
   emptyMapping,
+  fileDate,
+  findJobRows,
+  idNote,
   mapRow,
   mapRows,
   mappingFits,
+  postingFields,
   readDate,
+  alertsOff,
   readSourceConfig,
+  sameMapping,
   sampleValue,
   usableMapping,
+  weakId,
   type Mapping,
 } from './map';
 
@@ -301,6 +308,63 @@ describe('mapRows: hostile rows', () => {
     assert.equal(mapRows(rows, detected, 1, NOW).jobs[1]!.postedAt, NOW);
   });
 
+  // #396: a folder's file has a time of its own, which an undated row takes — and which a stated date is never held against.
+  it('gives an undated row the date it is handed, and still holds a stated one against the clock', () => {
+    const fileTime = new Date('2026-08-01T00:00:00Z');
+    const dated = [{ title: 'A', url: 'https://rows.example/a', posted: '2026-09-25' }, { title: 'B', url: 'https://rows.example/b' }, { title: 'C', url: 'https://rows.example/c', posted: '2031-01-01' }];
+    const mapping = { ...detectMapping(dated, NOW).mapping, postedAt: 'posted' };
+    assert.deepEqual(mapRows(dated, mapping, 1, NOW, fileTime).jobs.map((j) => j.postedAt.toISOString().slice(0, 10)), ['2026-09-25', '2026-08-01', '2026-08-01']);
+  });
+
+  // #379: the import's time, or the file's, is not when a posting was published, and the row says so.
+  it('marks the rows that state no date, whatever date they were handed', () => {
+    const fileTime = new Date('2026-08-01T00:00:00Z');
+    const dated = [{ title: 'A', url: 'https://rows.example/a', posted: '2026-09-25' }, { title: 'B', url: 'https://rows.example/b' }, { title: 'C', url: 'https://rows.example/c', posted: '2031-01-01' }];
+    const mapping = { ...detectMapping(dated, NOW).mapping, postedAt: 'posted' };
+    // A stated date; none; one ahead of the clock, which is none.
+    assert.deepEqual(mapRows(dated, mapping, 1, NOW, fileTime).jobs.map((j) => j.undated === true), [false, true, true]);
+    assert.deepEqual(mapRows(dated, mapping, 1, NOW).jobs.map((j) => j.undated === true), [false, true, true]);
+    // A dated row carries no mark at all, as every job did before.
+    assert.equal('undated' in mapRows(dated, mapping, 1, NOW).jobs[0]!, false);
+    // No date column: every row.
+    assert.deepEqual(mapRows(dated, { ...mapping, postedAt: null }, 1, NOW).jobs.map((j) => j.undated), [true, true, true]);
+  });
+
+  // #395: what tells a posting that holds a list from a wrapper around rows, and a stats file from a posting.
+  it('postingFields: counts what of a posting an object names, and nothing without a title', () => {
+    assert.equal(postingFields({ '@type': 'JobPosting', title: 'Backend Developer', url: 'https://jobs.example/1', description: 'x', hiringOrganization: { name: 'Acme' }, datePosted: '2026-10-01', jobLocation: [] }), 6);
+    assert.equal(postingFields({ 'Job Title': 'Backend Developer', link: 'https://jobs.example/1' }), 2);
+    assert.equal(postingFields({ '@type': 'Place', name: 'Lisbon office', address: { addressLocality: 'Lisbon' } }), 2);
+    assert.equal(postingFields({ '@type': 'Place', address: { addressLocality: 'Lisbon' } }), 0);
+    assert.equal(postingFields({ startedAt: '2026-10-06T10:00:00Z', pages: 14, rowsWritten: 2, errors: 0 }), 0);
+    assert.equal(postingFields({ name: 'run-12', rows: 5 }), 1);
+    // A field that is there and empty is not there.
+    assert.equal(postingFields({ title: 'Backend Developer', url: '', description: null }), 1);
+  });
+
+  it('findJobRows: a posting saved as JSON, with its places and its company inside, is one row that maps', () => {
+    const body = JSON.stringify({
+      '@type': 'JobPosting',
+      title: 'Backend Developer',
+      url: 'https://jobs.example/1',
+      description: 'You will own the payments ledger.',
+      hiringOrganization: { '@type': 'Organization', name: 'Fennel Works' },
+      jobLocation: [{ '@type': 'Place', address: { addressLocality: 'Lisbon', addressCountry: 'PT' } }, { '@type': 'Place', address: { addressLocality: 'Porto', addressCountry: 'PT' } }],
+    });
+    const found = findJobRows(body);
+    assert.ok(found.ok);
+    const { jobs } = mapRows(found.rows, detectMapping(found.rows, NOW).mapping, 1, NOW);
+    assert.deepEqual(jobs.map((j) => [j.title, j.employer, j.url]), [['Backend Developer', 'Fennel Works', 'https://jobs.example/1']]);
+  });
+
+  it('fileDate: a file’s time is a date unless it is ahead of the clock or before any posting', () => {
+    const past = Date.UTC(2026, 7, 1);
+    assert.equal(fileDate(past, NOW).getTime(), past);
+    assert.equal(fileDate(NOW.getTime() + 60_000, NOW), NOW);
+    assert.equal(fileDate(Date.UTC(1980, 0, 1), NOW), NOW);
+    assert.equal(fileDate(NOW.getTime(), NOW).getTime(), NOW.getTime());
+  });
+
   it('keeps nothing of a person even when their columns sit beside a real posting', () => {
     const row = { ...rows[3]!, id: 'p1', title: 'A real title', url: 'https://rows.example/p1' };
     const mapped = mapRow(row, detectMapping([row], NOW).mapping, 1, NOW);
@@ -436,6 +500,24 @@ describe('readDate', () => {
     assert.equal(iso('1759132800000'), '2025-09-29T08:00:00.000Z');
   });
 
+  it('reads a zone written after a space, as a database prints it (#403)', () => {
+    assert.equal(iso('2026-09-28 10:00:00 +02:00'), '2026-09-28T08:00:00.000Z');
+    assert.equal(iso('2026-09-28 10:00 +0200'), '2026-09-28T08:00:00.000Z');
+    assert.equal(iso('2026-09-28 10:00:00 Z'), '2026-09-28T10:00:00.000Z');
+    assert.equal(iso('2026-09-28T10:00:00.250 -05:00'), '2026-09-28T15:00:00.250Z');
+  });
+
+  it('reads a written date only when it is a date and nothing else (#403)', () => {
+    assert.equal(iso('May 5, 2026'), '2026-05-05T00:00:00.000Z');
+    assert.equal(iso('5 May 2026'), '2026-05-05T00:00:00.000Z');
+    assert.equal(iso('May 5th, 2026'), '2026-05-05T00:00:00.000Z');
+    assert.equal(iso('Tuesday, 5 May 2026 at 10:00 UTC'), '2026-05-05T10:00:00.000Z');
+    // A month's name and a year inside a sentence: Date.parse read the first as 1 May 2026.
+    for (const value of ['You may apply 2026', 'Positions may close in 2026', 'March of progress 2025', 'Open until Dec 2026', 'Posted in March 2026 by the team']) {
+      assert.equal(iso(value), null, value);
+    }
+  });
+
   it('refuses words, a month with no year, a day/month order it would have to guess, and dates out of range', () => {
     for (const value of ['2 days ago', 'yesterday', 'March 5', '05/06/2026', '5.6.2026', 'soon', '', null, 42, true, '1998-01-01', '2031-01-01', 'decade 2020', 'marching on in 2024', `2026-09-28 ${'x'.repeat(100)}`]) {
       assert.equal(iso(value), null, String(value));
@@ -466,6 +548,21 @@ describe('a stored mapping', () => {
     assert.deepEqual(readSourceConfig({ holds: 'postings', include: '*.pdf' }), { holds: 'postings', mapping: null, include: '*.pdf', alerts: 'matches' });
     assert.equal(readSourceConfig({ holds: 'rows' }), null);
     assert.equal(readSourceConfig({ holds: 'postings', alerts: 'loud' }), null);
+  });
+
+  it('a folder set to "No alerts" is quiet for every message, and nothing else is', () => {
+    const quiet = { holds: 'postings', mapping: null, include: null, alerts: 'off' };
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: quiet }), true);
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: { ...quiet, alerts: 'matches' } }), false);
+    // A folder stored before the choice existed alerts, as every folder then did.
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: { holds: 'postings' } }), false);
+    assert.equal(alertsOff({ atsType: 'FOLDER', sourceConfig: null }), false);
+    // The switch belongs to folders: no other source offers it.
+    assert.equal(alertsOff({ atsType: 'IMPORT', sourceConfig: quiet }), false);
+    assert.equal(alertsOff({ atsType: 'GREENHOUSE', sourceConfig: null }), false);
+  });
+
+  it('refuses a config that is not one', () => {
     assert.equal(readSourceConfig(null), null);
     assert.equal(readSourceConfig({ mapping: { title: 5 } }), null);
     assert.equal(readSourceConfig('mapping'), null);
@@ -477,6 +574,15 @@ describe('a stored mapping', () => {
     assert.equal(mappingFits(mapping({ title: 'title', url: 'url', employer: 'company' }), columns), false);
     assert.equal(mappingFits(mapping({ title: 'title', url: 'url', employer: 'recruiterName' }), columns), false);
     assert.equal(mappingFits(mapping({ title: 'title' }), columns), false);
+  });
+
+  it('tells a mapping the preview showed from one whose selects were changed since', () => {
+    const shown = mapping({ title: 'Position', url: 'Job link', description: 'About the role' });
+    // A form posts only the fields it has, in its own order: the same columns are the same mapping.
+    assert.equal(sameMapping(shown, MappingSchema.parse({ description: 'About the role', url: 'Job link', title: 'Position', employer: '' })), true);
+    assert.equal(sameMapping(shown, mapping({ title: 'Position', url: 'Job link', description: 'Notes' })), false);
+    assert.equal(sameMapping(shown, mapping({ title: 'Position', url: 'Job link' })), false);
+    assert.equal(sameMapping(shown, { ...shown, location: 'Where' }), false);
   });
 });
 
@@ -556,8 +662,30 @@ describe('mapRow: pay as numbers', () => {
 
   it('takes a number as the number it is, and nothing from a cell that is not one', () => {
     assert.equal(line({ min: 65.125, max: 80000 }), 'Salary: 65.13-80000.');
-    assert.equal(line({ min: '$50k', max: 'DOE' }), 'No description came with this row — the full posting is behind the link.');
+    assert.equal(line({ min: 'DOE', max: 'competitive' }), 'No description came with this row — the full posting is behind the link.');
     assert.equal(line({ min: 0, max: '-5' }), 'No description came with this row — the full posting is behind the link.');
+    // A range in one cell, a rate with its unit, a word of three letters that is no currency: not one amount.
+    assert.equal(line({ min: '90-120k' }), 'No description came with this row — the full posting is behind the link.');
+    assert.equal(line({ min: '45/hour' }), 'No description came with this row — the full posting is behind the link.');
+    assert.equal(line({ min: '90000 net' }), 'No description came with this row — the full posting is behind the link.');
+  });
+
+  it('reads pay as people write it: a sign or a code around the digits, k for thousands (#403)', () => {
+    // "$" names several currencies: it is kept as written, never turned into a code.
+    assert.equal(line({ min: '$90,000', max: '$120,000' }), 'Salary: $90000-$120000.');
+    assert.equal(line({ min: '90k', max: '120k' }), 'Salary: 90000-120000.');
+    assert.equal(line({ min: '$50k', max: 'DOE' }), 'Salary: $50000.');
+    assert.equal(line({ min: '1.5k', max: '2,5K' }), 'Salary: 1500-2500.');
+    // A sign only one currency uses, or a code, is that currency.
+    assert.equal(line({ min: '€65.000', max: '€80.000' }), 'Salary: 65000-80000 EUR.');
+    assert.equal(line({ min: '£45 000' }), 'Salary: 45000 GBP.');
+    assert.equal(line({ min: '65000 EUR', max: '80000 EUR', per: 'year' }), 'Salary: 65000-80000 EUR (year).');
+    assert.equal(line({ min: 'USD 90k', max: '120k usd' }), 'Salary: 90000-120000 USD.');
+    assert.equal(line({ min: '25 000 zł', max: '30 000 zł', per: 'month' }), 'Salary: 25000-30000 PLN (month).');
+    assert.equal(line({ min: '1.2m', cur: 'JPY' }), 'Salary: 1200000 JPY.');
+    assert.equal(line({ min: '100 MXN' }), 'Salary: 100 MXN.');
+    // The currency column wins over what a cell says.
+    assert.equal(line({ min: '$90,000', cur: 'cad' }), 'Salary: 90000 CAD.');
   });
 });
 
@@ -577,5 +705,194 @@ describe('sampleValue', () => {
     assert.equal(sampleValue(rows, 'b'), '{ city }');
     assert.equal(sampleValue(rows, 'c').length, 90);
     assert.equal(sampleValue(rows, 'missing'), '');
+  });
+});
+
+describe('an id column that cannot tell postings apart (#403)', () => {
+  const sheet = (ids: readonly unknown[]): Row[] => ids.map((id, i) => ({ ID: id, Title: `Role ${i}`, Link: `https://rows.example/${i}` }));
+
+  it('knows a row number, values that repeat, and a number read inexactly', () => {
+    assert.equal(weakId(sheet([1, 2, 3, 4]), 'ID'), 'rows');
+    assert.equal(weakId(sheet(['0', '1', '2']), 'ID'), 'rows');
+    assert.equal(weakId(sheet(['a7', 'b2', 'a7']), 'ID'), 'repeats');
+    // What JSON.parse leaves of 9007199254740993: the digits are gone before the mapper sees the row.
+    assert.equal(weakId(sheet([9007199254740992, 12]), 'ID'), 'large');
+  });
+
+  it('takes a real id for what it is', () => {
+    // A board's own ids rise one by one when three postings went up together; a count starts at 0 or 1.
+    assert.equal(weakId(sheet(['4100000001', '4100000002', '4100000003']), 'ID'), null);
+    assert.equal(weakId(sheet([7, 8, 9]), 'ID'), null);
+    assert.equal(weakId(sheet([1, 2]), 'ID'), null);
+    assert.equal(weakId(sheet([3, 1, 2]), 'ID'), null);
+    assert.equal(weakId(sheet(['f00d01', 'f00d02', 'beef03']), 'ID'), null);
+    // The same digits as text were never rounded.
+    assert.equal(weakId(sheet(['9007199254740993', '9007199254740992']), 'ID'), null);
+    assert.equal(weakId(sheet([]), 'ID'), null);
+  });
+
+  it('detection passes such a column over when a link can tell the rows apart', () => {
+    const numbered = detectMapping(sheet([1, 2, 3]), NOW);
+    assert.equal(numbered.mapping.id, null);
+    assert.equal(numbered.mapping.url, 'Link');
+    assert.deepEqual(idNote(sheet([1, 2, 3]), numbered.mapping), { column: 'ID', why: 'rows', used: false });
+    // A re-sorted export of the same sheet: each posting keeps the id its link gives it.
+    const first = mapRows(sheet([1, 2, 3]), numbered.mapping, 1, NOW).jobs.map((j) => j.externalId);
+    const resorted = [{ ID: 1, Title: 'Role 2', Link: 'https://rows.example/2' }, { ID: 2, Title: 'Role 0', Link: 'https://rows.example/0' }];
+    assert.deepEqual(mapRows(resorted, numbered.mapping, 1, NOW).jobs.map((j) => j.externalId), [first[2], first[0]]);
+    // A real id is kept, and nothing is said.
+    const real = detectMapping(sheet(['a7', 'b2', 'c9']), NOW);
+    assert.equal(real.mapping.id, 'ID');
+    assert.equal(idNote(sheet(['a7', 'b2', 'c9']), real.mapping), null);
+  });
+
+  it('keeps the column when nothing else tells the rows apart, and says it is weak', () => {
+    const rows = [{ id: 1, title: 'Role a' }, { id: 2, title: 'Role b' }, { id: 3, title: 'Role c' }];
+    const { mapping: found } = detectMapping(rows, NOW);
+    assert.equal(found.id, 'id');
+    assert.deepEqual(idNote(rows, found), { column: 'id', why: 'rows', used: true });
+  });
+
+  it('a mapping that names the column still reads ids from it: what a source already stored stays known', () => {
+    const kept = mapping({ title: 'Title', id: 'ID', url: 'Link' });
+    assert.deepEqual(mapRows(sheet([1, 2, 3]), kept, 1, NOW).jobs.map((j) => j.externalId), ['1', '2', '3']);
+    assert.deepEqual(idNote(sheet([1, 2, 3]), kept), { column: 'ID', why: 'rows', used: true });
+  });
+});
+
+describe('markup in a row (#403)', () => {
+  const fields = mapping({ title: 'title', id: 'id', employer: 'company', location: 'place', description: 'text' });
+  const read = (row: Row) => {
+    const mapped = mapRow({ id: 1, ...row }, fields, 1, NOW);
+    if (!('job' in mapped)) throw new Error(mapped.dropped);
+    return { ...mapped.job, text: mapped.job.description.replace(/\n\n(?:Only this much|No description)[\s\S]*$/, '') };
+  };
+
+  it('a title, a company and a place are stored as words, not as tags', () => {
+    const job = read({ title: '<img src=x onerror=alert(1)>Staff Node.js Engineer', company: 'Evil <b>Corp</b>', place: '<span>Lisbon</span>, Portugal' });
+    assert.equal(job.title, 'Staff Node.js Engineer');
+    assert.equal(job.employer, 'Evil Corp');
+    assert.equal(job.location, 'Lisbon, Portugal');
+    const escaped = read({ title: 'Ops &amp; Platform Engineer', company: 'R&amp;D Labs', place: { city: '<b>Porto</b>', country: 'Portugal' } });
+    assert.equal(escaped.title, 'Ops & Platform Engineer');
+    assert.equal(escaped.employer, 'R&D Labs');
+    assert.equal(escaped.location, 'Porto, Portugal');
+  });
+
+  it('a "<" that is not markup stays in a short field', () => {
+    const job = read({ title: 'Engineer, C++ <-> Rust tooling', company: 'A < B Ltd', place: 'Remote' });
+    assert.equal(job.title, 'Engineer, C++ <-> Rust tooling');
+    assert.equal(job.employer, 'A < B Ltd');
+  });
+
+  it('a title that is only markup is no title', () => {
+    assert.deepEqual(mapRow({ id: 1, title: '<img src=x>' }, fields, 1, NOW), { dropped: 'no-title' });
+  });
+
+  it('plain text with a link keeps its paragraphs', () => {
+    const job = read({ title: 'a', text: 'First paragraph about the team.\n\nSecond paragraph, with <a href="https://x.example">one link</a> in it.\n\nThird paragraph.' });
+    assert.equal(job.text, 'First paragraph about the team.\n\nSecond paragraph, with one link in it.\n\nThird paragraph.');
+  });
+
+  it('escaped inline markup is read as markup, and prose with a "<" is left whole', () => {
+    assert.equal(read({ title: 'a', text: 'We use &lt;span&gt;Kubernetes&lt;/span&gt; daily.\n\nSecond paragraph.' }).text, 'We use Kubernetes daily.\n\nSecond paragraph.');
+    const prose = 'Salary < 100k is not offered. We compare a<b and c>d in code review.\n\nSecond paragraph.';
+    assert.equal(read({ title: 'a', text: prose }).text, prose);
+  });
+
+  it('a description made of blocks is still rebuilt from them', () => {
+    assert.equal(read({ title: 'a', text: '<p>One.</p>\n<p>Two <b>bold</b>.</p><ul><li>x</li><li>y</li></ul>' }).text, 'One.\n\nTwo bold .\n\n• x\n• y');
+  });
+});
+
+describe('columns of a job that the people filter used to hide (#403)', () => {
+  it('offers a permit to work, a yes/no about who posted, and working in person', () => {
+    const row = Object.fromEntries(['title', 'url', 'workAuthorization', 'Work authorisation', 'authorizedCountries', 'isRecruiter', 'is_agency', 'inPersonDays', 'ownership', 'Membership fee', 'personalDevelopmentBudget'].map((name) => [name, 'x']));
+    assert.deepEqual(columnsOf([row]), Object.keys(row));
+  });
+
+  it('still leaves out who wrote, recruits, manages or is to be contacted', () => {
+    const row = Object.fromEntries(['title', 'url', 'author', 'authorName', 'authorEmail', 'recruiter', 'recruiterName', 'Hiring Manager', 'personalEmail', 'contact person', 'owner', 'member', 'isRecruiterEmail'].map((name) => [name, 'x']));
+    assert.deepEqual(columnsOf([row]), ['title', 'url']);
+  });
+});
+
+describe('header names in the interface\'s other languages (#403)', () => {
+  const text = 'A long enough description of the role, its team and its stack so that it reads as text and not as a title.';
+  const sheet = (head: string[]): Row[] => [
+    Object.fromEntries(head.map((h, i) => [h, ['Backend Developer', 'Acme', 'https://rows.example/a', text, 'Lisbon', '2026-10-01'][i]!])),
+    Object.fromEntries(head.map((h, i) => [h, ['Data Engineer', 'Acme', 'https://rows.example/b', text, 'Porto', '2026-10-02'][i]!])),
+  ];
+  for (const [language, head] of [
+    ['Ukrainian', ['Посада', 'Компанія', 'Посилання', 'Опис', 'Місто', 'Дата']],
+    ['Spanish', ['Puesto', 'Empresa', 'Enlace', 'Descripción', 'Ubicación', 'Fecha']],
+    ['French', ['Poste', 'Entreprise', 'Lien', 'Description', 'Lieu', 'Date']],
+    ['German', ['Stelle', 'Unternehmen', 'Link', 'Beschreibung', 'Ort', 'Datum']],
+  ] as const) {
+    it(`finds every field of a ${language} sheet by its name`, () => {
+      const rows = sheet([...head]);
+      const { mapping: found, guessed } = detectMapping(rows, NOW);
+      assert.deepEqual([found.title, found.employer, found.url, found.description, found.location, found.postedAt], [...head]);
+      assert.deepEqual(guessed, []);
+      assert.equal(mapRows(rows, found, 1, NOW).jobs.length, 2);
+    });
+  }
+
+  it('reads a posting written with such names as a posting', () => {
+    assert.equal(postingFields({ Посада: 'Backend Developer', Компанія: 'Acme', Посилання: 'https://rows.example/a' }), 3);
+  });
+});
+
+describe('a posting\'s places (#403)', () => {
+  const where = mapping({ title: 'title', id: 'id', location: 'jobLocation' });
+  const place = (jobLocation: unknown) => {
+    const mapped = mapRow({ id: 1, title: 'a', jobLocation }, where, 1, NOW);
+    if (!('job' in mapped)) throw new Error(mapped.dropped);
+    return [mapped.job.location, mapped.job.locationHints?.countries ?? null];
+  };
+  const lisbon = { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: 'Lisbon', addressCountry: 'PT' } };
+  const porto = { '@type': 'Place', address: { addressLocality: 'Porto', addressRegion: 'Norte', addressCountry: { '@type': 'Country', name: 'Portugal' } } };
+
+  it('reads a schema.org Place: its parts sit one level down, in its address', () => {
+    assert.deepEqual(place(lisbon), ['Lisbon, Portugal', ['PT']]);
+    assert.deepEqual(place(porto), ['Porto, Norte, Portugal', ['PT']]);
+    // The address taken apart says more than the place's own name; an address that is one string is the place.
+    assert.deepEqual(place({ name: 'Head office', address: { addressLocality: 'Lisbon' } }), ['Lisbon', null]);
+    assert.deepEqual(place({ '@type': 'Place', address: 'Rua Augusta 1, Lisbon' }), ['Rua Augusta 1, Lisbon', null]);
+  });
+
+  it('reads a list of places as the posting\'s places, joined', () => {
+    assert.deepEqual(place([lisbon, porto]), ['Lisbon, Portugal; Porto, Norte, Portugal', ['PT']]);
+    // Two countries are a choice the text keeps, and no single country is claimed.
+    assert.deepEqual(place([lisbon, { city: 'Madrid', countryCode: 'ES' }]), ['Lisbon, Portugal; Madrid, Spain', null]);
+    assert.deepEqual(place([lisbon, lisbon]), ['Lisbon, Portugal', ['PT']]);
+  });
+
+  it('offers a list of places as the location column, and no other list of objects', () => {
+    const rows = [{ title: 'Backend Developer', url: 'https://rows.example/a', jobLocation: [lisbon, porto], skills: [{ name: 'Go' }] }];
+    assert.deepEqual(columnsOf(rows), ['title', 'url', 'jobLocation']);
+    assert.equal(detectMapping(rows, NOW).mapping.location, 'jobLocation');
+    assert.equal(sampleValue(rows, 'jobLocation'), 'Lisbon, Portugal; Porto, Norte, Portugal');
+  });
+
+  it('a place written the old ways reads as it did', () => {
+    assert.deepEqual(place('Berlin, Germany'), ['Berlin, Germany', null]);
+    assert.deepEqual(place({ name: 'Berlin', country: 'Germany' }), ['Berlin', ['DE']]);
+    assert.deepEqual(place({ city: 'Berlin', region: 'BE', countryCode: 'de' }), ['Berlin, BE, Germany', ['DE']]);
+  });
+});
+
+describe('a table wider than is offered (#403)', () => {
+  it('offers the columns named like a job\'s fields first, whether the rows came from a table or from objects', () => {
+    const row = Object.fromEntries([...Array.from({ length: 230 }, (_, i) => [`attr_${i}`, `v${i}`]), ['title', 'Backend Developer'], ['url', 'https://rows.example/a']]);
+    const columns = columnsOf([row]);
+    assert.equal(columns.length, 200);
+    assert.deepEqual(columns.slice(-2), ['title', 'url']);
+    assert.equal(detectMapping([row], NOW).mapping.title, 'title');
+    const head = Object.keys(row);
+    const found = findJobRows(`${head.join(',')}\n${head.map((h) => row[h]).join(',')}`);
+    assert.ok(found.ok);
+    assert.equal(found.rows[0]!.title, 'Backend Developer');
+    assert.equal(Object.keys(found.rows[0]!).length, 200);
   });
 });

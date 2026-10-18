@@ -366,7 +366,7 @@ test('a refused key, a spent allowance and a busy server are three different fai
   ]);
   assert.equal(
     refusedReason('HTTP 401: invalid x-api-key', 'key'),
-    'the key was refused (HTTP 401: invalid x-api-key) — paste a new one on Settings → AI engine',
+    'the key was refused (HTTP 401: invalid x-api-key) — paste a new one on Settings → AI & costs',
   );
 });
 

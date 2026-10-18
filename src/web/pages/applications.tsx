@@ -183,7 +183,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                   </Button>
                 </>
               )}
-              <Button href="/settings?tab=general#stages" variant="ghost" size="sm">
+              <Button href="/settings?tab=applications#stages" variant="ghost" size="sm">
                 {t('applications.editColumns')}
               </Button>
             </div>
@@ -198,7 +198,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
         <Empty
           title={t('applications.applicationTrackingIsOff')}
           action={
-            <Button href="/settings?tab=general" variant="secondary" size="sm">
+            <Button href="/settings?tab=applications" variant="secondary" size="sm">
               {t('applications.turnItOnInSettings')}
             </Button>
           }

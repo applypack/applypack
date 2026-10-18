@@ -1,12 +1,12 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import type { DiffOp } from '../../resume/line-diff';
-import type { PrepareStep } from '../../pack/gate';
 import type { PackRow } from '../../pack/store';
-import { HELD_WORDS, STEP_WORDS, stopTitle, type PackEdits } from '../../pack/view';
+import { HELD_WORDS, packBusy, preparingLine, stopTitle, unplacedLines, type PackEdits } from '../../pack/view';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, ConfirmAction, Hint, Notice, SectionTitle, When } from '../ui';
+import { packChoiceValue } from '../applied-resume';
 import { safeHref } from '../format';
 import { jobHref } from '../job-tabs';
 import { VERDICT_TONE } from './verification-card';
@@ -16,6 +16,8 @@ export interface ApplicationPackProps {
   /** The posting's own page — where the application is made. Empty for a pasted posting. */
   url: string;
   pack: PackRow | null;
+  /** The job was applied to while this pack was ready: it is not started over (pack/store.ts:packIsKept). */
+  kept: boolean;
   files: { docx: boolean; pdf: boolean };
   edits: PackEdits;
   /** The lines the edits changed, as the Tailor page's own diff reads them. */
@@ -29,21 +31,33 @@ export interface ApplicationPackProps {
   letter: boolean;
   /** Whether packs are prepared on their own (Settings → General); the empty state says which. */
   automatic: boolean;
+  /** With no pack here: another source's copy of this posting that has one (#380). */
+  sameRoleJobId: number | null;
+  /** What preparing a pack spends, said before the press (#387): how many calls, and on what kind of money. */
+  cost: string;
 }
 
 const LABEL = 'text-meta font-medium uppercase tracking-wide text-ink-faint';
 const QUOTE = 'mt-0.5 whitespace-pre-wrap break-words border-l-2 pl-2 text-sm leading-6';
 
-/** The pack in flight: the step it is on, and nothing to press. */
-const Preparing: FC<{ pack: PackRow }> = ({ pack }) => {
-  const step = STEP_WORDS[pack.step as PrepareStep];
-  return (
+/** The id of the progress sentence: public/pack-tab.mjs rewrites it as the pack moves on. */
+export const PACK_LINE_ID = 'pack-line';
+
+/** The pack in flight: the step it is on. While it only waits in the queue it can still be taken out (#387). */
+const Preparing: FC<{ pack: PackRow; jobId: number }> = ({ pack, jobId }) => (
+  <>
     <Notice tone="ok" role="status">
-      {pack.status === 'queued' ? t('pack.card.queued') : t('pack.card.onStep', { step: step ? t(step) : t('pack.card.preparing') })}{' '}
-      {t('pack.card.refreshes')}
+      <span id={PACK_LINE_ID}>{preparingLine(pack)}</span>
     </Notice>
-  );
-};
+    {pack.status === 'queued' && (
+      <ActionForm action={`/jobs/${jobId}/pack/cancel`} class="mt-2">
+        <Button variant="ghost" size="sm" aria-label={t('pack.card.cancelQueued')}>
+          {t('ui.cancel')}
+        </Button>
+      </ActionForm>
+    )}
+  </>
+);
 
 const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
   <ul class="divide-y divide-line">
@@ -66,7 +80,7 @@ const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
   </ul>
 );
 
-export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, files, edits, changes, company, asks, unbacked, letter, automatic }) => {
+export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack, kept, files, edits, changes, company, asks, unbacked, letter, automatic, sameRoleJobId, cost }) => {
   const prepare = `/jobs/${jobId}/pack`;
   if (!pack) {
     return (
@@ -74,17 +88,31 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
         <SectionTitle>{t('pack.card.title')}</SectionTitle>
         <Hint>{t('pack.card.whatItDoes')}</Hint>
         <Hint class="mt-2">{automatic ? t('pack.card.automaticOn') : t('pack.card.automaticOff')}</Hint>
+        {sameRoleJobId !== null && (
+          <p class="mt-2 text-sm leading-6 text-ink">
+            {tRich('pack.card.sameRole', {}, {
+              link: (words) => (
+                <a class="text-accent underline-offset-2 hover:underline" href={jobHref(sameRoleJobId, 'pack')}>
+                  {words}
+                </a>
+              ),
+            })}
+          </p>
+        )}
         <ActionForm action={prepare} class="mt-3" once>
           <Button variant="violet" size="sm">
             {t('pack.card.prepare')}
           </Button>
         </ActionForm>
+        <Hint class="mt-2">{cost}</Hint>
       </Card>
     );
   }
-  const busy = pack.status === 'queued' || pack.status === 'running';
+  const busy = packBusy(pack);
+  // What "I sent this file" posts: the same answer the rail's picker offers.
+  const sentValue = packChoiceValue(pack);
   const tailorHref = pack.tailoredMatchId ?? pack.matchId ? `/jobs/${jobId}/target?match=${pack.tailoredMatchId ?? pack.matchId}` : null;
-  const again = !busy && !pack.sentAt && (
+  const again = !busy && !pack.sentAt && !kept && (
     <ConfirmAction
       action={prepare}
       label={pack.status === 'ready' ? t('pack.card.prepareAgain') : t('pack.card.tryAgain')}
@@ -151,7 +179,7 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
         </div>
 
         <div class="mt-3 space-y-3">
-          {busy && <Preparing pack={pack} />}
+          {busy && <Preparing pack={pack} jobId={jobId} />}
           {pack.status === 'failed' && (
             <Notice tone="danger">{t('pack.card.failed', { why: pack.why ?? t('pack.card.noReason') })}</Notice>
           )}
@@ -167,10 +195,10 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
           {pack.status === 'ready' && pack.document === 'clean' && (
             <Hint>{t('pack.card.cleanFile')}</Hint>
           )}
-          {pack.status === 'ready' && !pack.sentAt && (
+          {sentValue && (
             <form method="post" action={`/jobs/${jobId}/status`} class="flex flex-wrap items-center gap-2">
               <input type="hidden" name="status" value="APPLIED" />
-              <input type="hidden" name="pack" value="1" />
+              <input type="hidden" name="appliedResumeId" value={sentValue} />
               <input type="hidden" name="tab" value="pack" />
               <Button variant="secondary" size="sm">
                 {t('pack.card.markSent')}
@@ -179,6 +207,7 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
             </form>
           )}
           {pack.sentAt && <Hint>{t('pack.card.sentHint')}</Hint>}
+          {kept && !pack.sentAt && <Hint>{t('pack.card.keptHint')}</Hint>}
         </div>
 
         {(tailorHref || again || letter) && !busy && (
@@ -265,9 +294,9 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
           ) : (
             <Changes changes={changes} />
           )}
-          {edits.unplaced.length > 0 && (
-            <Hint class="mt-2">{t('pack.card.unplaced', { n: edits.unplaced.length })}</Hint>
-          )}
+          {unplacedLines(edits.unplaced).map((line) => (
+            <Hint class="mt-2">{line}</Hint>
+          ))}
         </Card>
       )}
 

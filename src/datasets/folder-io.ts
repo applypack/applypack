@@ -15,11 +15,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { t } from '../i18n/t';
 import { dataDirFor } from '../local/data-dir';
+import { NoAnswer, deadlines } from './folder-deadline';
 import { inboxRoots, insideFolder, type FolderRules } from './folder-path';
 import { MAX_DEPTH, MAX_ENTRIES, MAX_FILE_BYTES, type FileRead, type ListedFile } from './folder-scan';
 
-/** Why a folder could not be looked at, as a code the page and the health row put into words. */
-export type FolderFault = 'missing' | 'not-a-folder' | 'refused' | 'too-many' | 'not-allowed' | 'unmapped';
+/** Why a folder could not be looked at, as a code the page and the health row put into words. `stalled`: its disk did not answer. */
+export type FolderFault = 'missing' | 'not-a-folder' | 'refused' | 'too-many' | 'not-allowed' | 'unmapped' | 'stalled';
 
 export class FolderError extends Error {
   override name = 'FolderError';
@@ -34,6 +35,22 @@ export class FolderError extends Error {
 /** A size past this is recorded as this: what the ledger's column holds, and far past what is read. */
 const MAX_RECORDED_BYTES = 2_147_483_647;
 
+/**
+ * How long one call to a folder's disk may take. A disk that is asleep wakes
+ * in ten or twenty seconds; one that answers nothing in this long is not
+ * going to, and the look must end so the fetch lock is given back
+ * (folder-deadline.ts).
+ */
+const FOLDER_ANSWER_MS = 30_000;
+const answers = deadlines(FOLDER_ANSWER_MS);
+/** A folder's real path by the path it was asked for: a stall is met under either name. */
+const realPaths = new Map<string, string>();
+/** What the system says of a file whose disk did not answer: the code a timed-out call carries. */
+const NO_ANSWER_CODE = 'ETIMEDOUT';
+
+const stalledError = (folder: string): FolderError => new FolderError('stalled', t('datasets.folder.stalled', { path: folder, seconds: FOLDER_ANSWER_MS / 1000 }));
+const isStalled = (folder: string): boolean => answers.stalled(folder) || answers.stalled(realPaths.get(folder) ?? folder);
+
 const REFUSED_CODES = new Set(['EACCES', 'EPERM']);
 /** Nothing is there, or the path cannot name a place: too long, a loop of links, a name the system refuses. */
 const MISSING_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENAMETOOLONG', 'ELOOP', 'EINVAL']);
@@ -46,6 +63,7 @@ function codeOf(err: unknown): string {
 /** What the system said about a folder, as a fault with a sentence. An error with no code is not the system's and is thrown on. */
 function folderError(err: unknown, folder: string): FolderError {
   if (err instanceof FolderError) return err;
+  if (err instanceof NoAnswer) return stalledError(folder);
   const code = codeOf(err);
   if (MISSING_CODES.has(code)) return new FolderError('missing', t('datasets.folder.missing', { path: folder }));
   if (code.length > 0) return new FolderError('refused', t('datasets.folder.refused', { path: folder, code }));
@@ -59,7 +77,8 @@ function folderError(err: unknown, folder: string): FolderError {
  * and then matches nothing real.
  */
 export async function currentFolderRules(launcher: boolean, roots: string | undefined): Promise<FolderRules> {
-  const real = (p: string): Promise<string> => fs.realpath(p).catch(() => path.resolve(p));
+  // A root on a disk that does not answer keeps its spelling, as one that does not exist does.
+  const real = (p: string): Promise<string> => answers.inTime(p, () => fs.realpath(p)).catch(() => path.resolve(p));
   const home = os.homedir();
   return {
     launcher,
@@ -71,9 +90,12 @@ export async function currentFolderRules(launcher: boolean, roots: string | unde
 
 /** The folder's real path — every link in it resolved — or a `FolderError` saying why it cannot be read. */
 export async function realFolder(folder: string): Promise<string> {
+  // A call from an earlier look is still out: asking again would take another thread and learn nothing.
+  if (isStalled(folder)) throw stalledError(folder);
   try {
-    const real = await fs.realpath(folder);
-    if (!(await fs.stat(real)).isDirectory()) throw new FolderError('not-a-folder', t('datasets.folder.notAFolder', { path: folder }));
+    const real = await answers.inTime(folder, () => fs.realpath(folder));
+    realPaths.set(folder, real);
+    if (!(await answers.inTime(folder, () => fs.stat(real))).isDirectory()) throw new FolderError('not-a-folder', t('datasets.folder.notAFolder', { path: folder }));
     return real;
   } catch (err) {
     throw folderError(err, folder);
@@ -91,28 +113,40 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
   const files: ListedFile[] = [];
   let entries = 0;
   const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
-    let children;
+    let children: Awaited<ReturnType<typeof fs.opendir>>;
     try {
-      children = await fs.opendir(dir);
+      children = await answers.inTime(root, () => fs.opendir(dir));
     } catch (err) {
-      // One corner the system will not open does not blind the look; the root itself does.
+      // One corner the system will not open does not blind the look; the root itself does, and so does a disk that stopped answering.
       if (depth > 1 && codeOf(err).length > 0) return;
       throw folderError(err, root);
     }
-    // Entry by entry, so a folder of millions of files is refused before it is held in memory.
-    for await (const child of children) {
-      if (++entries > MAX_ENTRIES) {
-        throw new FolderError('too-many', t('datasets.folder.tooMany', { path: root, n: MAX_ENTRIES }));
+    try {
+      // Entry by entry, so a folder of millions of files is refused before it is held in memory.
+      for (;;) {
+        const child = await answers.inTime(root, () => children.read());
+        if (child === null) break;
+        if (++entries > MAX_ENTRIES) {
+          throw new FolderError('too-many', t('datasets.folder.tooMany', { path: root, n: MAX_ENTRIES }));
+        }
+        if (child.name.startsWith('.') || child.isSymbolicLink()) continue;
+        const relPath = rel === '' ? child.name : `${rel}/${child.name}`;
+        if (child.isDirectory()) {
+          if (depth < MAX_DEPTH) await walk(path.join(dir, child.name), relPath, depth + 1);
+        } else if (child.isFile()) {
+          // Gone between the listing and the stat: the next look will not list it. A disk that stopped answering ends the look.
+          const stat = await answers.inTime(root, () => fs.lstat(path.join(dir, child.name))).catch((err: unknown) => {
+            if (err instanceof NoAnswer) throw err;
+            return null;
+          });
+          if (stat?.isFile()) files.push({ relPath, size: Math.min(stat.size, MAX_RECORDED_BYTES), mtimeMs: Math.round(stat.mtimeMs) });
+        }
       }
-      if (child.name.startsWith('.') || child.isSymbolicLink()) continue;
-      const relPath = rel === '' ? child.name : `${rel}/${child.name}`;
-      if (child.isDirectory()) {
-        if (depth < MAX_DEPTH) await walk(path.join(dir, child.name), relPath, depth + 1);
-      } else if (child.isFile()) {
-        // Gone between the listing and the stat: the next look will not list it.
-        const stat = await fs.lstat(path.join(dir, child.name)).catch(() => null);
-        if (stat?.isFile()) files.push({ relPath, size: Math.min(stat.size, MAX_RECORDED_BYTES), mtimeMs: Math.round(stat.mtimeMs) });
-      }
+    } catch (err) {
+      throw err instanceof NoAnswer ? stalledError(root) : err;
+    } finally {
+      // Not waited for: on a disk that stopped answering this would not come back either.
+      void children.close().catch(() => undefined);
     }
   };
   await walk(root, '', 1);
@@ -121,30 +155,47 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
 
 /**
  * One file's bytes and their hash. The file is opened without following a
- * link, must really lie beneath the folder, and is measured before and after
+ * link, must really lie beneath the folder — before the open and again after
+ * it — must have no second name on the disk, and is measured before and after
  * the read: a file that moved meanwhile is still being written.
  */
 export async function readFolderFile(root: string, relPath: string, maxBytes: number = MAX_FILE_BYTES): Promise<FileRead> {
   const file = path.join(root, ...relPath.split('/'));
+  // The folder's disk has not answered an earlier call: this file is not asked for either, and is tried at the next look.
+  if (isStalled(root)) return { ok: false, why: 'unreadable', code: NO_ANSWER_CODE };
+  const asked = <T>(call: () => Promise<T>): Promise<T> => answers.inTime(root, call);
   let handle: fs.FileHandle | undefined;
   try {
-    const real = await fs.realpath(file);
+    const real = await asked(() => fs.realpath(file));
     if (!insideFolder(root, real)) return { ok: false, why: 'outside' };
     // Non-blocking, so a pipe put where a file was does not hold the tick; it is then not a file and goes no further.
-    handle = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
-    const before = await handle.stat();
+    handle = await asked(() => fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
+    const opened = handle;
+    const before = await asked(() => opened.stat());
     if (!before.isFile()) return { ok: false, why: 'outside' };
+    // One name on the disk: a file that also has a name somewhere else is not this folder's alone, and is passed over as a link is.
+    if (before.nlink > 1) return { ok: false, why: 'outside' };
     // The file opened is the one the real path named a moment ago, not something swapped in between.
-    const named = await fs.lstat(real).catch(() => null);
+    const named = await asked(() => fs.lstat(real)).catch((err: unknown) => {
+      if (err instanceof NoAnswer) throw err;
+      return null;
+    });
     if (!named || named.ino !== before.ino || named.dev !== before.dev) return { ok: false, why: 'outside' };
+    // And its name still leads where it led before the open: asked again, now that the file is held.
+    const still = await asked(() => fs.realpath(file)).catch((err: unknown) => {
+      if (err instanceof NoAnswer) throw err;
+      return null;
+    });
+    if (still !== real) return { ok: false, why: 'outside' };
     if (before.size > maxBytes) return { ok: false, why: 'too-large' };
     // Exactly the bytes it had: a file still being appended to is not read to its moving end.
     const bytes = Buffer.alloc(before.size);
-    const { bytesRead } = await handle.read(bytes, 0, before.size, 0);
-    const after = await handle.stat();
+    const { bytesRead } = await asked(() => opened.read(bytes, 0, before.size, 0));
+    const after = await asked(() => opened.stat());
     if (bytesRead !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs) return { ok: false, why: 'changing' };
     return { ok: true, bytes, sha256: createHash('sha256').update(bytes).digest('hex'), size: after.size, mtimeMs: Math.round(after.mtimeMs) };
   } catch (err) {
+    if (err instanceof NoAnswer) return { ok: false, why: 'unreadable', code: NO_ANSWER_CODE };
     const code = codeOf(err);
     if (REFUSED_CODES.has(code)) return { ok: false, why: 'refused' };
     if (MISSING_CODES.has(code)) return { ok: false, why: code === 'ELOOP' ? 'outside' : 'gone' };
@@ -152,6 +203,8 @@ export async function readFolderFile(root: string, relPath: string, maxBytes: nu
     if (code.length > 0) return { ok: false, why: 'unreadable', code };
     throw err;
   } finally {
-    await handle?.close();
+    // On a disk that stopped answering the close would not come back either: it is left to end by itself.
+    if (isStalled(root)) void handle?.close().catch(() => undefined);
+    else await handle?.close();
   }
 }

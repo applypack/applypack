@@ -59,7 +59,7 @@ export async function createManualJob(
   // A pasted posting has no structured fields: the parser reads the string
   // the user typed (ADR 0031), and nothing here rewrites that string.
   const place = parseLocation(f.location);
-  const jobInclude = { company: { select: { name: true, atsType: true } } } as const;
+  const jobInclude = { company: { select: { name: true, atsType: true, sourceConfig: true } } } as const;
   // One transaction: the company row and the job row appear together or not
   // at all, and the same paste from two tabs at once (/jobs/new and
   // /screen/new both land here) is settled by the unique key, not by a read
@@ -103,7 +103,7 @@ export async function createManualJob(
   if (found.kind === 'existing') return { kind: 'existing', job: found.job };
   const { job, company } = found;
   const classified =
-    opts.classify === false ? false : await classifyExistingJob(job, { keepStatus: true });
+    opts.classify === false ? false : (await classifyExistingJob(job, { keepStatus: true })).kind === 'scored';
   logger.info({ jobId: job.id, company: company.name, classified }, 'web: manual job saved');
   return { kind: 'created', job, classified };
 }

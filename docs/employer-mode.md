@@ -7,7 +7,7 @@
 
 
 ApplyPack is a candidate's tool, and this is the one feature that sits on
-the other side of the table. It is off by default; Settings → Screening
+the other side of the table. It is off by default; Settings → Employer tools
 turns it on and adds "Screening" to the menu, and nothing else changes.
 
 **One position, the criteria in your words.** A screening is one position

@@ -264,7 +264,7 @@ thresholds and the alert target sit in a collapsed "Advanced" block. It
 opens itself when notes, on-site cities or priority rules are set; a
 threshold or a target alone does not open it.
 
-**Fill from a resume** (ADR 0015): the Searches tab can prefill
+**Fill from a resume** (ADR 0015): the Job search tab can prefill
 `stackRequired` (from `Resume.primarySkills`), `stackNiceToHave` (remaining
 scanned skills), `roleTypes` and `seniority` from any scanned resume —
 rendered as an unsaved draft in the editor; nothing persists until Save.
@@ -279,7 +279,7 @@ and saves it on one press, linked to that resume. The wizard's step 3
 offers the same for a second resume once the first search exists. New
 profiles are **born inactive** — creating a search never switches the one
 the pipeline is scoring against; activation stays a deliberate press on
-`/settings` → Searches.
+`/settings` → Job search.
 
 ## Toggles
 
@@ -301,12 +301,12 @@ clause at the start of the affected job/handler. The toggles live on
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers (and the monthly HN pull, for HN_HIRING); a switched-off family is never called quiet |
 | `employerMode`                   | false    | Employer mode (ADR 0049): the Screening menu item and every `/screen` route exist only while on; the worker never reads it |
 | `screeningRetentionDays`         | 90       | How long a screening keeps its applicant files and verdicts before the weekly cleanup deletes it (ADR 0048) |
-| `reapplyDays`                    | null     | Off. 30 / 60 / 90 / 180: a new posting at a company with a job marked Applied inside that many days is turned away before any AI (a watched company on "every posting" excepted). Settings → General → Application tracking (ADR 0056) |
+| `reapplyDays`                    | null     | Off. 30 / 60 / 90 / 180: a new posting at a company with a job marked Applied inside that many days is turned away before any AI (a watched company on "every posting" excepted). Settings → Applications → Avoid duplicate applications (ADR 0056) |
 | `updateCheck`                    | false    | Off: ApplyPack never asks anyone about itself. On: one request a week (the cleanup job, and once when turned on) to GitHub's latest-release API; the sidebar says "vX.Y.Z is out" and Settings → General → Updates gives the commands. It never updates anything |
-| `openAiBaseUrl`                  | NULL     | The OpenAI-compatible engine's server, set on its card (Settings → AI engine → Server address) or by the wizard's **Use it** on a model found on this computer; NULL = `OPENAI_BASE_URL`. A server on this machine or the user's network takes no key and is billed as local |
-| `localAiUrl`                     | NULL     | The local engine's Ollama root (Settings → AI engine → Local model → Ollama address, or the wizard's **Use it** on Ollama); NULL = `OLLAMA_URL`. Local addresses only (ADR 0057) |
+| `openAiBaseUrl`                  | NULL     | The OpenAI-compatible engine's server, set on its card (Settings → AI & costs → Server address) or by the wizard's **Use it** on a model found on this computer; NULL = `OPENAI_BASE_URL`. A server on this machine or the user's network takes no key and is billed as local |
+| `localAiUrl`                     | NULL     | The local engine's Ollama root (Settings → AI & costs → Local model → Ollama address, or the wizard's **Use it** on Ollama); NULL = `OLLAMA_URL`. Local addresses only (ADR 0057) |
 | `localContextTokens`             | NULL     | The context window the local engine asks for on every call: 8k / 16k / 32k / 64k tokens; NULL = 16 384. A prompt estimated larger than it is refused before it is sent, and the next engine takes the call |
-| `pack`                           | NULL     | Application packs (ADR 0063), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults. Settings → General → Application packs |
+| `pack`                           | NULL     | Application packs (ADR 0063), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults, and a stored field that cannot be read falls back to its own. The form does not: a value it does not offer is refused with its field named and nothing is stored, the switch included (`packSettingsFromForm`, #383). Settings → Automation → Application packs |
 | `aiBudgetCents`                  | NULL     | A monthly ceiling on billed AI money: one line to the alert chats at 80 % and at 100 %, once each per UTC month (`aiBudgetAlerted` holds the last one sent). NULL = no budget. Nothing is ever stopped (ADR 0055) |
 | `locale`                         | NULL     | The interface's language (ADR 0061). NULL = never chosen: English, and a browser that prefers an offered language sees one line proposing it. Set from the globe at the bottom of the menu, the wizard's first step or Settings → General → Language; finishing setup stores the language the wizard was read in. The worker's messages do not follow it yet: they are English until stage 4 of ADR 0061. Prompts and what a model writes never do |
 
@@ -314,7 +314,7 @@ clause at the start of the affected job/handler. The toggles live on
 
 `Job.pipelineStage` is the funnel state, orthogonal to `Job.status`
 (`status=APPLIED` + `pipelineStage='ghosted'` is a valid pair). Columns are
-configured on `/settings` → General: **Applied** and **Rejected/Ghosted** are
+configured on `/settings` → Applications: **Applied** and **Rejected/Ghosted** are
 fixed, everything between them is user-named and reorderable, and keys never
 change once created (ADR 0025). Every stage move writes a `JobStageEvent`
 ledger row in the same transaction (ADR 0024).
@@ -478,7 +478,7 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
   `/jobs` hides the stored ones behind a line that says how many; Filters →
   Show → Muted companies brings them back. Nothing changes status, and
   Unmute undoes both.
-- **Re-apply window.** `reapplyDays`: off by default, or 30 / 60 / 90 / 180
+- **Avoid duplicate applications** (the re-apply window). `reapplyDays`: off by default, or 30 / 60 / 90 / 180
   days. Read once per tick from the jobs marked Applied.
 - **Names on pages and in prompts.** Everything that names a posting's
   company reads `employer ?? company.name`: the list ("Acme · via
@@ -489,7 +489,7 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
 `Resume` rows hold an uploaded file (`original` bytes, `.pdf` / `.docx` /
 `.md` / `.txt`) and its plain-text extraction (`text`). On upload the web
 process runs one AI call on a progress page (the engine's resume model: the
-slot on `/settings` → AI engine, else `ai-engine.ts:defaultModelFor`) that
+slot on `/settings` → AI & costs, else `ai-engine.ts:defaultModelFor`) that
 fills headline, seniority, years, skill tags, the primary stack, role types,
 industries and job-agnostic `issues`. The first upload becomes the default.
 
@@ -643,7 +643,10 @@ starts it from its "Read the shape with AI" button
 (`POST /resumes/:id/render/shape`), never on a visit.
 `resume/structure-anchor.ts` drops at persist time every string that is not
 a verbatim span of the resume text, and a reply the guard emptied is not
-stored. Until a reading is stored, `resume/structure-from-text.ts` reads the
+stored. `resume/structure-complete.ts` then holds the reading against the
+whole text: one that left a role out, or more than a tenth of the lines under
+the roles, is not stored either, and a stored one is checked again on every
+visit. Until a reading is stored, `resume/structure-from-text.ts` reads the
 text deterministically instead. `resume/style-infer.ts` takes the typography from
 the file's own runs (not its style sheet, which on the corpus file says a
 different font and size entirely) and from a PDF's embedded fonts. A PDF's
@@ -707,9 +710,18 @@ and the next comparison's keyword frame read afresh (ADR 0043).
 ## Imported rows (ADR 0062)
 
 `/jobs/import` takes a file of jobs the user already has: a JSON array, an
-object holding one list, JSON Lines, CSV or TSV, up to 5 MB and 2 000 rows.
-Nothing is requested from anywhere, and the file is never stored: its rows
-wait in the web process's memory between the two steps.
+object holding one list or its rows by key, one posting as an object of its
+own (whatever lists it holds: its places, its skills), JSON Lines, CSV or
+TSV, up to 5 MB and 2 000 rows. Nothing is requested from anywhere, and the file is
+never stored: its rows wait in the web process's memory between the two
+steps.
+
+A file that cannot be read whole says so (since v2.55.23, #394). A file
+that is not UTF-8 is read in the encoding of its language — Windows-1251
+or Windows-1252, told apart by its letters — and the preview says the
+encoding was assumed. A quote that never closes ends the reading at its
+line: the rows above it are read and the preview names the line. JSON that
+stops short is refused as cut off, never read as a table.
 
 1. **Preview, no AI.** `datasets/map.ts:detectMapping` decides which column
    is the title, the link, the company, the text, the place, the date and
@@ -719,11 +731,16 @@ wait in the web process's memory between the two steps.
    are a job (the others by reason: no title, neither an id nor a link,
    marked closed, a repeat), rows the source already holds, and new rows the
    running searches' base filter admits. That last number is the AI calls an
-   import would make.
+   import would make, and the most matches it could bring: the page says
+   they arrive as one message a chat, how many application packs the rows
+   could get at most, and offers the **Alerts** choice — "No alerts" by
+   default for more than 20 new rows (#402).
 2. **Import.** The rows become jobs of an inactive `Company` with
    `atsType = IMPORT` (one per source name; the confirmed mapping is kept in
    `sourceConfig`) through `processNormalizedJobs`: filter, mute, dedupe,
-   classify, persist, alert. It shares the fetch lock with the tick, is
+   classify, persist — and one grouped alert when it ends instead of one a
+   match (`groupAlerts`, then `deliverHeldAlerts` for that source; nothing
+   at all with "No alerts"). It shares the fetch lock with the tick, is
    recorded as an `import` run, and stores the rows unscored while fetching
    is paused. A newer export into the same source adds only what is new.
 
@@ -739,10 +756,23 @@ optional name filter and the column mapping. Switched on, the hourly check
 reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
 
 - a file is read again only when its size or time changes; one changed in
-  the last ten seconds waits; a copy of a file already read is set aside;
-- 20 files and 5 000 rows a check, 5 MB a file, three folders deep;
+  the last ten seconds waits, and so does the last row of a table that has
+  no line end, until the file has been still for two minutes; a copy of a
+  file already read is set aside;
+- **Read every file again** on the Files page puts the read files back to
+  waiting: a row a search or a mute turned away the first time is judged as
+  things stand now, and rows already stored are skipped;
+- A check of a folder of rows reads up to 5 000 rows, 25 MB and 400 files
+  (twenty files, for a folder of saved postings); 5 MB a file, three folders
+  deep. A file it did not reach is listed as waiting. A file
+  with more rows than a check has left waits ("5,000 of 12,000 rows read so
+  far") and the next check reads on from there; a file that only grew is
+  read from its old end, one written anew from its start;
 - what became of each file is kept in `source_file`, written only after the
-  check stored its jobs, and shown on the folder's **Files** page;
+  check stored its jobs, and shown on the folder's **Files** page; a file
+  that lost a part in reading (a quote never closed, characters that could
+  not be read) is "Read in part" there with the reason, and the folder's
+  row counts it;
 - nothing in the folder is ever written, moved, renamed or deleted.
 
 Which folders may be read: on a local install, one inside the home folder
@@ -752,12 +782,17 @@ folder); on a server or in Docker, only one inside a root named in
 
 **A folder the user saves postings into** is the same source holding one
 posting a file (`sourceConfig.holds = 'postings'`, ADR 0062 addendum
-2026-10-06): a saved page (`.html`), a PDF, a `.docx`, text or Markdown.
+2026-10-06): a saved page (`.html`, or one file as `.mhtml`), a PDF, a
+`.docx`, text or Markdown. Safari's `.webarchive` is read too
+(`datasets/webarchive.ts`: the page inside the archive, scripts and all);
+one that cannot be read is set aside with the way to save the page
+instead.
 Check guesses which kind a folder holds and lets the user switch it.
 
 - Code reads what it can first: a page's `JobPosting` block (title,
   company, place, date, description), its own address (canonical link,
-  `og:url`, the browser's "saved from url" note), its main text. A model
+  `og:url`, the browser's "saved from url" note), its main text without the
+  application form and the navigation a board puts beside the posting. A model
   reads the title and the company only when the page does not state them —
   one small call, none while fetching is paused (the file waits).
 - Each file becomes one job of the folder, taken as a paste: no search's
@@ -809,7 +844,7 @@ analyses are stored on the job, so a later letter reuses them for free.
 Every slow stage — the page fetch included — is a visible run step, so the
 form never hangs.
 
-Letter writing has its own per-engine model slot on `/settings` → AI engine;
+Letter writing has its own per-engine model slot on `/settings` → AI & costs;
 an empty slot takes that engine's default for letters, not the resume slot
 (`ai-engine.ts:defaultModelFor`: Opus 5 on the two Claude engines, or
 `CLAUDE_MODEL_COVER` when set; Gemini 2.5 Pro on the Gemini CLI;
@@ -954,7 +989,7 @@ model several times the price of the cheapest, a month's pace over the
 budget. A hint never says a model is good enough for a task, offers a
 model on this computer for scoring only, and never steers applicants'
 resumes onto a personal plan. The monthly budget stays on
-`/settings` → AI engine. Each
+`/settings` → AI & costs. Each
 engine card says which kind it spends; a billed engine standing ahead of
 one a plan covers gets a warning with the move that fixes it. `/jobs/:id`
 shows what the AI spent on that posting, and Compare, Verify and Generate
@@ -965,14 +1000,26 @@ vendor's admin key never enters ApplyPack.
 
 ## Application packs (ADR 0063)
 
-Off by default. With **Settings → General → Application packs** switched on,
+Off by default. With **Settings → Automation → Application packs** switched on,
 a new posting the tick stores with a fit at or above the threshold (90),
 published within the last N days (7), gets a pack — up to a daily number the
-worker starts on its own (5; 0 = no limit, counted per UTC day). The trigger
+worker starts on its own (5; 0 = no limit, counted per UTC day). "Published"
+is a date the source gave: a posting dated by the clock or by a file of rows
+(`NormalizedJob.undated` — an imported row with no date, a board that
+publishes none) is not prepared on its own, while one the person saved
+themselves counts from the time they saved it (#379). The trigger
 is asked only where a new match is inserted (`process-jobs.ts` →
 `pack/trigger.ts`), so jobs already stored are never walked and a
-re-classify queues nothing. Any job can be prepared by hand on its
+re-classify queues nothing. Another source's copy of a stored posting
+(`crossListedOfJobId`) gets no pack when a posting of that role already has
+one, or when the first of them was stored before packs were switched on
+(`AppSettings.pack.enabledAt`, `trigger.ts:copyPack`, #380); its pack tab
+points at the one that has the pack, and a pack reuses a fresh company check
+its copy has when both name the same hiring company. Any job can be prepared by hand on its
 **Application pack** tab (`POST /jobs/:id/pack`), whatever the settings say.
+A pack prepared again there is the person's from then on, whoever queued the
+first one: it takes no slot of the day's number, no message announces it, and
+switching packs off or dismissing the job does not take it out of the queue.
 
 The dashboard only queues a row in `application_pack` (one per posting:
 queued → running → ready | stopped | failed). The worker's `pack` beat

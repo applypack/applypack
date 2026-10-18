@@ -26,7 +26,7 @@ import { createManualJob } from '../jobs/manual-job';
 import { createMatch, createResume } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
-import { getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
+import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
 import { blankProfileInput, listActiveProfiles } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
@@ -35,6 +35,7 @@ import { draftRubric } from '../screening/rubric';
 import { fingerprintText } from '../screening/intake';
 import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
+import { autoPacksToday, listUnnotifiedPacks } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
 import { getRun } from '../web/target-runs';
 import { parseFlashCookie } from '../web/flash';
@@ -56,6 +57,8 @@ const MAY_404 = new Set([
   // A pack keeps a file only once the worker has prepared it (ADR 0063); nothing here runs one.
   '/jobs/:id/pack/resume.docx',
   '/jobs/:id/pack/resume.pdf',
+  // Nor a state to ask for until a pack is queued; the queued one is asked below.
+  '/jobs/:id/pack/state',
   // The fixture company is a pasted job's, not a folder; the folder walk below asks a real one.
   '/companies/:id/files',
 ]);
@@ -93,10 +96,12 @@ const PSEUDO_VARIANTS = [
   '/jobs/:id?tab=match',
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
-  '/settings?tab=profile',
-  '/settings?tab=ai',
-  '/settings?tab=notifications',
   '/settings?tab=sources',
+  '/settings?tab=notifications',
+  '/settings?tab=applications',
+  '/settings?tab=automation',
+  '/settings?tab=ai',
+  '/settings?tab=general',
   '/settings?tab=screening',
   '/welcome?step=ai',
   '/welcome?step=search',
@@ -415,7 +420,50 @@ async function main(): Promise<void> {
     {
       name: 'POST /settings/reapply',
       init: form({ days: '90' }),
-      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general',
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=applications#reapply',
+    },
+    {
+      // The schedule is three forms on three tabs: each saves its own part and keeps the stored rest.
+      name: 'POST /settings/schedule (alert timing, from Notifications)',
+      init: form({ part: 'alerts', alertMode: 'digest', alertFrom: '9', alertTo: '18', alertDays: '1', digestAt: '8' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=notifications#alerts',
+    },
+    {
+      // The daily summary's time pickers: an empty one ("—") is no hour, never 00:00.
+      name: 'POST /settings/schedule (summary times with an empty picker)',
+      init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'part=alerts&alertMode=digest&alertFrom=9&alertTo=18&alertDays=1&digestAt=8&digestAt=&digestAt=18&digestAt=' },
+      expect: async (res) => {
+        const stored = (await getSettings()).schedule as { alerts?: { digestAt?: number[] } } | null;
+        return res.status === 303 && stored?.alerts?.digestAt?.join() === '8,18';
+      },
+    },
+    {
+      name: 'POST /settings/schedule (when to search, from Job search: the alert timing stays)',
+      init: form({ part: 'fetch', fetchEvery: '2h', fetchFrom: '6', fetchTo: '22', fetchDays: '2' }),
+      expect: async (res) => {
+        const stored = (await getSettings()).schedule as { fetch?: { every?: string }; alerts?: { mode?: string; digestAt?: number[] } } | null;
+        return (
+          res.status === 303 &&
+          res.headers.get('location') === '/settings?tab=profile#schedule' &&
+          stored?.fetch?.every === '2h' &&
+          stored.alerts?.mode === 'digest' &&
+          stored.alerts.digestAt?.join() === '8,18'
+        );
+      },
+    },
+    {
+      name: 'POST /settings/schedule (the time zone, from General: the hours stay)',
+      init: form({ part: 'zone', timezone: 'Europe/Kyiv' }),
+      expect: async (res) => {
+        const stored = (await getSettings()).schedule as { timezone?: string; fetch?: { every?: string }; alerts?: { mode?: string } } | null;
+        return (
+          res.status === 303 &&
+          res.headers.get('location') === '/settings?tab=general#timezone' &&
+          stored?.timezone === 'Europe/Kyiv' &&
+          stored.fetch?.every === '2h' &&
+          stored.alerts?.mode === 'digest'
+        );
+      },
     },
     {
       // TASKS S1: the OpenAI-compatible engine's server, set here; one on this machine takes no key.
@@ -510,12 +558,32 @@ async function main(): Promise<void> {
       // ADR 0063: the settings form as a browser sends it — an unticked box absent, the sections repeated.
       name: 'POST /settings/pack (packs switched on)',
       init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=92&dailyLimit=0&maxAgeDays=14&coverLetter=asked&sections=title&sections=skills&maxBullets=1&keywords=1' },
-      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#packs',
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=automation#packs',
     },
     {
-      name: 'GET /settings?tab=general (the saved pack settings drawn)',
+      name: 'GET /settings?tab=automation (the saved pack settings drawn)',
       init: { headers: ORIGIN },
       expect: (res) => res.status === 200,
+    },
+    {
+      // #383: a value the form does not offer was stored as the default and reported as saved. It stores nothing now —
+      // not the other fields, not the unticked switch — and the flash names the field for the page to mark.
+      name: 'POST /settings/pack with a fit the form does not offer (refused, the field named, nothing stored)',
+      init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'minFit=40&dailyLimit=3&maxAgeDays=14&coverLetter=asked&maxBullets=1' },
+      expect: async (res) => {
+        const flash = parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]);
+        const stored = await getPackSettings();
+        return (
+          res.status === 303 &&
+          res.headers.get('location') === '/settings?tab=automation#packs' &&
+          flash?.kind === 'err' &&
+          flash.field?.form === '/settings/pack' &&
+          flash.field.name === 'minFit' &&
+          stored.enabled &&
+          stored.minFit === 92 &&
+          stored.dailyLimit === 0
+        );
+      },
     },
     {
       // The dashboard only queues; the worker prepares. With no worker here the row stays queued.
@@ -529,15 +597,27 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
     },
     {
-      name: 'GET /jobs/:id?tab=pack (a queued pack, the page refreshing itself)',
+      // The tab asks for the pack's state instead of reloading; a browser with no script gets the reload.
+      name: 'GET /jobs/:id?tab=pack (a queued pack: the tab polls, a refresh only without script)',
       init: { headers: ORIGIN },
-      expect: (res) => res.status === 200,
+      expect: async (res) => {
+        const html = res.status === 200 ? await res.text() : '';
+        return html.includes('/static/pack-tab.mjs') && html.includes('<noscript><meta http-equiv="refresh"') && !/<head>(?:(?!<noscript>)[\s\S])*?<meta http-equiv="refresh"/.test(html.slice(0, html.indexOf('</head>')));
+      },
     },
     {
-      // "I sent this file" with no ready pack behind it marks the job applied and freezes nothing.
-      name: 'POST /jobs/:id/status with pack=1 and no ready pack',
-      init: form({ status: 'APPLIED', pack: '1', tab: 'pack' }),
-      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+      name: 'GET /jobs/:id/pack/state (a queued pack: busy, with its line)',
+      init: { headers: ORIGIN },
+      expect: async (res) => {
+        const state = res.status === 200 ? ((await res.json()) as { busy?: unknown; line?: unknown; wait?: unknown }) : {};
+        return state.busy === true && typeof state.line === 'string' && state.line.length > 0 && typeof state.wait === 'string';
+      },
+    },
+    {
+      // "I sent this file" from a page whose pack is no longer ready: nothing is recorded or frozen, and the pack tab says why.
+      name: 'POST /jobs/:id/status naming a pack that is not ready (refused, nothing recorded)',
+      init: form({ status: 'APPLIED', appliedResumeId: 'pack-1', tab: 'pack' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack` && (res.headers.get('set-cookie') ?? '').includes('flash='),
     },
   ];
   const postPaths = [
@@ -557,6 +637,10 @@ async function main(): Promise<void> {
     '/jobs',
     '/companies/mutes/delete',
     '/settings/reapply',
+    '/settings/schedule',
+    '/settings/schedule',
+    '/settings/schedule',
+    '/settings/schedule',
     '/settings/ai/openai-base',
     '/settings?tab=ai',
     '/welcome/ai/local',
@@ -574,10 +658,12 @@ async function main(): Promise<void> {
     '/settings/locale',
     '/settings/locale',
     '/settings/pack',
-    '/settings?tab=general',
+    '/settings?tab=automation',
+    '/settings/pack',
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}?tab=pack`,
+    `/jobs/${f.jobId}/pack/state`,
     `/jobs/${f.jobId}/status`,
   ];
   for (const [i, p] of posts.entries()) {
@@ -669,6 +755,9 @@ async function main(): Promise<void> {
 
   rows.push(...(await importChecks()));
   rows.push(...(await folderChecks()));
+  rows.push(await packAgainCheck(f.jobId));
+  rows.push(await packCancelCheck(f.jobId));
+  rows.push(...(await engineTroubleChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -734,6 +823,66 @@ const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job 
 
 type Check = { route: string; url: string; status: number; ok: boolean };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * #413: an engine whose last calls all failed says so on AI usage and on its
+ * card, whatever the probe finds installed. Three calls that found no server
+ * are written for the engine this run asks first; both pages are then read.
+ */
+async function engineTroubleChecks(): Promise<Check[]> {
+  const at = new Date();
+  for (let i = 0; i < 3; i++) {
+    await recordAiCall({ at, durationMs: 1, feature: 'classifier', viaFallback: false, engine: 'claude_code', model: '', outcome: 'unreachable', billing: 'plan', spend: null });
+  }
+  const usage = await app.request('/ai', { headers: ORIGIN });
+  const tab = await app.request('/settings?tab=ai', { headers: ORIGIN });
+  const usageHtml = usage.status === 200 ? await usage.text() : '';
+  const tabHtml = tab.status === 200 ? await tab.text() : '';
+  return [
+    { route: 'GET /ai with an engine whose last calls all failed (said first, no all-clear)', url: '/ai', status: usage.status, ok: usageHtml.includes('found no server answering') && !usageHtml.includes('Nothing was billed') },
+    { route: 'GET /settings?tab=ai with that engine (its card says calls failing)', url: '/settings?tab=ai', status: tab.status, ok: tabHtml.includes('calls failing') && tabHtml.includes('found no server answering') },
+  ];
+}
+
+/**
+ * #387: Cancel takes a pack out while it waits in the queue. The row is put
+ * back afterwards, queued, as the checks after this one found it.
+ */
+async function packCancelCheck(jobId: number): Promise<Check> {
+  const url = `/jobs/${jobId}/pack/cancel`;
+  const res = await app.request(url, form({}));
+  // Under `npm start` the worker may have taken the pack first: then it is no longer queued, which is all Cancel promises.
+  const left = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true } });
+  if (!left) await prisma.applicationPack.create({ data: { jobId, trigger: 'manual' } });
+  return { route: 'POST /jobs/:id/pack/cancel (a pack in the queue is taken out)', url, status: res.status, ok: res.status === 303 && left?.status !== 'queued' };
+}
+
+/**
+ * #382: "Prepare again" pressed on a pack the tick queued. The new preparing
+ * is the person's: it takes no slot of the day's limit, and once it has
+ * finished no message is owed for it. The pack is left queued, as it was.
+ */
+async function packAgainCheck(jobId: number): Promise<Check> {
+  const url = `/jobs/${jobId}/pack`;
+  const yesterday = new Date(Date.now() - DAY_MS);
+  // As the worker leaves a pack it queued on its own: finished, and carried by a message.
+  await prisma.applicationPack.update({ where: { jobId }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
+  const res = await app.request(url, form({}));
+  // Only the trigger is asked: under `npm start` the worker may have taken the pack already.
+  const again = await prisma.applicationPack.findUnique({ where: { jobId }, select: { trigger: true } });
+  const counted = await autoPacksToday(new Date());
+  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'stopped' } });
+  const owed = (await listUnnotifiedPacks()).length;
+  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'queued' } });
+  return {
+    route: "POST /jobs/:id/pack on a pack the tick queued (the person's now: no slot of today's limit, no message)",
+    url,
+    status: res.status,
+    ok: res.status === 303 && again?.trigger === 'manual' && counted === 0 && owed === 0,
+  };
+}
+
 /**
  * ADR 0062: a file of rows through its preview and its import, with fetching
  * paused so no engine is asked. While a fetch holds the lock the first press
@@ -783,6 +932,21 @@ async function importChecks(): Promise<Check[]> {
     crafted,
     crafted.status === 303 && crafted.headers.get('location') === preview && (await prisma.company.count({ where: { atsType: 'IMPORT' } })) === 0,
   );
+  // Import pressed with a select changed since the preview: back to the preview with the new columns kept,
+  // and nothing written — the rows are stored only as three of them were shown (#404).
+  const unseen = await app.request(preview, form({ ...IMPORT_MAPPING, description: 'Where' }));
+  const redrawn = unseen.status === 303 ? await (await app.request(preview, { headers: ORIGIN })).text() : '';
+  const descriptionSelect = /<select[^>]*name="description"[\s\S]*?<\/select>/.exec(redrawn)?.[0] ?? '';
+  check(
+    'POST /jobs/import/:token with a column changed since the preview (shown first, nothing written)',
+    preview,
+    unseen,
+    unseen.status === 303 &&
+      unseen.headers.get('location') === preview &&
+      (unseen.headers.get('set-cookie') ?? '').includes('flash=') &&
+      /<option[^>]*value="Where"[^>]*selected/.test(descriptionSelect) &&
+      (await prisma.company.count({ where: { atsType: 'IMPORT' } })) === 0,
+  );
   const mapped = await app.request(`${preview}/mapping`, form(IMPORT_MAPPING));
   check('POST /jobs/import/:token/mapping', `${preview}/mapping`, mapped, mapped.status === 303 && mapped.headers.get('location') === preview);
   const foreign = await app.request(preview, {
@@ -821,9 +985,17 @@ async function importChecks(): Promise<Check[]> {
       source.jobs.every((j) => j.fitScore === null && j.employer !== null),
   );
 
+  // The same file again holds nothing new: its preview offers no Import, and the form posted anyway is refused
+  // for that reason before anything is written (#364) — back to the preview, with the sentence.
   const again = await upload();
-  const second = await pressImport(again.headers.get('location') ?? '');
-  check('POST /jobs/import with the same file again (nothing new)', '/jobs/import', second.res, second.run?.stage === 'done' && (await imported()) === 3);
+  const againPreview = again.headers.get('location') ?? '';
+  const second = await pressImport(againPreview);
+  check(
+    'POST /jobs/import/:token with the same file again (refused: nothing new, no run, nothing written)',
+    '/jobs/import',
+    second.res,
+    second.res.status === 303 && second.res.headers.get('location') === againPreview && (second.res.headers.get('set-cookie') ?? '').includes('flash=') && (await imported()) === 3,
+  );
   const list = await app.request('/jobs/import', { headers: ORIGIN });
   check('GET /jobs/import with a source imported', '/jobs/import', list, list.status === 200 && (await list.text()).includes('Smoke export'));
   const removed = await app.request(`/jobs/import/sources/${source?.id ?? 0}/delete`, form({}));
@@ -882,6 +1054,17 @@ async function folderChecks(): Promise<Check[]> {
     const folder = await prisma.company.findFirst({ where: { atsType: 'FOLDER' } });
     check('POST /companies/folder (added, switched off)', '/companies/folder', added, added.status === 303 && folder?.active === false && folder.sourceConfig !== null);
     if (!folder) return out;
+    // #405: the folder's own card carries the switch, and says when its last check failed.
+    await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: 'slug_gone', consecutiveFailures: 2 } });
+    const offPage = await app.request('/companies', { headers: ORIGIN });
+    const card = /<section[^>]*id="folders"[\s\S]*?<\/section>/.exec(offPage.status === 200 ? await offPage.text() : '')?.[0] ?? '';
+    check(
+      'GET /companies with a folder that is off and failing (its card: the switch, the failure)',
+      '/companies',
+      offPage,
+      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row'),
+    );
+    await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: null, consecutiveFailures: 0 } });
 
     const off = await app.request(`/companies/${folder.id}/check-now`, form({}));
     check('POST /companies/:id/check-now on a folder that is off (refused)', `/companies/${folder.id}/check-now`, off, off.status === 303 && off.headers.get('location') === '/companies');
@@ -901,6 +1084,18 @@ async function folderChecks(): Promise<Check[]> {
     check('GET /companies/:id/files (the per-file list)', `/companies/${folder.id}/files`, files, files.status === 200 && (await files.text()).includes('2 rows read as jobs'));
     const list = await app.request('/companies', { headers: ORIGIN });
     check('GET /companies with a folder among the sources', '/companies', list, list.status === 200 && (await list.text()).includes('1 file · 0 new at the last check'));
+    // #396: "Read every file again" puts the read file back to waiting; the next check reads it from its first row and stores nothing twice.
+    const reread = await app.request(`/companies/${folder.id}/files/reread`, form({}));
+    const waiting = await prisma.sourceFile.findFirst({ where: { companyId: folder.id } });
+    check(
+      'POST /companies/:id/files/reread (the read file waits again, nothing in the folder touched)',
+      `/companies/${folder.id}/files/reread`,
+      reread,
+      reread.status === 303 && reread.headers.get('location') === `/companies/${folder.id}/files` && waiting?.status === 'waiting' && waiting.sha256 === null && waiting.rowsRead === 0,
+    );
+    const third = await checkNow(folder.id);
+    const again = await prisma.sourceFile.findFirst({ where: { companyId: folder.id } });
+    check('POST /companies/:id/check-now after it (read again, its rows already stored)', `/companies/${folder.id}/check-now`, third, third.status === 303 && (await stored()) === 2 && again?.status === 'done' && again.rowsRead === 2);
     const removed = await app.request(`/companies/${folder.id}/delete`, form({}));
     check('POST /companies/:id/delete on a folder (its jobs and its ledger go, its files stay)', `/companies/${folder.id}/delete`, removed, removed.status === 303 && (await stored()) === 0 && (await prisma.sourceFile.count()) === 0 && (await fs.readdir(inbox)).length === 1);
     out.push(...(await savedPostingChecks(path.join(inbox, 'saved'), checkNow, stored)));

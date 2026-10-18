@@ -1,8 +1,10 @@
 import type { ApplicationPack, Prisma } from '@prisma/client';
 import { isUniqueViolation, prisma } from '../db';
+import { companyForMessage, companyForPrompt } from '../employer';
+import { preselectResume } from '../resume/pick';
 import type { PrepareStep } from './gate';
 import type { PackPosting, PackResume } from './prepare';
-import { utcDayStart } from './trigger';
+import { utcDayStart, type SameRole } from './trigger';
 import type { PackNotice } from './view';
 
 /*
@@ -38,14 +40,31 @@ export async function getPackFile(jobId: number, kind: 'docx' | 'pdf'): Promise<
   return { bytes: Buffer.from(bytes), fileName: name };
 }
 
-export type QueueOutcome = 'queued' | 'busy' | 'sent';
+/** `waiting`: already in the queue; `busy`: the runner has it. Both mean nothing was queued by this press. */
+export type QueueOutcome = 'queued' | 'waiting' | 'busy' | 'sent' | 'kept';
+
+/** A posting the person applied to, by any road: marked applied, or put on the applications board. */
+const APPLIED_TO = { OR: [{ status: 'APPLIED' }, { appliedAt: { not: null } }, { pipelineStage: { not: null } }] } satisfies Prisma.JobWhereInput;
+
+/**
+ * Whether a job's ready pack is kept as it is: the person applied, and its
+ * file may be the one that went out whether or not they said so. Starting
+ * it over would delete that file.
+ */
+export async function packIsKept(jobId: number): Promise<boolean> {
+  return (await prisma.applicationPack.count({ where: { jobId, status: 'ready', job: APPLIED_TO } })) > 0;
+}
 
 /**
  * Put a posting in the queue. A posting has one pack: asking again starts it
- * over, except while it is being prepared (`busy`) and once the person has
- * said its file went out (`sent`) — that row is the record of what they sent.
- * A row keeps the trigger it was born with, so preparing one again by hand
- * does not hand the day's limit a free slot.
+ * over, except while it is being prepared (`busy`), once the person has said
+ * its file went out (`sent`) — that row is the record of what they sent — and
+ * while a ready pack belongs to a job they applied to (`kept`). A pack
+ * started over belongs to whoever asked this time (#382): the trigger says
+ * who asked for the preparing the row holds, not who asked for the first
+ * one. So a pack the tick queued and the person prepared again is theirs —
+ * it takes no slot of the day's limit, no message announces it, and neither
+ * the switch nor what became of the job takes it out of the queue.
  */
 export async function queuePack(jobId: number, trigger: PackTrigger): Promise<QueueOutcome> {
   const existing = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true, sentAt: true } });
@@ -55,17 +74,20 @@ export async function queuePack(jobId: number, trigger: PackTrigger): Promise<Qu
       return 'queued';
     } catch (err) {
       // Two presses at once: the other one queued it.
-      if (isUniqueViolation(err)) return 'busy';
+      if (isUniqueViolation(err)) return 'waiting';
       throw err;
     }
   }
   if (existing.sentAt) return 'sent';
-  if (existing.status === 'queued' || existing.status === 'running') return 'busy';
+  if (existing.status === 'queued') return 'waiting';
+  if (existing.status === 'running') return 'busy';
+  if (await packIsKept(jobId)) return 'kept';
   const reset = await prisma.applicationPack.updateMany({
     where: { jobId, sentAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
-    data: { ...BLANK, status: 'queued', queuedAt: new Date() },
+    data: { ...BLANK, trigger, status: 'queued', queuedAt: new Date() },
   });
-  return reset.count > 0 ? 'queued' : 'busy';
+  // No row reset: another press started it over meanwhile, so it is in the queue.
+  return reset.count > 0 ? 'queued' : 'waiting';
 }
 
 /** Everything a run writes, cleared: a pack started over says nothing of the last attempt. */
@@ -93,13 +115,61 @@ const BLANK = {
   finishedAt: null,
 } satisfies Prisma.ApplicationPackUpdateManyMutationInput;
 
-/** Packs the worker queued on its own since the UTC day began — what the daily limit counts. */
-export async function autoPacksToday(now: Date): Promise<number> {
-  return prisma.applicationPack.count({ where: { trigger: 'auto', queuedAt: { gte: utcDayStart(now) } } });
+/** How far a chain of copies is followed up: a copy of a copy of a copy is already rare. */
+const COPY_HOPS = 5;
+
+/**
+ * The other stored postings of the role a job is a copy of: the posting it
+ * was linked to (`crossListedOfJobId`, ADR 0018), what that one was linked
+ * to, and the copies linked to it or to any of them. Empty for a posting
+ * no other source carries.
+ */
+async function sameRoleJobs(jobId: number): Promise<{ id: number; fetchedAt: Date; employerKey: string | null }[]> {
+  const select = { id: true, fetchedAt: true, employerKey: true, crossListedOfJobId: true } as const;
+  const self = await prisma.job.findUnique({ where: { id: jobId }, select: { crossListedOfJobId: true } });
+  const above: { id: number; fetchedAt: Date; employerKey: string | null }[] = [];
+  let next = self?.crossListedOfJobId ?? null;
+  for (let hop = 0; next !== null && hop < COPY_HOPS; hop++) {
+    const row = await prisma.job.findUnique({ where: { id: next }, select });
+    if (!row || row.id === jobId || above.some((a) => a.id === row.id)) break;
+    above.push(row);
+    next = row.crossListedOfJobId;
+  }
+  const known = [jobId, ...above.map((a) => a.id)];
+  const beside = await prisma.job.findMany({ where: { crossListedOfJobId: { in: known }, id: { notIn: known } }, select });
+  return [...above, ...beside];
 }
 
-export async function hasQueuedPacks(): Promise<boolean> {
-  return (await prisma.applicationPack.findFirst({ where: { status: 'queued' }, select: { id: true } })) !== null;
+/** The posting of the same role that holds a pack — where the tab of one that holds none points (#380). */
+export async function packOfSameRole(jobId: number): Promise<number | null> {
+  const jobs = await sameRoleJobs(jobId);
+  if (jobs.length === 0) return null;
+  const pack = await prisma.applicationPack.findFirst({ where: { jobId: { in: jobs.map((j) => j.id) } }, orderBy: { queuedAt: 'desc' }, select: { jobId: true } });
+  return pack?.jobId ?? null;
+}
+
+/** What the tick asks before it queues a pack for a copy (trigger.ts:copyPack); null for a posting no other source carries. */
+export async function sameRole(jobId: number): Promise<SameRole | null> {
+  const jobs = await sameRoleJobs(jobId);
+  if (jobs.length === 0) return null;
+  const packs = await prisma.applicationPack.count({ where: { jobId: { in: jobs.map((j) => j.id) } } });
+  return { hasPack: packs > 0, firstStoredAt: new Date(Math.min(...jobs.map((j) => j.fetchedAt.getTime()))) };
+}
+
+/** Packs the worker queued on its own since the UTC day began — what the daily limit counts. */
+export async function autoPacksToday(now: Date): Promise<number> {
+  // A pack that failed before it compared anything (no resume to read, the engine down) spent nothing, and takes no slot.
+  return prisma.applicationPack.count({ where: { trigger: 'auto', queuedAt: { gte: utcDayStart(now) }, NOT: { status: 'failed', matchId: null } } });
+}
+
+/**
+ * Whether the runner has a pack to take: one that waits, or one a worker that
+ * stopped left `running`. The runner's lock tells the two kinds of `running`
+ * apart — a beat that asked only for `queued` never started it, and such a
+ * row said "Preparing" for ever.
+ */
+export async function hasUnfinishedPacks(): Promise<boolean> {
+  return (await prisma.applicationPack.findFirst({ where: { status: { in: ['queued', 'running'] } }, select: { id: true } })) !== null;
 }
 
 /**
@@ -112,14 +182,51 @@ export async function requeueOrphans(): Promise<number> {
   return count;
 }
 
-/** The oldest queued pack, taken: the update only lands while the row is still queued. */
+/**
+ * The next queued pack, taken: one the person asked for before the ones the
+ * tick queued, the oldest first among each. Somebody is waiting on the page
+ * for a pack asked for by hand, and behind five automatic ones it waited a
+ * quarter of an hour under "the worker starts it within a minute" (#384).
+ * The update only lands while the row is still queued.
+ */
 export async function claimNextPack(): Promise<{ id: number; jobId: number; trigger: string } | null> {
+  const oldest = (trigger?: PackTrigger) =>
+    prisma.applicationPack.findFirst({ where: { status: 'queued', trigger }, orderBy: { queuedAt: 'asc' }, select: { id: true, jobId: true, trigger: true } });
   for (;;) {
-    const next = await prisma.applicationPack.findFirst({ where: { status: 'queued' }, orderBy: { queuedAt: 'asc' }, select: { id: true, jobId: true, trigger: true } });
+    const next = (await oldest('manual')) ?? (await oldest());
     if (!next) return null;
     const taken = await prisma.applicationPack.updateMany({ where: { id: next.id, status: 'queued' }, data: { status: 'running', startedAt: new Date() } });
     if (taken.count > 0) return next;
   }
+}
+
+/** What became of a job since its pack was queued: its status, whether it was applied to by any road, and who hires. */
+export async function packJobState(jobId: number): Promise<{ status: string; applied: boolean; employerKey: string | null } | null> {
+  const job = await prisma.job.findUnique({ where: { id: jobId }, select: { status: true, appliedAt: true, pipelineStage: true, employerKey: true } });
+  return job && { status: job.status, applied: job.status === 'APPLIED' || job.appliedAt !== null || job.pipelineStage !== null, employerKey: job.employerKey };
+}
+
+/**
+ * A pack the tick queued and nobody wants any more, taken out before
+ * anything is prepared: no row is left to announce, and the day's limit gets
+ * its slot back. Never a pack asked for by hand.
+ */
+export async function dropAutoPack(id: number): Promise<void> {
+  await prisma.applicationPack.deleteMany({ where: { id, trigger: 'auto', status: 'running' } });
+}
+
+/**
+ * A pack still waiting in the queue, taken out by the person: nothing was
+ * prepared and nothing is spent. False once the runner has it, or it is done —
+ * the delete only lands on a row that is still queued.
+ */
+export async function cancelQueuedPack(jobId: number): Promise<boolean> {
+  return (await prisma.applicationPack.deleteMany({ where: { jobId, status: 'queued' } })).count > 0;
+}
+
+/** Packs were switched off: the ones the tick queued and no runner has started are not prepared. Returns how many. */
+export async function cancelQueuedAutoPacks(): Promise<number> {
+  return (await prisma.applicationPack.deleteMany({ where: { trigger: 'auto', status: 'queued' } })).count;
 }
 
 export async function setPackStep(id: number, step: PrepareStep): Promise<void> {
@@ -143,21 +250,27 @@ const JOB_FOR_PACK = {
   scores: { orderBy: { fitScore: 'desc' }, take: 1, select: { profile: { select: { resumeId: true } } } },
 } satisfies Prisma.JobInclude;
 
-/** A posting as the orchestrator reads it, and the resume its best search hunts with (else the primary's). */
+/**
+ * A posting as the orchestrator reads it, and the resume it is prepared with:
+ * the one its best search hunts with (else the primary's), and for a search
+ * that names none the one whose skills the posting asks for most — what the
+ * job page preselects (resume/pick.ts), since "Resume for this search" is
+ * optional. Null only when no resume is stored.
+ */
 export async function loadPackInputs(jobId: number, primaryResumeId: number | null): Promise<{ posting: PackPosting; resume: PackResume | null } | null> {
   const job = await prisma.job.findUnique({ where: { id: jobId }, include: JOB_FOR_PACK });
   if (!job) return null;
-  const resumeId = job.scores[0]?.profile.resumeId ?? primaryResumeId;
-  const resume =
-    resumeId === null
-      ? null
-      : await prisma.resume.findFirst({ where: { id: resumeId, hidden: false }, select: { id: true, name: true, text: true, version: true, updatedAt: true } });
+  const stored = await prisma.resume.findMany({ where: { hidden: false }, select: { id: true, skills: true, isDefault: true } });
+  const picked = preselectResume(stored, `${job.title} ${job.description}`, job.scores[0]?.profile.resumeId ?? primaryResumeId);
+  const resume = picked && (await prisma.resume.findUnique({ where: { id: picked.id }, select: { id: true, name: true, text: true, version: true, updatedAt: true } }));
+  // The same role at the same hiring company: a copy an agency lists under its own name is another company to check.
+  const sameCompany = job.employerKey === null ? [] : (await sameRoleJobs(job.id)).filter((j) => j.employerKey === job.employerKey);
   return {
     posting: {
       id: job.id,
       title: job.title,
-      // Who hires, not who lists (ADR 0056).
-      companyName: job.employer ?? job.company.name,
+      // Who hires, not who lists (ADR 0056) — and nobody, when the row named none.
+      companyName: companyForPrompt(job.employer, job.company),
       location: job.location,
       description: job.description,
       url: job.url,
@@ -165,6 +278,7 @@ export async function loadPackInputs(jobId: number, primaryResumeId: number | nu
       postedAt: job.postedAt,
       atsType: job.company.atsType,
       atsToken: job.company.atsToken,
+      sameRole: sameCompany.map((j) => j.id),
     },
     resume,
   };
@@ -172,10 +286,10 @@ export async function loadPackInputs(jobId: number, primaryResumeId: number | nu
 
 type NoticeRow = PackNotice & { id: number };
 
-/** Finished packs the worker started on its own that no message has carried yet. */
+/** Finished packs the worker started on its own that no message has carried yet — the ones that failed too: a pack that came to nothing is not passed over in silence. */
 export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
   const rows = await prisma.applicationPack.findMany({
-    where: { trigger: 'auto', notifiedAt: null, status: { in: ['ready', 'stopped'] } },
+    where: { trigger: 'auto', notifiedAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
     orderBy: { finishedAt: 'asc' },
     select: {
       id: true,
@@ -184,7 +298,7 @@ export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
       scoreBefore: true,
       scoreAfter: true,
       verificationId: true,
-      job: { select: { title: true, employer: true, company: { select: { name: true } } } },
+      job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } },
     },
   });
   const verdicts = await prisma.jobVerification.findMany({
@@ -197,7 +311,7 @@ export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
     return {
       id: r.id,
       title: r.job.title,
-      company: r.job.employer ?? r.job.company.name,
+      company: companyForMessage(r.job.employer, r.job.company),
       status: r.status,
       stop: r.stop,
       scoreBefore: r.scoreBefore,
@@ -222,17 +336,33 @@ export interface ReadyPack {
 }
 
 /** Packs prepared and not yet sent, newest first — the Overview's "ready to send". */
+/**
+ * A pack worth opening to send: ready, not sent, its job still undecided —
+ * and its posting not found closed since (#384). `liveness` is NULL until a
+ * check runs, and NULL is not "expired".
+ */
+const READY_TO_SEND = {
+  status: 'ready',
+  sentAt: null,
+  job: { status: { in: ['NEW', 'ALERTED', 'SAVED'] }, OR: [{ liveness: null }, { liveness: { not: 'expired' } }] },
+} satisfies Prisma.ApplicationPackWhereInput;
+
+/** How many packs are ready to send: the card lists the newest few and says how many there are. */
+export function countReadyPacks(): Promise<number> {
+  return prisma.applicationPack.count({ where: READY_TO_SEND });
+}
+
 export async function listReadyPacks(take: number): Promise<ReadyPack[]> {
   const rows = await prisma.applicationPack.findMany({
-    where: { status: 'ready', sentAt: null, job: { status: { in: ['NEW', 'ALERTED', 'SAVED'] } } },
+    where: READY_TO_SEND,
     orderBy: { finishedAt: 'desc' },
     take,
-    select: { jobId: true, scoreBefore: true, scoreAfter: true, finishedAt: true, job: { select: { title: true, employer: true, company: { select: { name: true } } } } },
+    select: { jobId: true, scoreBefore: true, scoreAfter: true, finishedAt: true, job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
   });
   return rows.map((r) => ({
     jobId: r.jobId,
     title: r.job.title,
-    company: r.job.employer ?? r.job.company.name,
+    company: companyForMessage(r.job.employer, r.job.company),
     scoreBefore: r.scoreBefore,
     scoreAfter: r.scoreAfter,
     finishedAt: r.finishedAt,

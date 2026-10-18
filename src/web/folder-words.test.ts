@@ -1,18 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { explainFolderFault, fileLine, folderCheckLine, folderLine } from './folder-words';
+import { explainFolderFault, fileLine, folderCheckLine, folderLine, folderTrouble, untitledLine } from './folder-words';
 
 const at = new Date('2026-10-05T12:00:00Z');
 
 test('folderLine: what a folder holds and what the last check found', () => {
   assert.equal(folderLine(undefined), 'Not checked yet.');
-  assert.equal(folderLine({ lastLookAt: at, files: 214, fresh: 3, waiting: 0, failed: 0 }), '214 files · 3 new at the last check');
-  assert.equal(folderLine({ lastLookAt: at, files: 1, fresh: 0, waiting: 1, failed: 2 }), '1 file · 0 new at the last check · 1 waiting · 2 not read');
+  assert.equal(folderLine({ lastLookAt: at, files: 214, fresh: 3, waiting: 0, failed: 0, partial: 0 }), '214 files · 3 new at the last check');
+  assert.equal(folderLine({ lastLookAt: at, files: 1, fresh: 0, waiting: 1, failed: 2, partial: 0 }), '1 file · 0 new at the last check · 1 waiting · 2 not read');
+  // #394: a file that lost a part is said on the folder's own line, where somebody looks.
+  assert.equal(folderLine({ lastLookAt: at, files: 3, fresh: 3, waiting: 0, failed: 0, partial: 1 }), '3 files · 3 new at the last check · 1 read in part');
+});
+
+test('fileLine: a file of rows that lost a part says how many rows it gave and what was lost', () => {
+  const cut = 'A quote opened on line 4 is never closed, so nothing from that line on could be read.';
+  assert.deepEqual(fileLine({ status: 'done', detail: cut, jobCount: 2, kind: 'csv' }, true), { label: 'Read in part', tone: 'warn', text: `2 rows read as jobs. ${cut}` });
+  assert.match(fileLine({ status: 'done', detail: cut, jobCount: 2, kind: 'csv' }, false).text, /could be read\. The last check did not find it/);
 });
 
 test('fileLine: each state of a file as a badge and a sentence', () => {
   assert.deepEqual(fileLine({ status: 'done', detail: null, jobCount: 37, kind: 'json' }, true), { label: 'Read', tone: 'ok', text: '37 rows read as jobs.' });
-  assert.equal(fileLine({ status: 'done', detail: 'The first 2,000 of 2,005 rows.', jobCount: 1, kind: 'json' }, true).text, '1 row read as a job. The first 2,000 of 2,005 rows.');
+  // A long file part-way through waits, and its note says how far it was read.
+  assert.deepEqual(fileLine({ status: 'waiting', detail: '5,000 of 12,000 rows read so far.', jobCount: 4_870, kind: 'jsonl' }, true), { label: 'Waiting', tone: 'neutral', text: '5,000 of 12,000 rows read so far.' });
   assert.deepEqual(fileLine({ status: 'waiting', detail: 'Changed a moment ago.', jobCount: 0, kind: 'json' }, true), { label: 'Waiting', tone: 'neutral', text: 'Changed a moment ago.' });
   assert.equal(fileLine({ status: 'failed', detail: null, jobCount: 0, kind: 'json' }, true).label, 'Not read');
   assert.equal(fileLine({ status: 'skipped', detail: 'No rows in it.', jobCount: 0, kind: 'json' }, true).label, 'Set aside');
@@ -59,4 +68,21 @@ test('folderCheckLine: rows that came, an overlap and a run with no source are t
   assert.equal(folderCheckLine('Checked Tool output', { bySource: [{ name: 'Tool output', status: 'ok', count: 3, ms: 3 }], fetched: 3 }), null);
   assert.equal(folderCheckLine('Checked Tool output', { skipped: 1, reason: 'overlap' }), null);
   assert.equal(folderCheckLine('Checked Tool output', {}), null);
+});
+
+test('folderTrouble: a folder whose last check failed says so, in the folder’s words (#405)', () => {
+  // The card's own line is the ledger's: "28 files · 0 new at the last check" for a folder renamed away.
+  assert.deepEqual(folderTrouble('slug_gone', 1), { label: 'Folder not found', tone: 'danger', title: 'Folder not found — 1 tick in a row' });
+  assert.deepEqual(folderTrouble('auth', 3), { label: 'Not allowed to read', tone: 'danger', title: 'Not allowed to read — 3 ticks in a row' });
+  assert.equal(folderTrouble('bad_payload', 2)?.label, 'Files do not fit the mapping');
+  assert.equal(folderTrouble('too_many', 2)?.label, 'Too many entries in the folder');
+  // A disk that did not answer is a warning, as an unreachable board is.
+  assert.deepEqual(folderTrouble('network', 0), { label: 'Unreachable', tone: 'warn', title: 'Unreachable' });
+  // Healthy, or never checked: the card has nothing to add.
+  for (const status of ['ok', 'empty', 'not_modified', null]) assert.equal(folderTrouble(status, 0), null, String(status));
+});
+
+test('untitledLine: a page has no title on it, a file that is no page has none in it (#365)', () => {
+  for (const name of ['page.html', 'saved/page.HTM', 'article.mhtml', 'clip.webarchive']) assert.equal(untitledLine(name), 'No title on the page', name);
+  for (const name of ['notes.txt', 'posting.md', 'role.pdf', 'role.docx']) assert.equal(untitledLine(name), 'No title in the file', name);
 });

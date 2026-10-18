@@ -12,7 +12,10 @@ export interface ApplicationExportRow {
   /** The key of the column it sits in; `stage` below is that column's label. */
   stageKey: string;
   stage: string;
+  /** Who hires; empty when the posting names nobody. */
   company: string;
+  /** The aggregator, file or folder the posting came through; empty when the source is the employer's own board. */
+  source: string;
   title: string;
   appliedAt: Date | null;
   /** When it entered its current column, from the stage ledger; null when nothing dates it. */
@@ -25,7 +28,7 @@ export interface ApplicationExportRow {
   url: string;
 }
 
-const HEAD = ['Stage', 'Company', 'Title', 'Applied on', 'In this stage since', 'Fit', 'Applied with', 'Recruiter contact', 'Notes', 'Posting'];
+const HEAD = ['Stage', 'Company', 'Source', 'Title', 'Applied on', 'In this stage since', 'Fit', 'Applied with', 'Recruiter contact', 'Notes', 'Posting'];
 
 /** The calendar day a moment fell on in the user's time zone: "2026-09-28". */
 export function dayIn(date: Date | null, timeZone: string): string {
@@ -44,6 +47,7 @@ export function applicationsCsv(rows: readonly ApplicationExportRow[], timeZone:
     rows.map((r) => [
       r.stage,
       r.company,
+      r.source,
       r.title,
       dayIn(r.appliedAt, timeZone),
       dayIn(r.stageSince, timeZone),
@@ -79,7 +83,8 @@ export function applicationsMarkdown(
     out.push('', `## ${mdText(column.label)} (${inColumn.length})`, '');
     for (const r of inColumn) {
       const facts = [
-        mdText(r.company),
+        r.company ? mdText(r.company) : null,
+        r.source ? `via ${mdText(r.source)}` : null,
         r.appliedAt ? `applied ${dayIn(r.appliedAt, timeZone)}` : null,
         r.stageSince ? `here since ${dayIn(r.stageSince, timeZone)}` : null,
         r.fitScore !== null ? `fit ${r.fitScore}` : null,

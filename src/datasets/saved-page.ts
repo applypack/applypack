@@ -10,7 +10,7 @@
 import { cleanEmployer } from '../employer';
 import { decodeHtmlEntities, stripHtml } from '../http';
 import type { WorkplaceCode } from '../location';
-import { clipText, storableText } from '../text-utils';
+import { clipText, normalizeUrlKey, storableText } from '../text-utils';
 import { safeHref } from '../web/format';
 import { readDate } from './map';
 
@@ -31,13 +31,27 @@ export interface SavedPage {
   /**
    * Whether the address names this posting alone: the posting block's own
    * `url` or the browser's "saved from" note. A canonical link or `og:url`
-   * may be a whole careers page that many postings share.
+   * may be a whole careers page that many postings share, and a page that
+   * lists several postings has no address that names one of them.
    */
   addressIsOwn: boolean;
-  /** Null when the page carries no `JobPosting` block. */
+  /** Null when the page carries no `JobPosting` block, or several and none that is the page's own. */
   facts: PageFacts | null;
   /** The page's own `<title>`, for the preview; never a job's title by itself. */
   pageTitle: string | null;
+  /**
+   * What versions up to 2.55.11 took a saved page's job id from: the first
+   * block's `url`, else the browser's note, else the text. Jobs stored then
+   * are found by it (posting-file.ts:identifyPosting).
+   */
+  earlierKey: string;
+  /**
+   * How versions up to 2.55.38 read this page, when they read it differently:
+   * the text with the application form and the navigation its container
+   * holds, and the key above over that text. A job such a version keyed by
+   * its text is found by these. Null when nothing was left out.
+   */
+  former: { text: string; earlierKey: string } | null;
 }
 
 /** As `jobs/manual-job.ts:MAX_POSTING_CHARS`: the most a posting may run to. */
@@ -51,8 +65,20 @@ const MAX_BLOCKS = 8;
 const MAX_BLOCK_CHARS = 200_000;
 /** The tags that name the page's address sit in its head; a 2 MB body is not searched for them. */
 const HEAD_CHARS = 300_000;
+/**
+ * A form with this many fields to fill in is an application: a name, an
+ * address to write to, a file. A search box has one, and a site whose every
+ * page is one form — the posting inside it — has none.
+ */
+const APPLICATION_FIELDS = 3;
+/** What a form is filled in through. */
+const FIELD_RE = /<(?:select|textarea)(?=[\s>/])|<input(?=[\s>/])[^>]*>/gi;
+/** An `<input>` nobody types into or chooses. */
+const NOT_A_FIELD_RE = /\stype\s*=\s*["']?(?:hidden|submit|button|reset|image)\b/i;
 /** How deep a block's nesting is walked to find the posting (an array, a `@graph`, a page wrapping it). */
 const MAX_DEPTH = 4;
+/** How many postings of a page are told apart: a page with more is a list whatever else it is. */
+const MAX_POSTINGS = 20;
 
 const oneLine = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
@@ -81,25 +107,31 @@ function tags(head: string, name: string): string[] {
   return head.match(new RegExp(`<${name}\\b[^<>]*>`, 'gi')) ?? [];
 }
 
+/** What the page's head says of where it came from, each null when it does not. */
+interface HeadAddresses {
+  /** The browser's "saved from url=" note. */
+  savedFrom: string | null;
+  canonical: string | null;
+  og: string | null;
+}
+
+/** `noted`: where the browser says the page came from when it says so outside the markup — the head of a single-file save. */
+function headAddresses(head: string, noted: string | null): HeadAddresses {
+  const savedFrom = noted ?? /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
+  const canonical = tags(head, 'link').find((tag) => /(^|\s)canonical(\s|$)/i.test(attribute(tag, 'rel') ?? ''));
+  const og = tags(head, 'meta').find((tag) => (attribute(tag, 'property') ?? attribute(tag, 'name'))?.toLowerCase() === 'og:url');
+  return { savedFrom: link(savedFrom), canonical: link(canonical && attribute(canonical, 'href')), og: link(og && attribute(og, 'content')) };
+}
+
 /**
  * The page's address, from what the page says about itself: the posting
  * block's `url` and the browser's "saved from url=" note first — they name
  * this posting — then its canonical link and its `og:url`, which a careers
  * page that embeds a board shares across every posting on it.
  */
-function pageAddress(head: string, blockUrl: unknown): { address: string | null; own: boolean } {
-  const savedFrom = /<!--\s*saved from url=\(\d{1,4}\)(\S{1,2000}?)\s*-->/i.exec(head)?.[1];
-  for (const candidate of [blockUrl, savedFrom]) {
-    const href = link(candidate);
-    if (href !== null) return { address: href, own: true };
-  }
-  const canonical = tags(head, 'link').find((tag) => /(^|\s)canonical(\s|$)/i.test(attribute(tag, 'rel') ?? ''));
-  const og = tags(head, 'meta').find((tag) => (attribute(tag, 'property') ?? attribute(tag, 'name'))?.toLowerCase() === 'og:url');
-  for (const candidate of [canonical && attribute(canonical, 'href'), og && attribute(og, 'content')]) {
-    const href = link(candidate);
-    if (href !== null) return { address: href, own: false };
-  }
-  return { address: null, own: false };
+function pageAddress(from: HeadAddresses, blockUrl: unknown): { address: string | null; own: boolean } {
+  const own = link(blockUrl) ?? from.savedFrom;
+  return own !== null ? { address: own, own: true } : { address: from.canonical ?? from.og, own: false };
 }
 
 /** The contents of every `application/ld+json` script, at most `MAX_BLOCKS` of them, found by index, not by a pattern that could backtrack. */
@@ -123,35 +155,70 @@ function structuredBlocks(html: string): string[] {
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined || value === null ? [] : [value]);
 
-function isPosting(node: Record<string, unknown>): boolean {
-  const type = node['@type'];
-  return type === 'JobPosting' || (Array.isArray(type) && type.includes('JobPosting'));
+/**
+ * A block as JSON, or null. Blocks written by hand often break a string
+ * across lines, which JSON forbids: the page then read as one with no block
+ * at all, and a model was asked for a title the page states. Such a block is
+ * read again with the line breaks inside its strings written as JSON writes
+ * them; nothing else about it is guessed.
+ */
+function parseBlock(block: string): unknown {
+  try {
+    return JSON.parse(block);
+  } catch {
+    let mended = '';
+    let inString = false;
+    for (let i = 0; i < block.length; i++) {
+      const ch = block[i]!;
+      if (inString && ch === '\\') {
+        // An escape is two characters, whatever the second is.
+        mended += ch + (block[i + 1] ?? '');
+        i++;
+      } else if (ch === '"') {
+        inString = !inString;
+        mended += ch;
+      } else if (inString && ch === '\n') mended += '\\n';
+      else if (inString && ch === '\t') mended += '\\t';
+      // The CR of a CRLF goes with its LF.
+      else if (!(inString && ch === '\r')) mended += ch;
+    }
+    try {
+      return JSON.parse(mended);
+    } catch {
+      // A block that is not JSON is the page's mistake, and the page's own text still reads.
+      return null;
+    }
+  }
 }
 
-/** The first `JobPosting` in a parsed block: the block itself, an item of a list, of a `@graph`, or one level inside a page. */
-function findPosting(node: unknown, depth = 0): Record<string, unknown> | null {
-  if (depth > MAX_DEPTH) return null;
+/** `JobPosting`, however the block spells the type: bare, as an IRI (`https://schema.org/JobPosting`) or prefixed (`schema:JobPosting`). */
+const POSTING_TYPE_RE = /(?:^|[/#:])JobPosting$/;
+
+function isPosting(node: Record<string, unknown>): boolean {
+  return asList(node['@type']).some((type) => typeof type === 'string' && POSTING_TYPE_RE.test(type));
+}
+
+/** Every `JobPosting` in a parsed block, in the block's order: the block itself, the items of a list, of a `@graph`, or one level inside a page. */
+function collectPostings(node: unknown, out: Record<string, unknown>[], depth = 0): void {
+  if (depth > MAX_DEPTH || out.length >= MAX_POSTINGS) return;
   if (Array.isArray(node)) {
-    for (const item of node.slice(0, 50)) {
-      const found = findPosting(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
+    for (const item of node.slice(0, 50)) collectPostings(item, out, depth + 1);
+  } else if (isObject(node)) {
+    if (isPosting(node)) out.push(node);
+    else for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item']) collectPostings(node[key], out, depth + 1);
   }
-  if (!isObject(node)) return null;
-  if (isPosting(node)) return node;
-  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item']) {
-    const found = findPosting(node[key], depth + 1);
-    if (found) return found;
+}
+
+/** A name that may come as text, as `{ name }`, or as a list of either: the first that says one. */
+function named(value: unknown): string | null {
+  for (const one of asList(value).slice(0, 5)) {
+    const name = field(isObject(one) ? one.name : one);
+    if (name !== null) return name;
   }
   return null;
 }
-
-const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : value === undefined || value === null ? [] : [value]);
-
-/** A name that may come as text or as `{ name }`. */
-const named = (value: unknown): string | null => field(isObject(value) ? value.name : value);
 
 /** One place of `jobLocation`: its address as text, or its parts joined. */
 function placeOf(value: unknown): string | null {
@@ -176,40 +243,175 @@ function readFacts(posting: Record<string, unknown>, now: Date): PageFacts {
   };
 }
 
-/** The page's main text: its `<main>`, else its `<article>`, else the whole page — navigation and footers are not the posting. */
-function mainText(html: string): string {
-  const lower = html.toLowerCase();
-  for (const name of ['main', 'article']) {
-    const open = lower.indexOf(`<${name}`);
-    const close = open === -1 ? -1 : lower.lastIndexOf(`</${name}`);
-    if (close > open) {
-      const text = stripHtml(html.slice(open, close));
-      if (text.length >= MIN_BLOCK_TEXT_CHARS) return text;
-    }
+/**
+ * The posting this page is about, of the ones its blocks carry. One posting,
+ * or the same one written twice, is it. Of several — the page's own and its
+ * "similar jobs", or a page of search results — it is the one whose `url` is
+ * the page's own address, as the browser's note, the canonical link or
+ * `og:url` give it. With none named so, the page is a list and code reads no
+ * posting off it: the first on a list is somebody else's job.
+ */
+function ownPosting(postings: readonly Record<string, unknown>[], pageAddresses: readonly (string | null)[]): Record<string, unknown> | null {
+  const urlKey = (posting: Record<string, unknown>): string | null => normalizeUrlKey(link(posting.url));
+  const distinct = new Map<string, Record<string, unknown>>();
+  for (const posting of postings) {
+    const key = [urlKey(posting), field(posting.title) ?? field(posting.name), named(posting.hiringOrganization)].join('\n');
+    if (!distinct.has(key)) distinct.set(key, posting);
   }
-  return stripHtml(html);
+  if (distinct.size <= 1) return postings[0] ?? null;
+  for (const address of pageAddresses) {
+    const key = normalizeUrlKey(address);
+    const matching = key === null ? [] : [...distinct.values()].filter((posting) => urlKey(posting) === key);
+    if (matching.length === 1) return matching[0]!;
+  }
+  return null;
 }
 
-export function readSavedPage(html: string, now: Date = new Date()): SavedPage {
-  const head = html.slice(0, HEAD_CHARS);
-  let posting: Record<string, unknown> | null = null;
-  for (const block of structuredBlocks(html)) {
-    try {
-      posting = findPosting(JSON.parse(block));
-    } catch {
-      // A block that is not JSON is the page's mistake, and the page's own text still reads.
-    }
-    if (posting) break;
+/** Where a tag of exactly this name opens, or -1: `<main>` and `<main class=…>`, not `<mainnav>` or `<main-menu>`, whose text was taken for the posting (#399). */
+function opens(lower: string, name: string): number {
+  for (let at = lower.indexOf(`<${name}`); at !== -1; at = lower.indexOf(`<${name}`, at + 1)) {
+    const next = lower[at + name.length + 1];
+    if (next === undefined || next === '>' || next === '/' || /\s/.test(next)) return at;
   }
-  const blockText = posting && typeof posting.description === 'string' ? stripHtml(storableText(posting.description)) : '';
-  const text = blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : mainText(html);
+  return -1;
+}
+
+/** Where the last closing tag of exactly this name starts, or -1. */
+function closes(lower: string, name: string): number {
+  for (let at = lower.lastIndexOf(`</${name}`); at !== -1; at = at === 0 ? -1 : lower.lastIndexOf(`</${name}`, at - 1)) {
+    const next = lower[at + name.length + 2];
+    if (next === undefined || next === '>' || /\s/.test(next)) return at;
+  }
+  return -1;
+}
+
+/**
+ * The markup without the elements of this name that `drop` names — each from
+ * its opening tag to the next closing one, forward and in one pass. The name
+ * is a whole tag's (`<nav>`, not `<nav-bar>`), and an element nobody closed
+ * stays, as does everything after it.
+ */
+function withoutElements(markup: string, name: string, drop: (element: string) => boolean = () => true): string {
+  const opener = new RegExp(`<${name}(?=[\\s>/])`, 'gi');
+  const closer = new RegExp(`</${name}\\s*>`, 'gi');
+  let out = '';
+  let from = 0;
+  let at = 0;
+  for (;;) {
+    opener.lastIndex = at;
+    const start = opener.exec(markup);
+    if (!start) break;
+    closer.lastIndex = start.index;
+    const end = closer.exec(markup);
+    if (!end) break;
+    at = end.index + end[0].length;
+    if (!drop(markup.slice(start.index, at))) continue;
+    out += `${markup.slice(from, start.index)} `;
+    from = at;
+  }
+  return out + markup.slice(from);
+}
+
+/** The markup without its comments; one nobody closed stays. */
+function withoutComments(markup: string): string {
+  let out = '';
+  let from = 0;
+  for (;;) {
+    const start = markup.indexOf('<!--', from);
+    const end = start === -1 ? -1 : markup.indexOf('-->', start + 4);
+    if (end === -1) break;
+    out += `${markup.slice(from, start)} `;
+    from = end + 3;
+  }
+  return out + markup.slice(from);
+}
+
+function isApplicationForm(form: string): boolean {
+  let fields = 0;
+  for (const control of form.matchAll(FIELD_RE)) {
+    if (!NOT_A_FIELD_RE.test(control[0])) fields++;
+    if (fields >= APPLICATION_FIELDS) return true;
+  }
+  return false;
+}
+
+/**
+ * A container's text without what stands in it and is not the posting: the
+ * application form and the navigation (#361 — a board that puts both in its
+ * `<main>` had its questions, "Select…" and "Submit application" stored as the
+ * end of the description, and read by every model after). Scripts and
+ * comments go first, so a `<form` one of them spells opens nothing. When what
+ * is left would be too short to be a posting — the page of the form alone —
+ * the text stays whole.
+ */
+function postingOnly(markup: string, whole: string): string {
+  const plain = withoutElements(withoutElements(withoutComments(markup), 'script'), 'style');
+  const bare = withoutElements(withoutElements(plain, 'form', isApplicationForm), 'nav');
+  if (bare.length === plain.length) return whole;
+  const text = stripHtml(bare);
+  return text.length >= MIN_BLOCK_TEXT_CHARS ? text : whole;
+}
+
+interface MainText {
+  /** The posting's container as text, without the application form and the navigation in it. */
+  text: string;
+  /** The same with them: what versions up to 2.55.38 read. */
+  whole: string;
+}
+
+/**
+ * The page's main text: its `<main>`, else its `<article>`, else the whole
+ * page, read as it stands — with no container to say where the posting is, a
+ * form may be all of it.
+ */
+function mainText(html: string): MainText {
+  const lower = html.toLowerCase();
+  for (const name of ['main', 'article']) {
+    const open = opens(lower, name);
+    const close = open === -1 ? -1 : closes(lower, name);
+    if (close > open) {
+      const markup = html.slice(open, close);
+      const whole = stripHtml(markup);
+      if (whole.length >= MIN_BLOCK_TEXT_CHARS) return { text: postingOnly(markup, whole), whole };
+    }
+  }
+  const whole = stripHtml(html);
+  return { text: whole, whole };
+}
+
+/** `savedFrom`: the address the file's wrapper gives for the page (mhtml.ts), read as the browser's own note is. */
+export function readSavedPage(html: string, now: Date = new Date(), savedFrom: string | null = null): SavedPage {
+  const head = html.slice(0, HEAD_CHARS);
+  const postings: Record<string, unknown>[] = [];
+  for (const block of structuredBlocks(html)) collectPostings(parseBlock(block), postings);
+  const from = headAddresses(head, savedFrom);
+  const posting = ownPosting(postings, [from.savedFrom, from.canonical, from.og]);
+  let main: MainText | undefined;
+  const mainOf = (): MainText => (main ??= mainText(html));
+  // The posting as text: its block's description when that is long enough, else the page's main text —
+  // `whole`: with the form and the navigation its container holds, as versions up to 2.55.38 read it.
+  const textOf = (block: Record<string, unknown> | null, whole = false): string => {
+    const blockText = block && typeof block.description === 'string' ? stripHtml(storableText(block.description)) : '';
+    const body = blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : whole ? mainOf().whole : mainOf().text;
+    return clipText(storableText(body).trim(), MAX_POSTING_TEXT_CHARS).trim();
+  };
+  const text = textOf(posting);
   const titleTag = /<title\b[^<>]*>([^<]{1,1000})<\/title\s*>/i.exec(head)?.[1];
-  const { address, own } = pageAddress(head, posting?.url);
+  const { address, own } = pageAddress(from, posting?.url);
+  // As versions up to 2.55.11 read it: the first posting on the page, whichever the page was about.
+  const first = postings[0] ?? null;
+  const earlier = pageAddress(from, first?.url);
+  const earlierKeyOf = (whole: boolean): string => (earlier.own && earlier.address !== null ? earlier.address : first === posting ? textOf(posting, whole) : textOf(first, whole));
+  const earlierKey = earlierKeyOf(false);
+  const former = { text: textOf(posting, true), earlierKey: earlierKeyOf(true) };
   return {
-    text: clipText(storableText(text).trim(), MAX_POSTING_TEXT_CHARS).trim(),
+    text,
     address,
-    addressIsOwn: own,
+    // A list of postings has an address, and it names none of them.
+    addressIsOwn: own && (posting !== null || postings.length === 0),
     facts: posting ? readFacts(posting, now) : null,
     pageTitle: titleTag === undefined ? null : field(titleTag),
+    earlierKey,
+    former: former.text === text && former.earlierKey === earlierKey ? null : former,
   };
 }

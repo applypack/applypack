@@ -1,14 +1,15 @@
 import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
 import { t } from '../../i18n/t';
-import { getPack, getPackFile, packFiles, queuePack } from '../../pack/store';
-import { readPackEdits } from '../../pack/view';
+import { cancelQueuedPack, getPack, getPackFile, packFiles, packIsKept, packOfSameRole, queuePack } from '../../pack/store';
+import { packBusy, preparingLine, readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { contentDisposition } from '../../resume/draft-document';
 import { loadLineDiff } from '../../resume/line-diff';
 import { readKeywords } from '../../resume/prompts';
 import { PDF_MIME } from '../../resume/render/clean-pdf';
 import { getPackSettings } from '../../settings';
+import { kindHint } from '../cost-hint';
 import { flashRedirect } from '../flash';
 import { jobHref } from '../job-tabs';
 import type { ApplicationPackProps } from '../pages/application-pack-card';
@@ -29,10 +30,33 @@ packRoute.post('/jobs/:id/pack', async (c) => {
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
   const outcome = await queuePack(id, 'manual');
   const tab = jobHref(id, 'pack');
-  if (outcome === 'sent') {
-    return flashRedirect(tab, 'warn', t('pack.flash.sent'));
+  if (outcome === 'sent' || outcome === 'kept') {
+    return flashRedirect(tab, 'warn', t(outcome === 'sent' ? 'pack.flash.sent' : 'pack.flash.kept'));
   }
-  return flashRedirect(tab, 'ok', outcome === 'busy' ? t('pack.flash.busy') : t('pack.flash.queued'));
+  return flashRedirect(tab, 'ok', t(outcome === 'busy' ? 'pack.flash.busy' : outcome === 'waiting' ? 'pack.flash.waiting' : 'pack.flash.queued'));
+});
+
+/** Cancel on a pack that is still in the queue (#387): the row goes, and the tab offers Prepare again. */
+packRoute.post('/jobs/:id/pack/cancel', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const cancelled = await cancelQueuedPack(id);
+  return flashRedirect(jobHref(id, 'pack'), cancelled ? 'ok' : 'warn', t(cancelled ? 'pack.flash.cancelled' : 'pack.flash.tooLateToCancel'));
+});
+
+/**
+ * What the pack tab asks while a pack is queued or in flight (public/
+ * pack-tab.mjs): whether it still is, the sentence that says where, and the
+ * one to show when it has finished and the page holds an unsaved edit. The
+ * words are made here, in the page's own language.
+ */
+packRoute.get('/jobs/:id/pack/state', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ gone: true }, 400);
+  const pack = await getPack(id);
+  if (!pack) return c.json({ gone: true }, 404);
+  const busy = packBusy(pack);
+  return c.json({ busy, line: busy ? preparingLine(pack) : '', wait: t('pack.card.finishedUnsaved') }, 200, { 'Cache-Control': 'no-store' });
 });
 
 /** The file as the pack kept it — the same bytes on every download, whatever happened to the resume since. */
@@ -55,7 +79,7 @@ packRoute.get('/jobs/:id/pack/resume.pdf', (c) => sendPackFile(c, 'pdf'));
 
 /** Everything the job page's pack tab shows, read from what the pack stored. */
 export async function loadPackView(jobId: number, url: string): Promise<ApplicationPackProps> {
-  const [pack, files, settings] = await Promise.all([getPack(jobId), packFiles(jobId), getPackSettings()]);
+  const [pack, files, settings, kept] = await Promise.all([getPack(jobId), packFiles(jobId), getPackSettings(), packIsKept(jobId)]);
   const [verification, match] = await Promise.all([
     pack?.verificationId
       ? prisma.jobVerification.findUnique({
@@ -74,6 +98,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
     jobId,
     url,
     pack,
+    kept,
     files,
     edits: readPackEdits(pack?.edits),
     changes,
@@ -87,5 +112,8 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
     unbacked: keywords.filter((k) => k.status === 'cannot_claim').map((k) => k.term),
     letter: pack?.coverLetterId !== null && pack?.coverLetterId !== undefined,
     automatic: settings.enabled,
+    sameRoleJobId: pack ? null : await packOfSameRole(jobId),
+    // No figure: a pack's calls are several features' calls (web/cost-hint.ts:kindHint).
+    cost: `${t('settings.pack.cost')} ${await kindHint('resume-match')}`.trim(),
   };
 }

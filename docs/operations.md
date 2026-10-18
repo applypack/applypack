@@ -87,8 +87,8 @@ application you tracked against it.
 ## The worker's schedule
 
 Six cron jobs, `TZ` from `.env`. Three of them are hourly heartbeats, and
-the schedule on `/settings` → General → Schedule decides which beats do
-work, in the time zone saved there (`TZ` until you pick one). With no
+the schedule on `/settings` → Job search → **When to search** decides
+which beats do work, in the time zone saved under General (`TZ` until you pick one). With no
 schedule saved, the search runs every hour and both summaries go out at
 09:00.
 
