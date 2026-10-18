@@ -140,17 +140,27 @@ function applySchema(): void {
   const migrationsDir = resolve(process.cwd(), 'prisma', 'migrations');
   if (existsSync(migrationsDir)) {
     logger.info('init: running prisma migrate deploy');
-    execSync('npx prisma migrate deploy', {
-      stdio: 'inherit',
-      env: process.env,
-    });
+    const out = runPrisma('npx prisma migrate deploy');
+    logger.info({ applied: out.match(/^Applying migration/gm)?.length ?? 0 }, 'init: schema up to date');
     return;
   }
   logger.info(
     'init: no migrations folder found — running prisma db push (Phase 1)',
   );
-  execSync('npx prisma db push --skip-generate --accept-data-loss', {
-    stdio: 'inherit',
-    env: process.env,
-  });
+  runPrisma('npx prisma db push --skip-generate --accept-data-loss');
+}
+
+/**
+ * A Prisma command with its output kept back: a first `npm start` printed a
+ * line for each of a hundred migrations. Its own words are the diagnosis, so
+ * they are shown when it fails.
+ */
+function runPrisma(command: string): string {
+  try {
+    return execSync(command, { env: process.env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (err) {
+    const { stdout, stderr } = err as { stdout?: string; stderr?: string };
+    process.stderr.write(`${stdout ?? ''}${stderr ?? ''}`);
+    throw err;
+  }
 }
