@@ -21,6 +21,7 @@ import {
   failureKind,
   failureOutcome,
   localBudgetTokens,
+  ollamaCanThink,
   ollamaError,
   parseClaudeCodeOutput,
   parseOllamaStream,
@@ -638,6 +639,26 @@ test('a local call asks Ollama for its window, JSON when the caller parses it, a
   assert.ok(body.options.num_predict > 800, 'room past the answer for a model that thinks first');
   const plain = JSON.parse(buildOllamaChatBody({ system: 'S', user: 'U', model: 'm', maxTokens: 20, contextTokens: 8_192 }));
   assert.equal(plain.format, undefined);
+});
+
+test('thinking is switched off only when asked, and nothing else in the body moves (#409)', () => {
+  const asked = { system: 'S', user: 'U', model: 'gemma4:e4b', maxTokens: 580, contextTokens: 16_384, json: true };
+  const asBefore = JSON.parse(buildOllamaChatBody(asked));
+  assert.equal('think' in asBefore, false, 'a model not known to think is sent no field: one may refuse it');
+  const off = JSON.parse(buildOllamaChatBody({ ...asked, think: false }));
+  assert.equal(off.think, false);
+  // The room past the answer stays: a small model's answer can outrun a budget sized on hosted ones.
+  assert.deepEqual({ ...off, think: undefined }, { ...asBefore, think: undefined });
+});
+
+test("a model's capabilities, as Ollama's /api/show lists them", () => {
+  assert.equal(ollamaCanThink(JSON.stringify({ capabilities: ['completion', 'vision', 'audio', 'tools', 'thinking'], details: { family: 'gemma4' } })), true);
+  assert.equal(ollamaCanThink(JSON.stringify({ capabilities: ['completion', 'tools'] })), false);
+  // A server too old to list capabilities predates `think` as well.
+  assert.equal(ollamaCanThink(JSON.stringify({ modelfile: '# Modelfile', details: {} })), false);
+  assert.equal(ollamaCanThink('<html>not ollama</html>'), null);
+  assert.equal(ollamaCanThink('null'), null);
+  assert.equal(ollamaCanThink(JSON.stringify({ capabilities: 'thinking' })), null);
 });
 
 test('the token estimate is cautious, more so for text outside Latin script', () => {
