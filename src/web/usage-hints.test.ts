@@ -243,6 +243,9 @@ test('each kind of trouble says what to do about that kind, and none blames the 
   assert.match(said('failing'), /its last 4 calls failed\. Press Test on its card/);
   assert.match(said('failing', 1), /its last call failed/);
   for (const kind of ['unreachable', 'window', 'limited', 'signin'] as const) assert.doesNotMatch(said(kind), /another model/);
+  // Replies that came back unreadable are the one case for another model — and Test, one word long, would pass (#463).
+  assert.match(said('unparsed'), /its last 4 calls came back with a reply ApplyPack could not read.*Try another model in its slot/);
+  assert.doesNotMatch(said('unparsed'), /Press Test/);
 });
 
 test('an engine the person has disabled since is not theirs to fix, and a last resort that answers is', () => {
@@ -260,6 +263,7 @@ test('a failure hint gives the advice of how most of the calls ended', () => {
   assert.match(advice('too_large'), /never sent: raise the window on the engine's card, or untick this task there\.$/);
   assert.match(advice('unreachable'), /No server answered those calls: check that it is running/);
   assert.match(advice('unauthorized'), /sign in again or paste a new key on its card, then press Test\.$/);
+  assert.match(advice('unparsed'), /not in the shape asked for, which is the model's doing: try another model in that slot\.$/);
   // An ending with no cause of its own, a row from before the two outcomes, a group built without it: as before.
   for (const other of ['empty', 'error', undefined]) assert.match(advice(other), /Try another model in that slot, or press Test on the engine\.$/);
   // Two models of one engine: the ending most of the failures share.

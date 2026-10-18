@@ -283,6 +283,12 @@ Every engine's failure is read the same way (`ai-provider-parse.ts:failureKind`)
   on the same engine, after the wait the server asks for when it is ten
   seconds or less (two seconds when it names none), and only while the
   call's time budget has room. A longer wait goes to the next engine.
+- **A reply that comes back but cannot be read** (not the JSON that was
+  asked for) is asked again once, and the ledger records it as `unparsed`:
+  AI usage counts it among the calls that did not answer. When an engine's
+  calls keep ending that way, its card and AI usage say to try another
+  model in its slot — Test asks for one word, which such a model still
+  writes.
 
 When the worker or the dashboard stops, a CLI call in flight is ended with
 it instead of running on to its timeout on your plan.

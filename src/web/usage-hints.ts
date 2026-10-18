@@ -82,6 +82,8 @@ const FAILED_ADVICE: Record<string, MessageKey> = {
   unauthorized: 'usage.failed.signIn',
   unreachable: 'usage.failed.unreachable',
   too_large: 'usage.failed.window',
+  // Test asks for one word, which such a model writes: pressing it would say the engine works (#463).
+  unparsed: 'usage.failed.unparsed',
 };
 const percent = (part: number, whole: number): number => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 const taskOfGroup = (g: SpendGroup): AiTask | null => taskOf(g.feature as AiFeature) ?? null;
@@ -91,6 +93,7 @@ const TROUBLE_WORDS = {
   unreachable: 'usage.trouble.unreachable',
   window: 'usage.trouble.window',
   limited: 'usage.trouble.limited',
+  unparsed: 'usage.trouble.unparsed',
   failing: 'usage.trouble.failing',
 } as const satisfies Record<TroubleKind, MessageKey>;
 
