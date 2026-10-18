@@ -124,7 +124,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
                   {t(
                     run.backUrl.startsWith('/screen')
                       ? 'target.run.closeScreening'
-                      : run.backUrl.startsWith('/jobs/import')
+                      : run.backUrl.startsWith('/jobs/import') || run.backUrl === '/jobs'
                         ? 'target.run.closeImport'
                         : run.heading
                           ? 'target.run.closeSetup'

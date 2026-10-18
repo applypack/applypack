@@ -18,6 +18,7 @@ import {
 } from '../../settings';
 import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
 import { resolveCountries } from '../../countries';
+import { isProfileWorkplace } from '../../location';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
 import { beginFetchNow } from '../fetch-now';
@@ -45,10 +46,10 @@ import {
   type ProfileForDraft,
 } from '../../resume/profile-draft';
 import { createProfileFromResume, newProfileDraft, scanFields } from '../profile-from-resume';
-import { recordCronRun, type CronStats } from '../../jobs/cron-run';
-import { runScoreUnscored, SCORE_BATCH } from '../../jobs/reclassify-job';
+import { SCORE_BATCH } from '../../jobs/reclassify-job';
+import { beginScoreUnscored, liveScoreRun } from '../score-run';
 import { activeFetchRun } from '../fetch-runs';
-import { claimRun, findLiveRun, startRun, updateRun } from '../target-runs';
+import { claimRun, startRun, updateRun } from '../target-runs';
 import { testAiEngine } from '../ai-test';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
@@ -60,7 +61,6 @@ import {
   currentStep,
   isWelcomeStep,
   stepDone,
-  summarizeScoreRun,
 } from '../welcome-steps';
 import { spendHint } from '../cost-hint';
 import { currentLocale } from '../../i18n/locale';
@@ -73,9 +73,6 @@ const AI_STEP = '/welcome?step=ai';
 const SEARCH_STEP = '/welcome?step=search';
 const PROFILE_STEP = '/welcome?step=profile';
 const MATCHES_STEP = '/welcome?step=matches';
-
-/** The scoring pass in flight, if any — one at a time, like re-classify. */
-const SCORE_RUN_KEY = 'score';
 
 export const welcomeRoute = new Hono();
 
@@ -138,6 +135,7 @@ welcomeRoute.get('/welcome', async (c) => {
         runningRunId: activeFetchRun()?.id ?? null,
         aggregators,
         countries: profile?.countries.map(countryChip) ?? [],
+        workplace: profile?.workplace.filter(isProfileWorkplace) ?? [],
       }}
       profile={{
         id: profile?.id ?? 0,
@@ -156,7 +154,7 @@ welcomeRoute.get('/welcome', async (c) => {
         minFitScore: profile?.minFitScore ?? 0,
         top: top.map((j) => ({ id: j.id, title: j.title, companyName: companyForPage(j.employer, j.company), fitScore: j.fitScore })),
         waiting,
-        runningRunId: findLiveRun(SCORE_RUN_KEY)?.id ?? null,
+        runningRunId: liveScoreRun()?.id ?? null,
         scoreCost: await spendHint('classifier'),
       }}
       flash={parseFlashCookie(c.req.header('cookie'))}
@@ -205,8 +203,8 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
  * Step 1's "Use it" on a model found on this computer (TASKS S1): the address
  * is stored for the engine that server is used through — Ollama's own API
  * (ADR 0057), or the OpenAI-compatible one for LM Studio — that engine goes
- * first with the model in every slot, and whatever was in the list stays
- * behind it as the fallback.
+ * first with the model in every slot and scoring postings its one task (#411),
+ * and whatever was in the list stays behind it as the fallback.
  */
 welcomeRoute.post('/welcome/ai/local', async (c) => {
   const form = await c.req.parseBody();
@@ -360,8 +358,14 @@ welcomeRoute.post('/welcome/search', async (c) => {
     return flashRedirect(SEARCH_STEP, 'err', t('welcome.flash.countryUnknown', { names: typed.unknown.join(', ') }));
   }
   let profile = await getActiveProfile();
-  if (profile && typed.codes.length > 0) {
-    profile = await updateProfile(profile.id, { ...profileInput(profile), countries: typed.codes });
+  // The pills ride on the step's own form only; "Search again" posts none and keeps what is stored.
+  const workplace = form.arrangements === undefined ? null : toStringArray(form.workplace).filter(isProfileWorkplace);
+  if (profile && (typed.codes.length > 0 || workplace !== null)) {
+    profile = await updateProfile(profile.id, {
+      ...profileInput(profile),
+      ...(typed.codes.length > 0 && { countries: typed.codes }),
+      ...(workplace !== null && { workplace }),
+    });
   }
   const run = await beginFetchNow({
     backUrl: '/welcome',
@@ -382,27 +386,13 @@ welcomeRoute.post('/welcome/score', async (c) => {
   if (!facts.aiReady) {
     return flashRedirect(AI_STEP, 'err', t('welcome.flash.noAi'));
   }
-  const { run, joined } = claimRun(SCORE_RUN_KEY, {
-    steps: ['score'],
-    jobTitle: '',
-    resumeName: '',
+  const { run } = beginScoreUnscored({
+    limit: SCORE_BATCH,
     heading: { running: t('welcome.scoreRun.running'), failed: t('welcome.scoreRun.failed') },
     subtitle: t('welcome.scoreRun.subtitle', { n: SCORE_BATCH }),
     backUrl: MATCHES_STEP,
     backLabel: t('fetch.backToSetup'),
-  });
-  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
-  startRun(run.id, async () => {
-    let stats: CronStats = {};
-    await recordCronRun('score-unscored', async () => {
-      const out = await runScoreUnscored({
-        limit: SCORE_BATCH,
-        onProgress: (done, total) => updateRun(run.id, { progress: { done, total } }),
-      });
-      stats = out.stats;
-      return out;
-    });
-    updateRun(run.id, { stage: 'done', resultUrl: MATCHES_STEP, flash: summarizeScoreRun(stats).text });
+    resultUrl: MATCHES_STEP,
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });

@@ -14,8 +14,11 @@ function num(stats: CronStats, key: string): number {
   return typeof v === 'number' ? v : 0;
 }
 
-/** `label` opens every sentence: "Fetch now", or "Checked Acme" for the watchlist's Check now (TASKS S23). */
-export function summarizeFetchRun(stats: CronStats, label = t('fetch.fetchNow')): { kind: FlashKind; text: string } {
+/**
+ * `label` opens every sentence: "Fetch now", or "Checked Acme" for the watchlist's Check now (TASKS S23).
+ * `setup` is the wizard's test search: nobody paused anything there, and its last step does the scoring.
+ */
+export function summarizeFetchRun(stats: CronStats, label = t('fetch.fetchNow'), setup = false): { kind: FlashKind; text: string } {
   if (stats.reason === 'overlap') return { kind: 'warn', text: t('fetchSummary.overlap', { label }) };
   if (stats.reason === 'no-active-profile') return { kind: 'err', text: t('fetchSummary.noProfile', { label }) };
   const fetched = num(stats, 'fetched');
@@ -35,7 +38,9 @@ export function summarizeFetchRun(stats: CronStats, label = t('fetch.fetchNow'))
   // Each outcome is one whole sentence; what follows it (the filter's reasons, the way to score later) is a sentence of its own.
   const said = { label, fetched, sources, notes: sourceNotes(unchanged, failed), took, persisted: num(stats, 'persisted') };
   if (stats.classify === false) {
-    return { kind: 'ok', text: `${t('fetchSummary.doneUnscored', said)}${filteredClause(stats)} ${t('fetchSummary.scoreLater')}` };
+    return setup
+      ? { kind: 'ok', text: `${t('fetchSummary.doneSetup', said)}${filteredClause(stats)} ${t('fetchSummary.scoreInSetup')}` }
+      : { kind: 'ok', text: `${t('fetchSummary.doneUnscored', said)}${filteredClause(stats)} ${t('fetchSummary.scoreLater')}` };
   }
   if (stats.skippedBlankProfile === 1) return { kind: 'warn', text: t('fetchSummary.blank', { label, fetched, sources, took }) };
   if (stats.abortedMidRun === 1) return { kind: 'warn', text: t('fetchSummary.doneAborted', said) };

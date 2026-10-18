@@ -92,3 +92,25 @@ When stage C measures the local models: a recommended default and a preset
 is global today, so such a preset needs a per-role order, and that would be
 a new decision. Also revisit when a second local server with its own native
 API is asked for.
+
+## Addendum (2026-10-18): thinking is switched off where the model has it
+
+The engine sent no `think` field, so a model that can think did so on every
+call, a yes-or-no prefilter included, and `LOCAL_THINKING_HEADROOM_TOKENS`
+made room for it instead of switching it off (#409). On the classifier's own
+prompt over twelve postings, `gemma4:e4b` answered in a median 8.2 s with
+1,025–1,283 output tokens as sent before, and in 1.5 s with 204–256 with
+`think: false`; the prefilter went from 2.4 s and 206–608 tokens to 0.3 s
+and 18–26. Every reply parsed both ways, and the three postings the search
+wants kept their scores.
+
+`think: false` goes only to a model whose `/api/show` lists `thinking` among
+its capabilities (`ai-provider-parse.ts:ollamaCanThink`). The provider asks
+once per server and model and remembers the answer for the process; a failed
+read is asked again on the next call, and until one answers the call goes as
+before, with no field. A model without the capability is never sent it: one
+may refuse the field, and there was no such model here to try. The headroom
+stays in `num_predict`. It is a ceiling, never counted in the window guard,
+and the issue's own run had a `think: false` answer of 591 tokens against the
+classifier's 580. There is no switch to let the model think: nothing measured
+asked for one.

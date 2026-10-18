@@ -87,7 +87,7 @@ export function mapWwrItem(item: WwrItem, companyId: number): NormalizedJob | nu
     companyId,
     employer: wwrEmployer(item.title ?? ''),
     externalId,
-    title: item.title ?? 'Untitled',
+    title: wwrRole(item.title ?? '') || 'Untitled',
     url: link,
     location: where.length > 0 ? `Remote · ${where}` : 'Remote',
     description,
@@ -96,7 +96,16 @@ export function mapWwrItem(item: WwrItem, companyId: number): NormalizedJob | nu
   } satisfies NormalizedJob;
 }
 
-/** The feed titles every row "Company: Role" (ADR 0056); a title without that shape names nobody. */
+/** "Company: Role", the shape the feed titles every row with (ADR 0056). */
+const COMPANY_ROLE = /^([^:]{1,80}):\s+(\S.*)$/s;
+
+/** The company in front of the role; a title without that shape names nobody. */
 export function wwrEmployer(title: string): string | null {
-  return cleanEmployer(/^([^:]{1,80}):\s+\S/.exec(title.trim())?.[1] ?? null);
+  return cleanEmployer(COMPANY_ROLE.exec(title.trim())?.[1] ?? null);
+}
+
+/** The role alone: the company it opened with sits beside it on every row already. */
+export function wwrRole(title: string): string {
+  const match = COMPANY_ROLE.exec(title.trim());
+  return match && wwrEmployer(title) ? match[2]!.trim() : title.trim();
 }
