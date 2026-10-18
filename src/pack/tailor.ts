@@ -21,6 +21,11 @@ export interface InverseEdit {
   start: number;
   removed: string;
   inserted: string;
+  /** The text either side when it was made (`withContext`), so it is found again after other edits moved it. */
+  lead?: string;
+  trail?: string;
+  leadUnique?: boolean;
+  trailUnique?: boolean;
 }
 
 export interface EditOutcome {

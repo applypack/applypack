@@ -115,7 +115,8 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
   const busy = packBusy(pack);
   // What "I sent this file" posts: the same answer the rail's picker offers.
   const sentValue = packChoiceValue(pack);
-  const tailorHref = pack.tailoredMatchId ?? pack.matchId ? `/jobs/${jobId}/target?match=${pack.tailoredMatchId ?? pack.matchId}` : null;
+  // The comparison the edits came from, with the edits on it as applied cards (pack/view.ts:tailorSeed).
+  const tailorHref = pack.matchId ? `/jobs/${jobId}/target?match=${pack.matchId}&from=pack` : null;
   const again = !busy && !pack.sentAt && !kept && (
     <ConfirmAction
       action={prepare}

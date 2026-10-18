@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { packBusy, packFact, packLine, packNoticeLines, preparingLine, readPackEdits, unplacedLines, type PackNotice } from './view';
+import { packBusy, packFact, packLine, packNoticeLines, preparingLine, readPackEdits, tailorSeed, unplacedLines, type PackNotice } from './view';
 
 const notice = (over: Partial<PackNotice> = {}): PackNotice => ({
   jobId: 12,
@@ -18,11 +18,37 @@ const notice = (over: Partial<PackNotice> = {}): PackNotice => ({
 /** The message's words alone, the way the tests before links read it. */
 const texts = (packs: PackNotice[]): string[] => packNoticeLines(packs).map((l) => l.text);
 
+const NOTHING = { applied: 0, done: [], unplaced: [], held: [], checks: [] };
+
 test('the edits column reads back whole, and anything else reads as nothing done', () => {
-  const stored = { applied: 4, unplaced: ['not-found'], held: [{ section: 'summary', where: 'Summary', reason: 'drops-figure' }], checks: [] };
+  const done = [{ key: 'k1', kind: 'change', edit: { start: 3, removed: 'old', inserted: 'new', lead: 'ab ', trail: ' cd', leadUnique: true, trailUnique: false } }];
+  const stored = { applied: 1, done, unplaced: ['not-found'], held: [{ section: 'summary', where: 'Summary', reason: 'drops-figure' }], checks: [] };
   assert.deepEqual(readPackEdits(stored), stored);
-  assert.deepEqual(readPackEdits(null), { applied: 0, unplaced: [], held: [], checks: [] });
-  assert.deepEqual(readPackEdits({ applied: 'many', held: [{ reason: 'because' }] }), { applied: 0, unplaced: [], held: [], checks: [] });
+  assert.deepEqual(readPackEdits(null), NOTHING);
+  assert.deepEqual(readPackEdits({ applied: 'many', held: [{ reason: 'because' }] }), NOTHING);
+  // A pack prepared before the edits were kept reads as none to show, the count intact.
+  assert.deepEqual(readPackEdits({ applied: 4 }), { ...NOTHING, applied: 4 });
+  assert.deepEqual(readPackEdits({ applied: 1, done: [{ key: 'k1', edit: { start: -1 } }] }).done, []);
+});
+
+test('a ready pack opens on the Tailor page as Apply all leaves it (#487)', () => {
+  const edit = (start: number) => ({ start, removed: 'a', inserted: 'b' });
+  const done = [
+    { key: 'card1', kind: 'change', edit: edit(4) },
+    { key: 'kw:Kafka', kind: 'keyword', edit: edit(9) },
+  ];
+  const pack = { status: 'ready', matchId: 5, baseText: 'before', text: 'after', edits: { applied: 2, done } };
+  assert.deepEqual(tailorSeed(pack), {
+    text: 'after',
+    edits: { applied: { card1: edit(4), 'kw:Kafka': edit(9) }, skipped: [], order: ['card1', 'kw:Kafka'] },
+  });
+  // A pack prepared before the edits were kept still brings its text, with nothing marked applied.
+  assert.deepEqual(tailorSeed({ ...pack, edits: { applied: 2 } }), { text: 'after', edits: { applied: {}, skipped: [], order: [] } });
+  // Nothing to open with: not ready, no comparison, or nothing changed.
+  assert.equal(tailorSeed({ ...pack, status: 'stopped' }), null);
+  assert.equal(tailorSeed({ ...pack, matchId: null }), null);
+  assert.equal(tailorSeed({ ...pack, text: 'before' }), null);
+  assert.equal(tailorSeed({ ...pack, text: null }), null);
 });
 
 test('the tab says what stands behind it', () => {

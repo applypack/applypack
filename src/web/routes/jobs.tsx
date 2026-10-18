@@ -38,7 +38,7 @@ import { livenessCodeLabel } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
 import { jobHref, jobTabLabels, resolveJobTab, shownMatch, type JobTab } from '../job-tabs';
 import { getPack, markPackSent, type PackRow } from '../../pack/store';
-import { packFact } from '../../pack/view';
+import { packFact, tailorSeed } from '../../pack/view';
 import { loadPackView } from './pack';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
@@ -1110,6 +1110,8 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const depth = postingDepth(storedBrief);
   const domain = domainNoticeMessage(domainMismatch(resume.industries, storedBrief));
   const file = await describeResumeFile(resume);
+  // Opened from a pack's tab: its edits come along as applied cards, over the comparison they were made from (#487).
+  const pack = c.req.query('from') === 'pack' ? await getPack(id) : null;
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
@@ -1126,6 +1128,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       verification={verifications[0] ?? null}
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
+      seed={pack?.matchId === match.id ? tailorSeed(pack) : null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

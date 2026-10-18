@@ -168,8 +168,11 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
     return 'failed';
   }
 
+  const kept = made.checks.length === 0;
   const edits: PackEdits = {
-    applied: made.checks.length === 0 ? made.outcome.done.length : 0,
+    applied: kept ? made.outcome.done.length : 0,
+    // The Tailor page opens these as applied cards, each with its Undo (#487).
+    done: kept ? made.outcome.done : [],
     unplaced: made.outcome.failed.map((f) => f.error),
     held: made.plan.held,
     checks: made.checks,

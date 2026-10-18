@@ -17,8 +17,28 @@ const isPackStop = (v: unknown): v is PackStop => (PACK_STOPS as readonly unknow
 
 const HELD_REASONS = ['no-wording', 'check-first', 'drops-figure', 'section', 'over-limit', 'removals-off'] as const satisfies readonly HeldReason[];
 
+/** What one applied operation changed, with the text around it (text-edits.mjs:withContext) — its Undo. */
+const InverseEditSchema = z.object({
+  start: z.number().int().min(0),
+  removed: z.string(),
+  inserted: z.string(),
+  lead: z.string().optional(),
+  trail: z.string().optional(),
+  leadUnique: z.boolean().optional(),
+  trailUnique: z.boolean().optional(),
+});
+
 const EditsSchema = z.object({
   applied: z.number().int().min(0).catch(0).default(0),
+  /**
+   * Each applied operation under its card's key, in the order made — what the
+   * Tailor page needs to open the pack's edits as applied cards (#487). Empty
+   * on a pack prepared before it was kept, or when a check dropped the edits.
+   */
+  done: z
+    .array(z.object({ key: z.string(), kind: z.string(), edit: InverseEditSchema }))
+    .catch([])
+    .default([]),
   /** Operations the text could not take, by the editor's own error code. */
   unplaced: z.array(z.string()).catch([]).default([]),
   held: z
@@ -33,6 +53,31 @@ export type PackEdits = z.infer<typeof EditsSchema>;
 export function readPackEdits(v: unknown): PackEdits {
   const parsed = EditsSchema.safeParse(v ?? {});
   return parsed.success ? parsed.data : EditsSchema.parse({});
+}
+
+/** The Tailor page's record of what each card did (target-page.mjs, `target-edits:<matchId>`). */
+export interface TailorEdits {
+  applied: Record<string, z.infer<typeof InverseEditSchema>>;
+  skipped: string[];
+  order: string[];
+}
+
+/**
+ * What the Tailor page opens a ready pack with (#487): the pack's text as the
+ * draft over the comparison the edits came from, and each edit as Apply all
+ * leaves it — under its card's key, in the order made — so every card reads
+ * "Applied" with its Undo, and Undo all gives back the text that comparison
+ * read. Not the comparison of the tailored text: its cards are new advice
+ * about the edited resume, and none of them is the edit an Undo would take
+ * back. Null when the pack changed nothing.
+ */
+export function tailorSeed(pack: { status: string; matchId: number | null; baseText: string | null; text: string | null; edits: unknown }): { text: string; edits: TailorEdits } | null {
+  if (pack.status !== 'ready' || pack.matchId === null || !pack.text || pack.text === pack.baseText) return null;
+  const { done } = readPackEdits(pack.edits);
+  return {
+    text: pack.text,
+    edits: { applied: Object.fromEntries(done.map((d) => [d.key, d.edit])), skipped: [], order: done.map((d) => d.key) },
+  };
 }
 
 /** Why a suggestion was left for the person, as the end of "… — <reason>": catalog keys, worded on the page. */

@@ -255,6 +255,19 @@ alerts; the 61 % that are not worth tailoring say why in a sentence.
 measurement and the feature cannot drift.
 ✅ The Tailor page opens on the tailored text: the pack stores the id of the
 comparison that judged it.
+*Amended 2026-10-18 (#487).* It opened on that comparison, the tailored
+text standing in for the resume with nothing marked and nothing to undo. The
+pack now keeps each edit it applied with its Undo (`edits.done`), and **Go on
+in the Tailor page** opens the comparison the edits came from, the pack's
+text as the draft and every edit an applied card, as Apply all leaves them
+(`pack/view.ts:tailorSeed`, `target-page.mjs:openWithPack`): a card's Undo,
+or Undo all, lands on the resume as that comparison read it. The comparison
+of the tailored text could not do that — its cards are new advice about the
+edited text, none of them an edit to take back. The seed is written once and
+only over nothing: a draft the person made on that comparison is never
+replaced, and the address drops its `from=pack`, so a reload after Undo all
+does not bring the edits back. A pack prepared before this opens with its
+text and no cards marked.
 ❌ The worker now spends AI beyond the classifier with nobody watching. The
 daily limit bounds it; the ledger (ADR 0055) prices it under its existing
 features, and since 2026-10-18 under the pack as well (rule 3).
