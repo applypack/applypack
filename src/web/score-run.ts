@@ -7,7 +7,6 @@ import { runScoreUnscored } from '../jobs/reclassify-job';
 import { claimRun, findLiveRun, startRun, updateRun, type TargetRun } from './target-runs';
 import { summarizeScoreRun } from './welcome-steps';
 import { spendHint } from './cost-hint';
-import type { UnscoredView } from './pages/unscored-notice';
 
 /** One pass at a time, whether setup's last step or the Jobs page started it: both read the same unscored rows. */
 const SCORE_RUN_KEY = 'score';
@@ -43,7 +42,16 @@ export function beginScoreUnscored(
   return claimed;
 }
 
-/** The jobs stored unscored, as the notice on Jobs and the Overview shows them; null when there are none. */
+/** Jobs stored unscored, as the notice on Jobs and the Overview shows them. */
+export interface UnscoredView {
+  count: number;
+  /** The sentence under a button that spends AI (`cost-hint.ts:spendHint`). */
+  cost: string;
+  /** A pass already running: the notice links to it instead of starting another. */
+  runId: string | null;
+}
+
+/** The jobs stored unscored; null when there are none. */
 export async function loadUnscored(): Promise<UnscoredView | null> {
   // The rows runScoreUnscored reads: a muted company's are never scored.
   const count = await prisma.job.count({ where: { fitScore: null, status: JobStatus.NEW, ...withoutMuted(await mutedKeys()) } });

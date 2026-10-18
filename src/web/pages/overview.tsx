@@ -53,7 +53,8 @@ import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { unscoredRun } from '../runs-summary';
-import { UnscoredNotice, type UnscoredView } from './unscored-notice';
+import { UnscoredNotice } from './unscored-notice';
+import type { UnscoredView } from '../score-run';
 
 interface JobRow {
   id: number;

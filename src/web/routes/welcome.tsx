@@ -73,8 +73,6 @@ const SEARCH_STEP = '/welcome?step=search';
 const PROFILE_STEP = '/welcome?step=profile';
 const MATCHES_STEP = '/welcome?step=matches';
 
-/** The scoring pass in flight, if any — one at a time, like re-classify. */
-
 export const welcomeRoute = new Hono();
 
 welcomeRoute.get('/welcome', async (c) => {
