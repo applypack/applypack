@@ -1,7 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { getAiRuntime } from '../../ai-runtime';
-import { laneOf, type Lane } from '../lane';
+import { loadAnswerTimes } from '../../ai-ledger';
+import { laneTimes, TIMED_FEATURES } from '../lane';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { postingForPrompt } from '../../employer';
@@ -90,14 +91,17 @@ targetRoute.get('/target/runs/:id', async (c) => {
   return c.html(<TargetRunPage run={run} lanes={await resumeLanes()} />);
 });
 
-/** Engine × model the resume calls run on — the run page states its measured band (#184). */
+/** Engine × model the resume calls run on, and this install's own times there — the run page states a band per step (#184, #483). */
 async function resumeLanes(): Promise<RunLanes> {
   const runtime = await getAiRuntime();
-  const lane = (task: 'resume-read' | 'analysis'): Lane => {
-    const id = runtime.chainFor(task)[0];
-    return id ? laneOf(id, runtime.modelFor(id, 'resume')) : 'other';
+  const target = (task: 'resume-read' | 'analysis') => {
+    const engine = runtime.chainFor(task)[0];
+    return engine ? { engine, model: runtime.modelFor(engine, 'resume') } : null;
   };
-  return { read: lane('resume-read'), analysis: lane('analysis') };
+  const read = target('resume-read');
+  const analysis = target('analysis');
+  const times = await loadAnswerTimes([read, analysis].flatMap((lane) => (lane ? [lane.engine] : [])), TIMED_FEATURES);
+  return { read: laneTimes(read, times), analysis: laneTimes(analysis, times) };
 }
 
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {

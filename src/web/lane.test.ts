@@ -1,21 +1,62 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bandFor, laneLabel, laneOf } from './lane';
+import { laneTimes, stepBand, TIMED_FEATURES } from './lane';
+import type { AnswerTimes } from '../ai-spend';
+
+const lane = (engine: string, model: string, times: AnswerTimes[] = []) => laneTimes({ engine, model }, times);
+/** Answered calls of one feature on an engine and model, as the ledger sums them. */
+const timed = (feature: string, engine: string, model: string, answered: number, medianMs: number, p90Ms = medianMs): AnswerTimes => ({
+  feature,
+  engine,
+  model,
+  answered,
+  medianMs,
+  p90Ms,
+});
 
 test('the lane is the engine and the model family; anything else is unmeasured', () => {
-  assert.equal(laneOf('claude_code', 'claude-sonnet-5'), 'cli-sonnet');
-  assert.equal(laneOf('claude_code', 'claude-haiku-4-5-20251001'), 'cli-haiku');
-  assert.equal(laneOf('anthropic_api', 'claude-opus-5'), 'api-opus');
-  assert.equal(laneOf('anthropic_api', ''), 'other');
-  assert.equal(laneOf('gemini_cli', 'gemini-2.5-pro'), 'other');
-  assert.equal(laneOf('openai_api', 'claude-sonnet-5'), 'other');
+  assert.equal(lane('claude_code', 'claude-sonnet-5').lane, 'cli-sonnet');
+  assert.equal(lane('claude_code', 'claude-haiku-4-5-20251001').lane, 'cli-haiku');
+  assert.equal(lane('anthropic_api', 'claude-opus-5').lane, 'api-opus');
+  assert.equal(lane('anthropic_api', '').lane, 'other');
+  assert.equal(lane('gemini_cli', 'gemini-2.5-pro').lane, 'other');
+  assert.equal(lane('openai_api', 'claude-sonnet-5').lane, 'other');
+  assert.equal(laneTimes(null, []).lane, 'other');
 });
 
 test('a measured lane names its band per step; an unmeasured one names nothing', () => {
-  assert.equal(bandFor('keywords', 'cli-sonnet'), '20 s');
-  assert.equal(bandFor('match', 'api-opus'), '110 s');
-  assert.equal(bandFor('letter', 'cli-sonnet'), null);
-  assert.equal(bandFor('keywords', 'other'), null);
-  assert.equal(laneLabel('cli-haiku'), 'Haiku 4.5 through the Claude CLI');
-  assert.equal(laneLabel('other'), 'this engine');
+  assert.equal(stepBand('keywords', lane('claude_code', 'claude-sonnet-5')), 'about 20 s on Sonnet 5 through the Claude CLI');
+  assert.equal(stepBand('match', lane('anthropic_api', 'claude-opus-5')), 'about 110 s on Opus 5 on the API');
+  assert.equal(stepBand('letter', lane('claude_code', 'claude-sonnet-5')), null);
+  assert.equal(stepBand('keywords', lane('local_api', 'llama3.1:8b')), null);
+  assert.equal(lane('claude_code', 'claude-haiku-4-5').name, 'Haiku 4.5 through the Claude CLI');
+  assert.equal(laneTimes(null, []).name, 'this engine');
+});
+
+test('#483: ten answered calls on the engine and model that will answer state their own time, a local model included', () => {
+  const ten = [timed('resume-match', 'local_api', 'llama3.1:8b', 10, 48_200)];
+  assert.equal(stepBand('match', lane('local_api', 'llama3.1:8b', ten)), 'about 48.2s on Local model (Ollama) · llama3.1:8b, going by your last 10 calls');
+  // Nine is an anecdote: the generic words stay.
+  assert.equal(stepBand('match', lane('local_api', 'llama3.1:8b', [timed('resume-match', 'local_api', 'llama3.1:8b', 9, 48_200)])), null);
+  // Another model's calls, or another step's, are not this one's.
+  assert.equal(stepBand('match', lane('local_api', 'qwen2.5:14b', ten)), null);
+  assert.equal(stepBand('suggestions', lane('local_api', 'llama3.1:8b', ten)), null);
+  // On a measured lane this install's own calls win over the reference pair's.
+  const cli = [timed('resume-scan', 'claude_code', '', 20, 31_000), timed('resume-scan', 'claude_code', 'claude-sonnet-5', 12, 18_000)];
+  assert.equal(stepBand('scan', lane('claude_code', 'claude-sonnet-5', cli)), 'about 18.0s on Sonnet 5 through the Claude CLI, going by your last 12 calls');
+  assert.equal(stepBand('scan', lane('claude_code', '', cli)), 'about 31.0s on Claude Code CLI · CLI default, going by your last 20 calls');
+});
+
+test('the slow tail is said as AI usage says it: from ten answers, and only when it is slower than the middle', () => {
+  const slow = [timed('resume-review', 'openai_api', 'qwen2.5:14b', 20, 40_000, 95_000)];
+  assert.equal(stepBand('review', lane('openai_api', 'qwen2.5:14b', slow)), 'about 40.0s on OpenAI-compatible API · qwen2.5:14b, 9 in 10 under 1.6m, going by your last 20 calls');
+  const even = [timed('resume-review', 'openai_api', 'qwen2.5:14b', 20, 40_000, 42_000)];
+  assert.doesNotMatch(stepBand('review', lane('openai_api', 'qwen2.5:14b', even)) ?? '', /9 in 10/);
+});
+
+test('every step that states a time names the feature its calls are recorded under', () => {
+  assert.deepEqual([...TIMED_FEATURES].sort(), ['posting-brief', 'resume-match', 'resume-match-fast', 'resume-review', 'resume-scan', 'resume-structure', 'resume-suggestions']);
+  // The posting's brief has no measured lane band, so only its own calls give it one.
+  assert.equal(stepBand('brief', lane('claude_code', 'claude-sonnet-5')), null);
+  assert.match(stepBand('brief', lane('claude_code', 'claude-sonnet-5', [timed('posting-brief', 'claude_code', 'claude-sonnet-5', 10, 25_000)])) ?? '', /^about 25\.0s/);
 });

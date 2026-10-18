@@ -48,8 +48,8 @@ export interface ChainContext {
 export interface ChainDeps {
   /** The backend for an engine; throws when it cannot be built on this host. */
   providerFor(id: AiProviderId): AiProvider;
-  /** One ledger row per attempt; never throws (ai-ledger.ts:recordAiCall). */
-  record(row: LedgerInput): Promise<void>;
+  /** One ledger row per attempt, and its id (null = not written); never throws (ai-ledger.ts:recordAiCall). */
+  record(row: LedgerInput): Promise<number | null>;
   cooldowns: CooldownTracker;
   now(): number;
 }
@@ -74,6 +74,7 @@ export async function runChain(
   const tryList = (hot.length > 0 ? hot : chain).slice(0, MAX_ENGINE_SWITCHES);
   const perAttemptMs = req.timeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
   const deadline = deps.now() + perAttemptMs * CHAIN_DEADLINE_FACTOR * Math.max(1, ...tryList.map(timeFactor));
+  const ledgerIds: number[] = [];
   for (let i = 0; i < tryList.length; i++) {
     const id = tryList[i]!;
     const remainingMs = deadline - deps.now();
@@ -106,7 +107,7 @@ export async function runChain(
     });
     const viaFallback = id !== chain[0];
     // Every attempt, the failed ones too: a cut-off reply was billed (ADR 0055).
-    await deps.record({
+    const row = await deps.record({
       at: new Date(started),
       durationMs: deps.now() - started,
       engine: id,
@@ -119,10 +120,11 @@ export async function runChain(
       jobId: req.subject?.jobId,
       resumeId: req.subject?.resumeId,
     });
+    if (row !== null) ledgerIds.push(row);
     if (attempt.text !== null) {
       deps.cooldowns.success(id);
       if (viaFallback) logger.warn({ served: id, primary: chain[0], label: req.label }, 'ai: served by fallback engine');
-      return { text: attempt.text, providerId: id, model, viaFallback };
+      return { text: attempt.text, providerId: id, model, viaFallback, ledgerIds };
     }
     if (attempt.outcome === 'unauthorized') deps.cooldowns.refused(id, credential(id));
     else deps.cooldowns.failure(id);
