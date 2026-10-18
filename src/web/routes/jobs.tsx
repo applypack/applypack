@@ -580,11 +580,10 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   // The update below throws on a row that is not there; a missing job is a 404, not a 500.
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
 
+  // `alertedAt` is when an alert went out, and only a delivery writes it: a status set by hand stamped it with
+  // "now", counted an alert nobody sent and overwrote the time of the real one.
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
   let sentPack: ReturnType<typeof packAsShown<PackRow>> = null;
-  if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
-    data.alertedAt = data.alertedAt ?? new Date();
-  }
 
   // When the user marks a job APPLIED and tracking is on, seed the funnel
   // so it shows up on /applications immediately. Don't overwrite existing
