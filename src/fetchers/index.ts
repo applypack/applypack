@@ -198,6 +198,8 @@ export async function runAllFetchers(
       const jobs = await fetchOne(company, context);
       // A date written while this answer was mapped is the clock's, not the posting's (#379).
       markClockDated(jobs, startedAt);
+      // The read before this one, as the row still holds it: the health write below moves it (#459).
+      if (company.lastOkAt) for (const job of jobs) job.previousRead = company.lastOkAt;
       count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
       // that matches nothing is not a broken board (ADR 0019).

@@ -19,7 +19,7 @@ import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
 import { packsOnSince } from '../pack/settings';
 import { autoPacksToday, queuePack, sameRole } from '../pack/store';
-import { autoPack, copyPack } from '../pack/trigger';
+import { ageCountsFrom, autoPack, copyPack } from '../pack/trigger';
 import { sourceLine } from '../web/pages/attribution';
 import { getPackSettings, type ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
@@ -432,7 +432,7 @@ export async function processNormalizedJobs(
     if (
       !skipsAlert &&
       item.quiet !== true &&
-      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday: packsToday }) === 'queue'
+      autoPack({ settings: packs, fit: created.fitScore, countsFrom: ageCountsFrom(item.job, item.source?.atsType ?? null), now: new Date(), queuedToday: packsToday }) === 'queue'
     ) {
       // A pack is an extra: failing to queue one must never cost the match its alert.
       try {
