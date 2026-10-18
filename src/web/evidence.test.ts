@@ -39,6 +39,10 @@ function corpus(): string[] {
     'Technology Stack: Node, Go, Typescript, React, Cypress, PHP, Lumen, Pest, MySQL, S3, EC2.',
     '- Migrated 14 services to AWS ECS, cutting infrastructure cost 23%.',
     'Core Skills: PHP, Laravel, AWS, Redis, Docker',
+    'Senior Backend Engineer — Node.js, TypeScript, PostgreSQL',
+    'Senior QA Automation Engineer, SoftServe — березень 2021 – дотепер',
+    '- Built the checkout — Node.js, PostgreSQL, Redis',
+    'Languages | Backend Engineer — Go, Docker | 2020',
   ];
 }
 

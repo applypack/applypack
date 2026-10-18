@@ -46,11 +46,20 @@ export function lineAt(text: string, index: number): { line: string; column: num
   return { line: text.slice(start, end === -1 ? text.length : end), column: index - start };
 }
 
+/** The dash between a title and what follows it on one line. */
+const TITLE_DASH = / [—–] /;
+
 /**
  * The part of a line around one position. A .docx skills table comes out of
  * the reader as ONE line — the label cell, " | ", the values cell — and a
  * whole row read as a sentence made every term on it look like work done.
  * Judged cell by cell, the values cell is the list of terms it is.
+ *
+ * A headline that names a stack after the title ("Senior QA Engineer —
+ * Playwright, TypeScript, payments") is the same case: a term in the tail is
+ * judged by the tail, a list. Only when the tail is a list and the line is no
+ * bullet, so a role line ("QA Engineer, SoftServe — 2021 – now") and a work
+ * bullet keep their whole line (#313).
  */
 export function segmentAt(line: string, column: number): string {
   let start = 0;
@@ -61,7 +70,13 @@ export function segmentAt(line: string, column: number): string {
     if (left !== -1) start = Math.max(start, left + sep.length);
     if (right !== -1) end = Math.min(end, right);
   }
-  return line.slice(start, end);
+  const cell = line.slice(start, end);
+  const dash = TITLE_DASH.exec(cell);
+  if (dash !== null && column >= start + dash.index + dash[0].length && !/^\s*[-•*]/.test(cell)) {
+    const tail = cell.slice(dash.index + dash[0].length);
+    if (isTermList(tail)) return tail;
+  }
+  return cell;
 }
 
 /** Words a list of terms has no use for: a sentence has grammar, a skills line has none. */
