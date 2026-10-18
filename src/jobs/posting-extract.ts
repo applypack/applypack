@@ -136,7 +136,10 @@ export async function extractPostingFacts(description: string): Promise<PostingF
   });
   if (!out) return null;
   const facts = parseExtractReply(out.text);
-  if (!facts) logger.warn({ head: out.text.slice(0, 120) }, 'posting-extract: unparseable reply');
+  if (!facts) {
+    await ai.unparsed(out);
+    logger.warn({ head: out.text.slice(0, 120) }, 'posting-extract: unparseable reply');
+  }
   logger.info({ ok: facts !== null, ms: Date.now() - started }, 'posting-extract: done');
   return facts;
 }

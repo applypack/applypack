@@ -193,8 +193,11 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
                 },
                 profiles,
                 classifierMode,
-                (reason) => {
-                  lastError = reason;
+                {
+                  jobId: j.id,
+                  onError: (reason) => {
+                    lastError = reason;
+                  },
                 },
               ),
             )
