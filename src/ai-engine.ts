@@ -232,6 +232,19 @@ export function toggleAiEngine(
 }
 
 /**
+ * The list setup's Continue stores: when nothing in the list can run here and
+ * an engine answered on this machine, that engine alone. A fresh install's
+ * list is the .env default (the Anthropic API) with no key, and the AI tab then
+ * showed it "#1, unavailable" beside a "last resort" doing every call — the
+ * engine the person was just told was found. A list that runs is left alone.
+ */
+export function adoptFoundEngine(config: AiEngineConfig, env: AiEngineEnv, found: readonly AiProviderId[]): AiEngineConfig | null {
+  if (aiEngineOrder(config, env.provider).some((id) => !providerUnusable(id, env))) return null;
+  const pick = found.find((id) => !providerUnusable(id, env));
+  return pick === undefined ? null : { ...config, order: [pick] };
+}
+
+/**
  * The list after "Use it" on a local server (TASKS S1): `id` first, the rest
  * behind it in their order as the fallback, one model in every slot.
  */
