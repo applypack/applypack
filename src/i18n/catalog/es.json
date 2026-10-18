@@ -1034,6 +1034,7 @@
   "settingsRoute.targets.telegramTestFailed": "El mensaje de prueba no llegó a Telegram ({reason}), así que el destino no se guardó. Revisa el token y el ID del chat, y añádelo de nuevo.",
   "settingsRoute.targets.telegramRace": "Ese bot y ese chat se añadieron desde otra pestaña hace un momento, así que no se añadieron dos veces. El mensaje de prueba sí llegó.",
   "settingsRoute.targets.telegramAdded": "Destino “{name}” añadido (bot @{bot}). Mensaje de prueba enviado.",
+  "settingsRoute.targets.alertsOn": "Las alertas ya están activadas: las nuevas coincidencias llegarán ahí.",
   "settingsRoute.targets.toggled": "Estado del destino cambiado.",
   "settingsRoute.targets.deleted": "Destino eliminado.",
   "settingsRoute.targets.gone": "Ese destino ya no existe, así que no se envió ninguna prueba. La lista de abajo está al día.",
