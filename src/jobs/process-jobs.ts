@@ -730,6 +730,7 @@ function buildJobData(
     locationSource: place.source,
     description: job.description,
     postedAt: job.postedAt,
+    postedAtKnown: job.undated !== true,
     fitScore: c?.fit_score ?? null,
     salaryMin: c?.salary_min ?? null,
     salaryMax: c?.salary_max ?? null,

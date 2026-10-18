@@ -116,6 +116,11 @@ Before a line of the feature was written, the pipeline was run dry over those
    miss, on the side that spends nothing. A search widened since the last
    read admits postings that were there before it; with no date, those
    count as new too, held only by the fit and the day's limit.
+   *Amended 2026-10-18 (#458).* The fact is stored now, as
+   `Job.postedAtKnown` (false for an undated posting and a paste; rows
+   stored before it keep true), and the job page calls such a date "First
+   seen". A saved page that states no date is `undated` as well; the
+   trigger still counts it from its file's time (`ageCountsFrom`).
 3. **The row is the queue.** `application_pack`, one per posting: queued →
    running → ready | stopped | failed. The dashboard only inserts the row;
    the worker's runner (`jobs/pack-job.ts`) beats every minute, takes an

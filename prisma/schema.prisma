@@ -242,6 +242,11 @@ model Job {
   descriptionOriginal    String?   @db.Text
   descriptionRefreshedAt DateTime?
   postedAt               DateTime
+  // #458: false when the source gave no date (`NormalizedJob.undated`, a
+  // paste), so `postedAt` is when the posting was first seen — the job page
+  // says so and the Posted filter files it under "Date unknown". Rows stored
+  // before the column say true: nothing recorded where their date came from.
+  postedAtKnown          Boolean   @default(true)
   fetchedAt              DateTime  @default(now())
 
   // ADR 0031: the structured reading of `location`, which itself is never

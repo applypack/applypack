@@ -79,6 +79,8 @@ interface JobDetail {
   status: JobStatus;
   fetchedAt: Date;
   postedAt: Date;
+  /** #458: false when the source gave no date — `postedAt` is when the posting was first seen. */
+  postedAtKnown: boolean;
   alertedAt: Date | null;
   externalId: string;
   /** ADR 0056: who hires, when an aggregator named them. */
@@ -274,7 +276,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                 </span>
               )}
             </FactRow>
-            <FactRow label={t('job.posted')}>{formatDate(job.postedAt)}</FactRow>
+            <FactRow label={t(job.postedAtKnown ? 'job.posted' : 'job.firstSeen')}>{formatDate(job.postedAt)}</FactRow>
             <FactRow label={t('job.fetched')}>{formatDate(job.fetchedAt)}</FactRow>
             {job.alertedAt && <FactRow label={t('job.alerted')}>{formatDate(job.alertedAt)}</FactRow>}
             <AppliedWithRow job={job} />

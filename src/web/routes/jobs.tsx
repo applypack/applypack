@@ -14,7 +14,7 @@ import {
   parsePosted,
   parseWorkplaces,
   placeWhere,
-  postedSince,
+  postedWhere,
   tallyFacets,
 } from '../job-facets';
 import { getSettings } from '../../settings';
@@ -229,12 +229,12 @@ jobsRoute.get('/jobs', async (c) => {
   const hide: Prisma.JobWhereInput[] = unmuted ? [unmuted] : [];
   if (hide.length > 0) where.AND = hide;
   // The facet counts come from the rows matching everything above; each
-  // facet then applies the others' selections in tallyFacets. Four narrow
+  // facet then applies the others' selections in tallyFacets. Five narrow
   // columns per row — ~1k rows today; past ~50k move the tally into SQL.
   const facetWhere: Prisma.JobWhereInput = { ...where };
-  const since = postedSince(posted, now);
-  if (since) where.postedAt = { gte: since };
   const facetAnd: Prisma.JobWhereInput[] = [...hide];
+  const postedIn = postedWhere(posted, now);
+  if (postedIn) facetAnd.push(postedIn);
   const place = placeWhere(country);
   if (place) facetAnd.push(place);
   if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
@@ -287,7 +287,7 @@ jobsRoute.get('/jobs', async (c) => {
     }),
     prisma.job.findMany({
       where: facetWhere,
-      select: { countries: true, regions: true, workplace: true, postedAt: true },
+      select: { countries: true, regions: true, workplace: true, postedAt: true, postedAtKnown: true },
     }),
     prisma.job.groupBy({ by: ['status'], where: anyStatusWhere, _count: { _all: true } }),
     getActiveProfile(),
@@ -1188,7 +1188,8 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
     case 'fitScore_desc':
       return [{ fitScore: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }];
     case 'postedAt_desc':
-      return [{ postedAt: 'desc' }];
+      // A date nobody gave is when the posting was first seen, not when it went up: those rows follow (#458).
+      return [{ postedAtKnown: 'desc' }, { postedAt: 'desc' }];
     case 'title_asc':
       return [{ title: 'asc' }];
     case 'fetchedAt_desc':

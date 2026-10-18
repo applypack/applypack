@@ -17,15 +17,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The moment a new posting's age is counted from, or null when nothing shows
- * it. The date its source gave, first. With none (#379), a company's own
- * board still tells (#459): it lists every role it has open, so a posting
+ * it. The date its source gave, first; a posting the person saved counts
+ * from when they saved it, its file's time. With neither (#379), a company's
+ * own board still tells (#459): it lists every role it has open, so a posting
  * new to us since its previous read went up after that read. An aggregator's
  * window can bring an old posting back, a feed may be such a window, a file
  * of rows says nothing of when it was put together, and a board's first read
  * has no read before it.
  */
-export function ageCountsFrom(job: Pick<NormalizedJob, 'postedAt' | 'undated' | 'previousRead'>, atsType: string | null): Date | null {
-  if (job.undated !== true) return job.postedAt;
+export function ageCountsFrom(job: Pick<NormalizedJob, 'postedAt' | 'undated' | 'handPicked' | 'previousRead'>, atsType: string | null): Date | null {
+  if (job.undated !== true || job.handPicked === true) return job.postedAt;
   return atsType !== null && sourceFamily(atsType) === 'vendor' ? (job.previousRead ?? null) : null;
 }
 

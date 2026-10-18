@@ -955,6 +955,7 @@ erDiagram
     String descriptionOriginal "kept when a refresh replaced it (ADR 0043)"
     DateTime descriptionRefreshedAt
     DateTime postedAt
+    Boolean postedAtKnown "false: the source gave no date, postedAt is first seen (#458)"
     DateTime fetchedAt
     Workplace workplace "REMOTE, HYBRID, ONSITE or UNKNOWN (ADR 0031)"
     String[] countries "ISO-2: where to live (remote) or the office"

@@ -68,6 +68,14 @@ test('an undated posting on a company\'s own board counts from the board\'s prev
   assert.equal(ageCountsFrom({ postedAt: daysAgo(3), previousRead: hourAgo }, 'GREENHOUSE')?.getTime(), daysAgo(3).getTime());
 });
 
+test('a posting the person saved counts from when they saved it, though its page states no date (#458)', () => {
+  const saved = { postedAt: daysAgo(2), undated: true, handPicked: true };
+  assert.equal(ageCountsFrom(saved, 'FOLDER')?.getTime(), daysAgo(2).getTime());
+  assert.equal(ask({ countsFrom: ageCountsFrom(saved, 'FOLDER') }), 'queue');
+  // A row of a file in a folder is no choice of theirs: its file's time says nothing of the posting.
+  assert.equal(ageCountsFrom({ postedAt: daysAgo(2), undated: true }, 'FOLDER'), null);
+});
+
 test('another source\'s copy of a stored role gets one pack between them, and opens no backlog (#380)', () => {
   const onSince = daysAgo(10);
   const role = (over: Partial<Parameters<typeof copyPack>[0]['role']> = {}) => ({ hasPack: false, firstStoredAt: daysAgo(2), ...over });

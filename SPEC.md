@@ -131,7 +131,11 @@ Every persisted Job also carries `workplace`, `countries`, `regions` and
 `locationSource` — the structured reading of the location string by
 `src/location.ts` (hints from the fetcher first, the parser for the rest);
 the string itself is never rewritten (ADR 0031). `/jobs` filters on them
-(`country=`, `workplace=`, `posted=`).
+(`country=`, `workplace=`, `posted=`). `postedAtKnown` is false when the
+source gave no date (a paste, a saved page, a row with no date column, a
+board that publishes none): `postedAt` is then when the posting was first
+seen, the job page says "First seen", and the Posted filter files it under
+"Date unknown" instead of a window (#458).
 
 The same inner loop is reused by `runHnHiringJob` (extracted into
 `src/jobs/process-jobs.ts`).
