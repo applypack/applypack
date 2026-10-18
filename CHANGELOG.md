@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.56.2] — 2026-10-18
+
+### Changed
+- **Rebuild keywords** now reads the posting again before it compares, so a
+  keyword list written by a weaker model is replaced, not reused. It takes
+  about one call longer.
+
+### Fixed
+- A red flag about a skill your resume names in another spelling ("PHP" for
+  "PHP 8") no longer costs ten points: the keyword row already asks you to
+  use the posting's spelling.
+- The "another sector" note on the Tailor page no longer appears when your
+  resume names the posting's sector another way (healthcare and healthtech,
+  banking and fintech, retail and e-commerce). A posting whose brief gives
+  its sector only in the product description is now read too.
+
 ## [2.56.1] — 2026-10-18
 
 ### Fixed
@@ -6078,6 +6094,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.56.2]: https://github.com/applypack/applypack/compare/v2.56.1...v2.56.2
 [2.56.1]: https://github.com/applypack/applypack/compare/v2.56.0...v2.56.1
 [2.56.0]: https://github.com/applypack/applypack/compare/v2.55.66...v2.56.0
 [2.55.66]: https://github.com/applypack/applypack/compare/v2.55.65...v2.55.66
