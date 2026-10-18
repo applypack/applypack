@@ -5,7 +5,7 @@ import { RELOCATION_PROMPT, isRelocation } from './eligibility';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
 import { getAiRuntime } from './ai-runtime';
-import { preClassify } from './classifier-prefilter';
+import { preClassify, prefilterMayJudge } from './classifier-prefilter';
 import { capFitForMissingStack } from './profile-guards';
 import { isCountryCode, isRegionCode } from './countries';
 import { arrangementOnly } from './location';
@@ -130,7 +130,7 @@ async function runStages(
   onError?: (reason: string) => void,
 ): Promise<ClassifyOutcome> {
   if (profiles.length === 0) return EMPTY;
-  if (mode === 'two_stage') {
+  if (mode === 'two_stage' && prefilterMayJudge(input, profiles)) {
     const pre = await preClassify(input, profiles);
     if (pre && pre.relevant === false) {
       logger.debug(

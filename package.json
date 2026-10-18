@@ -38,6 +38,7 @@
     "matrix:compare": "tsx src/scripts/match-matrix-once.ts",
     "variance:compare": "tsx src/scripts/match-variance-once.ts",
     "variance:classify": "tsx src/scripts/classify-variance-once.ts",
+    "variance:prefilter": "tsx src/scripts/prefilter-variance-once.ts",
     "churn:compare": "tsx src/scripts/churn-once.ts",
     "spend:report": "tsx src/scripts/ai-spend-report.ts",
     "keywords:audit": "tsx src/scripts/keyword-audit.ts",
