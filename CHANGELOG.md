@@ -4,6 +4,119 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.56.0] — 2026-10-18
+
+A live check from a fresh `npm start` to a sent application, and every open
+issue decided. Each change below has its own pull request (#419, #500,
+#501–#521); this release puts them together.
+
+### Added
+- **Try an engine on your own postings.** Each enabled engine's card on
+  Settings → AI & costs has **Try it on my postings**: up to 20 of your scored
+  postings are scored again on that engine alone, and the card shows how often
+  it agrees with the scores on record, the false and missed matches, how far
+  apart the scores are and how long each takes. Free on a local model. The AI
+  usage hints quote the last try instead of "not measured" (#412).
+- **Jobs that wait for a score say so, with one press to score them.** Jobs
+  stored while fetching was paused, by setup's test search, or when the AI did
+  not answer stayed New and unscored for good. Jobs and the Overview now count
+  them and offer **Score them** — up to 50 a press, the closest to your
+  searches first, the off-topic ones set aside for free.
+- **Links from messages into the dashboard.** Settings → Notifications →
+  "Dashboard address for links in messages": with it, match alerts and the
+  application packs message link to the job in ApplyPack (#487).
+- **What application packs cost**, on AI usage for the period and under
+  **Prepare the pack** once three have been prepared (#487).
+- **A folder you moved can be pointed at its new place** from its Files page;
+  the source keeps its jobs and its list of files (#478).
+- **Jobs → Filters → Posted → Date unknown**, for the jobs whose source gave
+  no date (#458).
+- **An engine card says when a task did not fit its context window** in the
+  last 30 days, and whether the engine behind it answered instead (#411).
+- **Companies has an Add sources button** at the top, which takes you to the
+  ways of adding a source under the list.
+
+### Changed
+- **Claude Code CLI calls no longer carry your MCP servers.** Every call
+  through the CLI loaded the MCP servers set up for your own Claude Code, and
+  their tool lists were about 100,000 input tokens a call; a scoring call now
+  reads about 3,000. Faster, and far less of your plan.
+- **A local model no longer thinks before every answer.** `think: false` goes
+  to an Ollama model that has thinking: scoring a posting takes about 1.5 s
+  instead of 8 s (#409). **Use it** on a model found on this computer gives it
+  Scoring postings only; the other tasks stay with the engines behind it, a
+  tick away on its card (#411).
+- **Jobs opens on Active**: every posting but the dismissed ones, which keep
+  their own tab. **The Overview's list is Recent matches**, not every new row.
+- **Setup's test search** shows which arrangements your search keeps (Remote,
+  Hybrid, On-site), and no longer talks about a paused pipeline or sends you to
+  Settings to score; setup scores at its last step. Its **Continue** keeps the
+  AI engine it found as the one in use.
+- **A job tab opens on its content on a narrow screen**: below 1,280 px the
+  Resume match, Cover letter, Is it real? and Application pack tabs no longer
+  sit under a screen of status buttons and tracking fields.
+- **`npm start` says only what you need**: no Node 26 localStorage warning,
+  one line while the database is created instead of one per migration, and
+  warnings and errors only while you use the dashboard.
+- **Rebuild keywords reads the posting again** before it compares, so a
+  keyword list written by a weaker model is replaced, not reused (#410).
+- **A skill your resume names counts as in your resume** in a comparison, even
+  only on its skills line; how thinly it is shown goes in the keyword's note.
+  Each posting's next comparison is analysed afresh once (#205).
+- **A job whose source gave no date shows First seen**, and the posted-date
+  filters and sort no longer treat that date as a publishing date (#458).
+- **A dismissed job's text is still deleted after 30 days**, but that it was
+  seen is kept for 180 (#474).
+- **Application packs**: a new role on a company board that publishes no
+  dates can be prepared on its own (#459); "Go on in the Tailor page" opens the
+  pack's edits as applied cards with their Undo; a long "packs ready" message
+  is sent in parts (#487).
+- **Folders**: when you edit a search, unmute a company, or a re-apply window
+  closes, the next check reads again the files where rows were turned away
+  (#448); files that left a folder are forgotten a month later unless a job
+  came from them; the card counts files set aside (#478). When a saved page
+  does not state its company, its title is read too (#451).
+- **Screening**: a skill counts as used "in production" only when the quoted
+  line carries a number (#218).
+- **Two-stage scoring**: a posting that names your stack goes straight to the
+  full check (#441).
+- Dependencies: the minor and patch updates of #500.
+
+### Fixed
+- **Connecting your first Telegram chat or Discord channel turns alerts on.**
+  Before, the test message arrived and no match ever followed until you found
+  the Alerts switch.
+- **Marking a job Applied no longer counts as an alert sent**, and no longer
+  overwrites the time a real alert went out.
+- **A job posted as just "Remote" no longer passes or fails your search's
+  location at random**: it counts as open to your search unless the
+  description limits where you may live (#386).
+- **A reply that could not be read was recorded as a success**, so a model
+  that never wrote usable JSON never showed as failing; AI usage and the
+  engine card now say so and advise another model (#463). A job's **AI spent**
+  now includes what scoring it cost (#483).
+- **After setup, the Overview's chart and the search funnel no longer say 0
+  matches** while the matches are listed below.
+- **A dismissed posting no longer comes back** as new, to be scored again, a
+  month later while its source still lists it (#474).
+- **We Work Remotely postings no longer show their company twice**; stored
+  ones are tidied on upgrade.
+- **A section link no longer slides the whole window up** (#419).
+- A red flag about a skill your resume names in another spelling no longer
+  costs ten points (#204); the "another sector" note no longer appears for a
+  sector your resume names another way (#207); a list of technologies after
+  the job title in a headline counts as a list, not as work done (#313).
+- A small score drop after applying the suggestions says when it is within
+  the run-to-run spread (#206).
+- A page saved into a postings folder by mistake is kept Saved with a note
+  instead of being scored as a job (#451).
+- The run page of a comparison states each step's time from your own calls
+  once ten have answered (#483); a run's page lights the menu entry it returns
+  to; place chips put a space between the flag and the country; Pipeline
+  health counts a Fetch now; a scoring run on Runs says what it found.
+- The Files page of a folder whose file brought thousands of jobs opens at
+  once; a chat message about a quiet folder says "folder not found" (#478).
+
 ## [2.55.61] — 2026-10-12
 
 ### Changed
@@ -5994,6 +6107,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.56.0]: https://github.com/applypack/applypack/compare/v2.55.61...v2.56.0
 [2.55.61]: https://github.com/applypack/applypack/compare/v2.55.60...v2.55.61
 [2.55.60]: https://github.com/applypack/applypack/compare/v2.55.59...v2.55.60
 [2.55.59]: https://github.com/applypack/applypack/compare/v2.55.58...v2.55.59
