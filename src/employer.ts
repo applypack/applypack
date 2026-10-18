@@ -176,8 +176,8 @@ export type EmployerGate = (typeof EMPLOYER_GATES)[number];
 export interface EmployerRules {
   /** The keys the user muted. */
   muted: ReadonlySet<string>;
-  /** Keys with an application inside the re-apply window; empty when the window is off. */
-  appliedRecently: ReadonlySet<string>;
+  /** Keys with an application inside the re-apply window, and when that window closes; empty when the window is off. */
+  appliedUntil: ReadonlyMap<string, Date>;
 }
 
 /**
@@ -189,7 +189,7 @@ export interface EmployerRules {
 export function employerGate(key: string | null, rules: EmployerRules, everyPosting = false): EmployerGate | null {
   if (key === null) return null;
   if (rules.muted.has(key)) return 'muted';
-  if (!everyPosting && rules.appliedRecently.has(key)) return 'applied';
+  if (!everyPosting && rules.appliedUntil.has(key)) return 'applied';
   return null;
 }
 

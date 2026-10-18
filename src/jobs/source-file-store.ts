@@ -31,9 +31,21 @@ const GONE_KEPT_MS = 30 * 24 * 60 * 60 * 1000;
 export async function loadLedger(companyId: number): Promise<LedgerEntry[]> {
   const rows = await prisma.sourceFile.findMany({
     where: { companyId },
-    select: { relPath: true, size: true, mtime: true, sha256: true, status: true, rowsRead: true, jobCount: true },
+    select: {
+      relPath: true,
+      size: true,
+      mtime: true,
+      sha256: true,
+      status: true,
+      rowsRead: true,
+      jobCount: true,
+      turnedAway: true,
+      windowTurnedAway: true,
+      windowEndsAt: true,
+      rulesKey: true,
+    },
   });
-  return rows.map(({ mtime, status, ...r }) => ({ ...r, mtimeMs: mtime.getTime(), status: status as FileStatus }));
+  return rows.map(({ mtime, status, windowEndsAt, ...r }) => ({ ...r, mtimeMs: mtime.getTime(), status: status as FileStatus, windowEndsAt: windowEndsAt?.getTime() ?? null }));
 }
 
 /**
@@ -74,6 +86,10 @@ async function keepLook(look: FolderLook): Promise<void> {
         detail: change.detail,
         jobCount: change.jobCount,
         rowsRead: change.rowsRead,
+        turnedAway: change.turnedAway,
+        windowTurnedAway: change.windowTurnedAway,
+        windowEndsAt: change.windowEndsAt === null ? null : new Date(change.windowEndsAt),
+        rulesKey: change.rulesKey ?? look.rulesKey,
         seenAt: look.at,
         goneAt: null,
         // A file whose bytes were read, whatever became of them.
@@ -92,6 +108,8 @@ async function keepLook(look: FolderLook): Promise<void> {
         data: { seenAt: look.at, goneAt: null },
       });
     }
+    // A file read before the rules were keyed takes the key of its first look since: nothing is read again on an upgrade (#448).
+    if (look.rulesKey !== null) await tx.sourceFile.updateMany({ where: { companyId: look.companyId, rulesKey: null }, data: { rulesKey: look.rulesKey } });
     // What it did not list has left the folder, or the name filter: gone as of this look.
     await tx.sourceFile.updateMany({ where: { companyId: look.companyId, seenAt: { lt: look.at }, goneAt: null }, data: { goneAt: look.at } });
     // A file whose jobs name it stays on the list with them; one that brought none is forgotten after a while.
@@ -138,15 +156,17 @@ export async function folderSummaries(): Promise<Map<number, FolderSummary>> {
 }
 
 /**
- * How many switched-on folders of rows hold a file a look has read. A file
- * of rows is read once, so what a search or a mute turned away in it is not
- * met again when the search changes or the company is unmuted — unlike a
- * feed, which serves the posting on its next tick. The pages where such a
- * change is made say so, with this count (#448).
+ * How many switched-on folders of rows hold a file whose rows the rules
+ * turned away: when a search changes or a company is unmuted, the next check
+ * reads those files again (folder-scan.ts:judgedAgain), and the page where
+ * the change is made says so (#448). A file read before rows were counted
+ * may have had some; one not yet given a key is not read again, so it is not
+ * counted either.
  */
-export async function foldersReadOnce(): Promise<number> {
+export async function foldersToReadAgain(): Promise<number> {
+  const turnedAway = { OR: [{ turnedAway: null }, { turnedAway: { gt: 0 } }, { windowTurnedAway: { gt: 0 } }] };
   const folders = await prisma.company.findMany({
-    where: { atsType: 'FOLDER', active: true, sourceFiles: { some: { status: 'done' } } },
+    where: { atsType: 'FOLDER', active: true, sourceFiles: { some: { status: 'done', goneAt: null, rulesKey: { not: null }, ...turnedAway } } },
     select: { sourceConfig: true },
   });
   // A folder of saved postings stores every file it reads: nothing in it was turned away.

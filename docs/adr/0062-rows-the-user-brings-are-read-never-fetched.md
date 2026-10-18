@@ -398,8 +398,30 @@ revisited:
   where the change is made. Saving a search whose filter fields changed
   (`filter.ts:filterChanged`), or one that starts to run, and unmuting a
   company add a sentence when switched-on folders of rows hold files already
-  read (`source-file-store.ts:foldersReadOnce`): how many, and where the
-  button is. Nothing is read again by that.
+  read: how many, and where the button is. Nothing is read again by that.
+  *Amended 2026-10-18 (#448):* it is done by itself now, where it can
+  change something. The ledger keeps, per file, how many rows the base
+  filter or a mute turned away (`turnedAway`), how many the re-apply window
+  did and when the soonest such window closes (`windowTurnedAway`,
+  `windowEndsAt`), and the key of the rules they were judged under
+  (`folder-scan.ts:rulesKey`: the filter fields of the searches that score,
+  the muted employers and the window's length). The pipeline counts them by
+  the file a row came from (`process-jobs.ts`,
+  `folder-ledger.ts:withTurnedAway`). A look plans a `done` file again,
+  from its first row, when rows of it were turned away and the key differs
+  — a search edited, started or stopped, a company muted or unmuted, the
+  window changed — or when a window that turned rows of it away has closed
+  (`folder-scan.ts:judgedAgain`); such files go behind new ones, inside the
+  look's ceilings. A file read on across looks keeps the key of the rules
+  that turned its first rows away, so one finished under other rules is
+  read again whole. Nothing is read again where nothing was turned away, or
+  when the rules did not change. Files read before carry no count and no
+  key: the first look after the upgrade stamps the key it judges under, so
+  no folder is read again on that day, and a later change reads them again,
+  since rows of them may have been turned away. Every row the new rules
+  admit is scored, as a feed's would be; the save and the unmute say in how
+  many folders (`source-file-store.ts:foldersToReadAgain`). The button
+  stays, for reading a whole folder again at will.
 - **A row's date.** A stated date was held against the *file's* time, so a
   file stamped 1980 (out of an archive) turned every later date away as "in
   the future" and gave all its rows 1980. It is held against the clock. A
