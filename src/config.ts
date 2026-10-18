@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AI_PROVIDER_IDS } from './ai-engine';
 import { dataDirFor, localPaths } from './local/data-dir';
 import { resolveDatabaseUrl } from './local/db-state';
+import { underLauncher } from './local/child';
 
 export const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required: start with `npm start`, which runs a database of its own, or set DATABASE_URL in .env'),
@@ -47,9 +48,11 @@ export const ConfigSchema = z.object({
   TELEGRAM_CHAT_ID: z.string().optional(),
   /** A Discord incoming webhook — the same first-boot bootstrap as the Telegram pair (ADR 0041). */
   DISCORD_WEBHOOK_URL: z.string().optional(),
+  // Under `npm start` the terminal is the person's, and a line per dashboard request buried the address
+  // they were told to open; warnings and errors still show, and a LOG_LEVEL set anywhere wins.
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info'),
+    .default(underLauncher() ? 'warn' : 'info'),
   TZ: z.string().default('UTC'),
   MIN_FIT_SCORE: z.coerce.number().int().min(0).max(100).default(70),
   MIN_SALARY_USD: z.coerce.number().int().min(0).default(0),
