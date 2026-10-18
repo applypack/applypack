@@ -1047,6 +1047,7 @@
   "settingsRoute.targets.telegramTestFailed": "Тестове повідомлення не дійшло до Telegram ({reason}), тож отримувача не збережено. Перевірте токен та ID чату й додайте його знову.",
   "settingsRoute.targets.telegramRace": "Цього бота з цим чатом щойно додано з іншої вкладки, тож удруге їх не додано. Тестове повідомлення дійшло.",
   "settingsRoute.targets.telegramAdded": "Отримувача «{name}» додано (бот @{bot}). Тестове повідомлення надіслано.",
+  "settingsRoute.targets.alertsOn": "Сповіщення тепер увімкнено: нові збіги надходитимуть туди.",
   "settingsRoute.targets.toggled": "Стан отримувача змінено.",
   "settingsRoute.targets.deleted": "Отримувача видалено.",
   "settingsRoute.targets.gone": "Цього отримувача вже немає, тож тестове повідомлення не надіслано. Список нижче актуальний.",

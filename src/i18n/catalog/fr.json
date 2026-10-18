@@ -1047,6 +1047,7 @@
   "settingsRoute.targets.telegramTestFailed": "Le message de test n'a pas atteint Telegram ({reason}) : la destination n'a donc pas été enregistrée. Vérifiez le token et l'ID du chat, puis ajoutez-la à nouveau.",
   "settingsRoute.targets.telegramRace": "Ce bot et ce chat ont été ajoutés depuis un autre onglet il y a un instant, ils n'ont donc pas été ajoutés deux fois. Le message de test est bien arrivé.",
   "settingsRoute.targets.telegramAdded": "Destination « {name} » ajoutée (bot @{bot}). Message de test envoyé.",
+  "settingsRoute.targets.alertsOn": "Les alertes sont maintenant activées : les nouvelles correspondances y arriveront.",
   "settingsRoute.targets.toggled": "État de la destination modifié.",
   "settingsRoute.targets.deleted": "Destination supprimée.",
   "settingsRoute.targets.gone": "Cette destination n'existe plus, donc aucun test n'a été envoyé. La liste ci-dessous est à jour.",
