@@ -8,6 +8,7 @@ import {
   budgetMonth,
   ledgerRow,
   typicalMicro,
+  type AnswerTimes,
   type LedgerInput,
   type SpendGroup,
 } from './ai-spend';
@@ -190,6 +191,34 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
     p90Ms: r.p90Ms === null ? null : Math.round(r.p90Ms),
     fallbackMicro: Number(r.fallbackMicro),
   }));
+}
+
+/**
+ * How long each feature's last twenty answered calls took on the engines
+ * given, per model asked for: the model the next call will ask for ('' = a
+ * CLI's default), where a spend group is keyed by the one the vendor names.
+ * A page reads it to say how long a step takes here, so it never throws.
+ */
+export async function loadAnswerTimes(engines: readonly string[], features: readonly AiFeature[]): Promise<AnswerTimes[]> {
+  if (engines.length === 0 || features.length === 0) return [];
+  try {
+    const rows = await prisma.$queryRaw<AnswerTimes[]>`
+      SELECT "feature", "engine", "model", count(*)::int AS "answered",
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY "durationMs") AS "medianMs",
+        percentile_cont(0.9) WITHIN GROUP (ORDER BY "durationMs") AS "p90Ms"
+      FROM (
+        SELECT "feature", "engine", "model", "durationMs",
+          row_number() OVER (PARTITION BY "feature", "engine", "model" ORDER BY "at" DESC, "id" DESC) AS "n"
+        FROM "ai_call"
+        WHERE "outcome" = 'ok' AND "engine" = ANY(${[...engines]}) AND "feature" = ANY(${[...features]})
+      ) recent
+      WHERE "n" <= ${TYPICAL_OF}
+      GROUP BY 1, 2, 3`;
+    return rows.map((r) => ({ ...r, medianMs: Math.round(r.medianMs), p90Ms: Math.round(r.p90Ms) }));
+  } catch (err) {
+    logger.warn({ err }, 'ai: answer times not read');
+    return [];
+  }
 }
 
 /** What a kind of call usually costs here: the middle of the last twenty that answered, on the kind of money they spent. */

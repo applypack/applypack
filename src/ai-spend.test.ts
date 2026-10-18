@@ -11,6 +11,7 @@ import {
   formatUsd,
   ledgerRow,
   periodRange,
+  slowTail,
   spendReportLines,
   spendView,
   usageByModel,
@@ -224,5 +225,12 @@ test('the rows by the model that answered: the busiest model first, and inside i
 test('a feature reads as words, and one this version does not know reads as itself', () => {
   assert.equal(featureLabel('resume-match'), 'Full analysis');
   assert.equal(featureLabel('something-new'), 'something-new');
+});
+
+test('"9 in 10 under" needs ten answers and a tail slower than the middle — on AI usage and on the run page alike', () => {
+  assert.equal(slowTail(10, 40_000, 95_000), 95_000);
+  assert.equal(slowTail(9, 40_000, 95_000), null);
+  assert.equal(slowTail(20, 40_000, 44_000), null);
+  assert.equal(slowTail(20, null, null), null);
 });
 

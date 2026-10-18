@@ -37,7 +37,9 @@ import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { autoPacksToday, listUnnotifiedPacks } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
-import { getRun } from '../web/target-runs';
+import { claimRun, getRun } from '../web/target-runs';
+import { getAiRuntime } from '../ai-runtime';
+import { TIMED_FROM } from '../ai-spend';
 import { parseFlashCookie } from '../web/flash';
 import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
@@ -759,6 +761,7 @@ async function main(): Promise<void> {
   rows.push(await packCancelCheck(f.jobId));
   rows.push(...(await engineTroubleChecks()));
   rows.push(await ledgerUpdateCheck(f.jobId));
+  rows.push(await recordedBandCheck());
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -871,6 +874,29 @@ async function ledgerUpdateCheck(jobId: number): Promise<Check> {
     url: '/ai',
     status: usage.status,
     ok: rows.length === RECENT_WINDOW && rows.every((r) => r.jobId === jobId && r.outcome === 'unparsed') && html.includes('ApplyPack could not read'),
+  };
+}
+
+/**
+ * #483: the run page states this install's own time for a step once ten
+ * calls answered on the engine and model that will take it. The run is
+ * claimed and never started, so it waits on its first step while the page
+ * is read.
+ */
+async function recordedBandCheck(): Promise<Check> {
+  const runtime = await getAiRuntime();
+  const engine = runtime.chainFor('resume-read')[0];
+  for (let i = 0; engine && i < TIMED_FROM; i++) {
+    await recordAiCall({ at: new Date(), durationMs: 12_000, feature: 'resume-scan', viaFallback: false, engine, model: runtime.modelFor(engine, 'resume'), outcome: 'ok', billing: 'plan', spend: null });
+  }
+  const { run } = claimRun('smoke:recorded-band', { steps: ['scan'], jobTitle: 'Smoke band', resumeName: 'Smoke band' });
+  const res = await app.request(`/target/runs/${run.id}`, { headers: ORIGIN });
+  const html = res.status === 200 ? await res.text() : '';
+  return {
+    route: 'GET /target/runs/:id with ten answered scans on record (their own time, not the generic words)',
+    url: '/target/runs/:id',
+    status: res.status,
+    ok: html.includes('about 12.0s on') && html.includes('going by your last 10 calls'),
   };
 }
 

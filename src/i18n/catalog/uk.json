@@ -2389,6 +2389,8 @@
   "target.step.compare.detail": "два прочитання водночас, друге — з резюме у зворотному порядку; близько хвилини на CLI-рушії",
   "target.step.timed": "{detail} — {when}",
   "target.band.measured": "приблизно {band} на {lane}",
+  "target.band.recorded": "приблизно {time} на {lane}, судячи з {n, plural, one {вашого останнього # виклику} few {ваших останніх # викликів} many {ваших останніх # викликів} other {ваших останніх # виклику}}",
+  "target.band.recordedTail": "приблизно {time} на {lane}, 9 із 10 — до {tail}, судячи з {n, plural, one {вашого останнього # виклику} few {ваших останніх # викликів} many {ваших останніх # викликів} other {ваших останніх # виклику}}",
   "target.band.briefFirst": "пів хвилини першого разу, далі — миттєво",
   "target.band.halfToOne": "від пів хвилини до хвилини",
   "target.band.matchOpus": "1½–2 хвилини на Opus",

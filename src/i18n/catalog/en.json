@@ -2389,6 +2389,8 @@
   "target.step.compare.detail": "two readings at once, the second with the resumes in the reverse order — about a minute on a CLI engine",
   "target.step.timed": "{detail} — {when}",
   "target.band.measured": "about {band} on {lane}",
+  "target.band.recorded": "about {time} on {lane}, going by your last {n, plural, one {# call} other {# calls}}",
+  "target.band.recordedTail": "about {time} on {lane}, 9 in 10 under {tail}, going by your last {n, plural, one {# call} other {# calls}}",
   "target.band.briefFirst": "half a minute the first time, instant afterwards",
   "target.band.halfToOne": "half a minute to a minute",
   "target.band.matchOpus": "1½ to 2 minutes on Opus",

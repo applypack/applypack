@@ -4,7 +4,7 @@ import { Layout } from '../layout';
 import { Button, Card, Hint, Notice } from '../ui';
 import { RunSteps, type StepView } from './run-steps';
 import { LETTER_FAILED, UNEXPECTED_FAILURE, type RunStep, type TargetRun } from '../target-runs';
-import { bandFor, laneLabel, type Lane } from '../lane';
+import { stepBand, type LaneTimes } from '../lane';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 
@@ -29,8 +29,8 @@ const STEPS = [
 
 /** The engine × model behind the steps: reading the resume and analysing it are two tasks, and may be two engines (ADR 0060). */
 export interface RunLanes {
-  read: Lane;
-  analysis: Lane;
+  read: LaneTimes;
+  analysis: LaneTimes;
 }
 
 /** What the timed steps cost when the lane is not one we measured. */
@@ -48,7 +48,7 @@ const GENERIC_BAND = {
 
 const isTimed = (step: RunStep): step is keyof typeof GENERIC_BAND => step in GENERIC_BAND;
 
-/** The step copy with this install's measured band appended — "about 20 s on Sonnet 5 through the Claude CLI" (#184). */
+/** The step copy with this install's band appended — "about 20 s on Sonnet 5 through the Claude CLI" (#184), or its own calls' (#483). */
 function stepView(lanes: RunLanes): Record<string, StepView> {
   const out: Record<string, StepView> = {};
   for (const step of STEPS) {
@@ -57,9 +57,7 @@ function stepView(lanes: RunLanes): Record<string, StepView> {
       out[step] = { label: t(`target.step.${step}`), detail };
       continue;
     }
-    const lane = step === 'scan' || step === 'structure' ? lanes.read : lanes.analysis;
-    const band = bandFor(step, lane);
-    const when = band ? t('target.band.measured', { band, lane: laneLabel(lane) }) : t(GENERIC_BAND[step]);
+    const when = stepBand(step, step === 'scan' || step === 'structure' ? lanes.read : lanes.analysis) ?? t(GENERIC_BAND[step]);
     out[step] = { label: t(`target.step.${step}`), detail: t('target.step.timed', { detail, when }) };
   }
   return out;

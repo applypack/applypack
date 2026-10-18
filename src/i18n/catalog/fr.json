@@ -2389,6 +2389,8 @@
   "target.step.compare.detail": "deux lectures en même temps, la seconde avec les CV dans l'ordre inverse — environ une minute avec un moteur CLI",
   "target.step.timed": "{detail} — {when}",
   "target.band.measured": "environ {band} avec {lane}",
+  "target.band.recorded": "environ {time} avec {lane}, d'après {n, plural, one {votre dernier appel} many {vos # derniers appels} other {vos # derniers appels}}",
+  "target.band.recordedTail": "environ {time} avec {lane}, 9 sur 10 en moins de {tail}, d'après {n, plural, one {votre dernier appel} many {vos # derniers appels} other {vos # derniers appels}}",
   "target.band.briefFirst": "une demi-minute la première fois, instantané ensuite",
   "target.band.halfToOne": "d'une demi-minute à une minute",
   "target.band.matchOpus": "1½ à 2 minutes avec Opus",

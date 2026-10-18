@@ -88,6 +88,27 @@ export interface SpendGroup {
   fallbackMicro: number;
 }
 
+/** How long one feature's last answered calls took on one engine and model (ai-ledger.ts:loadAnswerTimes). */
+export interface AnswerTimes {
+  feature: string;
+  engine: string;
+  /** The model asked for — '' = a CLI's default — since that is what the next call will ask for. */
+  model: string;
+  answered: number;
+  medianMs: number;
+  p90Ms: number;
+}
+
+/** A time is stated from this many answered calls: "9 in 10" from two was the slower one, interpolated (#415). */
+export const TIMED_FROM = 10;
+/** The slow tail gets a figure of its own once it is this far from the middle; under it the two say the same. */
+const SLOW_TAIL = 1.1;
+
+/** The "9 in 10 under" time, when there are enough answers for it and the tail is slower than the middle. */
+export function slowTail(answered: number, medianMs: number | null, p90Ms: number | null): number | null {
+  return answered >= TIMED_FROM && medianMs !== null && p90Ms !== null && p90Ms > medianMs * SLOW_TAIL ? p90Ms : null;
+}
+
 export interface SpendTotal {
   calls: number;
   tokens: number;
