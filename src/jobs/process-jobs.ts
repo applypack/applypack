@@ -7,6 +7,7 @@ import { anyBaseFilterReason } from '../filter';
 import { COMPANY_NOT_NAMED, employerGate, fetchedHiringName, hiringKey } from '../employer';
 import { t } from '../i18n/t';
 import { loadEmployerRules } from './employer-store';
+import { dismissedKeys } from './dismissed-store';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { withApplyLinkFlags } from '../apply-link';
 import { validDate } from '../fetchers/dates';
@@ -559,21 +560,24 @@ function pairKey(job: Pick<NormalizedJob, 'companyId' | 'externalId'>): string {
 }
 
 /**
- * The (companyId, externalId) pairs already in the table, for a batch. The
- * query asks for any company of the batch × any external id of the batch —
- * a superset — and the Set holds the exact pairs, so a collision of
- * external ids across two boards cannot mark a new posting as stored.
+ * The (companyId, externalId) pairs already in the table, for a batch, and
+ * those of the Dismissed postings the cleanup deleted, whose keys it kept
+ * (#474). The query asks for any company of the batch × any external id of
+ * the batch — a superset — and the Set holds the exact pairs, so a collision
+ * of external ids across two boards cannot mark a new posting as stored.
  */
 async function storedKeys(jobs: Pick<NormalizedJob, 'companyId' | 'externalId'>[]): Promise<Set<string>> {
   if (jobs.length === 0) return new Set();
-  const rows = await prisma.job.findMany({
-    where: {
-      companyId: { in: [...new Set(jobs.map((j) => j.companyId))] },
-      externalId: { in: [...new Set(jobs.map((j) => j.externalId))] },
-    },
-    select: { companyId: true, externalId: true },
-  });
-  return new Set(rows.map(pairKey));
+  const companyIds = [...new Set(jobs.map((j) => j.companyId))];
+  const externalIds = [...new Set(jobs.map((j) => j.externalId))];
+  const [rows, dismissed] = await Promise.all([
+    prisma.job.findMany({
+      where: { companyId: { in: companyIds }, externalId: { in: externalIds } },
+      select: { companyId: true, externalId: true },
+    }),
+    dismissedKeys(companyIds, externalIds),
+  ]);
+  return new Set([...rows, ...dismissed].map(pairKey));
 }
 
 function buildClassifyInput(

@@ -544,7 +544,7 @@ fetched.
   flat emerald bar on a subtle track.
 - **Honest numbers:** days are UTC, the key the daily rollup is stored under;
   a day nothing happened on is a zero; anything by technology looks back
-  thirty days, because that is how long a dismissed job is kept.
+  thirty days, because a dismissed job's text is deleted after that.
 
 ### Navigation
 - **Sidebar:** white, a hairline right edge; a 64px brand row (the emerald

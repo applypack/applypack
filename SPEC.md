@@ -180,8 +180,8 @@ AI call (`web/overview-stats.ts`):
 - **What do the matches ask for?** *Jobs by stack*: the technologies of the
   running searches that the last 30 days' matches name (`Job.techMatch`), and
   the same list as the chart's **All stack** filter. Anything by technology
-  reads the jobs, and a dismissed job is deleted after 30 days — so the
-  filter covers 7D and 30D and is off beyond. A match here is a job that was
+  reads the jobs, and a dismissed job's text is deleted after 30 days — so
+  the filter covers 7D and 30D and is off beyond. A match here is a job that was
   scored and kept, or alerted or held before the user dismissed it.
 
 Beside them: pipeline health (the latest run of each scheduled job), recent
@@ -220,7 +220,7 @@ match and a recap at 09:00: the behaviour before v1.47.0.
 | `mm * * * *` | fetch              | full fetch + filter + classify + alert — gated by the user's schedule; held alerts and the France Travail check run first, even while paused |
 | `0 * * * *` | digest             | Recap of the NEW / ALERTED jobs stored since the last recap, to every active target; only on the digest hours |
 | `0 * * * *` | stale-applications | Nudge for jobs in the Applied column for more than 14 days with no recruiter contact; only on the first digest hour of the day |
-| `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days (never one with a pipeline stage), screenings past `retainUntil`, finished run rows older than 90 days and AI ledger rows older than 400 days |
+| `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days (never one with a pipeline stage), keeping each one's source and id for 180 days from when it was found so the tick does not score it again (`dismissed_posting`, #474), screenings past `retainUntil`, finished run rows older than 90 days and AI ledger rows older than 400 days |
 | `mm 4 * * 0` | discovery         | Re-probe the pending Greenhouse, Lever and Ashby CompanyCandidates |
 | `mm 6 1 * *` | hn-hiring         | Pull latest HN Who-is-hiring + extract candidates |
 | `* * * * *`  | pack               | Prepare the queued application packs one at a time and send one message for the finished ones (ADR 0063); a beat with nothing queued and no message owed writes no run row |

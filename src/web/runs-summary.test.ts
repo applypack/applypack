@@ -100,6 +100,9 @@ describe('summarizeRun', () => {
       summarizeRun('cleanup', { deleted: 12, screeningsDeleted: 1, runsDeleted: 240, durationMs: 40 }),
       ['12 old jobs deleted', '1 screening deleted', '240 old runs deleted'],
     );
+    // #474: the keys of deleted dismissals, forgotten once they are kept no longer.
+    assert.deepEqual(summarizeRun('cleanup', { deleted: 0, dismissalsForgotten: 3, durationMs: 40 }), ['0 old jobs deleted', '3 dismissed postings forgotten']);
+    assert.deepEqual(summarizeRun('cleanup', { deleted: 4, dismissalsForgotten: 0 }), ['4 old jobs deleted']);
     assert.deepEqual(summarizeRun('some-new-job', { count: 3 }), ['3 count']);
   });
 
