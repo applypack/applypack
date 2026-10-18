@@ -95,6 +95,7 @@ import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
+import { beginScoreUnscored, loadUnscored, PAGE_SCORE_BATCH } from '../score-run';
 import { companyForPage, companyForPrompt, employerKey, hiringName, postingForPrompt, withoutMuted } from '../../employer';
 import { preferredPlaces } from '../place-line';
 import { t } from '../../i18n/t';
@@ -189,9 +190,9 @@ jobsRoute.get('/jobs', async (c) => {
   const now = new Date();
 
   const where: Prisma.JobWhereInput = {};
-  if (status) {
-    where.status = status as JobStatus;
-  }
+  // The first tab is what is still in play; a dismissed posting waits on its own tab (a fresh install's first
+  // look was 461 dismissed rows around 2 matches).
+  where.status = status ? (status as JobStatus) : { not: JobStatus.DISMISSED };
   const minFitNum = intQuery(minFit);
   // With a search selected both filters read that search's own score, not the
   // best-of — a chip that showed rows another search scored would be a lie.
@@ -244,7 +245,7 @@ jobsRoute.get('/jobs', async (c) => {
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, facetRows, statusGroups, activeProfile, activeProfiles, mutedHidden] = await Promise.all([
+  const [jobs, facetRows, statusGroups, activeProfile, activeProfiles, mutedHidden, unscored] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -293,12 +294,13 @@ jobsRoute.get('/jobs', async (c) => {
     getActiveProfile(),
     listActiveProfiles(),
     hiddenKeys.length > 0 ? prisma.job.count({ where: { employerKey: { in: hiddenKeys } } }) : 0,
+    loadUnscored(),
   ]);
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
   const statusCounts: Partial<Record<JobStatus, number>> = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
   const total = status
     ? (statusCounts[status as JobStatus] ?? 0)
-    : statusGroups.reduce((sum, g) => sum + g._count._all, 0);
+    : statusGroups.reduce((sum, g) => (g.status === JobStatus.DISMISSED ? sum : sum + g._count._all), 0);
 
   return c.html(
     <JobsListPage
@@ -327,11 +329,25 @@ jobsRoute.get('/jobs', async (c) => {
       searchPlaces={preferredPlaces(activeProfiles)}
       blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}
       mutedHidden={mutedHidden}
+      unscored={unscored}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
+});
+
+/** The notice's one press: the best of the unscored jobs, on the shared progress page, back to Jobs. */
+jobsRoute.post('/jobs/score-unscored', (c) => {
+  const { run } = beginScoreUnscored({
+    limit: PAGE_SCORE_BATCH,
+    heading: { running: t('welcome.scoreRun.running'), failed: t('welcome.scoreRun.failed') },
+    subtitle: t('jobs.scoreRun.subtitle', { n: PAGE_SCORE_BATCH }),
+    backUrl: '/jobs',
+    backLabel: t('jobs.backToJobs'),
+    resultUrl: '/jobs',
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
 });
 
 jobsRoute.get('/jobs/new', (c) =>

@@ -95,3 +95,24 @@ measurement (ADR 0057, stage C), and the tab makes no recommendation.
 When a task needs a model of its own inside one engine (a slot per task), or
 when measured results exist that would justify a default list for a kind of
 engine.
+
+## Addendum (2026-10-18): "Use it" gives a local model scoring alone
+
+The wizard's **Use it** on a model found on this computer
+(`ai-engine.ts:withEngineFirst`) put it first with its model in every slot
+and lifted any list it had, so it answered every task: the analysis, the
+letters, screening and the packs prepared with nobody watching. Measured on
+`gemma4:e4b` (#411), scoring is the task it suits: the resume scan kept 53
+skills of Claude's 73, the shape kept 2 roles of 6, the brief came back with
+six keywords and no groups, a full comparison did not fit a 16k window, and
+the letter was generic.
+
+**Use it** now stores `tasks: ['scoring']` for that engine
+(`LOCAL_MODEL_TASKS`; reading a pasted posting is part of scoring), and the
+flash says the other tasks are a tick away on its card. They go to the
+engines behind it, which bills them where an API key stands there: a
+decision about spend, taken for quality as the default. An install where the
+local model stands alone, or where nothing behind it can run, is answered as
+before, since a task no usable engine takes goes to the whole chain; the AI
+tab names those tasks. Marking on the card a task whose prompt cannot fit the
+window is a separate change.

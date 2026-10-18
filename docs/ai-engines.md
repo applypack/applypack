@@ -17,7 +17,8 @@ does the rest:
 ## Giving each engine its tasks
 
 Every engine card has a row of boxes, **Used for** (under **Models and
-tasks**), all ticked at first:
+tasks**), all ticked at first — except on a model on this computer chosen
+with **Use it** in `/welcome`, which starts with **Scoring postings** alone:
 
 | Task | What it covers |
 | --- | --- |
@@ -220,6 +221,8 @@ llama.cpp's server or vLLM, three things are by hand:
   one, and a resume comparison or a letter asks more of it than scoring
   does. Which local models clear the bar is not measured here yet, and a
   reply that does not parse is asked again of the same engine, once.
+  **Use it** in step 1 of `/welcome` gives it **Scoring postings** only, as
+  for Ollama below.
 
 **Docker:** the containers reach your machine as `host.docker.internal`,
 so LM Studio's address is `http://host.docker.internal:1234/v1`. Docker
@@ -236,6 +239,21 @@ network — ADR 0057. No key, no bill, and the text never leaves.
   (default `http://127.0.0.1:11434`, `OLLAMA_URL` in `.env`), Enable, a model
   in each field (**Test** lists what Ollama has pulled; `LOCAL_MODEL` in
   `.env` fills an empty field).
+- **What Use it gives the model:** first place in the list, its name in
+  every model field, and **Scoring postings** (which includes reading a
+  posting you paste) as its one task. Measured on `gemma4:e4b` (#411), a
+  small local model missed no match while scoring, though it let more
+  through than Claude Haiku; it read resumes, analysed them and wrote
+  letters clearly worse, so those tasks stay with the engines behind it.
+  To hand them over too, tick them under **Used for** on its card. With no
+  other engine that can run, it answers every task anyway. An engine
+  enabled on the AI tab by hand takes every task, as any other does.
+- **Thinking is off.** A model that can think first (Ollama lists
+  `thinking` among its capabilities, as it does for `gemma4`) is asked not
+  to: on the classifier's prompt `gemma4:e4b` answered in 1.5 s instead of
+  8.2 s, with every reply still valid. ApplyPack asks Ollama once per model
+  what it can do (`/api/show`); a model that cannot think, or a server that
+  does not say, is sent no such field.
 - **Context window** (8k / 16k / 32k / 64k tokens, 16k by default) is sent
   with every call, so the server's own default does not matter. A call
   whose prompt would not fit is refused before it is sent, with the size it

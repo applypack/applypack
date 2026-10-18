@@ -4,6 +4,90 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.56.1] — 2026-10-18
+
+### Fixed
+- On a window narrower than 1280 px, a job's Resume match, Cover letter, Is
+  it real? and Application pack tabs open on their content instead of a
+  screen of status buttons and tracking fields; the Posting tab still leads
+  with them.
+- Place chips put a space between the flag and the country.
+- A run's progress page highlights the menu entry it returns to (Jobs for a
+  comparison started on a job), not Tailor resume.
+
+## [2.56.0] — 2026-10-18
+
+### Changed
+- Jobs opens on **Active**: every posting but the dismissed ones, which keep
+  their own tab.
+- The Overview's list is **Recent matches**: what your searches kept,
+  alerted or not, instead of every new row.
+
+### Added
+- When jobs are stored without a score (while fetching was paused, by
+  setup's test search, or when the AI did not answer), Jobs and the Overview
+  say how many and offer **Score them**: up to 50 a press, the closest to
+  your searches first, the off-topic ones set aside for free.
+
+### Fixed
+- Pipeline health no longer says the fetch never ran right after a Fetch
+  now.
+
+## [2.55.66] — 2026-10-18
+
+### Changed
+- "Use it" on a model found on this computer now gives it Scoring postings
+  only; resume analysis, letters and screening stay with the engines behind
+  it. Tick them on the model's card in Settings → AI & costs to hand them
+  over too.
+
+### Fixed
+- A local model that can think (such as gemma4) no longer thinks before
+  every answer: scoring a posting takes about 1.5 s instead of 8 s, and a
+  long think can no longer use up the reply and leave a posting unscored.
+
+## [2.55.65] — 2026-10-18
+
+### Changed
+- Setup's test search shows which arrangements your search keeps (Remote,
+  Hybrid, On-site), Remote ticked, and saves your choice. Its progress page
+  and result no longer talk about a paused pipeline or send you to Settings
+  to score: setup scores the best of them at its last step.
+- A scoring run on Runs says what it found ("10 scored · 3 matches · 7 moved
+  to Dismissed …") instead of its internal counters.
+
+### Fixed
+- After setup, the Overview's chart and the search funnel no longer say 0
+  matches while the matches are listed below: the first scoring of the jobs
+  setup stored is counted.
+
+## [2.55.64] — 2026-10-18
+
+### Fixed
+- We Work Remotely postings no longer show their company twice ("Vercel:
+  Software Engineer, Backend" at Vercel): the title is the role, and the
+  postings already stored are tidied the same way on upgrade.
+
+## [2.55.63] — 2026-10-18
+
+### Fixed
+- Calls through the Claude Code CLI no longer carry the MCP servers you set
+  up for your own Claude Code: a scoring call read about 100,000 tokens of
+  their tool lists before and reads about 3,000 now, so it is faster and
+  uses far less of your plan.
+
+## [2.55.62] — 2026-10-18
+
+### Fixed
+- After switching the language — or following any link to a section of a
+  page, such as Settings → General → Updates — the whole window no longer
+  slides up, hiding the top of the menu and leaving an empty band at the
+  bottom. Only the page's content scrolls to the section.
+
+### Changed
+- Dependencies moved to their latest minor and patch releases: the Anthropic
+  SDK, Hono and its Node server, docx, dotenv, pino and pino-pretty (#500).
+
 ## [2.55.61] — 2026-10-12
 
 ### Changed
@@ -5994,6 +6078,13 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.56.1]: https://github.com/applypack/applypack/compare/v2.56.0...v2.56.1
+[2.56.0]: https://github.com/applypack/applypack/compare/v2.55.66...v2.56.0
+[2.55.66]: https://github.com/applypack/applypack/compare/v2.55.65...v2.55.66
+[2.55.65]: https://github.com/applypack/applypack/compare/v2.55.64...v2.55.65
+[2.55.64]: https://github.com/applypack/applypack/compare/v2.55.63...v2.55.64
+[2.55.63]: https://github.com/applypack/applypack/compare/v2.55.62...v2.55.63
+[2.55.62]: https://github.com/applypack/applypack/compare/v2.55.61...v2.55.62
 [2.55.61]: https://github.com/applypack/applypack/compare/v2.55.60...v2.55.61
 [2.55.60]: https://github.com/applypack/applypack/compare/v2.55.59...v2.55.60
 [2.55.59]: https://github.com/applypack/applypack/compare/v2.55.58...v2.55.59
