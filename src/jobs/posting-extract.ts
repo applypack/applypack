@@ -6,13 +6,15 @@ import { fence, untrustedDirective } from '../prompt-fence';
 import { MAX_FIELD_CHARS } from './manual-job';
 
 /*
- * Quick fact extraction for pasted postings (/target). One cheap
- * classifier-model call over the posting head; never invents — a fact the
- * text does not state comes back null. The input is the CLEANED paste:
- * posting-clean.mjs keeps the job-header block (title, company, location,
- * salary) while dropping the nav chrome that would otherwise eat the
- * HEAD_CHARS window. The prompt builder and parser are pure (tested);
- * only extractPostingFacts talks to the provider.
+ * Quick fact extraction for pasted postings (/target) and saved ones (a
+ * folder of postings, ADR 0062). One cheap classifier-model call over the
+ * posting head; never invents — a fact the text does not state comes back
+ * null. The input is the CLEANED paste: posting-clean.mjs keeps the
+ * job-header block (title, company, location, salary) while dropping the nav
+ * chrome that would otherwise eat the HEAD_CHARS window. A saved page also
+ * brings its own <title>, which often names the company its text does not
+ * (#451). The prompt builder and parser are pure (tested); only
+ * extractPostingFacts talks to the provider.
  */
 
 /** Postings put their identity at the top; the head keeps the call fast and cheap. */
@@ -29,7 +31,7 @@ export interface PostingFacts {
   workplace: 'remote' | 'hybrid' | 'onsite' | null;
 }
 
-const EXTRACT_SYSTEM = `You read one pasted job posting (possibly with page chrome around it) and extract facts.
+const EXTRACT_SYSTEM = `You read one job posting (pasted, or a page someone saved, possibly with page chrome around it) and extract facts.
 
 ${untrustedDirective()}
 
@@ -40,10 +42,13 @@ Rules:
 - location: the work location exactly as stated ("Remote (US)", "Berlin, hybrid"). null when not stated.
 - salary_min / salary_max: yearly amounts in the posting's currency as plain integers ("$120K/yr - $160K/yr" → 120000 and 160000; a single figure fills both). Convert hourly to yearly only when the posting itself does; otherwise null.
 - workplace: "remote", "hybrid" or "onsite" only when the posting states the arrangement; null otherwise.
-- Never invent or guess a fact the text does not contain.`;
+- PAGE TITLE, when given, is the saved page's own title as the browser showed it. It often names the role and the hiring company ("Senior Backend Engineer at Fennel Works | Careers"): read them from it when the posting does not say them. A job board's or a site's name in it ("… | Indeed", "… | LinkedIn") is not the hiring company.
+- Never invent or guess a fact that neither the posting nor its page title contains.`;
 
-export function buildExtractPrompt(description: string): { system: string; user: string } {
-  return { system: EXTRACT_SYSTEM, user: fence('JOB POSTING', description.slice(0, HEAD_CHARS)) };
+/** `pageTitle`: a saved page's own <title> (datasets/saved-page.ts), fenced as the posting is. */
+export function buildExtractPrompt(description: string, pageTitle: string | null = null): { system: string; user: string } {
+  const posting = fence('JOB POSTING', description.slice(0, HEAD_CHARS));
+  return { system: EXTRACT_SYSTEM, user: pageTitle ? `${fence('PAGE TITLE', pageTitle)}\n\n${posting}` : posting };
 }
 
 const FieldSchema = z
@@ -122,8 +127,8 @@ export function fallbackTitle(description: string): string {
   return first.length >= 4 && first.length <= 90 && !SECTION_HEADING.test(first) ? first : 'Untitled role';
 }
 
-export async function extractPostingFacts(description: string): Promise<PostingFacts | null> {
-  const { system, user } = buildExtractPrompt(description);
+export async function extractPostingFacts(description: string, pageTitle: string | null = null): Promise<PostingFacts | null> {
+  const { system, user } = buildExtractPrompt(description, pageTitle);
   const ai = await getAiRuntime();
   const started = Date.now();
   const out = await ai.complete({

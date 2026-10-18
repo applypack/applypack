@@ -794,7 +794,8 @@ Check guesses which kind a folder holds and lets the user switch it.
   `og:url`, the browser's "saved from url" note), its main text without the
   application form and the navigation a board puts beside the posting. A model
   reads the title and the company only when the page does not state them —
-  one small call, none while fetching is paused (the file waits).
+  one small call, which is shown the page's own title too, none while
+  fetching is paused (the file waits).
 - Each file becomes one job of the folder, taken as a paste: no search's
   filter and no employer rule sets it aside, it is scored, and one that
   every search turns down is kept **Saved**. A match alerts like any other

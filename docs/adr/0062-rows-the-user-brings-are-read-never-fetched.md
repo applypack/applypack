@@ -668,3 +668,17 @@ the last: the id over the text as it was read before, form and all
 (`SavedPage.former`), under both earlier rules. A page saved again is the
 job it was, and no model is asked. Stored rows are never rewritten: a job
 read before keeps the text it has.
+
+*Amended 2026-10-18 (#451).* **The call that reads a saved posting is shown
+the page's own `<title>`** (`SavedPage.pageTitle`), fenced as a block of its
+own beside the text. It is the best line on a single-file save, which never
+carries the structured block, and on a page whose block names no company.
+Measured with the scoring task's engine (the Claude Code CLI's Haiku) on
+twelve pages built from stored public postings — six `.mhtml`, six `.html`
+whose block names no company: the company was found on 5 before and 9
+after; the four it gained are named in the title alone. None answered a
+company the page does not name. One answered the job board in its title
+("… – Remote | Himalayas") on a page that names no company anywhere: the
+model did not know the name for a board's, and a sentence more in the
+prompt did not change that. One title names a recruiter whose text says
+"our client", and that page stays without a company, as the rule asks.
