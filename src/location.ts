@@ -65,6 +65,7 @@ const REMOTE_RE =
   /(?<![\p{L}\p{N}])(?:remote|home[- ]?based|home ?office|work from home|wfh|віддалено|дистанційно|praca zdalna|zdalnie|t[ée]l[ée]travail)(?![\p{L}\p{N}])/iu;
 const HYBRID_RE = /(?<![\p{L}\p{N}])hybrid(?![\p{L}\p{N}])/iu;
 const ONSITE_RE = /(?<![\p{L}\p{N}])(?:on[-_ ]?site|in[- ]?office|in[- ]?person)(?![\p{L}\p{N}])/iu;
+const ARRANGEMENT_WORDS_RE = new RegExp([REMOTE_RE, HYBRID_RE, ONSITE_RE].map((r) => r.source).join('|'), 'giu');
 
 // One office or several: a segment is one place. Spaced hyphens and the
 // words "or" / "and" separate too; a bare hyphen does not (Cluj-Napoca).
@@ -94,6 +95,15 @@ export function workplaceFromText(text: string): WorkplaceCode {
   if (HYBRID_RE.test(text)) return 'HYBRID';
   if (ONSITE_RE.test(text)) return 'ONSITE';
   return 'UNKNOWN';
+}
+
+/**
+ * Nothing but arrangement words ("Remote", "REMOTE / WFH"). "Remote ·
+ * Dehradun" is not: a city the gazetteer does not know is still a place, so
+ * an empty country list after it proves nothing.
+ */
+export function arrangementOnly(text: string): boolean {
+  return !/\p{L}/u.test(text.replace(ARRANGEMENT_WORDS_RE, ''));
 }
 
 /**

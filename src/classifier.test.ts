@@ -236,6 +236,17 @@ test('a search describes its place as codes only', () => {
   assert.doesNotMatch(line, /Poland|Germany|European Union/);
 });
 
+test('a bare "Remote" reaches the prompt decided; a place the parser missed does not (#386)', () => {
+  const remote = { workplace: 'REMOTE' as const, countries: [], regions: [] };
+  const bare = buildClassifyPrompt({ ...input('x'), location: 'Remote', place: remote }, [PROFILE]);
+  assert.match(bare.user, /^Location as parsed from the source: REMOTE · no country named — decided: location_match true/m);
+  assert.match(bare.system, /Parsed "no country named" \(a bare "Remote"\) is not doubt: true for every search accepting remote/);
+  const city = buildClassifyPrompt({ ...input('x'), location: 'Remote · Dehradun', place: remote }, [PROFILE]).user;
+  assert.match(city, /^Location as parsed from the source: REMOTE$/m);
+  const named = buildClassifyPrompt({ ...input('x'), location: 'Remote · DE', place: { ...remote, countries: ['DE'] } }, [PROFILE]);
+  assert.match(named.user, /^Location as parsed from the source: REMOTE · countries DE$/m);
+});
+
 test('eligibility rules exist and speak of the candidate, not of a country list (ADR 0033)', () => {
   const ua = { ...PROFILE, countries: ['PL', 'DE'], regions: ['EU'], residence: 'UA', relocation: 'sponsorship' } as Profile;
   const { system } = buildClassifyPrompt(input('x'), [ua]);

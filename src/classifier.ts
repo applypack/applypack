@@ -8,6 +8,7 @@ import { getAiRuntime } from './ai-runtime';
 import { preClassify } from './classifier-prefilter';
 import { capFitForMissingStack } from './profile-guards';
 import { isCountryCode, isRegionCode } from './countries';
+import { arrangementOnly } from './location';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
@@ -22,7 +23,14 @@ const MAX_DESC_CHARS = 4000;
 // Bump on any material change to buildClassifyPrompt (rules, rubric, format,
 // fencing) — cross-engine quality comparisons are meaningless across versions.
 // v3: one call scores every active search (ADR 0028).
-const CLASSIFIER_PROMPT_VERSION = 4;
+// v5: a bare "Remote" is decided in code — unknown, not a mismatch (#386).
+const CLASSIFIER_PROMPT_VERSION = 5;
+// The parsed line's words for a bare "Remote"; the location rules quote them.
+const NO_PLACE_NAMED = 'no country named';
+// #386: left to the rules, one posting scored 92 nine times and 45 once on a
+// bare "Remote", and the model called it a mismatch whenever the stack failed
+// too (measured) — so the parsed line decides it, per posting.
+const BARE_REMOTE_LINE = `${NO_PLACE_NAMED} — decided: location_match true for every search that accepts remote, whatever its stack or seniority verdict, unless the description overrides it`;
 
 /**
  * Salary is hoisted out of the per-search entries on purpose: it is a fact of
@@ -153,10 +161,15 @@ export function buildClassifyPrompt(
   profiles: Profile[],
 ): { system: string; user: string } {
   const place = input.place;
+  const bareRemote =
+    place?.workplace === 'REMOTE' &&
+    place.countries.length === 0 &&
+    place.regions.length === 0 &&
+    arrangementOnly(input.location);
   const parsedLine = place
     ? `Location as parsed from the source: ${place.workplace}${
         place.countries.length > 0 ? ` · countries ${place.countries.join(', ')}` : ''
-      }${place.regions.length > 0 ? ` · regions ${place.regions.join(', ')}` : ''}`
+      }${place.regions.length > 0 ? ` · regions ${place.regions.join(', ')}` : ''}${bareRemote ? ` · ${BARE_REMOTE_LINE}` : ''}`
     : null;
   return {
     system: buildSystemPrompt(profiles),
@@ -322,7 +335,7 @@ Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and gro
 - Country-locked remote ("Remote · Germany", "must reside in Poland", a national flag, local-payroll wording) → true only for a search that lists that country or a group containing it.
 - Region-locked remote ("EU only", "Europe", "EMEA", "US time zones") → true only for a search that lists that region, a country inside it, or WORLDWIDE. EU is law and EUROPE is geography: an EU work-right requirement fails a GB or UA search even when that search lists EUROPE.
 - Worldwide / "anywhere" / "we hire globally" with no restriction → true for every search that accepts remote.
-- A bare "Remote" with no country anywhere in the posting → true only for a search that accepts any place; otherwise false.
+- Parsed "${NO_PLACE_NAMED}" (a bare "Remote") is not doubt: true for every search accepting remote unless the description overrides it; fit_score not lowered; the summary says "country unconfirmed".
 - Hybrid / on-site roles → true only for a search that accepts that arrangement AND lists the office's city, its country, or a group containing it (a listed city adds to the countries, it never narrows them). Never infer remote eligibility from an office address.
 - Several offices or arrangements → judge by the softest one named.
 - When in doubt, default to location_match = false.
