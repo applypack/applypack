@@ -993,7 +993,8 @@ plan or a local model stands ready, billed calls that were a fallback, a
 model that keeps failing or hitting its rate limit, scoring billed on a
 model several times the price of the cheapest, a month's pace over the
 budget. A hint never says a model is good enough for a task, offers a
-model on this computer for scoring only, and never steers applicants'
+model on this computer for scoring only — quoting that model's last engine
+trial, or saying there is none yet — and never steers applicants'
 resumes onto a personal plan. The monthly budget stays on
 `/settings` → AI & costs. Each
 engine card says which kind it spends; a billed engine standing ahead of
@@ -1003,6 +1004,33 @@ letter show what such a call usually costs here (the middle of the last
 twenty that answered). `npm run spend:report` prints the ledger per UTC
 day, engine and model for a comparison with the vendor's own report; the
 vendor's admin key never enters ApplyPack.
+
+**Engine trial (#412).** Under an enabled engine's tasks, **Try it on my
+postings** reads up to 20 stored, scored postings again on that engine and
+its classifier model — the same prompt the tick sends, one call each, no
+retry, and no other engine standing in (`AiCallRequest.engine`). The
+sample takes one posting from each fit band in turn (90+, 70–89, 40–69,
+under 40), newest first inside a band; fewer than 5 scored postings and the
+button waits. The report sets each search's verdict beside the one on
+record, both judged by the search's threshold as it stands now: agreement,
+false matches (kept here, turned away on record), missed matches, the mean
+fit distance, the middle call's seconds, replies that were no score, and how
+many of the scores on record are older than the search's last edit. It runs
+on the progress page, writes no posting, and keeps one row per engine and
+model in `engine_trial` (counts only); the card shows the last one, and the
+AI usage hints quote it. Its calls are in the ledger as `engine-trial`, a
+feature of no task, like the engine test. The cost line under the button is
+free on a local model, else the middle of the recent scoring calls on that
+engine and model times the sample.
+
+**A task that does not fit the window (#411).** Under the same boxes, a
+ticked task whose prompt the engine refused as too large for its context
+window in the last 30 days (`too_large` in the ledger, written by the local
+engine before it sends anything) gets one sentence: the task, the window
+(the local engine's own size), how many times, and whether the engine
+behind it answered — an `ok` fallback attempt at the same feature started
+within seconds of the refusal — or the call failed
+(`web/window-misfits.ts`, over `ai-ledger.ts:loadWindowRefusals`).
 
 ## Application packs (ADR 0063)
 

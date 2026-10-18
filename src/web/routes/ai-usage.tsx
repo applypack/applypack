@@ -11,6 +11,7 @@ import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { getAiKeys, getSettings } from '../../settings';
 import { aiPlanRows } from '../ai-plan';
+import { currentTrials } from '../engine-trial-run';
 import { clearFlashCookie, parseFlashCookie } from '../flash';
 import { AiUsagePage } from '../pages/ai-usage';
 import { usageHints } from '../usage-hints';
@@ -45,6 +46,7 @@ aiUsageRoute.get('/ai', async (c) => {
   const engine = resolveAiEngine(settings.aiEngine, getAiEngineEnv(keys, settings.openAiBaseUrl));
   const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const view = spendView(groups);
+  const trials = await currentTrials((id) => engine.modelFor(id, 'classifier'));
   return c.html(
     <AiUsagePage
       period={period}
@@ -63,6 +65,7 @@ aiUsageRoute.get('/ai', async (c) => {
           takes: AI_TASKS.filter((task) => engine.takes(id, task)),
         })),
         first: Object.fromEntries(plan.map((p) => [p.task, p.engines[0]?.id])),
+        trials,
         budgetCents: settings.aiBudgetCents,
         billedMonthMicro: billedMonth,
         now,

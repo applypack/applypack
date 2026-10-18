@@ -83,7 +83,7 @@ export function activityFor(step, stageElapsedMs) {
 
 /** "12 of 100 jobs scored" — the line once the run reports real counts; a step without a unit of its own says "done". */
 export function progressLine(step, progress) {
-  return t('browser.run.progress', { unit: step === 'score' ? 'score' : 'other', done: progress.done, total: progress.total });
+  return t('browser.run.progress', { unit: step === 'score' || step === 'trial' ? 'score' : 'other', done: progress.done, total: progress.total });
 }
 
 function defaultActivity(step, state) {

@@ -217,3 +217,19 @@ test('a task no engine takes still gets an answer from the chain', async () => {
   await runChain(engine, { ...REQ, label: 'cover-letter', role: 'cover' }, h.ctx, h.deps);
   assert.deepEqual(h.asked.map((a) => a.id), ['openai_api']);
 });
+
+test('a call that names its engine goes to that engine alone, in the list or not, and nothing stands in (#412)', async () => {
+  const engine = resolveAiEngine({ order: ['anthropic_api', 'claude_code'], models: { local_api: { classifier: 'gemma4:e4b' } } }, ENV);
+  const h = harness({ local_api: [failure('timeout'), answer('{"scores":[]}')] });
+  assert.equal(await runChain(engine, { ...REQ, engine: 'local_api' }, h.ctx, h.deps), null);
+  const out = await runChain(engine, { ...REQ, engine: 'local_api' }, h.ctx, h.deps);
+  assert.deepEqual(h.asked.map((a) => [a.id, a.req.model, a.req.baseUrl]), [
+    ['local_api', 'gemma4:e4b', 'http://127.0.0.1:11434'],
+    ['local_api', 'gemma4:e4b', 'http://127.0.0.1:11434'],
+  ]);
+  assert.equal(out?.viaFallback, false);
+  assert.deepEqual(h.rows.map((r) => [r.engine, r.outcome, r.viaFallback]), [
+    ['local_api', 'timeout', false],
+    ['local_api', 'ok', false],
+  ]);
+});
