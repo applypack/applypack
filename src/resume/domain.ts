@@ -1,4 +1,5 @@
 import type { MatchAction, PostingBrief } from './prompts';
+import { sectorGroups } from '../sectors';
 import { t } from '../i18n/t';
 
 /*
@@ -83,9 +84,13 @@ export function domainLean(actions: MatchAction[], brief: Pick<PostingBrief, 'co
  * the one verdict that does anything: the target page says it in a sentence,
  * and both prompts are told to reframe transferable work rather than claim
  * the sector. "unknown" when either side is empty — a resume not scanned
- * since the field existed, a posting whose brief names no industry — and
+ * since the field existed, a posting whose brief names no sector — and
  * nothing is said. An employer that serves every sector (an agency, a
  * consultancy, a software house) has no sector for the candidate to lack.
+ *
+ * Two sides meet on a shared word or on a sector of the vocabulary the
+ * screening reads too (`src/sectors.ts`, #207): "healthcare" and "healthtech",
+ * "banking" and "fintech" are one sector spelled twice.
  */
 
 export type DomainVerdict = 'match' | 'different' | 'unknown';
@@ -94,11 +99,23 @@ export interface DomainReport {
   verdict: DomainVerdict;
   /** The scan's sectors, as stored. */
   resume: string[];
-  /** The brief's industry, as stored. */
+  /** The brief's industry as stored, or its product when that is where the sector is named. */
   posting: string | null;
 }
 
 const SERVES_ANY_SECTOR = /\b(agenc(?:y|ies)|consultanc(?:y|ies)|consulting|software house|staffing|outsourc\w*|freelanc\w*|studio)\b/i;
+
+/**
+ * Sectors the vocabulary keeps apart on purpose — the screening's criterion
+ * asks for one of them — that this verdict reads as one: an e-commerce resume
+ * is not in another sector from a retailer's posting.
+ */
+const SAME_SECTOR_HERE: Record<string, string> = { retail: 'e-commerce' };
+
+/** The vocabulary's sectors named anywhere in the texts. */
+function sectorsIn(texts: (string | null | undefined)[]): Set<string> {
+  return new Set(texts.flatMap((text) => sectorGroups(text)).map((g) => SAME_SECTOR_HERE[g] ?? g));
+}
 
 /** The domain words of one side, comparable with the other's — a plural folded to its stem. */
 function stems(text: string): string[] {
@@ -107,14 +124,30 @@ function stems(text: string): string[] {
   );
 }
 
+/**
+ * Where the brief names the posting's sector: its industry, or, when that is
+ * empty, its product — but only a product the vocabulary finds a sector in.
+ * "AI order taking for restaurants" names one; "an analytics dashboard" names
+ * none, and a guess there would put a wrong sentence on the page.
+ */
+function postingSector(company: PostingBrief['company'] | undefined): string | null {
+  const industry = company?.industry?.trim();
+  if (industry) return industry;
+  const product = company?.product?.trim();
+  return product && sectorGroups(product).length > 0 ? product : null;
+}
+
 export function domainMismatch(industries: string[], brief: Pick<PostingBrief, 'company'> | null | undefined): DomainReport {
   const resume = industries.map((s) => s.trim()).filter(Boolean);
-  const posting = brief?.company.industry?.trim() || null;
-  if (resume.length === 0 || posting === null) return { verdict: 'unknown', resume, posting };
+  const company = brief?.company;
+  const posting = postingSector(company);
+  if (resume.length === 0 || !company || posting === null) return { verdict: 'unknown', resume, posting };
   if (SERVES_ANY_SECTOR.test(posting)) return { verdict: 'match', resume, posting };
-  const theirs = new Set(domainVocabulary(brief).map((w) => w.replace(/s$/, '')));
-  const overlap = resume.some((sector) => stems(sector).some((w) => theirs.has(w)));
-  return { verdict: overlap ? 'match' : 'different', resume, posting };
+  const theirWords = new Set(domainVocabulary(brief).map((w) => w.replace(/s$/, '')));
+  const theirSectors = sectorsIn([company.industry, company.product, company.audience]);
+  const shared = (sector: string) =>
+    stems(sector).some((w) => theirWords.has(w)) || [...sectorsIn([sector])].some((g) => theirSectors.has(g));
+  return { verdict: resume.some(shared) ? 'match' : 'different', resume, posting };
 }
 
 /** A sentence of ours with the sectors the models named inside it, in `<en>` (ADR 0061). */
@@ -126,6 +159,9 @@ export interface DomainNotice {
 /** The sentence the target page shows, as its message — null unless the sectors differ. */
 export function domainNoticeMessage(report: DomainReport): DomainNotice | null {
   if (report.verdict !== 'different' || report.posting === null) return null;
+  // The scan's order, most recent first. "Closest to the posting first" would
+  // reorder nothing: a sector that shares a word or a sector with the posting's
+  // makes the verdict `match`, and then there is no sentence at all (#207).
   const shown = report.resume.slice(0, 3).join(', ');
   return { key: 'target.domain.notice', params: { posting: report.posting, shown } };
 }
