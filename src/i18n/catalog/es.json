@@ -2656,6 +2656,7 @@
   "match.delta.cap": "tope {before} → {after}",
   "match.delta.capNone": "ninguno",
   "match.delta.score": "puntuación {delta}",
+  "match.delta.withinSpread": "Volver a analizar el mismo texto cambia la puntuación hasta en {n, plural, one {# punto} many {# de puntos} other {# puntos}}; este cambio está dentro de ese margen.",
   "match.strengthTitle": "Este currículum por sí solo: la revisión de solidez",
   "match.tailorResume": "Adaptar currículum →",
   "match.judgedOnText": "Evaluado solo con el texto de este archivo: se dejaron fuera tus datos confirmados y tus otros currículums, porque puede que no sea tuyo.",

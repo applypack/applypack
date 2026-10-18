@@ -2656,6 +2656,7 @@
   "match.delta.cap": "cap {before} → {after}",
   "match.delta.capNone": "none",
   "match.delta.score": "score {delta}",
+  "match.delta.withinSpread": "Re-runs of the same text move by up to {n, plural, one {# point} other {# points}}; this change is within that.",
   "match.strengthTitle": "This resume on its own: the strength review",
   "match.tailorResume": "Tailor resume →",
   "match.judgedOnText": "Judged on this file's text alone: your confirmed facts and your other resumes were left out, since it may not be yours.",
