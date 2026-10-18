@@ -1109,8 +1109,8 @@ export const KeywordTable: FC<{
 };
 
 /**
- * The way out of a keyword frame that got it wrong (issue #79): one run with
- * the stored list withheld, so the model reads the posting again. The user's
+ * The way out of a keyword frame that got it wrong (issue #79): the posting's
+ * brief written again (#410), then one run with the stored list withheld. The user's
  * own keyword edits are re-applied to whatever comes back — a rebuild resets
  * the model's guess, not their decisions.
  */

@@ -62,6 +62,42 @@ test('domainMismatch says "different" only when both sides are known and share n
   assert.equal(domainMismatch(mine, null).verdict, 'unknown');
 });
 
+const company = (industry: string | null, product: string | null = null, audience: string | null = null) => ({
+  company: { industry, product, audience, stage: null },
+});
+
+test('one sector spelled two ways is one sector — the vocabulary the screening reads (#207)', () => {
+  assert.equal(domainMismatch(['healthcare'], company('healthtech')).verdict, 'match');
+  assert.equal(domainMismatch(['retail banking'], company('fintech')).verdict, 'match');
+  assert.equal(domainMismatch(['online payments'], company('Fintech / neobank')).verdict, 'match');
+  assert.equal(domainMismatch(['e-commerce'], company('retail')).verdict, 'match', 'a shop online is no other sector than a shop');
+  assert.equal(domainMismatch(['fashion retail'], company('e-commerce marketplace')).verdict, 'match');
+  // Neighbours stay apart.
+  assert.equal(domainMismatch(['fitness'], company('healthtech')).verdict, 'different');
+  assert.equal(domainMismatch(['gaming'], company('fintech')).verdict, 'different');
+  assert.equal(domainMismatch(['insurance'], company('banking')).verdict, 'different');
+  assert.equal(domainMismatch(['logistics'], company('e-commerce')).verdict, 'different');
+  // The posting's product and audience count as they always did for words.
+  assert.equal(domainMismatch(['digital health'], company('B2B SaaS', null, 'hospitals and clinics')).verdict, 'match');
+});
+
+test('with no industry, the product names the sector — only when it names one (#207)', () => {
+  const restaurants = company(null, 'AI-enabled order taking for restaurants');
+  assert.deepEqual(domainMismatch(['fitness e-commerce'], restaurants), {
+    verdict: 'different',
+    resume: ['fitness e-commerce'],
+    posting: 'AI-enabled order taking for restaurants',
+  });
+  assert.equal(domainMismatch(['food delivery'], restaurants).verdict, 'match');
+  assert.equal(domainMismatch(['fintech'], company('', 'telemedicine app for clinics')).verdict, 'different');
+  // A product that names no sector is no sector: nothing is said.
+  assert.equal(domainMismatch(['fintech'], company(null, 'an analytics dashboard for teams')).verdict, 'unknown');
+  // An agency's product serves every sector.
+  assert.equal(domainMismatch(['fintech'], company(null, 'outsourced development of e-commerce stores')).verdict, 'match');
+  // The industry, when there is one, is what the page names.
+  assert.equal(domainMismatch(['fitness'], company('food technology', 'order taking for restaurants')).posting, 'food technology');
+});
+
 test('domainNotice is one sentence for a different sector, and nothing otherwise', () => {
   const restaurants = { company: { industry: 'restaurant technology', product: null, audience: null, stage: null } };
   const report = domainMismatch(['fitness e-commerce', 'ai tooling', 'public sector', 'media'], restaurants);
@@ -71,4 +107,6 @@ test('domainNotice is one sentence for a different sector, and nothing otherwise
   );
   assert.equal(domainNotice(domainMismatch(['restaurant delivery'], restaurants)), null);
   assert.equal(domainNotice(domainMismatch([], restaurants)), null);
+  // A sector close to the posting's is never left out of the three it names: it makes the verdict a match (#207).
+  assert.equal(domainNotice(domainMismatch(['fitness', 'public sector', 'media', 'online food delivery'], restaurants)), null);
 });

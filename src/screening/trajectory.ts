@@ -1,6 +1,6 @@
 import { t } from '../i18n/t';
 import { parseRange, yearsCovered, type DateRange } from './dates';
-import { sectorLabels } from './sectors';
+import { sectorLabels } from '../sectors';
 import type { ScreenRole } from './prompts';
 
 /*

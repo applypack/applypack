@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { capExplanation, levelCredit, orderVerdicts, readScreenBreakdown, scoreScreening } from './score';
-import { sectorMatches } from './sectors';
+import { sectorMatches } from '../sectors';
 import { parseCriterionText, RubricSchema, specOf, type Criterion, type Rubric } from './rubric';
 import { ScreenReplySchema, type ScreenReply } from './prompts';
 
