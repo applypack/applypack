@@ -176,6 +176,19 @@ Before a line of the feature was written, the pipeline was run dry over those
    (`Job.employerKey`, ADR 0056): a copy an agency lists under its own name
    is another company to check, and a row that names no company borrows
    nothing. On the live check that step was 189–216 s a posting.
+   *Measured 2026-10-18 (#487), not changed.* The tailored text is judged
+   with the full report, which also writes suggestions nobody reads there; a
+   quick check (ADR 0029) reads everything the score needs. Whether it gives
+   the same number: the scratch install's fictional resume against three
+   postings, each tailored text judged twice in full and three times as a
+   quick check, on the Claude CLI (Sonnet 5), 22 calls. A backend posting:
+   48, 48 in full, 63, 54, 49 quick. A full-stack posting: 76, 76 and 77,
+   76, 77. A posting whose brief held two keywords: 60, 45 and 55, 85, 85.
+   On two of the three the quick check read higher, by 7 and 22 points at
+   the mean, and it moved more between runs of one text (14 and 30 points,
+   against 0 and 15). The number a pack shows is the one read before
+   deciding whether to send, so the full report stays: about 9 s and
+   $0.016 at API prices a pack (21 s and $0.038 against 12.6 s and $0.022).
 6. **What may change is a policy held in code** (`pack/policy.ts`): the
    sections open to an edit, at most two experience bullets, nothing removed,
    only keywords the resume backs. Two rules came from the dry run: the
