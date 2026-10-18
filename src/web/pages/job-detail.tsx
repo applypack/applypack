@@ -240,121 +240,10 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     />
 
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-      {/* Right rail first in DOM so facts and actions lead on small screens. It rides on
-          every tab, and its three forms carry the tab so a status change returns to it. */}
-      <Card flush class="min-w-0 divide-y divide-line xl:order-2">
-        <div class="p-5">
-          <MarkAppliedPicker job={job} picker={appliedResumePicker} tab={tab} />
-          <div class="flex flex-wrap items-center gap-2">
-            {job.status !== 'APPLIED' && (
-              <Button variant="secondary" size="sm" form={MARK_APPLIED_FORM}>
-                {t('job.markApplied')}
-              </Button>
-            )}
-            {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
-              <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status, tab }}>
-                <Button variant={a.variant} size="sm">
-                  {t(a.label)}
-                </Button>
-              </ActionForm>
-            ))}
-          </div>
-        </div>
-
-        <Card variant="flat" class="p-5">
-          <SectionTitle>{t('job.details')}</SectionTitle>
-          <dl class="space-y-2.5 text-sm">
-            <FactRow label={t('job.salary')}>
-              <span class="tabular-nums">
-                {formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod)}
-              </span>
-              {formatUsdPerYear(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod) && (
-                <span class="ml-2 text-meta text-ink-faint">
-                  {formatUsdPerYear(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod)}
-                </span>
-              )}
-            </FactRow>
-            <FactRow label={t('job.posted')}>{formatDate(job.postedAt)}</FactRow>
-            <FactRow label={t('job.fetched')}>{formatDate(job.fetchedAt)}</FactRow>
-            {job.alertedAt && <FactRow label={t('job.alerted')}>{formatDate(job.alertedAt)}</FactRow>}
-            <AppliedWithRow job={job} />
-            <FactRow label={t('job.source')}>
-              {/* A vendor's name is a name; a kind that is no vendor ("Folder on this computer") is worded (#405). */}
-              <span translate="no">{sourceLabel(job.company.atsType)}</span>
-            </FactRow>
-            {job.sourceFile && (
-              <FactRow label={t('job.from')}>
-                <a href={`/companies/${job.company.id}/files`} class="text-accent hover:underline" translate="no">
-                  {job.company.name}
-                </a>
-                {' / '}
-                <span class="break-all font-mono text-meta" translate="no">
-                  {job.sourceFile}
-                </span>
-              </FactRow>
-            )}
-            {aiSpent && <FactRow label={t('job.aiSpent')}>{aiSpent}</FactRow>}
-            <FactRow label={t('job.externalId')}>
-              <span class="block truncate font-mono text-meta" title={job.externalId} translate="no">
-                {job.externalId}
-              </span>
-            </FactRow>
-          </dl>
-        </Card>
-
-        {mute && <MuteCard jobId={job.id} tab={tab} mute={mute} />}
-
-        {applicationTrackingEnabled && (
-          <Card variant="flat" class="p-5">
-            <SectionTitle>{t('job.applicationTracking')}</SectionTitle>
-            <form method="post" action={`/jobs/${job.id}/application`} class="space-y-3">
-              <input type="hidden" name="tab" value={tab} />
-              <Field label={t('job.pipelineStage')}>
-                <Select name="pipelineStage">
-                  <option value="" selected={!job.pipelineStage}>
-                    {t('job.notInFunnel')}
-                  </option>
-                  {/* A column's name: the user's own (data, never translated), or one the stage list words itself. */}
-                  {pipelineStages.map((s) => (
-                    <option value={s.key} selected={job.pipelineStage === s.key} translate={wordedStage(s) ? undefined : 'no'}>
-                      {s.label}
-                    </option>
-                  ))}
-                  {job.pipelineStage &&
-                    !pipelineStages.some((s) => s.key === job.pipelineStage) && (
-                      <option value={job.pipelineStage} selected>
-                        {t('job.removedColumn', { stage: job.pipelineStage })}
-                      </option>
-                    )}
-                </Select>
-              </Field>
-              <Field label={t('job.appliedOn')}>
-                <Input
-                  type="date"
-                  name="appliedAt"
-                  value={job.appliedAt ? job.appliedAt.toISOString().slice(0, 10) : ''}
-                />
-              </Field>
-              <AppliedWithField job={job} picker={appliedResumePicker} />
-              <Field label={t('job.recruiterContact')}>
-                <Input
-                  type="text"
-                  name="recruiterContact"
-                  value={job.recruiterContact ?? ''}
-                  placeholder={t('job.janeAcmeComOrJane')}
-                />
-              </Field>
-              <Field label={t('job.notes')}>
-                <Textarea name="applicationNotes" rows={3}>
-                  {job.applicationNotes ?? ''}
-                </Textarea>
-              </Field>
-              <Button variant="secondary">{t('job.saveApplication')}</Button>
-            </form>
-            <AppliedTextDisclosure job={job} />
-          </Card>
-        )}
-      </Card>
+      {/* The rail rides on every tab, and its three forms carry the tab so a status change returns to it. On a
+          narrow screen it leads on the posting, where its facts and actions are the point, and follows any other
+          tab: a comparison or a letter under a screen of status buttons and tracking fields was found below the fold. */}
+      {tab === 'posting' && <JobRail job={job} appliedResumePicker={appliedResumePicker} applicationTrackingEnabled={applicationTrackingEnabled} pipelineStages={pipelineStages} aiSpent={aiSpent} mute={mute} tab={tab} />}
 
       <div class="min-w-0 space-y-4 xl:order-1">
 
@@ -429,12 +318,132 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         </Card>
         )}
       </div>
+      {tab !== 'posting' && <JobRail job={job} appliedResumePicker={appliedResumePicker} applicationTrackingEnabled={applicationTrackingEnabled} pipelineStages={pipelineStages} aiSpent={aiSpent} mute={mute} tab={tab} />}
     </div>
     {/* Copy on the suggestion cards and the change sheet; the card itself is
         server-rendered, so this is all the JavaScript this page needs. */}
     <script type="module" dangerouslySetInnerHTML={{ __html: COPY_BOOT }} />
     {tab === 'pack' && packBusy(applicationPack.pack) && <script type="module" dangerouslySetInnerHTML={{ __html: packBoot(job.id) }} />}
   </Layout>
+);
+
+type RailProps = Pick<JobDetailProps, 'job' | 'appliedResumePicker' | 'applicationTrackingEnabled' | 'pipelineStages' | 'aiSpent' | 'mute' | 'tab'>;
+
+/** Status, details and application tracking, beside every tab. */
+const JobRail: FC<RailProps> = ({ job, appliedResumePicker, applicationTrackingEnabled, pipelineStages, aiSpent, mute, tab }) => (
+  <Card flush class="min-w-0 divide-y divide-line xl:order-2">
+    <div class="p-5">
+      <MarkAppliedPicker job={job} picker={appliedResumePicker} tab={tab} />
+      <div class="flex flex-wrap items-center gap-2">
+        {job.status !== 'APPLIED' && (
+          <Button variant="secondary" size="sm" form={MARK_APPLIED_FORM}>
+            {t('job.markApplied')}
+          </Button>
+        )}
+        {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
+          <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status, tab }}>
+            <Button variant={a.variant} size="sm">
+              {t(a.label)}
+            </Button>
+          </ActionForm>
+        ))}
+      </div>
+    </div>
+
+    <Card variant="flat" class="p-5">
+      <SectionTitle>{t('job.details')}</SectionTitle>
+      <dl class="space-y-2.5 text-sm">
+        <FactRow label={t('job.salary')}>
+          <span class="tabular-nums">
+            {formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod)}
+          </span>
+          {formatUsdPerYear(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod) && (
+            <span class="ml-2 text-meta text-ink-faint">
+              {formatUsdPerYear(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod)}
+            </span>
+          )}
+        </FactRow>
+        <FactRow label={t('job.posted')}>{formatDate(job.postedAt)}</FactRow>
+        <FactRow label={t('job.fetched')}>{formatDate(job.fetchedAt)}</FactRow>
+        {job.alertedAt && <FactRow label={t('job.alerted')}>{formatDate(job.alertedAt)}</FactRow>}
+        <AppliedWithRow job={job} />
+        <FactRow label={t('job.source')}>
+          {/* A vendor's name is a name; a kind that is no vendor ("Folder on this computer") is worded (#405). */}
+          <span translate="no">{sourceLabel(job.company.atsType)}</span>
+        </FactRow>
+        {job.sourceFile && (
+          <FactRow label={t('job.from')}>
+            <a href={`/companies/${job.company.id}/files`} class="text-accent hover:underline" translate="no">
+              {job.company.name}
+            </a>
+            {' / '}
+            <span class="break-all font-mono text-meta" translate="no">
+              {job.sourceFile}
+            </span>
+          </FactRow>
+        )}
+        {aiSpent && <FactRow label={t('job.aiSpent')}>{aiSpent}</FactRow>}
+        <FactRow label={t('job.externalId')}>
+          <span class="block truncate font-mono text-meta" title={job.externalId} translate="no">
+            {job.externalId}
+          </span>
+        </FactRow>
+      </dl>
+    </Card>
+
+    {mute && <MuteCard jobId={job.id} tab={tab} mute={mute} />}
+
+    {applicationTrackingEnabled && (
+      <Card variant="flat" class="p-5">
+        <SectionTitle>{t('job.applicationTracking')}</SectionTitle>
+        <form method="post" action={`/jobs/${job.id}/application`} class="space-y-3">
+          <input type="hidden" name="tab" value={tab} />
+          <Field label={t('job.pipelineStage')}>
+            <Select name="pipelineStage">
+              <option value="" selected={!job.pipelineStage}>
+                {t('job.notInFunnel')}
+              </option>
+              {/* A column's name: the user's own (data, never translated), or one the stage list words itself. */}
+              {pipelineStages.map((s) => (
+                <option value={s.key} selected={job.pipelineStage === s.key} translate={wordedStage(s) ? undefined : 'no'}>
+                  {s.label}
+                </option>
+              ))}
+              {job.pipelineStage &&
+                !pipelineStages.some((s) => s.key === job.pipelineStage) && (
+                  <option value={job.pipelineStage} selected>
+                    {t('job.removedColumn', { stage: job.pipelineStage })}
+                  </option>
+                )}
+            </Select>
+          </Field>
+          <Field label={t('job.appliedOn')}>
+            <Input
+              type="date"
+              name="appliedAt"
+              value={job.appliedAt ? job.appliedAt.toISOString().slice(0, 10) : ''}
+            />
+          </Field>
+          <AppliedWithField job={job} picker={appliedResumePicker} />
+          <Field label={t('job.recruiterContact')}>
+            <Input
+              type="text"
+              name="recruiterContact"
+              value={job.recruiterContact ?? ''}
+              placeholder={t('job.janeAcmeComOrJane')}
+            />
+          </Field>
+          <Field label={t('job.notes')}>
+            <Textarea name="applicationNotes" rows={3}>
+              {job.applicationNotes ?? ''}
+            </Textarea>
+          </Field>
+          <Button variant="secondary">{t('job.saveApplication')}</Button>
+        </form>
+        <AppliedTextDisclosure job={job} />
+      </Card>
+    )}
+  </Card>
 );
 
 /** The pack tab while a pack is queued or in flight: its state is asked for, the page is not reloaded. */
@@ -680,7 +689,7 @@ const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions
         <li>
           <a href={`/jobs?country=${encodeURIComponent(code)}`} class="hover:underline">
             <Tag>
-              {flagOf(code) && <span aria-hidden="true">{flagOf(code)} </span>}
+              {flagOf(code) && <span aria-hidden="true" class="mr-1">{flagOf(code)}</span>}
               {placeName(code)}
             </Tag>
           </a>
