@@ -18,6 +18,7 @@ import {
 } from '../../settings';
 import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
 import { resolveCountries } from '../../countries';
+import { isProfileWorkplace } from '../../location';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
 import { beginFetchNow } from '../fetch-now';
@@ -138,6 +139,7 @@ welcomeRoute.get('/welcome', async (c) => {
         runningRunId: activeFetchRun()?.id ?? null,
         aggregators,
         countries: profile?.countries.map(countryChip) ?? [],
+        workplace: profile?.workplace.filter(isProfileWorkplace) ?? [],
       }}
       profile={{
         id: profile?.id ?? 0,
@@ -360,8 +362,14 @@ welcomeRoute.post('/welcome/search', async (c) => {
     return flashRedirect(SEARCH_STEP, 'err', t('welcome.flash.countryUnknown', { names: typed.unknown.join(', ') }));
   }
   let profile = await getActiveProfile();
-  if (profile && typed.codes.length > 0) {
-    profile = await updateProfile(profile.id, { ...profileInput(profile), countries: typed.codes });
+  // The pills ride on the step's own form only; "Search again" posts none and keeps what is stored.
+  const workplace = form.arrangements === undefined ? null : toStringArray(form.workplace).filter(isProfileWorkplace);
+  if (profile && (typed.codes.length > 0 || workplace !== null)) {
+    profile = await updateProfile(profile.id, {
+      ...profileInput(profile),
+      ...(typed.codes.length > 0 && { countries: typed.codes }),
+      ...(workplace !== null && { workplace }),
+    });
   }
   const run = await beginFetchNow({
     backUrl: '/welcome',

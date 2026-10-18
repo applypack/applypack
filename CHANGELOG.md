@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.65] — 2026-10-18
+
+### Changed
+- Setup's test search shows which arrangements your search keeps (Remote,
+  Hybrid, On-site), Remote ticked, and saves your choice. Its progress page
+  and result no longer talk about a paused pipeline or send you to Settings
+  to score: setup scores the best of them at its last step.
+- A scoring run on Runs says what it found ("10 scored · 3 matches · 7 moved
+  to Dismissed …") instead of its internal counters.
+
+### Fixed
+- After setup, the Overview's chart and the search funnel no longer say 0
+  matches while the matches are listed below: the first scoring of the jobs
+  setup stored is counted.
+
 ## [2.55.64] — 2026-10-18
 
 ### Fixed
@@ -6021,6 +6036,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.65]: https://github.com/applypack/applypack/compare/v2.55.64...v2.55.65
 [2.55.64]: https://github.com/applypack/applypack/compare/v2.55.63...v2.55.64
 [2.55.63]: https://github.com/applypack/applypack/compare/v2.55.62...v2.55.63
 [2.55.62]: https://github.com/applypack/applypack/compare/v2.55.61...v2.55.62
