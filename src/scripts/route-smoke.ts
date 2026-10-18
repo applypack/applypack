@@ -385,6 +385,13 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=match`,
     },
     {
+      // `alertedAt` is when an alert went out: Applied by hand counted an alert nobody sent.
+      name: 'POST /jobs/:id/status APPLIED (no alert stamped)',
+      init: form({ status: 'APPLIED' }),
+      expect: async (res) =>
+        res.status === 303 && (await prisma.job.findUniqueOrThrow({ where: { id: f.jobId }, select: { alertedAt: true } })).alertedAt === null,
+    },
+    {
       name: 'POST /jobs/:id/status with a made-up tab (back to the posting)',
       init: form({ status: 'NEW', tab: 'https://evil.example' }),
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}`,
@@ -631,6 +638,7 @@ async function main(): Promise<void> {
     `/resumes/${f.resumeId}/compare-format`,
     `/screen/${f.screeningId}/applicants`,
     '/settings/fetching-toggle',
+    `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
