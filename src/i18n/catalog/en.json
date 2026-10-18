@@ -1047,6 +1047,7 @@
   "settingsRoute.targets.telegramTestFailed": "The test message did not reach Telegram ({reason}), so it was not connected. Check the token and the chat id, and add it again.",
   "settingsRoute.targets.telegramRace": "That bot and chat were added from another tab a moment ago, so they were not added twice. The test message did arrive.",
   "settingsRoute.targets.telegramAdded": "Connected Telegram \"{name}\" (bot @{bot}). Test message sent.",
+  "settingsRoute.targets.alertsOn": "Alerts are on now: new matches go there.",
   "settingsRoute.targets.toggled": "Destination switched on or off.",
   "settingsRoute.targets.deleted": "Destination deleted.",
   "settingsRoute.targets.gone": "That destination no longer exists, so no test was sent. The list below is current.",
