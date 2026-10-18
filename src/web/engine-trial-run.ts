@@ -53,8 +53,6 @@ async function trialProfiles(): Promise<Profile[]> {
 export interface TrialView {
   /** The model a press reads with, worded. */
   model: string;
-  /** How many postings a press reads. */
-  postings: number;
   /** False under TRIAL_MIN scored postings: the button waits and `note` says why. */
   ready: boolean;
   /** The cost line, or why there is nothing to try yet. */
@@ -83,7 +81,6 @@ export async function trialViews(
         id,
         {
           model: model || t('ai.cliDefault'),
-          postings,
           ready,
           note: ready ? await trialCostHint(id, model, billingOf(id), postings) : t('trial.needsScored', { min: TRIAL_MIN, n: scored }),
           last: last ? { at: last.at, text: trialLine(last) } : null,
