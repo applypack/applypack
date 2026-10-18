@@ -1762,7 +1762,7 @@
   "welcome.flash.notLocal": "That is not a server on this machine; nothing changed.",
   "welcome.flash.localUnlisted": "Nothing changed — {reason}.",
   "welcome.flash.modelUnknown": "The server does not list \"{model}\"; nothing changed. Pick one of the models it runs.",
-  "welcome.flash.localFirst": "The model on this computer comes first now: {model}, for every task. Send a test message — the first call loads the model and can take a minute.",
+  "welcome.flash.localFirst": "The model on this computer comes first now: {model}, for scoring postings. To hand it the other tasks too, tick them on its card in Settings → AI & costs. Send a test message — the first call loads the model and can take a minute.",
   "welcome.flash.noEngine": "No usable AI engine detected yet.",
   "welcome.flash.pickResume": "Pick a resume file first.",
   "welcome.flash.noPrimary": "No primary search — create one in Settings → Job search.",

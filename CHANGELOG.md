@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.66] — 2026-10-18
+
+### Changed
+- "Use it" on a model found on this computer now gives it Scoring postings
+  only; resume analysis, letters and screening stay with the engines behind
+  it. Tick them on the model's card in Settings → AI & costs to hand them
+  over too.
+
+### Fixed
+- A local model that can think (such as gemma4) no longer thinks before
+  every answer: scoring a posting takes about 1.5 s instead of 8 s, and a
+  long think can no longer use up the reply and leave a posting unscored.
+
 ## [2.55.65] — 2026-10-18
 
 ### Changed
@@ -6036,6 +6049,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.66]: https://github.com/applypack/applypack/compare/v2.55.65...v2.55.66
 [2.55.65]: https://github.com/applypack/applypack/compare/v2.55.64...v2.55.65
 [2.55.64]: https://github.com/applypack/applypack/compare/v2.55.63...v2.55.64
 [2.55.63]: https://github.com/applypack/applypack/compare/v2.55.62...v2.55.63
