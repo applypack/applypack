@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.56.0] — 2026-10-18
+
+### Changed
+- Jobs opens on **Active**: every posting but the dismissed ones, which keep
+  their own tab.
+- The Overview's list is **Recent matches**: what your searches kept,
+  alerted or not, instead of every new row.
+
+### Added
+- When jobs are stored without a score (while fetching was paused, by
+  setup's test search, or when the AI did not answer), Jobs and the Overview
+  say how many and offer **Score them**: up to 50 a press, the closest to
+  your searches first, the off-topic ones set aside for free.
+
+### Fixed
+- Pipeline health no longer says the fetch never ran right after a Fetch
+  now.
+
 ## [2.55.66] — 2026-10-18
 
 ### Changed
@@ -6049,6 +6067,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.56.0]: https://github.com/applypack/applypack/compare/v2.55.66...v2.56.0
 [2.55.66]: https://github.com/applypack/applypack/compare/v2.55.65...v2.55.66
 [2.55.65]: https://github.com/applypack/applypack/compare/v2.55.64...v2.55.65
 [2.55.64]: https://github.com/applypack/applypack/compare/v2.55.63...v2.55.64
