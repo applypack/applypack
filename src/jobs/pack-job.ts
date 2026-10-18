@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { logger } from '../logger';
-import { alertChannel, sendPackNotice } from '../notifier';
+import { alertChannel, dashboardAddress, sendPackNotice } from '../notifier';
 import { DEFAULT_MIN_CEILING, runVerdict } from '../pack/gate';
 import { preparePosting, type Prepared } from '../pack/prepare';
 import { wantsCoverLetter } from '../pack/settings';
@@ -203,7 +203,7 @@ async function requeue(packId: number): Promise<'requeued'> {
  */
 async function deliverNotices(): Promise<number> {
   const due = await noticesDue();
-  const lines = packNoticeLines(due);
+  const lines = packNoticeLines(due, await dashboardAddress());
   if (lines.length === 0) return 0;
   try {
     const delivery = await sendPackNotice(lines);

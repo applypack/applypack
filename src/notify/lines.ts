@@ -4,6 +4,8 @@ import { workplaceName } from '../i18n/places';
 import { t } from '../i18n/t';
 import type { AlertJob } from '../types';
 import { safeHref } from '../web/format';
+import { jobHref } from '../web/job-tabs';
+import { dashboardLink } from './dashboard-link';
 
 /*
  * The words every channel says the same way, before its own markup goes on
@@ -22,6 +24,17 @@ import { safeHref } from '../web/format';
  */
 export function hasApplyLink(job: Pick<AlertJob, 'url'>): boolean {
   return safeHref(job.url) !== null;
+}
+
+/** The alert's posting on the dashboard; null with no address set, or for a message that names no stored posting. */
+export function jobPageLink(job: Pick<AlertJob, 'jobId'>, address: string | null): string | null {
+  return job.jobId === undefined ? null : dashboardLink(address, jobHref(job.jobId));
+}
+
+/** A line of a plain message, and the page of the dashboard it points at when the address is set (#487). */
+export interface MessageLine {
+  text: string;
+  link: string | null;
 }
 
 /** Arrangement words a location string may already carry. */

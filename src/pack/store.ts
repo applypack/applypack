@@ -293,6 +293,7 @@ export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
     orderBy: { finishedAt: 'asc' },
     select: {
       id: true,
+      jobId: true,
       status: true,
       stop: true,
       scoreBefore: true,
@@ -310,6 +311,7 @@ export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
     const checked = r.verificationId === null ? undefined : byId.get(r.verificationId);
     return {
       id: r.id,
+      jobId: r.jobId,
       title: r.job.title,
       company: companyForMessage(r.job.employer, r.job.company),
       status: r.status,

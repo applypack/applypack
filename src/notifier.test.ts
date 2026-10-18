@@ -5,6 +5,7 @@ import {
   escapeMarkdownV2,
   escapeMarkdownV2Url,
   formatJobMessage,
+  formatPackNotice,
   formatPageChangeMessage,
   formatPlaceLine,
   formatSalary,
@@ -431,5 +432,58 @@ describe('a message in the language of the run (ADR 0061)', () => {
 
   it('stays English outside a run, as the tests above assert', () => {
     assert.match(formatJobMessage(job), /^\*New role match — fit 88\/100\*/);
+  });
+});
+
+describe('links into the dashboard (#487)', () => {
+  const job: AlertJob = {
+    jobId: 42,
+    title: 'Senior Engineer',
+    companyName: 'Acme',
+    location: 'Remote',
+    url: 'https://example.com/jobs/1',
+    fitScore: 88,
+    salaryMin: null,
+    salaryMax: null,
+    techMatch: [],
+    redFlags: [],
+    summary: '',
+  };
+  const address = 'https://home.example.com/apply-pack';
+
+  it('adds the posting\'s page under Apply only when the address is set, written out', () => {
+    assert.ok(formatJobMessage(job).endsWith('[Apply →](https://example.com/jobs/1)'));
+    const linked = formatJobMessage(job, address);
+    // A text link Telegram refuses (127.0.0.1, a host on the home network) would cost the alert; a written-out address cannot.
+    assert.ok(linked.endsWith('[Apply →](https://example.com/jobs/1)\nOpen in ApplyPack → https://home\\.example\\.com/apply\\-pack/jobs/42'), linked);
+    assert.deepEqual([...bareReserved(linked)].sort(), ['*', '[', ']']);
+  });
+
+  it('links a posting with no page of its own, and nothing for a message that names no stored posting', () => {
+    assert.ok(formatJobMessage({ ...job, url: '' }, 'http://127.0.0.1:4747').endsWith('\nOpen in ApplyPack → http://127\\.0\\.0\\.1:4747/jobs/42'));
+    assert.doesNotMatch(formatJobMessage({ ...job, jobId: undefined }, address), /ApplyPack/);
+    assert.match(formatTelegramDigest([job], [], 'Daily digest', 0, 0, address)[0]!, /Open in ApplyPack → https:\/\/home\\\.example/);
+  });
+
+  it('writes the packs message with each pack\'s tab under its line, every character escaped', () => {
+    const [text, ...more] = formatPackNotice([
+      { text: 'An application pack is ready:', link: null },
+      { text: '• Senior Engineer (Node.js) — Acme (match 76 → 92)', link: 'https://home.example.com/jobs/7?tab=pack' },
+    ]);
+    assert.equal(more.length, 0);
+    assert.equal(
+      text,
+      'An application pack is ready:\n• Senior Engineer \\(Node\\.js\\) — Acme \\(match 76 → 92\\)\n  https://home\\.example\\.com/jobs/7?tab\\=pack',
+    );
+    assert.deepEqual([...bareReserved(text!)], []);
+    assert.deepEqual(formatPackNotice([{ text: 'x.y', link: null }]), ['x\\.y']);
+  });
+
+  it('splits a long packs message under Telegram\'s limit instead of losing it whole', () => {
+    const line = { text: `• ${'Senior Platform Engineer, Payments Infrastructure '.repeat(3)}— Acme`, link: 'http://192.168.1.20:4747/jobs/1234?tab=pack' };
+    const parts = formatPackNotice(Array.from({ length: 24 }, () => line));
+    assert.ok(parts.length > 1);
+    assert.ok(parts.every((p) => p.length <= 4096));
+    assert.equal(parts.join('\n').split('\n').length, 48);
   });
 });

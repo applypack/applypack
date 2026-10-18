@@ -69,6 +69,8 @@ export interface ClassifyInput {
 }
 
 export interface AlertJob {
+  /** The stored posting: with the dashboard's address set, the message links to its page there (#487). */
+  jobId?: number;
   title: string;
   companyName: string;
   location: string;

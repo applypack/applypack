@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { packBusy, packFact, packLine, packNoticeLines, preparingLine, readPackEdits, unplacedLines, type PackNotice } from './view';
 
 const notice = (over: Partial<PackNotice> = {}): PackNotice => ({
+  jobId: 12,
   title: 'Senior Laravel Engineer',
   company: 'Acme',
   status: 'ready',
@@ -13,6 +14,9 @@ const notice = (over: Partial<PackNotice> = {}): PackNotice => ({
   recommendation: 'apply',
   ...over,
 });
+
+/** The message's words alone, the way the tests before links read it. */
+const texts = (packs: PackNotice[]): string[] => packNoticeLines(packs).map((l) => l.text);
 
 test('the edits column reads back whole, and anything else reads as nothing done', () => {
   const stored = { applied: 4, unplaced: ['not-found'], held: [{ section: 'summary', where: 'Summary', reason: 'drops-figure' }], checks: [] };
@@ -39,7 +43,7 @@ test('a pack is told by its score and the company verdict', () => {
 });
 
 test('one message: the ready packs, then the postings to skip', () => {
-  assert.deepEqual(packNoticeLines([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'stopped', stop: 'failed-gate' })]), [
+  assert.deepEqual(texts([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'stopped', stop: 'failed-gate' })]), [
     'An application pack is ready:',
     '• Senior Laravel Engineer — Acme (match 76 → 100 · company legit, apply)',
     'Open the job in ApplyPack → Application pack: read the edits, download the resume, apply.',
@@ -47,7 +51,7 @@ test('one message: the ready packs, then the postings to skip', () => {
     'Not worth your time:',
     '• Go Developer — Bright: the posting requires something the resume does not show',
   ]);
-  assert.deepEqual(packNoticeLines([notice({ status: 'stopped', stop: 'closed' }), notice({ status: 'stopped', stop: 'paused' })]), [
+  assert.deepEqual(texts([notice({ status: 'stopped', stop: 'closed' }), notice({ status: 'stopped', stop: 'paused' })]), [
     'Not worth your time (2):',
     '• Senior Laravel Engineer — Acme: the posting is closed',
     '• Senior Laravel Engineer — Acme: stopped',
@@ -56,8 +60,8 @@ test('one message: the ready packs, then the postings to skip', () => {
 
 test('a pack that could not be prepared is said, not passed over (#381)', () => {
   // Five failed rows a day and no word about them: the message listed ready and stopped packs only.
-  assert.deepEqual(packNoticeLines([notice({ status: 'failed' })]), ['One could not be prepared — open the job to see why:', '• Senior Laravel Engineer — Acme']);
-  assert.deepEqual(packNoticeLines([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'failed' }), notice({ title: 'QA Lead', company: 'Corex', status: 'failed' })]), [
+  assert.deepEqual(texts([notice({ status: 'failed' })]), ['One could not be prepared — open the job to see why:', '• Senior Laravel Engineer — Acme']);
+  assert.deepEqual(texts([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'failed' }), notice({ title: 'QA Lead', company: 'Corex', status: 'failed' })]), [
     'An application pack is ready:',
     '• Senior Laravel Engineer — Acme (match 76 → 100 · company legit, apply)',
     'Open the job in ApplyPack → Application pack: read the edits, download the resume, apply.',
@@ -68,8 +72,21 @@ test('a pack that could not be prepared is said, not passed over (#381)', () => 
   ]);
 });
 
+test('with the dashboard address, every pack line links to its tab, and only those (#487)', () => {
+  const packs = [notice(), notice({ jobId: 30, status: 'stopped', stop: 'closed' }), notice({ jobId: 31, status: 'failed' })];
+  const lines = packNoticeLines(packs, 'https://ap.example.com/ui');
+  assert.deepEqual(
+    lines.filter((l) => l.link !== null).map((l) => l.link),
+    ['https://ap.example.com/ui/jobs/12?tab=pack', 'https://ap.example.com/ui/jobs/30?tab=pack', 'https://ap.example.com/ui/jobs/31?tab=pack'],
+  );
+  assert.ok(lines.filter((l) => l.link !== null).every((l) => l.text.startsWith('• ')));
+  // Without it the message is the one it always was.
+  assert.ok(packNoticeLines(packs).every((l) => l.link === null));
+  assert.deepEqual(packNoticeLines(packs).map((l) => l.text), lines.map((l) => l.text));
+});
+
 test('a long wait lists the first eight and counts the rest', () => {
-  const lines = packNoticeLines(Array.from({ length: 11 }, (_, i) => notice({ title: `Role ${i}` })));
+  const lines = texts(Array.from({ length: 11 }, (_, i) => notice({ title: `Role ${i}` })));
   assert.equal(lines[0], '11 application packs are ready:');
   assert.equal(lines.filter((l) => l.startsWith('• ')).length, 8);
   assert.equal(lines[9], '…and 3 more.');

@@ -558,6 +558,9 @@ model AppSettings {
   // (src/pack/settings.ts). NULL = off, which is every install until its
   // owner switches it on.
   pack                           Json?
+  // #487: the address the person opens the dashboard at, so a message can link
+  // to a job (src/notify/dashboard-link.ts). NULL = messages carry no such link.
+  dashboardUrl                   String?
   updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")

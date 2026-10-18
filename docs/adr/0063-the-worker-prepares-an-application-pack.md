@@ -221,6 +221,19 @@ Before a line of the feature was written, the pipeline was run dry over those
    comparison a pack made of its own tailored text: that draft judges a
    file nobody has saved, and "Resume match · 100" headed a resume that
    scores 70 (`web/job-tabs.ts:shownMatch`).
+   *Amended 2026-10-18 (#487).* The message named the packs and gave
+   nothing to press: an install does not know the address it is opened at
+   (127.0.0.1:4747 by default, perhaps behind a proxy). Settings →
+   Notifications takes it, optional and empty by default
+   (`AppSettings.dashboardUrl`, `notify/dashboard-link.ts`: http(s), no user
+   name or password — the link goes into a chat). With it every pack's line
+   has its tab under it, and a match alert its job under Apply, written out
+   as addresses rather than text links: a chat may refuse a link to
+   127.0.0.1 or a host on the home network, and a refused link must not
+   cost the message. Without it the messages are as they were. Holding a
+   match's own alert until its pack is ready, so a strong match is one
+   message, is not done: it is a rule about when alerts arrive that nobody
+   asked for, and it would hold a match back by the minutes a pack takes.
 9. **Nothing is submitted.** The person applies.
 
 ## Consequences

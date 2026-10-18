@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import { dashboardLink } from '../notify/dashboard-link';
+import type { MessageLine } from '../notify/lines';
+import { jobHref } from '../web/job-tabs';
 import { PACK_STOPS, type PackStop, type PrepareStep } from './gate';
 import type { HeldReason } from './policy';
 
@@ -115,6 +118,7 @@ export function packFact(pack: { status: string; sentAt: Date | null } | null): 
 }
 
 export interface PackNotice {
+  jobId: number;
   title: string;
   company: string;
   status: string;
@@ -149,33 +153,36 @@ const NOTICE_MAX = 8;
  * One grouped message for the packs that finished since the last one, as
  * plain lines: the ready ones first, then the ones not worth the evening —
  * knowing which postings to skip is half of what a pack is for — and last
- * the ones that could not be prepared, which the job's page explains.
+ * the ones that could not be prepared, which the job's page explains. With
+ * the dashboard's address set, every pack's line links to its tab (#487).
  */
-export function packNoticeLines(packs: PackNotice[]): string[] {
+export function packNoticeLines(packs: PackNotice[], address: string | null = null): MessageLine[] {
   const name = (p: PackNotice): string => `${p.title} — ${p.company}`;
+  const said = (text: string): MessageLine => ({ text, link: null });
+  const pack = (p: PackNotice, text: string): MessageLine => ({ text, link: dashboardLink(address, jobHref(p.jobId, 'pack')) });
   const ready = packs.filter((p) => p.status === 'ready');
   const stopped = packs.filter((p) => p.status === 'stopped');
-  const lines: string[] = [];
+  const lines: MessageLine[] = [];
   if (ready.length > 0) {
-    lines.push(t('pack.notice.ready', { n: ready.length }));
-    for (const p of ready.slice(0, NOTICE_MAX)) lines.push(`• ${name(p)} (${packLine(p)})`);
-    if (ready.length > NOTICE_MAX) lines.push(t('pack.notice.more', { n: ready.length - NOTICE_MAX }));
-    lines.push(t('pack.notice.open'));
+    lines.push(said(t('pack.notice.ready', { n: ready.length })));
+    for (const p of ready.slice(0, NOTICE_MAX)) lines.push(pack(p, `• ${name(p)} (${packLine(p)})`));
+    if (ready.length > NOTICE_MAX) lines.push(said(t('pack.notice.more', { n: ready.length - NOTICE_MAX })));
+    lines.push(said(t('pack.notice.open')));
   }
   if (stopped.length > 0) {
-    if (lines.length > 0) lines.push('');
-    lines.push(t('pack.notice.stopped', { n: stopped.length }));
+    if (lines.length > 0) lines.push(said(''));
+    lines.push(said(t('pack.notice.stopped', { n: stopped.length })));
     for (const p of stopped.slice(0, NOTICE_MAX)) {
-      lines.push(`• ${name(p)}: ${t('pack.notice.stop', { stop: stopCase(p.stop) })}`);
+      lines.push(pack(p, `• ${name(p)}: ${t('pack.notice.stop', { stop: stopCase(p.stop) })}`));
     }
-    if (stopped.length > NOTICE_MAX) lines.push(t('pack.notice.more', { n: stopped.length - NOTICE_MAX }));
+    if (stopped.length > NOTICE_MAX) lines.push(said(t('pack.notice.more', { n: stopped.length - NOTICE_MAX })));
   }
   const failed = packs.filter((p) => p.status === 'failed');
   if (failed.length > 0) {
-    if (lines.length > 0) lines.push('');
-    lines.push(t('pack.notice.failed', { n: failed.length }));
-    for (const p of failed.slice(0, NOTICE_MAX)) lines.push(`• ${name(p)}`);
-    if (failed.length > NOTICE_MAX) lines.push(t('pack.notice.more', { n: failed.length - NOTICE_MAX }));
+    if (lines.length > 0) lines.push(said(''));
+    lines.push(said(t('pack.notice.failed', { n: failed.length })));
+    for (const p of failed.slice(0, NOTICE_MAX)) lines.push(pack(p, `• ${name(p)}`));
+    if (failed.length > NOTICE_MAX) lines.push(said(t('pack.notice.more', { n: failed.length - NOTICE_MAX })));
   }
   return lines;
 }
