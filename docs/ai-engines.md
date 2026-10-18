@@ -260,7 +260,10 @@ network — ADR 0057. No key, no bill, and the text never leaves.
   whose prompt would not fit is refused before it is sent, with the size it
   needed, and the engine behind this one in the list takes it. A resume
   comparison wants 16k or more; each step up takes more memory on the
-  machine running Ollama.
+  machine running Ollama. When a task ticked on the card did not fit in the
+  last 30 days, the card says so under **Used for**: how many times, and
+  whether the engine behind it answered or the call failed — untick that
+  task or choose a larger window.
 - **JSON mode** holds the model to valid JSON on every call that parses one.
 - **One call at a time:** the rest wait their turn, so `AI_CONCURRENCY`
   keeps meaning hosted calls. Its calls get three times the usual time.

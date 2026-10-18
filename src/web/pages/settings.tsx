@@ -147,6 +147,8 @@ export interface AiEngineRow {
   maskedKey: string;
   /** The engine trial under its tasks (#412); null on an engine that is not in the list. */
   trial: TrialView | null;
+  /** One sentence per ticked task whose prompt did not fit this engine's window lately (#411). */
+  misfits: string[];
 }
 
 export interface EngineServer {
@@ -2032,6 +2034,9 @@ const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       {t('settings.tasksHint')}
       {e.tasks.some((task) => !task.offered) && <> {t('settings.tasksNoWebCheck')}</>}
     </Hint>
+    {e.misfits.map((line) => (
+      <Hint class="mt-1.5 text-warn">{line}</Hint>
+    ))}
     <div class="mt-3 flex items-center gap-3">
       <Button size="sm" variant="secondary" data-save-button>
         {t('settings.saveTasks')}

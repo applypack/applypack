@@ -1017,6 +1017,15 @@ feature of no task, like the engine test. The cost line under the button is
 free on a local model, else the middle of the recent scoring calls on that
 engine and model times the sample.
 
+**A task that does not fit the window (#411).** Under the same boxes, a
+ticked task whose prompt the engine refused as too large for its context
+window in the last 30 days (`too_large` in the ledger, written by the local
+engine before it sends anything) gets one sentence: the task, the window
+(the local engine's own size), how many times, and whether the engine
+behind it answered — an `ok` fallback attempt at the same feature started
+within seconds of the refusal — or the call failed
+(`web/window-misfits.ts`, over `ai-ledger.ts:loadWindowRefusals`).
+
 ## Application packs (ADR 0063)
 
 Off by default. With **Settings → Automation → Application packs** switched on,

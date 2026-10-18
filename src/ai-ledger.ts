@@ -193,3 +193,28 @@ export async function jobSpend(jobId: number): Promise<Partial<Record<AiBilling,
   if (rows.length === 0) return null;
   return Object.fromEntries(rows.map((r) => [r.billing, Number(r.micro ?? 0)]));
 }
+
+/** A ledger attempt as the window check reads it (web/window-misfits.ts). */
+export interface WindowAttempt {
+  engine: string;
+  feature: string;
+  at: Date;
+  durationMs: number;
+  outcome: string;
+}
+
+/**
+ * The prompts an engine refused as too large for its window since `since`
+ * (#411), and the fallback attempts at the same features that could have
+ * answered them. Two reads by the `at` index; one when nothing was refused.
+ */
+export async function loadWindowRefusals(since: Date): Promise<{ refusals: WindowAttempt[]; fallbacks: WindowAttempt[] }> {
+  const select = { engine: true, feature: true, at: true, durationMs: true, outcome: true } as const;
+  const refusals = await prisma.aiCall.findMany({ where: { outcome: 'too_large', at: { gte: since } }, select });
+  if (refusals.length === 0) return { refusals, fallbacks: [] };
+  const fallbacks = await prisma.aiCall.findMany({
+    where: { viaFallback: true, at: { gte: since }, feature: { in: [...new Set(refusals.map((r) => r.feature))] } },
+    select,
+  });
+  return { refusals, fallbacks };
+}
