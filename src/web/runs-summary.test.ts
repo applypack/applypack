@@ -63,7 +63,7 @@ describe('summarizeRun', () => {
     assert.deepEqual(summarizeRun('fetch', { reason: 'none-due', fetched: 0, persisted: 0, sources: 0 }), [
       'No source was due yet: each waits for its own check interval',
       '0 fetched',
-      '0 new',
+      '0 stored',
     ]);
     assert.match(summarizeRun('fetch-now', { reason: 'no-sources', fetched: 0 })[0] ?? '', /^No source to read/);
   });
