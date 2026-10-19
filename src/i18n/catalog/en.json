@@ -2713,6 +2713,8 @@
   "match.hard.unknown": "unknown",
   "match.hard.fail": "fail",
   "match.hard.heading": "Hard requirements — gates outside the score",
+  "match.hard.writtenListed": "{term} is on your resume, only on a skills line.",
+  "match.hard.written": "{term} is in your resume.",
   "match.delta.badge": "{arrow} {delta} vs {kind, select, file {the last check of this file} other {v{version}}}",
   "match.delta.notComparable": "Not comparable with {kind, select, file {the last check of this file} other {v{version}}}:",
   "match.delta.heading": "vs {kind, select, file {the last check of this file} other {v{version}}}:",

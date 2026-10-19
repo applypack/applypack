@@ -2713,6 +2713,8 @@
   "match.hard.unknown": "desconocido",
   "match.hard.fail": "no cumple",
   "match.hard.heading": "Requisitos excluyentes — condiciones fuera de la puntuación",
+  "match.hard.writtenListed": "{term} está en tu currículum, pero solo en la línea de habilidades.",
+  "match.hard.written": "{term} está en tu currículum.",
   "match.delta.badge": "{arrow} {delta} frente a {kind, select, file {la última comprobación de este archivo} other {v{version}}}",
   "match.delta.notComparable": "No comparable con {kind, select, file {la última comprobación de este archivo} other {v{version}}}:",
   "match.delta.heading": "frente a {kind, select, file {la última comprobación de este archivo} other {v{version}}}:",

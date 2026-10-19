@@ -2713,6 +2713,8 @@
   "match.hard.unknown": "невідомо",
   "match.hard.fail": "не виконано",
   "match.hard.heading": "Жорсткі вимоги — обов'язкові умови поза оцінкою",
+  "match.hard.writtenListed": "{term} є у вашому резюме, але лише в рядку навичок.",
+  "match.hard.written": "{term} є у вашому резюме.",
   "match.delta.badge": "{arrow} {delta} порівняно з {kind, select, file {останньою перевіркою цього файлу} other {v{version}}}",
   "match.delta.notComparable": "Не можна порівняти з {kind, select, file {останньою перевіркою цього файлу} other {v{version}}}:",
   "match.delta.heading": "порівняно з {kind, select, file {останньою перевіркою цього файлу} other {v{version}}}:",

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { anchorKeywords, anchorStatuses, annotateAliasOnly, elsewhereForPosting } from './keyword-anchor';
+import { absentButWritten, anchorKeywords, anchorStatuses, annotateAliasOnly, elsewhereForPosting } from './keyword-anchor';
 import { loadKeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
 
@@ -122,4 +122,32 @@ test('a verdict the text overrules is kept beside its note, so the page can say 
   // And when the word leaves the text, the row is an `add` with nothing overruled.
   const gone = anchorStatuses(keywords, resume.replace('Docker', 'Podman'), matcher).keywords.find((k) => k.term === 'Docker')!;
   assert.deepEqual([gone.status, gone.overruled], ['add', null]);
+});
+
+test('a failed gate that calls a term absent is answered by where the text has it (#591)', async () => {
+  const matcher = await loadKeywordMatcher();
+  const resume = [
+    'Skills: TypeScript, JavaScript, Node.js, PostgreSQL, React',
+    '- Built the order service in TypeScript and Node.js on AWS.',
+    '- Wrote the PostgreSQL migrations for 2M orders a month.',
+  ].join('\n');
+  const keywords = [
+    { ...keyword('TypeScript'), evidence: 'measured' as const },
+    { ...keyword('Node.js'), evidence: 'measured' as const },
+    { ...keyword('React'), evidence: 'listed' as const },
+    { ...keyword('PostgreSQL'), evidence: 'described' as const },
+    { ...keyword('GraphQL'), status: 'cannot_claim' as const },
+  ];
+  const fail = (note: string) => ({ status: 'fail', note });
+  // The live note: the strong terms are not what it calls absent, and React is on the skills line.
+  assert.deepEqual(absentButWritten(fail('TypeScript/JavaScript/Node.js strong; React is absent from resume'), keywords, resume, matcher), [
+    { term: 'React', listedOnly: true },
+  ]);
+  assert.deepEqual(absentButWritten(fail('strong Node.js, but no PostgreSQL experience shown anywhere'), keywords, resume, matcher), [
+    { term: 'PostgreSQL', listedOnly: false },
+  ]);
+  // A term the text does not spell is absent indeed; a gate that passed, or a note that claims nothing, says nothing.
+  assert.deepEqual(absentButWritten(fail('GraphQL is missing'), keywords, resume, matcher), []);
+  assert.deepEqual(absentButWritten({ status: 'pass', note: 'React is absent' }, keywords, resume, matcher), []);
+  assert.deepEqual(absentButWritten(fail('React shown only on the skills line'), keywords, resume, matcher), []);
 });

@@ -37,6 +37,7 @@ import { proposalOf, suggestionKey, suggestionSheet, type Proposal } from '../..
 import { readMatchEvidence, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { verificationCautionMessages, verificationHintMessage, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
+import type { WrittenTerm } from '../../resume/keyword-anchor';
 import { STALE_MONTHS, usageLine, type TermUsage } from '../../resume/usage';
 import { effectiveRequirement, isIgnored, confirmable, keywordNote } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
@@ -74,6 +75,8 @@ export interface ResumeMatchCardProps {
   selected: MatchWithResume | null;
   /** The selected comparison's keywords, ordered and counted by the matcher. */
   selectedKeywords: CountedKeyword[];
+  /** Per hard requirement, the terms its note calls absent that the judged text spells (keyword-anchor.ts:absentButWritten). */
+  selectedWritten: WrittenTerm[][];
   /** What the first reader looks for in a summary, against the selected comparison's text (summary-guide.ts). */
   selectedSummaryGuide: SummaryGuide | null;
   /** Names the change sheet the Copy button hands over. */
@@ -161,6 +164,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   matches,
   selected,
   selectedKeywords,
+  selectedWritten,
   selectedSummaryGuide,
   job,
   verification,
@@ -228,6 +232,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           match={selected}
           previous={previousFor(selected, matches)}
           keywords={selectedKeywords}
+          written={selectedWritten}
           summaryGuide={selectedSummaryGuide}
           factsBack={`/jobs/${jobId}?match=${selected.id}#resume-match`}
           job={job}
@@ -477,6 +482,7 @@ const MatchReport: FC<{
   previous: MatchWithResume | null;
   /** This match's keywords, ordered and counted by the matcher (§5). */
   keywords: CountedKeyword[];
+  written: WrittenTerm[][];
   /** Where the ask_user confirm/deny and keyword-override forms return to. */
   factsBack: string;
   /** Names the change sheet the Copy button hands over. */
@@ -484,7 +490,7 @@ const MatchReport: FC<{
   /** The latest verdict's findings ride along the cautions (#162). */
   verification: VerificationForHint | null;
   summaryGuide: SummaryGuide | null;
-}> = ({ match, previous, keywords, summaryGuide, factsBack, job, verification }) => {
+}> = ({ match, previous, keywords, written, summaryGuide, factsBack, job, verification }) => {
   const bd = readBreakdown(match.breakdown);
   // A re-extracted frame counts different terms, so the older number is not a
   // baseline for this one (keyword-frame.ts). DeltaBox says so in words.
@@ -539,7 +545,7 @@ const MatchReport: FC<{
       )}
 
       <DeltaBox match={match} previous={previous} />
-      <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
+      <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} written={written} />
       <MatchSignals match={match} verification={verification} />
       {/* A file judged on its own text may not be the user's: its questions are not theirs to answer (R1). */}
       {readMatchEvidence(match.breakdown) === 'own' && <ConfirmFacts {...confirmable(keywords, job.title)} matchId={match.id} back={factsBack} />}
@@ -669,13 +675,16 @@ function componentMoves(c: NonNullable<ReturnType<typeof diffMatches>['component
     .join(' · ');
 }
 
-/** Full hard-requirement list with notes — the score card shows only the digest. */
-const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) =>
+/**
+ * Full hard-requirement list with notes — the score card shows only the digest.
+ * Under a note that calls a term absent the text spells, our own line says where it is (#591).
+ */
+const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[]; written: WrittenTerm[][] }> = ({ hard, written }) =>
   hard.length === 0 ? null : (
     <div>
       <div class={SUBHEAD}>{t('match.hard.heading')}</div>
       <ul class="space-y-1.5 text-sm">
-        {hard.map((h) => (
+        {hard.map((h, i) => (
           <li class="flex flex-wrap items-center gap-2">
             <Badge tone={HARD_VIEW[h.status].tone}>{t(HARD_VIEW[h.status].label)}</Badge>
             <span class="text-ink" lang="en">
@@ -686,6 +695,11 @@ const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) =
                 — {h.note}
               </span>
             )}
+            {(written[i] ?? []).map((w) => (
+              <span class="basis-full text-meta text-ink-muted">
+                {t(w.listedOnly ? 'match.hard.writtenListed' : 'match.hard.written', { term: w.term })}
+              </span>
+            ))}
           </li>
         ))}
       </ul>

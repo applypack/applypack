@@ -80,6 +80,7 @@ import {
   coverGateSources,
   readCoverAngles,
   readActions,
+  readHardRequirements,
   readKeywords,
   type CoverTone,
   type MatchJobInput,
@@ -90,6 +91,7 @@ import { withTableAliases } from '../../resume/keyword-aliases';
 import { loadKeywordMatcher, type CountedKeyword } from '../../resume/keyword-matcher';
 import { termUsage, type TermUsage } from '../../resume/usage';
 import { shownFlags } from '../../resume/red-flags';
+import { absentButWritten } from '../../resume/keyword-anchor';
 import { factCheck } from '../../resume/fact-check';
 import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
 import { buildLetterPdf } from '../../resume/pdf-write';
@@ -413,6 +415,14 @@ async function withShownFlags<M extends { redFlags: string[]; cautions: string[]
   return { ...match, redFlags: shown.redFlags, cautions: [...match.cautions, ...shown.cautions] };
 }
 
+/** Per hard requirement, the terms its note calls absent that the judged text spells (keyword-anchor.ts:absentButWritten). */
+async function writtenGateTerms(match: { hardRequirements: unknown; keywords: unknown; resumeText: string } | null) {
+  if (!match) return [];
+  const matcher = await loadKeywordMatcher();
+  const keywords = readKeywords(match.keywords);
+  return readHardRequirements(match.hardRequirements).map((gate) => absentButWritten(gate, keywords, match.resumeText, matcher));
+}
+
 /**
  * What the first reader looks for in a summary, held against the text this
  * comparison read (summary-guide.ts) — stored rows only, no AI. A quick check
@@ -575,6 +585,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         matches,
         selected: selected && (await withShownFlags(selected)),
         selectedKeywords,
+        selectedWritten: await writtenGateTerms(selected),
         selectedSummaryGuide,
         job: { title: job.title, companyName: companyForPage(job.employer, job.company) },
         verification: verifications[0] ?? null,

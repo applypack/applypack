@@ -155,3 +155,36 @@ export function elsewhereForPosting<S extends { skill: string }>(
 ): S[] {
   return otherSkills.filter((s) => matcher.findTerm(posting, s.skill, aliasesFor(s.skill)).length > 0);
 }
+
+/** The words a gate's note uses to say a term is not in the resume. */
+const SAYS_ABSENT =
+  /\b(?:absent|nowhere|missing|lacks?|not (?:shown|present|mentioned|found|listed|evidenced|named)|no (?:\w+ )?(?:experience|evidence|mention))\b/i;
+/** Where one claim of a note ends and the next begins: "TypeScript strong; React is absent". Not the dot of "Node.js". */
+const CLAUSE_BREAK = /[;,]\s|\.\s|\s[—–-]\s|\bbut\b/;
+
+/** A term a gate's note calls absent that the judged text spells, and whether only on a skills line. */
+export interface WrittenTerm {
+  term: string;
+  listedOnly: boolean;
+}
+
+/**
+ * The terms a failed gate's note calls absent while the resume's text spells
+ * them (#591: "React is absent from resume" over a skills line naming React).
+ * Read off the text the comparison judged, with the matcher that anchors every
+ * status (ADR 0045); the note stays as the model wrote it, and the page says
+ * where the term is. `listedOnly` is the evidence grade's "skills line only".
+ */
+export function absentButWritten(
+  gate: { status: string; note?: string | null },
+  keywords: MatchKeyword[],
+  resumeText: string,
+  matcher: Pick<KeywordMatcher, 'findTerm'>,
+): WrittenTerm[] {
+  if (gate.status !== 'fail' || !gate.note) return [];
+  const claims = gate.note.split(CLAUSE_BREAK).filter((clause) => SAYS_ABSENT.test(clause));
+  return keywords
+    .filter((k) => claims.some((clause) => matcher.findTerm(clause, k.term, k.aliases).length > 0))
+    .filter((k) => matcher.findTerm(resumeText, k.term, k.aliases).length > 0)
+    .map((k) => ({ term: k.term, listedOnly: k.evidence === 'listed' }));
+}

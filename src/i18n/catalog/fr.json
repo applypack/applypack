@@ -2713,6 +2713,8 @@
   "match.hard.unknown": "inconnue",
   "match.hard.fail": "non remplie",
   "match.hard.heading": "Conditions éliminatoires — hors du score",
+  "match.hard.writtenListed": "{term} figure dans votre CV, mais seulement sur la ligne de compétences.",
+  "match.hard.written": "{term} figure dans votre CV.",
   "match.delta.badge": "{arrow} {delta} par rapport à {kind, select, file {la dernière vérification de ce fichier} other {v{version}}}",
   "match.delta.notComparable": "Non comparable avec {kind, select, file {la dernière vérification de ce fichier} other {v{version}}} :",
   "match.delta.heading": "par rapport à {kind, select, file {la dernière vérification de ce fichier} other {v{version}}} :",
