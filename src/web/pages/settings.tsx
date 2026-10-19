@@ -59,7 +59,7 @@ import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
 import { RENAMED_ZONES } from '../time-zones';
 import { AiPlan, BILLING_TONE } from './ai-plan';
-import { planSummary, type AiPlanRow } from '../ai-plan';
+import { LOCAL_WINDOW_ID, planSummary, type AiPlanRow } from '../ai-plan';
 import { billingWords, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
@@ -162,6 +162,8 @@ export interface EngineServer {
   more?: string;
   value: string;
   stored: boolean;
+  /** `.env` names the address; otherwise an address not stored here is the built-in default. */
+  fromEnv: boolean;
   local: boolean;
   /** The local engine's context window: the stored choice and the ones offered. */
   context?: { value: number; choices: readonly number[] };
@@ -1609,7 +1611,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                   {words}
                 </span>
               ),
-            })}
+            })}{' '}
             {screening.engineSubscription ? (
               <Badge tone="warn" class="ml-2">
                 {t('settings.personalSubscription')}
@@ -1857,12 +1859,16 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
   <Card variant="subtle" class="mt-3">
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-label text-ink">{server.label}</span>
-      <Badge tone="neutral">{server.stored ? t('settings.saved') : t('settings.fromEnv')}</Badge>
+      <Badge tone="neutral">{server.stored ? t('settings.saved') : server.fromEnv ? t('settings.fromEnv') : t('settings.builtInAddress')}</Badge>
       {server.local && <Badge tone="ok">{t('settings.onThisMachineNoKey')}</Badge>}
       {server.stored && (
         <ActionForm action={server.action} hidden={{ clear: '1' }} class="ml-auto">
-          <Button size="sm" variant="secondary" title={t('settings.forgetThisAddress', { envVar: server.envVar })}>
-            {t('settings.useEnv')}
+          <Button
+            size="sm"
+            variant="secondary"
+            title={server.fromEnv ? t('settings.forgetThisAddress', { envVar: server.envVar }) : t('settings.forgetForDefault')}
+          >
+            {server.fromEnv ? t('settings.useEnv') : t('settings.useDefault')}
           </Button>
         </ActionForm>
       )}
@@ -1887,7 +1893,7 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
     <Hint class="mt-2">{server.hint}</Hint>
     {server.more && <More class="mt-1">{server.more}</More>}
     {server.context && (
-      <form method="post" action={server.action} class="mt-3 flex flex-wrap items-end gap-2">
+      <form id={LOCAL_WINDOW_ID} method="post" action={server.action} class="mt-3 flex flex-wrap items-end gap-2">
         <Field
           label={t('settings.contextWindow')}
           hint={t('settings.roomForThePromptAnd')}
@@ -2107,7 +2113,7 @@ const EngineTrial: FC<{ id: string; trial: TrialView }> = ({ id, trial }) => (
   <div class="mt-4 border-t border-line pt-4">
     <h4 class="text-label text-ink">{t('trial.title')}</h4>
     <Hint class="mt-1">
-      {t('trial.what', { max: TRIAL_SIZE, model: trial.model })}
+      {trial.model === null ? t('trial.whatNoModel', { max: TRIAL_SIZE }) : t('trial.what', { max: TRIAL_SIZE, model: trial.model })}
     </Hint>
     <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
       <ActionForm action="/settings/ai/trial" hidden={{ provider: id }} once>

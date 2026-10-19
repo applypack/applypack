@@ -15,6 +15,7 @@ import {
   anthropicUsage,
   buildClaudeCodeArgs,
   buildOllamaChatBody,
+  contextTooSmall,
   DEFAULT_LOCAL_CONTEXT_TOKENS,
   localBudgetTokens,
   ollamaCanThink,
@@ -47,7 +48,8 @@ import {
 } from './ai-provider-parse';
 import type { AiProviderId } from './ai-engine';
 import { AI_KEY_ENV_VARS } from './ai-keys';
-import { createLimiter, type Limiter } from './concurrency';
+import { createLimiter, runTimed, type Limiter } from './concurrency';
+import { windowRefused } from './window-refusal';
 import { cliCommand } from './cli-command';
 
 /**
@@ -111,6 +113,8 @@ export interface AiAttempt {
   outcome: AiOutcome;
   /** Null when the vendor reported nothing: a timeout, a refused key, a crash. */
   spend: AiSpend | null;
+  /** How long the call waited for its turn on a one-at-a-time server before it was sent; the ledger's time leaves it out (#564). */
+  queuedMs?: number;
 }
 
 export interface AiProvider {
@@ -391,13 +395,14 @@ class LocalApiProvider implements AiProvider {
     const need = localBudgetTokens(req.system, req.user, req.maxTokens);
     if (need > contextTokens) {
       logger.warn({ label: req.label, need, contextTokens }, 'ai: prompt larger than the local context window');
-      req.onError?.(t('engine.fail.contextTooSmall', { need, window: contextTokens }));
+      windowRefused();
+      req.onError?.(contextTooSmall(need, contextTokens));
       return failed('too_large');
     }
     const deadline = Date.now() + (req.timeoutMs ?? CLI_TIMEOUT_MS);
     const slot = this.slots.get(root) ?? createLimiter(LOCAL_CALLS_AT_ONCE);
     this.slots.set(root, slot);
-    return slot(() => this.send(req, root, model, contextTokens, deadline));
+    return runTimed(slot, async (queuedMs) => ({ ...(await this.send(req, root, model, contextTokens, deadline)), queuedMs }));
   }
 
   private async send(req: AiRequest, root: string, model: string, contextTokens: number, deadline: number): Promise<AiAttempt> {

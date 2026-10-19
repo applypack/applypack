@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.8] — 2026-10-18
+
+### Changed
+- When a model on your computer cannot fit a prompt into its context window,
+  the error now says how much room the call needed and which window size to
+  pick. A failed run links straight to the Context window setting.
+- "Use it" on a model on your computer says plainly that it answers every
+  task when no other engine is set up.
+- The settings page now says "default" for a server address you never set,
+  instead of "from .env".
+
+### Fixed
+- Unticking resume tasks on an engine one at a time no longer leaves
+  applicant screening on that engine.
+- Skip setup now keeps the AI engine that setup found, as Continue already
+  did.
+- A local model's recorded call time no longer includes the time it waited
+  for the calls before it, so AI usage shows its real speed.
+- Pressing Enter in a model field saves in place and shows "Saved", instead
+  of reloading the page.
+- The local engine's settings no longer mention a "CLI default" or a key it
+  does not have. Gemini's Test now says to sign in with `gemini`, and a
+  stray "?." and a missing space are gone.
+- AI usage no longer warns that local calls which timed out may be on a
+  vendor's bill.
+
 ## [2.61.7] — 2026-10-18
 
 ### Changed
@@ -6392,6 +6418,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.8]: https://github.com/applypack/applypack/compare/v2.61.7...v2.61.8
 [2.61.7]: https://github.com/applypack/applypack/compare/v2.61.6...v2.61.7
 [2.61.6]: https://github.com/applypack/applypack/compare/v2.61.5...v2.61.6
 [2.61.5]: https://github.com/applypack/applypack/compare/v2.61.4...v2.61.5

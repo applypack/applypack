@@ -1,4 +1,5 @@
 import type { JobScore, Profile } from '@prisma/client';
+import type { AiProviderId } from '../ai-engine';
 import { decideDismissReason, type ProfileVerdict } from '../jobs/verdict-merge';
 import { formatNumber } from '../i18n/format';
 import { t } from '../i18n/t';
@@ -129,6 +130,15 @@ export function trialReport(readings: readonly TrialReading[]): TrialReport {
     failed: readings.filter((r) => r.kind === 'failed').length,
     stale: pairs.filter((p) => p.record.stale).length,
   };
+}
+
+/**
+ * The model a trial reads with, worded: an empty slot is a CLI's own default,
+ * and on the local engine no model at all, so there is nothing to try (#563).
+ */
+export function trialModel(id: AiProviderId, model: string): string | null {
+  if (model) return model;
+  return id === 'local_api' ? null : t('ai.cliDefault');
 }
 
 /** True once a run has nothing left to learn: every call so far unanswered, and enough of them to say so. */

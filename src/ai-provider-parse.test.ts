@@ -17,6 +17,7 @@ import {
   CLI_THINKING_CAP_ENV,
   cliRetryable,
   cliThinkingCap,
+  contextTooSmall,
   describeAiFailure,
   estimateTokens,
   failureKind,
@@ -692,6 +693,15 @@ test('the token estimate is cautious, more so for text outside Latin script', ()
   assert.equal(estimateTokens('a'.repeat(350)), 100);
   assert.equal(estimateTokens('я'.repeat(150)), 100);
   assert.ok(localBudgetTokens('s'.repeat(3_500), 'u'.repeat(3_500), 1_000) > 3_000);
+});
+
+test('a prompt too large for the local window names the window that takes it, and where it is set (#523)', () => {
+  assert.equal(
+    contextTooSmall(21_872, 16_384),
+    "this call needs about 21,872 tokens and the local model's context window is 16,384; choose 32k or more under Context window on the Local model (Ollama) card in Settings → AI & costs",
+  );
+  assert.match(contextTooSmall(16_385, 8_192), /choose 32k or more/);
+  assert.match(contextTooSmall(80_000, 65_536), /more than the largest window on offer, 64k: give this task to another engine in Settings → AI & costs$/);
 });
 
 test("Ollama's stream: the pieces joined, the counts off the last line, a thinking block dropped", () => {

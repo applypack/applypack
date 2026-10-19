@@ -109,7 +109,8 @@ export async function runChain(
     // Every attempt, the failed ones too: a cut-off reply was billed (ADR 0055).
     const row = await deps.record({
       at: new Date(started),
-      durationMs: deps.now() - started,
+      // The engine's own time: a wait for a local server's one slot is not the model being slow (#564).
+      durationMs: deps.now() - started - (attempt.queuedMs ?? 0),
       engine: id,
       model,
       feature: req.label,

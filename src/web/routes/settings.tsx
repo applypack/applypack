@@ -48,7 +48,7 @@ import {
 } from '../../settings';
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
-import { config } from '../../config';
+import { config, setInEnv } from '../../config';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
 import { canonicalZone, readZone, timeZoneChoices } from '../time-zones';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
@@ -294,6 +294,7 @@ async function loadSettingsProps(here: string) {
       more: t('settingsRoute.server.openai.more'),
       value: openAiServer,
       stored: openAiBaseUrl !== null,
+      fromEnv: setInEnv('OPENAI_BASE_URL'),
       local: isLocalUrl(openAiServer),
     },
     local_api: {
@@ -303,6 +304,7 @@ async function loadSettingsProps(here: string) {
       hint: t('settingsRoute.server.local.hint'),
       value: localServer,
       stored: settings.localAiUrl !== null,
+      fromEnv: setInEnv('OLLAMA_URL'),
       local: true,
       context: { value: settings.localContextTokens ?? DEFAULT_LOCAL_CONTEXT_TOKENS, choices: LOCAL_CONTEXT_CHOICES },
     },
@@ -312,11 +314,11 @@ async function loadSettingsProps(here: string) {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
-  // A CLI engine with no model set runs whatever its own configuration names.
-  const cliDefault = t('settingsRoute.cliDefault');
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
-    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || cliDefault;
-    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || cliDefault;
+    // A CLI engine with no model set runs whatever its own configuration names; the local engine runs none (#563).
+    const unset = id === 'local_api' ? '' : t('settingsRoute.cliDefault');
+    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || unset;
+    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || unset;
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
     return {
       id,
@@ -338,7 +340,7 @@ async function loadSettingsProps(here: string) {
       classifierDefault,
       resumeDefault,
       // An empty cover slot takes the engine's own letter default, not the resume slot.
-      coverDefault: defaultModelFor(id, 'cover', aiEnv) || cliDefault,
+      coverDefault: defaultModelFor(id, 'cover', aiEnv) || unset,
       // TASKS S3: an OpenAI-compatible server's own models, as its last Test listed them.
       options: id === 'openai_api' ? knownModels(openAiServer) : id === 'local_api' ? knownModels(localServer) : PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api' || id === 'local_api',
@@ -711,7 +713,7 @@ settingsRoute.post('/settings/ai/tasks', async (c) => {
   }
   const settings = await getSettings();
   const config = parseAiEngineConfig(settings.aiEngine);
-  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode, config.tasks[provider]);
+  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode);
   const next = withEngineTasks(config, provider, picked);
   await setAiEngineConfig(next);
   if (wantsJson) return c.json({ ok: true });
