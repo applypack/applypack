@@ -68,6 +68,8 @@ const MAY_404 = new Set([
 const QUERY_VARIANTS = [
   // Every /jobs filter at once, the panel open: the where-clause, the facet tally and the status counts together.
   '/jobs?panel=1&status=NEW&q=node&minFit=10&sort=fitScore_desc&verified=1&watched=1&open=1&muted=1&country=DE,EU,unknown&workplace=remote,unknown&posted=30d',
+  // The jobs no source dated (#458), ordered by date: they sort after every dated one.
+  '/jobs?panel=1&posted=unknown&sort=postedAt_desc',
   // The job page's three other tabs, and a tab nobody offers — that one must fall back, not fail.
   '/jobs/:id?tab=match',
   '/jobs/:id?tab=letter',

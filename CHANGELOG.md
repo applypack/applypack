@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.58.0] — 2026-10-18
+
+### Added
+- Jobs → Filters → Posted has a **Date unknown** choice: the jobs whose
+  source gave no date (pasted, saved without a date, imported without a date
+  column, or from a board that publishes none).
+
+### Changed
+- A job whose source gave no date shows **First seen** instead of Posted,
+  and the Last 24h / 7 days / 30 days filters and "Recently posted" sorting
+  no longer treat that date as a publishing date.
+- Application packs: a new role on a company's own job board that publishes
+  no dates (BambooHR, Pinpoint, often Rippling) can now be prepared on its
+  own. It counts from the board's previous check.
+- A dismissed job's text is still deleted after 30 days, but ApplyPack now
+  remembers for 180 days that it saw it.
+
+### Fixed
+- A dismissed posting no longer comes back as new, and is no longer scored
+  again, a month later while its board, file or folder still lists it.
+- An imported file of old postings with no date column no longer shows up as
+  "posted in the last 24 hours".
+
 ## [2.57.3] — 2026-10-18
 
 ### Changed
@@ -6137,6 +6160,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.58.0]: https://github.com/applypack/applypack/compare/v2.57.3...v2.58.0
 [2.57.3]: https://github.com/applypack/applypack/compare/v2.57.2...v2.57.3
 [2.57.2]: https://github.com/applypack/applypack/compare/v2.57.1...v2.57.2
 [2.57.1]: https://github.com/applypack/applypack/compare/v2.57.0...v2.57.1

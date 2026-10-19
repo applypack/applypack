@@ -77,6 +77,7 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'notified', job: 'pack', words: 'runs.fact.packNotified' },
   { key: 'unscored', job: 'digest', words: 'runs.fact.digestUnscored' },
   { key: 'deleted', job: 'cleanup', words: 'runs.fact.jobsDeleted', always: true },
+  { key: 'dismissalsForgotten', words: 'runs.fact.dismissalsForgotten' },
   { key: 'screeningsDeleted', words: 'runs.fact.screeningsDeleted' },
   { key: 'runsDeleted', words: 'runs.fact.runsDeleted' },
   { key: 'aiCallsDeleted', words: 'runs.fact.aiCallsDeleted' },
