@@ -60,6 +60,17 @@ export function normalizeUrlKey(input: string | null | undefined): string | null
 }
 
 /**
+ * What a stored link must contain to share `input`'s `normalizeUrlKey`: its
+ * path, or its host when the path is empty — the cheap cut a database can make
+ * before the keys are compared. Null for junk, as the key is.
+ */
+export function urlKeyNeedle(input: string): string | null {
+  if (normalizeUrlKey(input) === null) return null;
+  const url = new URL(input.trim());
+  return url.pathname.replace(/\/+$/, '') || url.host.toLowerCase();
+}
+
+/**
  * Free text reduced to a comparable key. NFKC then letters/marks/digits in
  * **any** script — an ASCII-only strip would map every Cyrillic or CJK
  * company name to the empty string and collide them all. Null for junk.

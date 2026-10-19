@@ -931,6 +931,9 @@ model CoverLetter {
   resumeVersion    Int      @default(1)
   kind             String   @default("letter")
   tone             String   @default("warm")
+  // Who the letter greets, as typed on the job page ('' = the team); NULL on
+  // rows from before #581 and from /letter and packs, which ask no one.
+  addressee        String?
   text             String   @db.Text
   editedText       String?  @db.Text
   model            String

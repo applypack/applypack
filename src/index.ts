@@ -11,7 +11,7 @@ import { runHnHiringJob } from './jobs/hn-hiring-job';
 import { runDiscoveryJob } from './jobs/discovery-job';
 import { packWorkWaiting, runPackJob, stopPackJob } from './jobs/pack-job';
 import { recordCronRun, type CronStats, type RunName } from './jobs/cron-run';
-import { spreadMinute } from './schedule';
+import { cronWarningLevel, spreadMinute } from './schedule';
 import { getInstanceId, getSchedule } from './settings';
 import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule';
 import { announceReady, onLauncherStop, underLauncher } from './local/child';
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   cron.setLogger({
     info: (message) => logger.debug({ cron: true }, message),
     debug: (message) => logger.debug({ cron: true }, String(message)),
-    warn: (message) => logger.warn({ cron: true }, message),
+    warn: (message) => logger[cronWarningLevel(message)]({ cron: true }, message),
     error: (message, err) => logger.error({ cron: true, err }, String(message)),
   });
 

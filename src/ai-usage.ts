@@ -46,6 +46,8 @@ export interface AiSpend {
   model: string | null;
   /** The vendor's or the CLI's own figure (OpenRouter's `usage.cost`, Claude Code's `total_cost_usd`). */
   reportedUsd: number | null;
+  /** Models the call ran beside `model` — the Claude CLI's search helper (#583) — each priced on its own. */
+  alongside?: { model: string; usage: AiUsage }[];
 }
 
 export const NO_USAGE: AiUsage = {

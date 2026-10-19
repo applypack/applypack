@@ -71,3 +71,14 @@ function hash32(text: string): number {
   }
   return h >>> 0;
 }
+
+/**
+ * How loud one of node-cron's warnings is in our log. A beat skipped because
+ * its last run is still going is `noOverlap` doing what `registerCron` asked
+ * of it — the pack beat meets one every minute while a pack prepares (#589) —
+ * so it is a debug line; anything else it warns about (a missed beat after
+ * the machine slept) stays a warning.
+ */
+export function cronWarningLevel(message: unknown): 'debug' | 'warn' {
+  return /overlap prevention/i.test(String(message)) ? 'debug' : 'warn';
+}

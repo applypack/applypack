@@ -172,6 +172,18 @@ export function documentFileName(name: string, ext: 'docx' | 'pdf'): string {
 const MAX_FILE_NAME_CHARS = 80;
 
 /**
+ * A pack's file: the resume's name and the company it went to — "marta keller
+ * resume — Acme.docx" — so the files of two packs never collide in Downloads
+ * (#589). The resume's name gives way to the company when both do not fit.
+ */
+export function packFileName(stored: string, company: string | null, ext: 'docx' | 'pdf'): string {
+  if (!company?.trim()) return documentFileName(stored, ext);
+  const tail = ` — ${company.trim()}`;
+  const room = Math.max(0, MAX_FILE_NAME_CHARS - Array.from(tail).length);
+  return documentFileName(`${Array.from(stored.replace(/\.(docx|pdf)$/i, '')).slice(0, room).join('')}${tail}`, ext);
+}
+
+/**
  * `attachment` with the name in both forms: an ASCII fallback, and the UTF-8
  * one (RFC 6266 / 5987) a Cyrillic name needs — a header value is bytes, and
  * Node refuses to send one it cannot encode.

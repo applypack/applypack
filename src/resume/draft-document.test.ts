@@ -7,7 +7,7 @@ import { pdfToText } from './pdf-text';
 import { knobsFrom } from './render/knobs';
 import { planRender } from './render/sections';
 import { structureFromText } from './structure-from-text';
-import { cleanDocx, contentDisposition, documentFileName, draftDocx, draftPdf, noticeFor, type DraftInput } from './draft-document';
+import { cleanDocx, contentDisposition, documentFileName, draftDocx, draftPdf, noticeFor, packFileName, type DraftInput } from './draft-document';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name));
 const FLOW = fixture('flow-simple.docx');
@@ -88,6 +88,17 @@ test('documentFileName keeps the resume’s own name and nothing a file system r
   const name = documentFileName(`${'x'.repeat(79)}🚀 resume`, 'pdf');
   assert.equal(name, `${'x'.repeat(79)}🚀.pdf`);
   assert.doesNotThrow(() => contentDisposition(name));
+});
+
+test('#589: a pack’s file names the company, so two packs never collide in Downloads', () => {
+  assert.equal(packFileName('marta keller resume.docx', 'Acme', 'docx'), 'marta keller resume — Acme.docx');
+  assert.equal(packFileName('marta keller resume.docx', 'Acme', 'pdf'), 'marta keller resume — Acme.pdf');
+  assert.equal(packFileName('marta keller resume.docx', null, 'docx'), 'marta keller resume.docx');
+  assert.equal(packFileName('marta keller resume.docx', 'Acme/EU: GmbH', 'docx'), 'marta keller resume — Acme EU GmbH.docx');
+  // A long resume name gives way; the company stays whole.
+  const long = packFileName(`${'x'.repeat(100)}.docx`, 'Acme', 'docx');
+  assert.ok(long.endsWith(' — Acme.docx'));
+  assert.equal(long.length, 85);
 });
 
 test('contentDisposition carries a Cyrillic name without breaking the header', () => {

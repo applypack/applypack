@@ -15,7 +15,19 @@ import type { HeldReason } from './policy';
 
 const isPackStop = (v: unknown): v is PackStop => (PACK_STOPS as readonly unknown[]).includes(v);
 
-const HELD_REASONS = ['no-wording', 'check-first', 'drops-figure', 'section', 'over-limit', 'removals-off'] as const satisfies readonly HeldReason[];
+const HELD_REASONS = [
+  'refused',
+  'instruction',
+  'no-place',
+  'cut-refused',
+  'no-quote',
+  'no-wording',
+  'check-first',
+  'drops-figure',
+  'section',
+  'over-limit',
+  'removals-off',
+] as const satisfies readonly HeldReason[];
 
 /** What one applied operation changed, with the text around it (text-edits.mjs:withContext) — its Undo. */
 const InverseEditSchema = z.object({
@@ -82,6 +94,11 @@ export function tailorSeed(pack: { status: string; matchId: number | null; baseT
 
 /** Why a suggestion was left for the person, as the end of "… — <reason>": catalog keys, worded on the page. */
 export const HELD_WORDS = {
+  refused: 'pack.held.refused',
+  instruction: 'pack.held.instruction',
+  'no-place': 'pack.held.noPlace',
+  'cut-refused': 'pack.held.cutRefused',
+  'no-quote': 'pack.held.noQuote',
   'no-wording': 'pack.held.noWording',
   'check-first': 'pack.held.checkFirst',
   'drops-figure': 'pack.held.dropsFigure',

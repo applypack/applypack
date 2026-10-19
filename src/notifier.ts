@@ -339,6 +339,11 @@ export async function sendPackNotice(lines: readonly MessageLine[]): Promise<Del
   return broadcast({ telegram: formatPackNotice(lines), discord: formatDiscordPackNotice(lines) }, null);
 }
 
+/** The stale-applications reminder (#578): plain lines, as the packs message is, and never a match in the digest. */
+export async function sendStaleReminder(lines: readonly MessageLine[]): Promise<Delivery> {
+  return broadcast({ telegram: formatPackNotice(lines), discord: formatDiscordPackNotice(lines) }, null);
+}
+
 /**
  * The packs message in MarkdownV2: each line escaped, and under a pack's line
  * its tab, written out as an alert's is — in as many messages as the limit

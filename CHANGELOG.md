@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.0] — 2026-10-18
+
+### Added
+- Cover letter files open with your name, your contact line and the date, on
+  A4 paper — or Letter for a job in the US or Canada.
+- Rebuild keywords now asks once more before it spends, and says what it
+  costs.
+
+### Changed
+- The reminder about applications with no answer is a message of its own:
+  how many, each job with the day you applied and a link to it.
+- A new search made from a second resume is named after that resume when its
+  title is already taken.
+- Application pack files are named after the company, and "Left for you"
+  says the one reason each suggestion was left.
+- On narrow screens the Document view on Tailor resume fits the page's text
+  instead of the whole sheet.
+
+### Fixed
+- A cover letter for a link the dashboard already has no longer stores a
+  second copy of the posting.
+- Both cover-letter forms keep the resume, the tone and the whole name of
+  the person the last letter was written to.
+- The fact-check badge on a cover letter updates as soon as an edit is
+  saved.
+- Progress pages say where the result will appear, name the model that will
+  answer instead of "Opus", and a failed comparison goes back to where you
+  started it.
+- AI usage books "Is it real?" on the Claude CLI under the model that
+  answered, with its web searches and the cost of the search helper.
+- A queued application pack no longer fills the worker's log with a warning
+  every minute.
+
 ## [2.62.0] — 2026-10-18
 
 ### Added
@@ -6496,6 +6529,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.0]: https://github.com/applypack/applypack/compare/v2.62.0...v2.63.0
 [2.62.0]: https://github.com/applypack/applypack/compare/v2.61.10...v2.62.0
 [2.61.10]: https://github.com/applypack/applypack/compare/v2.61.9...v2.61.10
 [2.61.9]: https://github.com/applypack/applypack/compare/v2.61.8...v2.61.9

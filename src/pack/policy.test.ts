@@ -52,16 +52,18 @@ test('a change replaces its quote, an addition follows its anchor, each under it
   ]);
 });
 
-test('wording the gate refused, an instruction and an edit with no place are held, never applied', () => {
-  const refused = action({ where: 'refused', replacement: null });
+test('wording the gate refused, an instruction and an edit with no place are held, never applied — each says which (#589)', () => {
+  const refused = action({ where: 'refused', replacement: null, why: 'the posting asks for it · not applied — "40%" is in neither the resume nor the posting' });
+  const unworded = action({ where: 'unworded', replacement: null });
   const instruction = action({ where: 'instruction', what: 'Cut this role to four bullets', replacement: undefined, quote: null });
   const placeless = action({ where: 'placeless', quote: null, insert_after: null });
-  const { ops, held } = plan({ actions: [refused, instruction, placeless] });
+  const { ops, held } = plan({ actions: [refused, unworded, instruction, placeless] });
   assert.deepEqual(ops, []);
   assert.deepEqual(held.map((h) => [h.where, h.reason]), [
-    ['refused', 'no-wording'],
-    ['instruction', 'no-wording'],
-    ['placeless', 'no-wording'],
+    ['refused', 'refused'],
+    ['unworded', 'instruction'],
+    ['instruction', 'instruction'],
+    ['placeless', 'no-place'],
   ]);
 });
 
@@ -93,7 +95,7 @@ test('a wording that is a note to the writer is never pasted, on a comparison st
   });
   const { ops, held } = plan({ actions: [note] });
   assert.deepEqual(ops, []);
-  assert.deepEqual(held.map((h) => h.reason), ['no-wording']);
+  assert.deepEqual(held.map((h) => h.reason), ['instruction']);
 });
 
 test('a warned edit does not use up the bullet limit', () => {
@@ -134,8 +136,10 @@ test('nothing is cut unless the policy says so', () => {
   assert.deepEqual(plan({ removals: [cut] }).ops, []);
   assert.deepEqual(plan({ removals: [cut] }).held, [{ section: 'skills', where: 'Skills · Tools', reason: 'removals-off' }]);
   assert.deepEqual(plan({ removals: [cut] }, { removals: true }).ops, [{ key: suggestionKey(cut), kind: 'remove', quote: 'jQuery, Bower' }]);
-  // Advice with no span to strike (replacement-gate.ts:gateRemovals) has nothing to remove.
-  assert.deepEqual(plan({ removals: [removal({ quote: null })] }, { removals: true }).held[0]?.reason, 'no-wording');
+  // Advice with no span to strike has nothing to remove, and a span the gate took away (gateRemovals) says so.
+  assert.deepEqual(plan({ removals: [removal({ quote: null })] }, { removals: true }).held[0]?.reason, 'no-quote');
+  const guarded = removal({ quote: null, why: 'shorter · not applied — the span covers contact details — keep the email and phone' });
+  assert.deepEqual(plan({ removals: [guarded] }, { removals: true }).held[0]?.reason, 'cut-refused');
 });
 
 test('two additions to one place are one operation, as on the page', () => {

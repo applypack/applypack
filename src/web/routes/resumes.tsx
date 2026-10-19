@@ -51,7 +51,7 @@ import { coverage, MIN_POSTINGS } from '../../resume/coverage';
 import { loadKeywordMatcher } from '../../resume/keyword-matcher';
 import { readReviewPromptVersion } from '../../resume/review-score';
 import { parseWarnings } from '../../resume/parse-warnings';
-import { listProfilesForResume } from '../../profiles';
+import { listProfiles, listProfilesForResume } from '../../profiles';
 import { createProfileFromResume, newProfileDraft } from '../profile-from-resume';
 import { ResumeDetailPage } from '../pages/resume-detail';
 import { FormatComparePage } from '../pages/format-compare';
@@ -155,11 +155,12 @@ resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), 
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const [resume, matches, review, linkedProfiles, impact, tables, facts] = await Promise.all([
+  const [resume, matches, review, linkedProfiles, profiles, impact, tables, facts] = await Promise.all([
     getResume(id),
     listMatchesForResume(id),
     getLatestReviewForResume(id),
     listProfilesForResume(id),
+    listProfiles(),
     deleteImpact(id),
     listLatestKeywordTables(id),
     listFacts(),
@@ -195,7 +196,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
       // stored (ADR 0015). Only a scanned resume has anything to say.
       search={{
         linkedProfiles,
-        draft: resume.scannedAt && !resume.hidden ? newProfileDraft(resume) : null,
+        draft: resume.scannedAt && !resume.hidden ? newProfileDraft(resume, profiles.map((p) => p.name)) : null,
       }}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -271,8 +272,10 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     jobId: job?.id,
     heading: { running: t('resume.run.draftRunning'), failed: t('resume.run.draftFailed') },
     subtitle: t('resume.run.saving'),
-    backUrl: `/resumes/${id}`,
-    backLabel: t('resume.backToResume'),
+    // Saved from Tailor resume, the run goes back there and its result lands there (#580).
+    ...(job
+      ? { backUrl: `/jobs/${job.id}/target`, backLabel: t('target.run.backToComparison') }
+      : { backUrl: `/resumes/${id}`, backLabel: t('resume.backToResume') }),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 

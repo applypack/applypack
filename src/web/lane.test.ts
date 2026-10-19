@@ -24,11 +24,15 @@ test('the lane is the engine and the model family; anything else is unmeasured',
   assert.equal(laneTimes(null, []).lane, 'other');
 });
 
-test('a measured lane names its band per step; an unmeasured one names nothing', () => {
+test('a measured lane names its band per step; an unmeasured one the rough time on the engine and model that answer', () => {
   assert.equal(stepBand('keywords', lane('claude_code', 'claude-sonnet-5')), 'about 20 s on Sonnet 5 through the Claude CLI');
   assert.equal(stepBand('match', lane('anthropic_api', 'claude-opus-5')), 'about 110 s on Opus 5 on the API');
+  assert.equal(stepBand('scan', lane('claude_code', 'claude-sonnet-5')), 'roughly 20 s on Sonnet 5 through the Claude CLI');
   assert.equal(stepBand('letter', lane('claude_code', 'claude-sonnet-5')), null);
-  assert.equal(stepBand('keywords', lane('local_api', 'llama3.1:8b')), null);
+  // #527: a local-only install's comparison runs on its own model, never "on Opus".
+  assert.equal(stepBand('match', lane('local_api', 'gemma4:26b')), '1½ to 2 minutes on Local model (Ollama) · gemma4:26b');
+  assert.equal(stepBand('keywords', lane('local_api', 'llama3.1:8b')), 'half a minute to a minute on Local model (Ollama) · llama3.1:8b');
+  assert.equal(stepBand('review', laneTimes(null, [])), 'about a minute on this engine');
   assert.equal(lane('claude_code', 'claude-haiku-4-5').name, 'Haiku 4.5 through the Claude CLI');
   assert.equal(laneTimes(null, []).name, 'this engine');
 });
@@ -37,10 +41,11 @@ test('#483: ten answered calls on the engine and model that will answer state th
   const ten = [timed('resume-match', 'local_api', 'llama3.1:8b', 10, 48_200)];
   assert.equal(stepBand('match', lane('local_api', 'llama3.1:8b', ten)), 'about 48.2s on Local model (Ollama) · llama3.1:8b, going by your last 10 calls');
   // Nine is an anecdote: the generic words stay.
-  assert.equal(stepBand('match', lane('local_api', 'llama3.1:8b', [timed('resume-match', 'local_api', 'llama3.1:8b', 9, 48_200)])), null);
+  const generic = '1½ to 2 minutes on Local model (Ollama) · llama3.1:8b';
+  assert.equal(stepBand('match', lane('local_api', 'llama3.1:8b', [timed('resume-match', 'local_api', 'llama3.1:8b', 9, 48_200)])), generic);
   // Another model's calls, or another step's, are not this one's.
-  assert.equal(stepBand('match', lane('local_api', 'qwen2.5:14b', ten)), null);
-  assert.equal(stepBand('suggestions', lane('local_api', 'llama3.1:8b', ten)), null);
+  assert.equal(stepBand('match', lane('local_api', 'qwen2.5:14b', ten)), '1½ to 2 minutes on Local model (Ollama) · qwen2.5:14b');
+  assert.equal(stepBand('suggestions', lane('local_api', 'llama3.1:8b', ten)), 'about a minute on Local model (Ollama) · llama3.1:8b');
   // On a measured lane this install's own calls win over the reference pair's.
   const cli = [timed('resume-scan', 'claude_code', '', 20, 31_000), timed('resume-scan', 'claude_code', 'claude-sonnet-5', 12, 18_000)];
   assert.equal(stepBand('scan', lane('claude_code', 'claude-sonnet-5', cli)), 'about 18.0s on Sonnet 5 through the Claude CLI, going by your last 12 calls');
@@ -59,4 +64,14 @@ test('every step that states a time names the feature its calls are recorded und
   // The posting's brief has no measured lane band, so only its own calls give it one.
   assert.equal(stepBand('brief', lane('claude_code', 'claude-sonnet-5')), null);
   assert.match(stepBand('brief', lane('claude_code', 'claude-sonnet-5', [timed('posting-brief', 'claude_code', 'claude-sonnet-5', 10, 25_000)])) ?? '', /^about 25\.0s/);
+});
+
+test('#580: no band says "about ~": every lane, every step', () => {
+  for (const [engine, model] of [['claude_code', 'claude-haiku-4-5'], ['claude_code', 'claude-sonnet-5'], ['claude_code', 'claude-opus-5'], ['anthropic_api', 'claude-haiku-4-5'], ['anthropic_api', 'claude-sonnet-5'], ['anthropic_api', 'claude-opus-5'], ['local_api', 'gemma4:26b']] as const) {
+    for (const step of ['scan', 'structure', 'keywords', 'match', 'suggestions', 'review']) {
+      const said = stepBand(step, lane(engine, model)) ?? '';
+      assert.doesNotMatch(said, /~|about about|about roughly|about more/, `${engine} ${model} ${step}: ${said}`);
+      assert.match(said, / on /);
+    }
+  }
 });

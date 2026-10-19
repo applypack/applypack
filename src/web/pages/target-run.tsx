@@ -5,9 +5,8 @@ import { Button, Card, Hint, Notice } from '../ui';
 import { RunSteps, type StepView } from './run-steps';
 import { LETTER_FAILED, UNEXPECTED_FAILURE, type RunStep, type TargetRun } from '../target-runs';
 import { stepBand, type LaneTimes } from '../lane';
-import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
-import { runNav } from '../run-nav';
+import { runLandsOn, runNav } from '../run-nav';
 import { LOCAL_WINDOW_HREF } from '../ai-plan';
 
 /** Every step a run can show; its label is `target.step.<step>` and the line under it `target.step.<step>.detail`. */
@@ -36,31 +35,21 @@ export interface RunLanes {
   analysis: LaneTimes;
 }
 
-/** What the timed steps cost when the lane is not one we measured. */
-const GENERIC_BAND = {
-  // No measured band yet: the posting is the shortest prompt of the family,
-  // and on the second comparison of the same posting it costs nothing at all.
-  brief: 'target.band.briefFirst',
-  scan: 'target.band.halfToOne',
-  structure: 'target.band.halfToOne',
-  keywords: 'target.band.halfToOne',
-  match: 'target.band.matchOpus',
-  suggestions: 'target.band.minuteOpus',
-  review: 'target.band.minuteOpus',
-} as const satisfies Partial<Record<RunStep, MessageKey>>;
-
-const isTimed = (step: RunStep): step is keyof typeof GENERIC_BAND => step in GENERIC_BAND;
+/** The steps the page states a time for (lane.ts:stepBand). */
+const TIMED: readonly RunStep[] = ['brief', 'scan', 'structure', 'keywords', 'match', 'suggestions', 'review'];
 
 /** The step copy with this install's band appended — "about 20 s on Sonnet 5 through the Claude CLI" (#184), or its own calls' (#483). */
 function stepView(lanes: RunLanes): Record<string, StepView> {
   const out: Record<string, StepView> = {};
   for (const step of STEPS) {
     const detail = t(`target.step.${step}.detail`);
-    if (!isTimed(step)) {
+    if (!TIMED.includes(step)) {
       out[step] = { label: t(`target.step.${step}`), detail };
       continue;
     }
-    const when = stepBand(step, step === 'scan' || step === 'structure' ? lanes.read : lanes.analysis) ?? t(GENERIC_BAND[step]);
+    // No measured band for the posting's brief yet: the shortest prompt of the
+    // family, and on the second comparison of the same posting it costs nothing.
+    const when = stepBand(step, step === 'scan' || step === 'structure' ? lanes.read : lanes.analysis) ?? t('target.band.briefFirst');
     out[step] = { label: t(`target.step.${step}`), detail: t('target.step.timed', { detail, when }) };
   }
   return out;
@@ -128,19 +117,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
                 results={run.results}
               />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
-                <Hint>
-                  {t(
-                    run.backUrl.startsWith('/screen')
-                      ? 'target.run.closeScreening'
-                      : run.backUrl.startsWith('/jobs/import') || run.backUrl === '/jobs'
-                        ? 'target.run.closeImport'
-                        : run.backUrl.startsWith('/settings')
-                          ? 'target.run.closeSettings'
-                          : run.heading
-                            ? 'target.run.closeSetup'
-                            : 'target.run.closeJob',
-                  )}
-                </Hint>
+                <Hint>{t(runLandsOn(run.backUrl))}</Hint>
                 <span id="run-elapsed" class="shrink-0 text-meta tabular-nums text-ink-faint">
                   {elapsed}s
                 </span>

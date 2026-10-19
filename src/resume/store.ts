@@ -757,6 +757,8 @@ export async function createCoverLetter(input: {
   resumeId: number;
   resumeVersion: number;
   tone: string;
+  /** Who it greets, as asked ('' = the team); null when nobody was asked (cover-letter.ts). */
+  addressee: string | null;
   text: string;
   model: string;
   promptVersion: number;
