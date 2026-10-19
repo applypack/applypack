@@ -206,7 +206,7 @@ export async function patchDocx(
     const said = { line: diff.line, got: JSON.stringify(diff.got.slice(0, 60)), wanted: JSON.stringify(diff.wanted.slice(0, 60)) };
     return refusal(() => say('resume.patch.readback', said), { ...report, readback: diff });
   }
-  for (const [name, ns] of [['oMath', M_NS], ['drawing', W_NS], ['txbxContent', W_NS], ['vanish', W_NS]] as const) {
+  for (const name of ['oMath', 'drawing', 'txbxContent', 'vanish'] as const) {
     const before = countIn(xml, name);
     const after = countIn(out, name);
     if (before !== after) return refusal(() => say('resume.patch.objects', { name, before, after }), report);

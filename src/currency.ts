@@ -10,15 +10,13 @@
  * The rates are approximate and dated on purpose: a salary range is a
  * signal, not an invoice. Refresh them when they drift enough to change a
  * verdict — `curl -s https://open.er-api.com/v6/latest/USD` prints USD per
- * unit as `1 / rates[CODE]` — and move RATES_REVIEWED_ON with them.
+ * unit as `1 / rates[CODE]` — and move the review date below with them.
  */
 
 import type { MessageKey } from './i18n/catalog';
 import { t } from './i18n/t';
 
-/** USD per one unit. Source: exchangerate-api.com, 2026-09-04. */
-const RATES_REVIEWED_ON = '2026-09-04';
-
+/** USD per one unit. Source: exchangerate-api.com, reviewed 2026-09-04. */
 const RATES_TO_USD: Readonly<Record<string, number>> = {
   USD: 1,
   EUR: 1.1619,

@@ -10,7 +10,7 @@ import {
 import { EVIDENCE_LEVELS } from './evidence';
 import { REVIEW_DIMENSIONS, REVIEW_GRADES } from './review-score';
 import { JsonResumeSchema, type JsonResume } from './json-resume';
-import { INJECTION_FLAG, fence, untrustedDirective } from '../prompt-fence';
+import { fence, untrustedDirective } from '../prompt-fence';
 import type { MatchMode } from './match-mode';
 
 /*

@@ -12,7 +12,7 @@ import { jobHref, resolveJobTab } from '../job-tabs';
 import { ApplicationsPage, type ApplicationCard } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig, strandedStages, UNFILED_STAGE, wordedStage } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
-import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-time';
+import { groupEventsByJob, stageTimeLine } from '../stage-time';
 import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from '../applications-export';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { displayZone } from '../display-zone';

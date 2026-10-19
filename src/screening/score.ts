@@ -4,7 +4,7 @@ import type { MessageParams } from '../i18n/message';
 import { t } from '../i18n/t';
 import { sectorMatches } from '../sectors';
 import { formatResumeDate, monthsSinceLatest, parseRange, parseResumeDate, yearsCovered, type DateRange } from './dates';
-import { answerShape, type ImpactGrade, type OverallGrade, type ScreenAnswer, type ScreenReply, type ScreenRole } from './prompts';
+import { answerShape, type ImpactGrade, type OverallGrade, type ScreenReply, type ScreenRole } from './prompts';
 import { coreCriteria, CRITERION_MODES, EVIDENCE_RUNGS, SCREEN_LEVELS, wordedTable, type Criterion, type EvidenceRung, type Rubric } from './rubric';
 
 /*

@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { idParam } from '../params';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { isUniqueViolation, prisma } from '../../db';
+import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { billingFacts, getAiRuntime } from '../../ai-runtime';
 import { AI_PROVIDER_LABELS } from '../../ai-engine';

@@ -86,7 +86,6 @@ import {
   readHardRequirements,
   readKeywords,
   type CoverTone,
-  type MatchJobInput,
   type PostingBrief,
 } from '../../resume/prompts';
 import { summaryGuide, type SummaryGuide } from '../../resume/summary-guide';

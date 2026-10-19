@@ -144,8 +144,6 @@ import { isRelocation, parseResidence } from '../../eligibility';
 import { isProfileWorkplace } from '../../location';
 import { suggestSources } from '../../starter-packs/suggest';
 import {
-  formatPriorityRulesText,
-  parsePriorityRules,
   parsePriorityRulesText,
 } from '../../priority-rules';
 import { prisma } from '../../db';

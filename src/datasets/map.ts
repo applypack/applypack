@@ -17,7 +17,7 @@ import { workplaceFromText, type LocationHints, type WorkplaceCode } from '../lo
 import { clipText, feedItemKey, hashShortId, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { safeHref } from '../web/format';
-import { MAX_COLUMNS, findRows, isRow, keptColumns, type Row, type RowsResult } from './rows';
+import { findRows, isRow, keptColumns, type Row, type RowsResult } from './rows';
 
 /** What a column can be mapped to, in the order detection claims columns and the preview lists them. */
 export const MAPPING_FIELDS = [
