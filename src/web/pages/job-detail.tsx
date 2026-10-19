@@ -139,6 +139,8 @@ export interface ProfileScore {
   locationMatch: boolean;
   /** Why the columns say it is a mismatch; null when only the summary can tell. */
   locationReason: string | null;
+  /** Why the stored place opens a remote posting to this search (#605): shown beside a summary that may say the opposite. */
+  openThrough: string | null;
   summary: string | null;
 }
 
@@ -484,6 +486,8 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
     flags.length > 0 ||
     Boolean(job.summary) ||
     job.priorityRulesApplied.length > 0;
+  // The code may have found the place open where the summary says it is not (#605): its own reading goes beside it.
+  const openThrough = scores.find((s) => s.summary === job.summary)?.openThrough ?? null;
   return (
     <Card variant="flat" class="p-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -503,9 +507,12 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
         <>
           {/* What the classifier wrote stays as it wrote it; the technologies and the user's own rules are data. */}
           {job.summary && (
-            <p class="mb-3 text-sm leading-6 text-ink" lang="en">
-              {job.summary}
-            </p>
+            <div class="mb-3">
+              <p class="text-sm leading-6 text-ink" lang="en">
+                {job.summary}
+              </p>
+              {openThrough && <p class="mt-1 text-note text-ok">{openThrough}</p>}
+            </div>
           )}
           <dl class="space-y-2">
             <TagRow label={t('job.tech')} items={techLabels(job.techMatch)} tone="ok" />
@@ -555,6 +562,7 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
                   · {s.locationReason ? t('job.score.locationWhy', { reason: s.locationReason }) : t('job.score.location')}
                 </span>
               )}
+              {s.openThrough && <span class="ml-1.5 text-meta text-ok">· {s.openThrough}</span>}
               {s.summary && (
                 <div class="truncate text-meta text-ink-muted" title={s.summary} lang="en">
                   {s.summary}

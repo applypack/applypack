@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getAiRuntime } from '../ai-runtime';
+import { getAiRuntime, type AiRuntime } from '../ai-runtime';
 import { extractJson } from '../text-utils';
 import { logger } from '../logger';
 import { fence, untrustedDirective } from '../prompt-fence';
@@ -139,22 +139,33 @@ export function fallbackTitle(description: string): string {
   return first.length >= 4 && first.length <= 90 && !SECTION_HEADING.test(first) ? first : 'Untitled role';
 }
 
-export async function extractPostingFacts(description: string, pageTitle: string | null = null): Promise<PostingFacts | null> {
+interface ExtractOptions {
+  /** A saved page's own <title> (datasets/saved-page.ts), fenced as the posting is. */
+  pageTitle?: string | null;
+  /** A posting the user saved into a folder, not one pasted: its own line on /ai (#543). */
+  saved?: boolean;
+  /** Takes the ledger rows of the call, which has no job yet: the caller names them on the job it stores (#543). */
+  calls?: number[];
+  ai?: Pick<AiRuntime, 'complete' | 'unparsed'>;
+}
+
+export async function extractPostingFacts(description: string, { pageTitle = null, saved = false, calls, ai }: ExtractOptions = {}): Promise<PostingFacts | null> {
   const { system, user } = buildExtractPrompt(description, pageTitle);
-  const ai = await getAiRuntime();
+  const runtime = ai ?? (await getAiRuntime());
   const started = Date.now();
-  const out = await ai.complete({
+  const out = await runtime.complete({
     json: true,
     system,
     user,
     maxTokens: MAX_TOKENS,
-    label: 'posting-extract',
+    label: saved ? 'saved-posting-extract' : 'posting-extract',
     role: 'classifier',
   });
   if (!out) return null;
+  calls?.push(...out.ledgerIds);
   const facts = parseExtractReply(out.text);
   if (!facts) {
-    await ai.unparsed(out);
+    await runtime.unparsed(out);
     logger.warn({ head: out.text.slice(0, 120) }, 'posting-extract: unparseable reply');
   }
   logger.info({ ok: facts !== null, ms: Date.now() - started }, 'posting-extract: done');

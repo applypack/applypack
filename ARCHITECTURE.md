@@ -408,6 +408,7 @@ src/
     render/                    ← the clean single-column re-render (ADR 0039)
       sections.ts              ← pure: planRender, one plan drawn twice
       clean-docx.ts            ← renderDocx: the plan as a .docx in the user's font family
+      no-web-storage.ts        ← imported before docx: Node's localStorage taken away, so no warning (#610)
       clean-pdf.ts             ← renderPdf: the plan as a PDF with Liberation Sans embedded
       knobs.ts                 ← pure: RenderKnobs, prefilled from the file and read from the form
       drawable.ts              ← pure: folds what the bundled face cannot draw
@@ -415,7 +416,7 @@ src/
     zip-write.ts               ← minimal STORED zip writer (docx container), pure
     docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
     pdf-write.ts               ← letter → minimal Helvetica PDF, pure
-    scan.ts                    ← one AI call → Resume scan fields (+ scanInBackground)
+    scan.ts                    ← one AI call → Resume scan fields
     structure.ts               ← one AI call → Resume.structure, started from the render page (ADR 0039)
     brief.ts                   ← one AI call over the POSTING alone → PostingBrief row, cached by posting text (ADR 0044)
     match.ts                   ← one AI call (fast | full) → brief + facts context in, statuses out, score.ts computes → ResumeMatch row
@@ -609,6 +610,7 @@ src/
     applications-export.ts      ← pure: the applications board as CSV and Markdown (TASKS N7)
     welcome-facts.ts            ← loads what the wizard and the Overview chip derive from
     ai-test.ts                  ← one live engine call — Settings Test button + wizard step 1
+    ai-test-report.ts           ← pure: that call's sentence and its ledger time, off one clock (#611)
     fetch-now.ts                ← beginFetchNow: "Fetch now" from /runs, the Overview and the wizard
     fetch-runs.ts               ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts            ← pure one-line verdict of a finished fetch-now run
@@ -618,6 +620,7 @@ src/
     inbox-folder.ts             ← createInbox: the empty ~/ApplyPack/inbox a local install offers
     watchlist-runs.ts           ← in-memory registry of a watchlist resolve run
     target-runs.ts              ← in-memory registry of the progress-page runs (scan, match, verify, letter, …)
+    scan-run.ts                 ← beginScan / liveScanRun: a resume's scan as a progress-page run, joined by a second request for the same text
     comparison-run.ts           ← startComparison / runComparison: one text × one stored job as a progress-page run
     suggestions-run.ts          ← startSuggestionsRun: the lazy suggestions call as a run
     resume-source.ts            ← the launchers' "which resume": one of yours / file / paste → scratch row
@@ -781,7 +784,7 @@ user's schedule, read in the schedule's own time zone.
 | `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |
 | `GET /jobs/:id/cover/:letterId/file/:fmt` | web | letter (edited text wins) → .docx or .pdf attachment, built in-process |
 | `POST /letter`                   | web     | job by picker / URL / paste + resume resolve → async run [fetch? → extract? → classify? → match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
-| `POST /resumes/:id/draft`        | web     | async run: `saveEdited` writes the edits into the user's .docx when the template check allows it (else a `.md` text version) → `scanResume`; with a `jobId` (Save as vN on the targeted view), `matchResumeToJob` instead while the scan runs in the background. It passes no `mode`, so the saved text is re-scored as a quick check (`fast`) |
+| `POST /resumes/:id/draft`        | web     | async run: `saveEdited` writes the edits into the user's .docx when the template check allows it (else a `.md` text version) → `scanResume`; with a `jobId` (Save as vN on the targeted view), `matchResumeToJob` instead while the scan runs beside it as a scan run of its own (`web/scan-run.ts:beginScan`), which the resume page shows and its Scan button joins. It passes no `mode`, so the saved text is re-scored as a quick check (`fast`) |
 | a request under `/static/`       | web     | `src/web/public`, served as-is (`serveStatic` in `src/web/app.ts`) |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
 | `POST /discovery/probe-now`      | web     | spawns `runDiscoveryJob` async (lock)    |

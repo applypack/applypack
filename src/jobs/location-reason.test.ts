@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { locationMismatchReason } from './location-reason';
+import { locationMismatchReason, openThroughLine } from './location-reason';
 
 const us = { countries: ['US'], regions: ['AMERICAS'], workplace: ['REMOTE' as const] };
 const eu = { countries: ['PL', 'DE'], regions: ['EU'], workplace: ['REMOTE' as const, 'HYBRID' as const] };
@@ -71,5 +71,26 @@ describe('locationMismatchReason', () => {
     const anywhere = { countries: [], regions: [], workplace: [] };
     assert.equal(locationMismatchReason({ workplace: 'ONSITE', countries: ['IN'], regions: [] }, anywhere), null);
     assert.equal(locationMismatchReason({ workplace: 'UNKNOWN', countries: [], regions: [] }, anywhere), null);
+  });
+});
+
+// #605: the code overrules a model that called a Europe-remote posting closed to Poland; the page says why beside its summary.
+describe('openThroughLine', () => {
+  const plDe = { countries: ['PL', 'DE'], regions: [], workplace: ['REMOTE' as const], residence: null };
+  const europe = { workplace: 'REMOTE' as const, regions: ['EUROPE'], source: 'parsed' };
+
+  it('names the group and the places of the search it holds', () => {
+    assert.equal(openThroughLine(europe, plDe), 'Remote across Europe, which includes Poland, Germany');
+    assert.equal(openThroughLine(europe, { ...plDe, residence: 'PL' }), 'Remote across Europe, which includes Poland');
+    assert.equal(openThroughLine(europe, { ...plDe, countries: [], regions: ['EU'] }), 'Remote across Europe, which includes European Union');
+    assert.equal(openThroughLine(europe, { ...plDe, countries: [], regions: ['EUROPE'] }), 'Remote across Europe, where this search hunts');
+  });
+
+  it('says nothing where the place does not prove it', () => {
+    assert.equal(openThroughLine({ ...europe, source: 'ai' }, plDe), null);
+    assert.equal(openThroughLine({ ...europe, regions: ['WORLDWIDE'] }, plDe), null);
+    assert.equal(openThroughLine({ ...europe, regions: ['LATAM'] }, plDe), null);
+    assert.equal(openThroughLine({ ...europe, workplace: 'HYBRID' as const }, plDe), null);
+    assert.equal(openThroughLine(europe, { ...plDe, residence: 'UA' }), null);
   });
 });

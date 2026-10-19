@@ -9,6 +9,7 @@ import { logger } from './logger';
 import { PRISMA_CLI_ENV } from './prisma-env';
 import { runSeed } from './seed';
 import { fillEmployerKeys } from './jobs/employer-store';
+import { unlinkOtherRoles } from './jobs/cross-listing-store';
 import {
   addNotificationTarget,
   getSettings,
@@ -34,6 +35,7 @@ export async function init(): Promise<void> {
   // ADR 0056, once per install: a failure leaves the flag unset, so the next
   // boot tries again, and the worker starts either way.
   await fillEmployerKeys().catch((err: unknown) => logger.warn({ err }, 'init: employer keys not filled; the next boot tries again'));
+  await unlinkOtherRoles().catch((err: unknown) => logger.warn({ err }, 'init: cross-listings not checked; the next boot tries again'));
 }
 
 /**

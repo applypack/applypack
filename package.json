@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.63.2",
+  "version": "2.63.6",
   "private": true,
   "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 7 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
   "license": "MIT",
@@ -46,13 +46,13 @@
     "i18n:browser": "tsx src/scripts/i18n-browser.ts",
     "smoke:routes": "node dist/scripts/route-smoke.js",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:db:push": "prisma db push",
+    "prisma:generate": "node scripts/prisma.cjs generate",
+    "prisma:migrate:deploy": "node scripts/prisma.cjs migrate deploy",
+    "prisma:migrate:dev": "node scripts/prisma.cjs migrate dev",
+    "prisma:db:push": "node scripts/prisma.cjs db push",
     "lint:types": "tsc --noEmit",
     "test": "tsx --test $(find src -name '*.test.ts')",
-    "postinstall": "prisma generate"
+    "postinstall": "node scripts/prisma.cjs generate"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2"

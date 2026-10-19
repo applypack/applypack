@@ -37,6 +37,8 @@ export interface NormalizedJob {
    * posting (#451): stored Saved, unscored and flagged, never set aside.
    */
   notAPosting?: boolean;
+  /** The ledger rows of the model call that read a saved posting before it had a row (#543): named on the job when it is stored. */
+  readCalls?: number[];
   /**
    * The source gave no date this posting was published on, so `postedAt` is
    * the clock's or a file's (#379). It still orders and shows the posting; it

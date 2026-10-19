@@ -607,14 +607,16 @@ const BADGE_SIZE = {
   md: 'px-3 py-1.5 text-note',
 } as const;
 
-export const Badge: FC<PropsWithChildren<{ tone?: Tone; size?: keyof typeof BADGE_SIZE; class?: string }>> = ({
+/** `wrap`: as on a `Tag` — a long badge in a narrow cell takes a second line rather than run past the cell's edge (#612). */
+export const Badge: FC<PropsWithChildren<{ tone?: Tone; size?: keyof typeof BADGE_SIZE; class?: string; wrap?: boolean }>> = ({
   children,
   tone = 'neutral',
   size = 'sm',
   class: className = '',
+  wrap = false,
 }) => (
   <span
-    class={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-medium ring-1 ring-inset ${BADGE_SIZE[size]} ${TONE_SOFT[tone]} ${className}`}
+    class={`inline-flex items-center gap-1.5 ${wrap ? 'whitespace-normal [overflow-wrap:anywhere]' : 'whitespace-nowrap'} rounded-full font-medium ring-1 ring-inset ${BADGE_SIZE[size]} ${TONE_SOFT[tone]} ${className}`}
   >
     {children}
   </span>
@@ -634,8 +636,8 @@ export const Tag: FC<PropsWithChildren<{ tone?: Tone; wrap?: boolean }>> = ({
 );
 
 /** The word in its tone is the status; a pill needs no dot to say it twice. */
-export const StatusBadge: FC<{ status: JobStatus }> = ({ status }) => (
-  <Badge tone={statusTone(status)}>{statusLabel(status)}</Badge>
+export const StatusBadge: FC<{ status: JobStatus; wrap?: boolean }> = ({ status, wrap }) => (
+  <Badge tone={statusTone(status)} wrap={wrap}>{statusLabel(status)}</Badge>
 );
 
 /**
@@ -667,8 +669,12 @@ export const Table: FC<
   PropsWithChildren<{
     columns: (string | Child)[];
     stickyHeader?: boolean;
-    /** Proportional column widths (`w-[34%]`, …) with table-fixed layout. */
-    widths?: string[];
+    /**
+     * Column widths with table-fixed layout: a share (`w-[34%]`), a width of
+     * its own (`w-[5rem]`), or '' for the column that takes what is left
+     * (table-hide.ts:columnWidths).
+     */
+    widths?: readonly string[];
     /**
      * Per column, the breakpoint below which it leaves the table — header and
      * cells alike, from this one declaration (table-hide.ts, #77). '' keeps
@@ -687,10 +693,11 @@ export const Table: FC<
       <thead>
         <tr class="text-left text-label text-ink-muted">
           {columns.map((c, i) => (
+            // A fixed column cannot widen to its header: a longer word (French "Adéquation") is hyphenated, or broken, rather than drawn over the next one.
             <th
               scope="col"
               class={`bg-surface-overlay/70 px-2.5 py-2.5 font-[550] first:rounded-tl-none first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${
-                widths?.[i] ?? ''
+                widths ? `break-words hyphens-auto ${widths[i] ?? ''}` : ''
               } ${hideHeaderClass(hideBelow, i)} ${thClasses?.[i] ?? ''} ${
                 stickyHeader
                   ? 'sticky top-0 z-10 shadow-[inset_0_-1px_0_rgb(var(--line))]'

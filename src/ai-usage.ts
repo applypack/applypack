@@ -93,6 +93,7 @@ const AI_FEATURES = [
   'classifier',
   'prefilter',
   'posting-extract',
+  'saved-posting-extract',
   'posting-brief',
   'resume-scan',
   'resume-structure',

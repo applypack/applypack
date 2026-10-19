@@ -99,3 +99,52 @@ migration per gotcha 7.
   parameter in the corpus is `gh_jid`, which is functional and kept. It is
   preventive hardening for the fallback path that hashes a URL into an
   `externalId`, and it changes no existing row.
+
+## Addendum (2026-10-19): the titles must agree too (#604)
+
+A body's fingerprint is not enough on its own. Lemon.io's "Senior Full-stack
+PHP Developer" (Working Nomads) was linked to its "Senior Angular Full-stack
+Developer" (We Work Remotely). The two descriptions share the agency's long
+boilerplate and stand at distance 7, this ADR's threshold. The job page then
+said "also listed at" for a different role, `pack/trigger.ts:copyPack` could
+give the second role no pack of its own, and the scoring pick put it last
+(#529). The 2026-08-31 measurement counted Lemon.io's three listings as
+genuine. They were genuine, but nothing in the rule told them from Lemon.io's
+next role.
+
+- **Two postings are one only when their titles agree as well**
+  (`fingerprint.ts:titlesAgree`). Agreeing means the same words, or one title
+  inside the other, word for word. Case, punctuation, a hyphen inside a word
+  ("Full stack", "Full-stack", "Fullstack") and the level words (`senior`,
+  `sr`, `junior`, `jr`, `mid`, `middle`, `intermediate`) are set aside. A
+  title is never matched inside a word: "Go Developer" does not agree with
+  "Django Developer". `findCrossListing` takes the rule as a `sameRole`
+  predicate and skips a candidate that fails it, so a farther copy of the
+  same role can still win.
+- **Measured on a 513-posting install:** 11 links. The 10 true ones all agree:
+  identical titles, "Content Reviewer - United States" inside "Content
+  Reviewer United States - English-speaking", "Software Engineer AI Coding
+  Tasks" inside "Software Engineer, AI Coding Tasks (Contract)", "Full stack"
+  against "Full-stack". The one false link is the Lemon.io pair. Re-running
+  the tick's rule over the table moves only that row.
+- **A pasted posting has no title of its own** (`manual-job.ts:findJobByText`,
+  used by Cover letter since #579 and by Tailor resume since #609). Its text
+  names the stored job when a title agrees, or when the stored title is
+  written in the pasted text (`fingerprint.ts:pastedRole`). The title is the
+  one the person typed, or else the title of the stored job that carries the
+  link they gave. When a paste names no role at all (no title line, no title,
+  no known link), the lookup runs a second time with the title the
+  extraction step reads off it (`fingerprint.ts:secondLookTitle`). That call
+  is made anyway to store the posting, so the second look costs nothing. A
+  role that still does not agree matches nothing, and the posting is stored
+  as before. That is the safe direction: the alternative is a letter or a
+  comparison for the wrong role.
+- **Links stored before the rule are corrected on boot.**
+  `jobs/cross-listing-store.ts:unlinkOtherRoles` reads every link with both
+  titles, clears `crossListedOfJobId` where they disagree, and writes nothing
+  else. The link is an annotation, so the copy simply becomes a posting of
+  its own again. Nothing is deleted, no status changes, and no alert is sent
+  again. The pass runs on every boot. It is one query over the linked rows
+  only (7 ms on the install above), and once the old links are corrected it
+  finds nothing to do. A later change to the rule corrects old rows the same
+  way.

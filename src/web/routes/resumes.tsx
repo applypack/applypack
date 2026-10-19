@@ -6,8 +6,7 @@ import { onceGuard } from '../once-guard';
 import { logger } from '../../logger';
 import type { ResumeReview } from '@prisma/client';
 import { reviewResume } from '../../resume/review';
-import { scanInBackground, scanResume } from '../../resume/scan';
-import type { ResumeScan } from '../../resume/prompts';
+import { scanResume } from '../../resume/scan';
 import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
 import { postingForPrompt } from '../../employer';
@@ -31,7 +30,6 @@ import {
   replaceResumeFile,
   type ResumeSummary,
   saveReviewAnswer,
-  saveResumeTextVersion,
   setDefaultResume,
   replaceResumeBytes,
   versionFileName,
@@ -39,9 +37,9 @@ import {
 import { readAnswers, unansweredAsks } from '../../resume/answers';
 import { describeStructure, docxStructure, type DocxStructure } from '../../resume/docx-structure';
 import { patchDocx } from '../../resume/docx-patch';
-import { readProps, withProps, type DocxProps } from '../../resume/docx-props';
+import { propsCandidate, readProps, withProps, type DocxProps } from '../../resume/docx-props';
 import { DOCX_MIME } from '../../resume/docx-write';
-import { cleanDocx } from '../../resume/draft-document';
+import { cleanDocx, patchBase, type DraftInput } from '../../resume/draft-document';
 import { originalFile } from '../../resume/kept-upload';
 import { knobsFrom } from '../../resume/render/knobs';
 import { resumeStyle } from '../resume-style';
@@ -60,6 +58,7 @@ import { loadLineDiff } from '../../resume/line-diff';
 import { ResumesPage } from '../pages/resumes';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, startRun, updateRun } from '../target-runs';
+import { beginScan, liveScanRun, type ScanCopy } from '../scan-run';
 import { runFailure } from '../run-failure';
 import { hashShortId } from '../../text-utils';
 import {
@@ -190,6 +189,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
       reviewDelta={deltaFor(review, previous)}
       deleteImpact={impact}
       warnings={parseWarnings(resume.text)}
+      scanRunId={liveScanRun(resume)?.id ?? null}
       structure={structure}
       props={props}
       // The draft the "Create a search" button would save — rendered, not
@@ -254,8 +254,11 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   }
   // What the edits are relative to — the text the editor started from. Without
   // it a .docx cannot be patched (the diff would be against nothing) and the
-  // save is the clean version (ADR 0059).
-  const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
+  // save is the clean version (ADR 0059). A draft's is read off the file (#608).
+  const base = {
+    baseText: typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '',
+    draft: form.draft === '1',
+  };
   const jobId = idParam(form.jobId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true, atsType: true } } } })
@@ -284,7 +287,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // Scan and match are the slow part after it: two AI calls back to back is
   // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
-    const { resume, note, document } = await saveEdited(id, text, baseText);
+    const { resume, note, document } = await saveEdited(id, text, base);
     // Every sentence below opens the same way: the version it was saved as, and how.
     const saved = { version: resume.version, note };
     // TASKS R25: the saved file — the user's own .docx written into, or the clean one — handed back.
@@ -305,9 +308,14 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       return;
     }
     // The match reads the text, never the scan (target-plan §3.1 item 2), so
-    // the scan runs behind it as the re-upload route's does — it was 63 % of
-    // a six-minute wait on a CLI engine (#168).
-    scanInBackground(resume);
+    // the scan runs beside it — it was 63 % of a six-minute wait on a CLI
+    // engine (#168). As a scan run of its own: the resume page says it is
+    // running, and its Scan button joins it instead of paying twice (#608).
+    beginScan(resume, {
+      subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
+      onScanned: (scan) => t('resume.flash.scanned', { skills: scan.skills.length, issues: scan.issues.length }),
+      onFailed: t('resume.flash.scanFailed'),
+    }, scanResume);
     const match = await matchResumeToJob(resume, postingForPrompt(job), { onError: noteReason });
     updateRun(run.id, match
       ? {
@@ -343,7 +351,7 @@ function isDocx(filename: string): boolean {
 async function saveEdited(
   id: number,
   text: string,
-  baseText: string,
+  base: Pick<DraftInput, 'baseText' | 'draft'>,
 ): Promise<{ resume: ResumeSummary; note: string; document: boolean }> {
   const [current, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!current) throw new Error(`resume ${id} is gone`);
@@ -353,10 +361,10 @@ async function saveEdited(
   let why = row && /\.pdf$/i.test(row.sourceFilename) ? t('resume.save.why.pdf') : t('resume.save.why.text');
   if (row && isDocx(row.sourceFilename)) {
     const original = Buffer.from(row.original);
-    if (!baseText) why = t('resume.save.why.noBase');
+    if (!base.baseText) why = t('resume.save.why.noBase');
     else if (docxStructure(original).kind === 'unsupported') why = t('resume.save.why.unsupported');
     else {
-      const patched = await patchDocx(original, baseText, text);
+      const patched = await patchDocx(original, patchBase(original, base), text);
       if (patched.ok) {
         const r = patched.report;
         file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };
@@ -401,7 +409,7 @@ resumesRoute.post('/resumes/:id/props', async (c) => {
   const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!resume || !row) return c.text(t('http.notFound'), 404);
   if (!isDocx(row.sourceFilename)) return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.propsOnlyDocx'));
-  const candidate = resume.text.split('\n')[0]?.trim() || resume.name;
+  const candidate = propsCandidate(resume.text, resume.name);
   const fixed = await withProps(Buffer.from(row.original), { title: `${candidate} — Resume`, creator: candidate, lastModifiedBy: candidate });
   await replaceResumeBytes(id, fixed);
   return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.propsFixed', { candidate }));
@@ -578,29 +586,8 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
  * /jobs/:id/match — returns the POST immediately and shows real progress.
  * The clean version's "Save as a new resume" goes through it too.
  */
-export function startScanRun(
-  c: Context,
-  resume: ResumeSummary,
-  copy: { subtitle: string; onScanned: (scan: ResumeScan) => string; onFailed: string },
-): Response {
-  const { id, name, text } = resume;
-  const { run, joined } = claimRun(`scan:${id}:${hashShortId(text)}`, {
-    steps: ['scan'],
-    jobTitle: '',
-    resumeName: name,
-    heading: { running: t('resume.run.scanRunning'), failed: t('resume.run.scanFailed') },
-    subtitle: copy.subtitle,
-    // The row exists either way, so the error state has somewhere real to go.
-    backUrl: `/resumes/${id}`,
-    backLabel: t('resume.backToResume'),
-  });
-  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
-  startRun(run.id, async () => {
-    const scan = await scanResume({ id, text });
-    updateRun(run.id, scan
-      ? { stage: 'done', resultUrl: `/resumes/${id}`, flash: copy.onScanned(scan) }
-      : { stage: 'error', error: copy.onFailed });
-  });
+export function startScanRun(c: Context, resume: ResumeSummary, copy: ScanCopy): Response {
+  const { run } = beginScan(resume, copy, scanResume);
   return c.redirect(`/target/runs/${run.id}`, 303);
 }
 

@@ -14,6 +14,7 @@ import { healthLabel } from '../health-label';
 import { FetchNowButton } from './fetch-run';
 import { FunnelCard } from './funnel-card';
 import { runBadge } from './overview';
+import type { HideBelow } from '../table-hide';
 import type { FunnelView } from '../../funnel';
 import type { SourceYield } from '../../jobs/funnel-store';
 import { t } from '../../i18n/t';
@@ -48,7 +49,16 @@ const columns = () => [
   t('runs.column.status'),
   t('runs.column.whatHappened'),
 ];
-const WIDTHS = ['w-[15%]', 'w-[17%]', 'w-[8%]', 'w-[7%]', 'w-[53%]'];
+/**
+ * The runs table's columns (#612): what happened takes what the others leave.
+ * A phone keeps the job, its status and what happened (TASKS U7) — the status
+ * under the job's name until it has a column of its own at `sm`; the start
+ * joins from `md`, the duration from `xl`. Each column is as wide as what it
+ * holds in the longest language, so nothing scrolls sideways —
+ * table-hide.test.ts holds them to it.
+ */
+export const RUNS_WIDTHS = ['w-[8.5rem]', 'w-[8.75rem]', 'w-[6.5rem]', 'w-[8.25rem]', ''];
+export const RUNS_HIDE: HideBelow = ['', 'md', 'xl', 'sm', ''];
 
 export const RunsPage: FC<RunsProps> = ({ runs, funnel, fetchRun, flash }) => {
   const recent = runs.slice(0, RECENT_RUNS);
@@ -92,51 +102,58 @@ export const RunsPage: FC<RunsProps> = ({ runs, funnel, fetchRun, flash }) => {
   );
 };
 
+/** A run's state; a long one ("nothing scored") takes a second line in its column. */
+const RunBadge: FC<{ run: RunRow }> = ({ run }) => {
+  const { tone, label } = runBadge(run);
+  return <Badge tone={tone} wrap>{label}</Badge>;
+};
+
 const RunsTable: FC<{ runs: RunRow[]; caption: string }> = ({ runs, caption }) => (
   <Card flush>
-    <div class="overflow-x-auto">
-      {/* TASKS U7: a phone keeps the job, its status and what happened. */}
-      <div class="md:min-w-[56rem]">
-        <Table caption={caption} columns={columns()} widths={WIDTHS} hideBelow={['', 'sm', 'md', '', '']}>
-          {runs.map((r) => (
-            <Tr class="align-top">
-              <Td class="text-note text-ink">{runName(r.name)}</Td>
-              <Td class="whitespace-nowrap text-ink-muted">
-                <span title={formatDate(r.startedAt)}>{formatStamp(r.startedAt)}</span>
-              </Td>
-              <Td class="whitespace-nowrap text-right font-mono text-note tabular-nums text-ink-muted">
-                {r.finishedAt ? formatDuration(r.finishedAt.getTime() - r.startedAt.getTime()) : '—'}
-              </Td>
-              <Td>
-                <Badge tone={runBadge(r).tone}>{runBadge(r).label}</Badge>
-              </Td>
-              <Td>
-                {r.errorMessage ? (
-                  <div>
-                    <p class="text-note leading-5 text-danger">{failedRunLine(r.name, r.errorMessage)}</p>
-                    <details class="mt-1">
-                      <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">{t('runs.details')}</summary>
-                      <pre class="mt-1 whitespace-pre-wrap break-words font-mono text-meta leading-5 text-ink-muted">{r.errorMessage}</pre>
-                    </details>
-                  </div>
-                ) : r.stats ? (
-                  <>
-                    <StatsCell name={r.name} stats={r.stats} />
-                    {unscoredRun(r.status, r.stats) && (
-                      <p class="mt-1 text-note leading-5 text-warn">
-                        {tRich('runs.unscored', {}, { a: (words) => <a href="/settings?tab=ai" class="underline">{words}</a> })}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <span class="text-meta text-ink-faint">—</span>
+    <Table caption={caption} columns={columns()} widths={RUNS_WIDTHS} hideBelow={RUNS_HIDE}>
+      {runs.map((r) => (
+        <Tr class="align-top">
+          <Td class="text-note text-ink">
+            {runName(r.name)}
+            <div class="mt-1 sm:hidden">
+              <RunBadge run={r} />
+            </div>
+          </Td>
+          <Td class="whitespace-nowrap text-ink-muted">
+            <span title={formatDate(r.startedAt)}>{formatStamp(r.startedAt)}</span>
+          </Td>
+          <Td class="whitespace-nowrap text-right font-mono text-note tabular-nums text-ink-muted">
+            {r.finishedAt ? formatDuration(r.finishedAt.getTime() - r.startedAt.getTime()) : '—'}
+          </Td>
+          <Td>
+            <RunBadge run={r} />
+          </Td>
+          <Td>
+            {r.errorMessage ? (
+              <div>
+                {/* An error can carry a long address, one word the column cannot hold. */}
+                <p class="break-words text-note leading-5 text-danger">{failedRunLine(r.name, r.errorMessage)}</p>
+                <details class="mt-1">
+                  <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">{t('runs.details')}</summary>
+                  <pre class="mt-1 whitespace-pre-wrap break-words font-mono text-meta leading-5 text-ink-muted">{r.errorMessage}</pre>
+                </details>
+              </div>
+            ) : r.stats ? (
+              <>
+                <StatsCell name={r.name} stats={r.stats} />
+                {unscoredRun(r.status, r.stats) && (
+                  <p class="mt-1 text-note leading-5 text-warn">
+                    {tRich('runs.unscored', {}, { a: (words) => <a href="/settings?tab=ai" class="underline">{words}</a> })}
+                  </p>
                 )}
-              </Td>
-            </Tr>
-          ))}
-        </Table>
-      </div>
-    </div>
+              </>
+            ) : (
+              <span class="text-meta text-ink-faint">—</span>
+            )}
+          </Td>
+        </Tr>
+      ))}
+    </Table>
   </Card>
 );
 
