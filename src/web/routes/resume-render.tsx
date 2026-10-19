@@ -17,12 +17,12 @@ import { droppedByRender } from '../../resume/render/sections';
 import { docxStructure } from '../../resume/docx-structure';
 import { docxToText } from '../../resume/docx-text';
 import { parseWarnings } from '../../resume/parse-warnings';
-import { scanInBackground } from '../../resume/scan';
 import { structureResume } from '../../resume/structure';
 import { hashShortId } from '../../text-utils';
 import { claimRun, startRun, updateRun, type TargetRun } from '../target-runs';
 import { runFailure } from '../run-failure';
 import { ResumeRenderPage } from '../pages/resume-render';
+import { startScanRun } from './resumes';
 import { clearFlashCookie, flashRedirect, parseFlashCookie, type FlashMessage } from '../flash';
 import { t } from '../../i18n/t';
 
@@ -153,13 +153,14 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
       'resume: saved clean render as a new resume',
     );
     // The new row has no scan of its own yet, and the page it lands on reads
-    // one. Nobody waits on it (the same background scan an upload gets).
-    scanInBackground(saved);
-    return flashRedirect(
-      `/resumes/${saved.id}`,
-      'ok',
-      t('render.flash.saved', { name, original: resume.name }),
-    );
+    // one: the same scan run an upload gets, so the page is reached once the
+    // scan has landed. Behind it, the page said "Not scanned yet — press Scan"
+    // while the scan ran, and a press paid for it twice (#590).
+    return startScanRun(c, saved, {
+      subtitle: t('resume.run.scanSubtitle', { name }),
+      onScanned: () => t('render.flash.saved', { name, original: resume.name }),
+      onFailed: t('render.flash.savedScanFailed', { name }),
+    });
   }
 
   return c.html(await page(ctx, knobs, null));
