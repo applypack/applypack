@@ -9,6 +9,8 @@ import {
   formatDate,
   formatDateShort,
   formatDuration,
+  formatPosted,
+  formatPostedShort,
   formatRelative,
   formatStamp,
   formatTime,
@@ -18,6 +20,7 @@ import {
 } from './format';
 import { displayZoneLabel, withDisplayZone } from './display-zone';
 import { withLocale } from '../i18n/locale';
+import { readDate } from '../datasets/map';
 
 /** ICU writes a narrow no-break space before AM/PM; the tests read plain spaces. */
 const plain = (s: string): string => s.replace(/\s/g, ' ');
@@ -45,6 +48,19 @@ describe('formatDate', () => {
   it('has an em dash for nothing', () => {
     assert.equal(formatDate(null), '—');
     assert.equal(formatDateShort(undefined), '—');
+  });
+
+  // #532: a CSV's "2026-10-15" read as "Oct 14, 2026, 07:00 PM CDT" in Chicago.
+  it('writes a posting date that names a day as that day in every zone, with no time', () => {
+    const day = readDate('2026-10-15', new Date('2026-10-18T00:00:00Z'))!;
+    for (const zone of ['America/Chicago', 'Pacific/Pago_Pago', 'UTC', 'Europe/Kyiv', 'Pacific/Kiritimati']) {
+      assert.equal(withDisplayZone(zone, () => formatPosted(day)), 'Oct 15, 2026', zone);
+      assert.equal(withDisplayZone(zone, () => formatPostedShort(day)), 'Oct 15', zone);
+    }
+    // A moment keeps its time, in the reader's zone.
+    const moment = new Date('2026-10-16T03:30:00Z');
+    assert.equal(plain(withDisplayZone('America/Chicago', () => formatPosted(moment))), 'Oct 15, 2026, 10:30 PM CDT');
+    assert.equal(withDisplayZone('America/Chicago', () => formatPostedShort(moment)), 'Oct 15');
   });
 
   // A table cell has room for the day and the time; the header names the zone once.

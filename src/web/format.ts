@@ -66,6 +66,29 @@ export function formatDateShort(d: Date | null | undefined): string {
   });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A posting date that names a day and no time ("2026-10-15", a JSON-LD
+ * `datePosted`) is stored as that day's midnight UTC (`datasets/map.ts:readDate`):
+ * a calendar day, which read as the day before anywhere west of UTC (#532).
+ * No source's own timestamp landed on midnight UTC to the millisecond — none
+ * of 511 fetched postings — so that is what marks one.
+ */
+function isCalendarDay(d: Date): boolean {
+  return d.getTime() % DAY_MS === 0;
+}
+
+/** When a posting was published: a calendar day as that date in every zone, with no time; a moment as `formatDate` writes it. */
+export function formatPosted(d: Date): string {
+  return isCalendarDay(d) ? formatDateTime(d, { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' }) : formatDate(d);
+}
+
+/** The same date as a short day for a preview row: "Oct 15". */
+export function formatPostedShort(d: Date): string {
+  return isCalendarDay(d) ? formatDateTime(d, { timeZone: 'UTC', month: 'short', day: 'numeric' }) : formatDateShort(d);
+}
+
 /** The time of day alone, 24-hour, in the display zone: "13:54" — for a moment the reader knows was today. */
 export function formatTime(d: Date): string {
   return formatDateTime(d, { timeZone: displayZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
