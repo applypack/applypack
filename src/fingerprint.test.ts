@@ -10,7 +10,9 @@ import {
   hamming64,
   normalizeJdText,
   normalizedLength,
+  pastedRole,
   simhash64,
+  titlesAgree,
   toDbBigInt,
 } from './fingerprint';
 
@@ -159,30 +161,84 @@ test('hamming64 is correct across the signed/unsigned boundary', () => {
   assert.equal(hamming64(toDbBigInt(a)!, toDbBigInt(b)!), 3);
 });
 
+const anyRole = (): boolean => true;
+
 test('findCrossListing matches candidates stored in signed form', () => {
   const hash = 13153543119183686648n;
   const candidates = [
-    { id: 5, companyId: 2, descriptionSimhash: toDbBigInt(hash) },
+    { id: 5, companyId: 2, title: 'Backend Engineer', descriptionSimhash: toDbBigInt(hash) },
   ];
-  assert.equal(findCrossListing(hash, 1, candidates)?.job.id, 5);
+  assert.equal(findCrossListing(hash, 1, anyRole, candidates)?.job.id, 5);
 });
 
 test('findCrossListing ignores the same company and picks the closest', () => {
   const fingerprint = 0b1111n;
   const candidates = [
-    { id: 1, companyId: 7, descriptionSimhash: 0b1111n }, // same company
-    { id: 2, companyId: 9, descriptionSimhash: 0b1011n }, // distance 1
-    { id: 3, companyId: 8, descriptionSimhash: 0b1110n }, // distance 1, earlier
-    { id: 4, companyId: 9, descriptionSimhash: null },
+    { id: 1, companyId: 7, title: 'Backend Engineer', descriptionSimhash: 0b1111n }, // same company
+    { id: 2, companyId: 9, title: 'Backend Engineer', descriptionSimhash: 0b1011n }, // distance 1
+    { id: 3, companyId: 8, title: 'Backend Engineer', descriptionSimhash: 0b1110n }, // distance 1, earlier
+    { id: 4, companyId: 9, title: 'Backend Engineer', descriptionSimhash: null },
   ];
-  const hit = findCrossListing(fingerprint, 7, candidates);
+  const hit = findCrossListing(fingerprint, 7, anyRole, candidates);
   assert.equal(hit?.job.id, 2);
   assert.equal(hit?.distance, 1);
 });
 
 test('findCrossListing returns null past the threshold or without a fingerprint', () => {
-  const candidates = [{ id: 1, companyId: 9, descriptionSimhash: 0xffn }];
-  assert.equal(findCrossListing(0n, 7, candidates), null);
-  assert.equal(findCrossListing(null, 7, candidates), null);
-  assert.equal(findCrossListing(0n, 7, []), null);
+  const candidates = [{ id: 1, companyId: 9, title: 'Backend Engineer', descriptionSimhash: 0xffn }];
+  assert.equal(findCrossListing(0n, 7, anyRole, candidates), null);
+  assert.equal(findCrossListing(null, 7, anyRole, candidates), null);
+  assert.equal(findCrossListing(0n, 7, anyRole, []), null);
+});
+
+// #604: Lemon.io's boilerplate put its PHP and its Angular role at distance 7, ADR 0018's threshold.
+test('findCrossListing passes over a near body that is another role', () => {
+  const php = 'Senior Full-stack PHP Developer';
+  const candidates = [
+    { id: 1, companyId: 2, title: 'Senior Angular Full-stack Developer', descriptionSimhash: 0b1n }, // distance 1
+    { id: 2, companyId: 3, title: 'Senior Full-stack PHP Developer', descriptionSimhash: 0b111n }, // distance 3
+  ];
+  const hit = findCrossListing(0n, 9, (title) => titlesAgree(php, title), candidates);
+  assert.deepEqual([hit?.job.id, hit?.distance], [2, 3]);
+  assert.equal(findCrossListing(0n, 9, (title) => titlesAgree(php, title), candidates.slice(0, 1)), null);
+});
+
+test('titlesAgree: one role whatever the level, the punctuation or a board’s suffix; never another role', () => {
+  // The ten true cross-listings of a 513-posting install, and its one false one.
+  for (const [a, b] of [
+    ['Senior React Full stack Developer', 'Senior React Full-stack Developer'],
+    ['Content Reviewer United States - English-speaking', 'Content Reviewer - United States'],
+    ['Software Engineer AI Coding Tasks', 'Software Engineer, AI Coding Tasks (Contract)'],
+    ['Head of Technology', 'Head of Technology'],
+    ['Sr. Backend Engineer', 'Senior Backend Engineer'],
+    ['Backend Engineer', 'Senior Backend Engineer (m/w/d)'],
+    ['Fullstack Developer', 'Full-Stack Developer'],
+    ['Développeur Backend', 'développeur backend – Remote'],
+  ]) {
+    assert.equal(titlesAgree(a!, b!), true, `${a} / ${b}`);
+    assert.equal(titlesAgree(b!, a!), true, `${b} / ${a}`);
+  }
+  for (const [a, b] of [
+    ['Senior Full-stack PHP Developer', 'Senior Angular Full-stack Developer'],
+    ['Go Developer', 'Django Developer'],
+    ['Java Developer', 'JavaScript Developer'],
+    ['Senior Software Engineer, Backend (Infrastructure)', 'Senior Software Engineer, Backend (Authentication Experience)'],
+    ['Backend Engineer', ''],
+    ['!!!', '???'],
+  ]) {
+    assert.equal(titlesAgree(a!, b!), false, `${a} / ${b}`);
+  }
+  // The level alone is a title too.
+  assert.equal(titlesAgree('Senior', 'Senior'), true);
+});
+
+test('pastedRole: the title the person typed, else the stored title written in the text', () => {
+  const text = 'Senior Full-stack PHP Developer\nLemon.io · Remote\n\nWe connect engineers with startups.';
+  assert.equal(pastedRole(text, '')('Sr. Full-stack PHP Developer'), true);
+  assert.equal(pastedRole(text, '')('Senior Angular Full-stack Developer'), false);
+  // A body pasted without its title line names no role, unless the person typed one.
+  const body = 'We connect engineers with startups.';
+  assert.equal(pastedRole(body, '')('Senior Full-stack PHP Developer'), false);
+  assert.equal(pastedRole(body, 'Full-stack PHP Developer')('Senior Full-stack PHP Developer'), true);
+  assert.equal(pastedRole(body, 'Angular Developer')('Senior Full-stack PHP Developer'), false);
 });

@@ -1,6 +1,6 @@
 import { logger } from '../logger';
 import { prisma } from '../db';
-import { findCrossListing, simhash64, toDbBigInt } from '../fingerprint';
+import { findCrossListing, simhash64, titlesAgree, toDbBigInt } from '../fingerprint';
 
 /*
  * One-shot backfill for F3 (ADR 0018): fingerprint every stored description
@@ -47,7 +47,7 @@ async function main(): Promise<void> {
 
     const match =
       job.crossListedOfJobId === null
-        ? findCrossListing(fingerprint, job.companyId, scanned)
+        ? findCrossListing(fingerprint, job.companyId, (title) => titlesAgree(job.title, title), scanned)
         : null;
 
     // Computed outside the dry-run branch on purpose: a value the database

@@ -32,6 +32,7 @@ import {
   findCrossListing,
   fromDbBigInt,
   simhash64,
+  titlesAgree,
   toDbBigInt,
   type FingerprintedJob,
 } from '../fingerprint';
@@ -624,14 +625,14 @@ export async function loadRecentFingerprints(): Promise<FingerprintedJob[]> {
   const since = new Date(Date.now() - DEDUP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const rows = await prisma.job.findMany({
     where: { fetchedAt: { gte: since }, descriptionSimhash: { not: null } },
-    select: { id: true, companyId: true, descriptionSimhash: true },
+    select: { id: true, companyId: true, title: true, descriptionSimhash: true },
     orderBy: { fetchedAt: 'asc' },
   });
   return rows.map((r) => ({ ...r, descriptionSimhash: fromDbBigInt(r.descriptionSimhash) }));
 }
 
 /** Company of an already-stored job — only read when a cross-listing hits, so
- *  the window scan itself stays a two-column read. */
+ *  the window scan itself stays a narrow read. */
 async function companyNameOfJob(jobId: number): Promise<string | null> {
   const row = await prisma.job.findUnique({
     where: { id: jobId },
@@ -675,7 +676,7 @@ async function persistJob(
   } = {},
 ): Promise<{ created: Job; crossListing: CrossListing } | null> {
   const fingerprint = simhash64(job.description);
-  const crossListing = findCrossListing(fingerprint, job.companyId, recentFingerprints);
+  const crossListing = findCrossListing(fingerprint, job.companyId, (title) => titlesAgree(job.title, title), recentFingerprints);
 
   let created: Job;
   try {
@@ -714,6 +715,7 @@ async function persistJob(
   recentFingerprints.push({
     id: created.id,
     companyId: job.companyId,
+    title: job.title,
     descriptionSimhash: fingerprint,
   });
   stats.persisted++;

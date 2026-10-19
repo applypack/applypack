@@ -116,18 +116,78 @@ export function hamming64(a: bigint, b: bigint): number {
 export interface FingerprintedJob {
   id: number;
   companyId: number;
+  title: string;
   descriptionSimhash: bigint | null;
 }
 
 /**
- * Closest cross-company near-duplicate of `fingerprint`, or null. Same-company
- * rows are skipped by design: at this threshold a quarter of them are
- * genuinely different roles sharing a company's boilerplate, and reposts are
- * F11's problem (ADR 0018).
+ * Words one board writes and the next leaves out or spells another way
+ * around the same role: "Sr." is "Senior" (ADR 0018 addendum).
+ */
+const LEVEL_WORDS = new Set(['senior', 'sr', 'junior', 'jr', 'mid', 'middle', 'intermediate']);
+
+/** A title's words without its level; the words as they are when the level is all it says. */
+function titleWords(title: string): string[] {
+  const words = normalizeJdText(title);
+  const role = words.filter((word) => !LEVEL_WORDS.has(word));
+  return role.length > 0 ? role : words;
+}
+
+/**
+ * Whether `part` stands in `whole` from the start of one word to the end of
+ * another, spaces and hyphens aside: "full stack" stands in "Senior
+ * Fullstack Developer", "go developer" does not stand in "Django Developer".
+ */
+function standsIn(part: readonly string[], whole: readonly string[]): boolean {
+  const needle = part.join('');
+  if (needle.length === 0) return false;
+  const joined = whole.join('');
+  const starts: number[] = [];
+  const ends = new Set<number>();
+  let at = 0;
+  for (const word of whole) {
+    starts.push(at);
+    at += word.length;
+    ends.add(at);
+  }
+  return starts.some((start) => ends.has(start + needle.length) && joined.startsWith(needle, start));
+}
+
+/**
+ * Whether two postings' titles name one role: the same words, or one title
+ * inside the other ("Content Reviewer - United States" in "Content Reviewer
+ * United States - English-speaking"), the level and the punctuation aside.
+ * An agency's long boilerplate brings two of its roles within the
+ * fingerprint's threshold, and only the title tells "Senior Full-stack PHP
+ * Developer" from "Senior Angular Full-stack Developer" (#604).
+ */
+export function titlesAgree(a: string, b: string): boolean {
+  const left = titleWords(a);
+  const right = titleWords(b);
+  return standsIn(left, right) || standsIn(right, left);
+}
+
+/**
+ * The role a pasted posting is (#609): the title the person typed agrees, or
+ * the stored posting's title is written in the text — a paste carries its
+ * title line, and a text that names neither is not taken for a stored job.
+ */
+export function pastedRole(text: string, title: string): (stored: string) => boolean {
+  const words = normalizeJdText(text).filter((word) => !LEVEL_WORDS.has(word));
+  return (stored) => (title.length > 0 && titlesAgree(title, stored)) || standsIn(titleWords(stored), words);
+}
+
+/**
+ * Closest cross-company near-duplicate of `fingerprint` that is the same
+ * role (`sameRole` reads the candidate's title), or null. Same-company rows
+ * are skipped by design: at this threshold a quarter of them are genuinely
+ * different roles sharing a company's boilerplate, and reposts are F11's
+ * problem (ADR 0018).
  */
 export function findCrossListing<T extends FingerprintedJob>(
   fingerprint: bigint | null,
   companyId: number,
+  sameRole: (title: string) => boolean,
   candidates: readonly T[],
   maxDistance: number = MAX_HAMMING_DISTANCE,
 ): { job: T; distance: number } | null {
@@ -139,7 +199,7 @@ export function findCrossListing<T extends FingerprintedJob>(
     if (candidate.descriptionSimhash === null) continue;
     const distance = hamming64(fingerprint, candidate.descriptionSimhash);
     if (distance > maxDistance) continue;
-    if (best === null || distance < best.distance) {
+    if ((best === null || distance < best.distance) && sameRole(candidate.title)) {
       best = { job: candidate, distance };
     }
   }

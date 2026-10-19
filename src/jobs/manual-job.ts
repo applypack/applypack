@@ -8,7 +8,7 @@ import { logger } from '../logger';
 import { hashShortId, normalizeUrlKey, urlKeyNeedle } from '../text-utils';
 import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
 import { employerKey } from '../employer';
-import { findCrossListing, simhash64 } from '../fingerprint';
+import { findCrossListing, pastedRole, simhash64 } from '../fingerprint';
 import { loadRecentFingerprints } from './process-jobs';
 
 /*
@@ -134,14 +134,15 @@ export async function findJobByUrl(url: string): Promise<{ id: number; title: st
 const NO_COMPANY = -1;
 
 /**
- * A stored job whose description is this text near enough (#579): the
- * fingerprint the tick marks a cross-listing with (ADR 0018), over the same
- * window. Null for a text too short to fingerprint, or no such job.
+ * A stored job whose description is this text near enough (#579) and whose
+ * role it names (#604): the fingerprint the tick marks a cross-listing with
+ * (ADR 0018), over the same window. `title` is what the person typed, if
+ * anything. Null for a text too short to fingerprint, or no such job.
  */
-export async function findJobByText(text: string): Promise<number | null> {
+export async function findJobByText(text: string, title = ''): Promise<number | null> {
   const fingerprint = simhash64(text);
   if (fingerprint === null) return null;
-  return findCrossListing(fingerprint, NO_COMPANY, await loadRecentFingerprints())?.job.id ?? null;
+  return findCrossListing(fingerprint, NO_COMPANY, pastedRole(text, title), await loadRecentFingerprints())?.job.id ?? null;
 }
 
 /** "Acme Corp." → "acme-corp" — the MANUAL company's atsToken. */

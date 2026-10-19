@@ -177,7 +177,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         description = fetched.text;
       }
       // The text of a posting already stored, under another link or pasted here, is that job too (#579).
-      const sameText = await findJobByText(description);
+      const sameText = await findJobByText(description, title);
       if (sameText !== null) {
         job = await storedJob(sameText);
         const left = steps.filter((step) => step !== 'extract');
