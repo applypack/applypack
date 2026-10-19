@@ -171,6 +171,7 @@ h3 { font-size: var(--text-lg); font-weight: 600; line-height: 1.3; }
 #score-bar { display: block; height: 100%; border-radius: 999px; transition: width 300ms ease; }
 .scorebox .meta { flex-basis: 100%; min-height: 28px; display: flex; gap: var(--s-3) var(--s-4); flex-wrap: wrap; align-items: center; font-size: var(--text-sm); color: var(--ink-3); }
 #score-delta { font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* Held open before the fixture loads, so the line does not push the panes down. */
 #score-parts { flex-basis: 100%; min-height: 20px; font-size: 13px; }
 #reset {
