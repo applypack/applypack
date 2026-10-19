@@ -111,13 +111,6 @@ export function dropsFigure(quote: string, wording: string): boolean {
  * that is a note to the writer has none either: the gate refuses it now, and a
  * comparison stored before it did still carries "(ask the candidate …)".
  */
-/** Which of the reasons a card that has no operation is left for (`operationOf` returned null). */
-function unworded(action: MatchAction): HeldReason {
-  if (wasRefused(action)) return 'refused';
-  const wording = proposalOf(action)?.text;
-  return !wording || instructionIn(wording, action.quote ?? '') ? 'instruction' : 'no-place';
-}
-
 function operationOf(action: MatchAction): EditOperation | null {
   const wording = proposalOf(action)?.text;
   if (!wording || instructionIn(wording, action.quote ?? '')) return null;
@@ -125,6 +118,13 @@ function operationOf(action: MatchAction): EditOperation | null {
   if (action.quote) return { key, kind: 'change', quote: action.quote, wording };
   if (action.insert_after) return { key, kind: 'add', anchor: action.insert_after, wording };
   return null;
+}
+
+/** Which of the reasons a card that has no operation is left for (`operationOf` returned null). */
+function unworded(action: MatchAction): HeldReason {
+  if (wasRefused(action)) return 'refused';
+  const wording = proposalOf(action)?.text;
+  return !wording || instructionIn(wording, action.quote ?? '') ? 'instruction' : 'no-place';
 }
 
 export function planEdits(
