@@ -17,6 +17,24 @@ export function hideHeaderClass(hideBelow: HideBelow | undefined, i: number): st
   return bp ? `hidden ${bp}:table-cell` : '';
 }
 
+const ORDER: readonly (Breakpoint | '')[] = ['', 'sm', 'md', 'lg', 'xl'];
+
+/**
+ * A fixed-layout table's columns at a screen width from `at` up to the next
+ * breakpoint, as fractions of the table: the percentage width of each column
+ * shown, scaled over the shown ones, as the browser gives a hidden column's share
+ * to the rest. Null for a hidden column. What a test holds a column to when
+ * a control in it has a width of its own (#537).
+ */
+export function shownShares(widths: readonly string[], hideBelow: HideBelow | undefined, at: Breakpoint | ''): (number | null)[] {
+  const shown = widths.map((w, i) => {
+    const bp = hideBelow?.[i] ?? '';
+    return ORDER.indexOf(at) >= ORDER.indexOf(bp) ? Number(/^w-\[(\d+(?:\.\d+)?)%\]$/.exec(w)?.[1] ?? NaN) : null;
+  });
+  const total = shown.reduce<number>((sum, w) => sum + (w ?? 0), 0);
+  return shown.map((w) => (w === null ? null : w / total));
+}
+
 /** The classes on the table element that hide the same columns' body cells. */
 export function hideCellsClass(hideBelow: HideBelow | undefined): string {
   return (hideBelow ?? [])

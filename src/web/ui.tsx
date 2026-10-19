@@ -616,12 +616,14 @@ export const Badge: FC<PropsWithChildren<{ tone?: Tone; size?: keyof typeof BADG
   </span>
 );
 
-export const Tag: FC<PropsWithChildren<{ tone?: Tone }>> = ({
+/** `wrap`: a long tag in a narrow cell takes a second line rather than run past the cell's edge (#537). */
+export const Tag: FC<PropsWithChildren<{ tone?: Tone; wrap?: boolean }>> = ({
   children,
   tone = 'neutral',
+  wrap = false,
 }) => (
   <span
-    class={`inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-meta font-medium ring-1 ring-inset ${TONE_SOFT[tone]}`}
+    class={`inline-flex items-center ${wrap ? 'whitespace-normal [overflow-wrap:anywhere]' : 'whitespace-nowrap'} rounded-md px-2 py-0.5 text-meta font-medium ring-1 ring-inset ${TONE_SOFT[tone]}`}
   >
     {children}
   </span>
