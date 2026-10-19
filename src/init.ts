@@ -6,6 +6,7 @@ import { config } from './config';
 import { isDiscordWebhookUrl } from './notify/discord';
 import { prisma } from './db';
 import { logger } from './logger';
+import { PRISMA_CLI_ENV } from './prisma-env';
 import { runSeed } from './seed';
 import { fillEmployerKeys } from './jobs/employer-store';
 import {
@@ -157,7 +158,7 @@ function applySchema(): void {
  */
 function runPrisma(command: string): string {
   try {
-    return execSync(command, { env: process.env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return execSync(command, { env: { ...process.env, ...PRISMA_CLI_ENV }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
     const { stdout, stderr } = err as { stdout?: string; stderr?: string };
     process.stderr.write(`${stdout ?? ''}${stderr ?? ''}`);
