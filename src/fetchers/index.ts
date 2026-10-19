@@ -14,7 +14,7 @@ import {
   nextStreak,
   type FetchStatus,
 } from './source-health';
-import { cachedCount } from './conditional';
+import { cachedCount, judgeUnder } from './conditional';
 import { fetchGreenhouse } from './greenhouse';
 import { fetchLever } from './lever';
 import { fetchAshby } from './ashby';
@@ -177,6 +177,8 @@ export async function runAllFetchers(
   // What a folder's rows are judged under, as process-jobs judges them: the filter of the searches it scores with, or of
   // every running one while it stores unscored, the mutes and the re-apply window (#448).
   const rules = rulesKey(settings.fetchingEnabled ? usable : active, await mutedKeys(), settings.reapplyDays);
+  // A feed's validator holds only under the rules its postings were judged by (#558).
+  judgeUnder(rules);
   const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now, scoring, rulesKey: rules };
   // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
   // beyond that are refused, not silently fetched (ADR 0034). The ids come
