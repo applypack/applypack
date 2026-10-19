@@ -154,9 +154,8 @@ export function trialReport(readings: readonly TrialReading[]): TrialReport {
 }
 
 /**
- * The model a trial reads with, worded: an empty slot is a CLI's own default
- * or the OpenAI-compatible engine's (#606), and on the local engine no model
- * at all, so there is nothing to try (#563).
+ * The model a trial reads with, worded: an empty slot is a CLI's own default,
+ * and on the local engine no model at all, so there is nothing to try (#563).
  */
 export function trialModel(id: AiProviderId, model: string): string | null {
   return model || unsetModelName(id);

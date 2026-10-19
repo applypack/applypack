@@ -64,7 +64,7 @@ export function aiPlanRows(engine: ResolvedAiEngine, billingFor: (id: AiProvider
       engines: p.engines.map((id) => ({
         id,
         label: AI_PROVIDER_LABELS[id],
-        // An empty slot runs a CLI's own default, the OpenAI-compatible engine its own (#606); the local engine runs nothing (#563).
+        // An empty slot runs a CLI's own default; the local engine runs nothing (#563).
         model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || (unsetModelName(id) ?? t('ai.noModel')),
         billing: billingFor(id),
       })),

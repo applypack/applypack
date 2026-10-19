@@ -2,7 +2,6 @@ import { getAiProviderById } from '../ai-provider';
 import {
   AI_PROVIDER_LABELS,
   missingCredentials,
-  OPENAI_DEFAULT_MODEL,
   providerUnusable,
   resolveAiEngine,
   type AiProviderId,
@@ -60,11 +59,16 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
       unlistable = t('aiTest.modelsUnlistable', { reason: listed.reason });
     } else {
       offered = listed.models;
-      // No slot filled and nothing in .env: the provider would ask for a model no local server has.
-      const first = preferredModel(offered);
-      if (first !== null && model.trim() === '') {
-        model = first;
-        pickedForTest = true;
+      if (provider === 'openai_api') {
+        // The list just taken is the one every call reads: an empty slot asks for the model a call would (#606).
+        model = resolveAiEngine(settings.aiEngine, getAiEngineEnv(keys, settings.openAiBaseUrl)).modelFor(provider, 'classifier');
+      } else {
+        // The local engine with no model chosen runs nothing: the test borrows the first the server has.
+        const first = preferredModel(offered);
+        if (first !== null && model.trim() === '') {
+          model = first;
+          pickedForTest = true;
+        }
       }
     }
   }
@@ -107,9 +111,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
         ? t('aiTest.offersNone')
         : t('aiTest.offers', { n: offered.length, models: `${offered.slice(0, OFFERED_SHOWN).join(', ')}${offered.length > OFFERED_SHOWN ? ', …' : ''}` });
   if (attempt.text !== null) {
-    // An empty slot on the OpenAI-compatible engine asked for that engine's own default, which has a name (#606).
-    const named = model || (provider === 'openai_api' ? OPENAI_DEFAULT_MODEL : '');
-    const worked = named ? t('aiTest.works', { engine: label, seconds, model: named }) : t('aiTest.worksCliDefault', { engine: label, seconds });
+    const worked = model ? t('aiTest.works', { engine: label, seconds, model }) : t('aiTest.worksCliDefault', { engine: label, seconds });
     return { ok: true, text: sentences(worked, pickedForTest ? t('aiTest.pickedForTest') : '', offer) };
   }
   // A model the server never pulled is the likeliest cause on a local server; the list says so.

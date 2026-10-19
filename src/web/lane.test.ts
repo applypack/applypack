@@ -50,8 +50,6 @@ test('#483: ten answered calls on the engine and model that will answer state th
   const cli = [timed('resume-scan', 'claude_code', '', 20, 31_000), timed('resume-scan', 'claude_code', 'claude-sonnet-5', 12, 18_000)];
   assert.equal(stepBand('scan', lane('claude_code', 'claude-sonnet-5', cli)), 'about 18.0s on Sonnet 5 through the Claude CLI, going by your last 12 calls');
   assert.equal(stepBand('scan', lane('claude_code', '', cli)), 'about 31.0s on Claude Code CLI · CLI default, going by your last 20 calls');
-  // #606: an empty slot on the OpenAI-compatible engine is that engine's own default, which has a name.
-  assert.equal(lane('openai_api', '').name, 'OpenAI-compatible API · gpt-5-mini');
 });
 
 test('the slow tail is said as AI usage says it: from ten answers, and only when it is slower than the middle', () => {

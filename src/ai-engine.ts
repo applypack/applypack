@@ -302,6 +302,13 @@ export interface AiEngineEnv {
   coverModel: string;
   /** OPENAI_MODEL from .env, used when the openai_api slot is empty. */
   openAiModel: string;
+  /**
+   * A server on this machine: the first chat model its last list named
+   * (server-models.ts:preferredModel), what an empty slot asks for when
+   * OPENAI_MODEL is unset. Absent for a server on the internet, or one not
+   * asked yet.
+   */
+  openAiServerModel?: string | null;
   /** LOCAL_MODEL: the local engine's model for an empty slot ('' = none chosen yet). */
   localModel: string;
 }
@@ -344,16 +351,15 @@ export function missingCredentials(id: AiProviderId): string {
   return t('aiTest.noCredentials', { engine: AI_PROVIDER_LABELS[id], how });
 }
 
-/** What the OpenAI-compatible engine asks for when neither its slot nor OPENAI_MODEL names a model. */
+/** What the OpenAI-compatible engine asks for when neither its slot, OPENAI_MODEL nor a server on this machine names a model. */
 export const OPENAI_DEFAULT_MODEL = 'gpt-5-mini';
 
 /**
- * An empty model slot as a page names it (#606): the model the OpenAI-compatible
- * engine then asks for, a CLI's own default, or null on the local engine, which
- * runs no model until one is chosen.
+ * An empty model slot as a page names it: a CLI's own default, or null on the
+ * local engine, which runs no model until one is chosen. The OpenAI-compatible
+ * engine never has one — `defaultModelFor` names the model it asks for (#606).
  */
 export function unsetModelName(id: AiProviderId): string | null {
-  if (id === 'openai_api') return OPENAI_DEFAULT_MODEL;
   return id === 'local_api' ? null : t('ai.cliDefault');
 }
 
@@ -373,7 +379,8 @@ export function defaultModelFor(id: AiProviderId, role: AiRole, env: AiEngineEnv
     case 'agy_cli':
       return role === 'classifier' ? 'gemini-3.8-flash-high' : 'gemini-3.1-pro-high';
     case 'openai_api':
-      return env.openAiModel;
+      // One rule for every call and the engine's Test (#606): a server on this machine has no gpt-5-mini.
+      return env.openAiModel || env.openAiServerModel || OPENAI_DEFAULT_MODEL;
     case 'local_api':
       return env.localModel;
     case 'codex_cli':

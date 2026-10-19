@@ -123,8 +123,6 @@ test('a trial reads with the model in the slot, a CLI default, and on the local 
   assert.equal(trialModel('local_api', 'gemma4:e4b'), 'gemma4:e4b');
   assert.equal(trialModel('local_api', ''), null);
   assert.equal(trialModel('codex_cli', ''), 'CLI default');
-  // #606: the OpenAI-compatible engine runs a model of its own, and the trial names it.
-  assert.equal(trialModel('openai_api', ''), 'gpt-5-mini');
 });
 
 test('the line says when the scores on record came from the model on trial (#572)', () => {
