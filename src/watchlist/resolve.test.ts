@@ -327,7 +327,8 @@ describe('refusals', () => {
     const stub = io({});
     const r = await resolveCompanyUrl(paste('https://www.linkedin.com/company/acme/jobs/'), stub);
     assert.equal(r.resolution.kind, 'refused');
-    assert.match((r.resolution as { reason: string }).reason, /ADR 0005/);
+    // The reason is for the person who pasted it: no decision record by number (#544).
+    assert.equal((r.resolution as { reason: string }).reason, 'That site is never fetched here — paste the posting text instead.');
     assert.deepEqual(stub.asked, []);
   });
 

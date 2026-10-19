@@ -200,13 +200,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       {/* What stands between the search and its alerts, said before any number. */}
       {!fetchingEnabled && (
         <Notice tone="warn" class="mb-4">
-          {tRich('overview.pausedNotice', {}, {
-            link: (words) => (
-              <a href="/settings?tab=profile" class="font-medium underline">
-                {words}
-              </a>
-            ),
-          })}
+          {t('overview.pausedNotice')}
         </Notice>
       )}
       {unscored && <UnscoredNotice {...unscored} class="mb-4" />}

@@ -682,9 +682,9 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
     logger.error({ err, jobId: id }, 'web: reclassify failed');
     outcome = { kind: 'failed', reason: '' };
   }
-  // A press that formed no verdict says so: the page it comes back to looks exactly as it did.
-  const said = rescoreFlash(outcome, job.status);
-  return said ? flashRedirect(jobHref(id, tab), said.kind, said.text) : c.redirect(jobHref(id, tab), 303);
+  // Every press says what it came to: a page that comes back looking exactly as it did reads as nothing done.
+  const said = rescoreFlash(outcome, job);
+  return flashRedirect(jobHref(id, tab), said.kind, said.text);
 });
 
 /**
