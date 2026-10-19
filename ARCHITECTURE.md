@@ -618,7 +618,7 @@ src/
     inbox-folder.ts             ← createInbox: the empty ~/ApplyPack/inbox a local install offers
     watchlist-runs.ts           ← in-memory registry of a watchlist resolve run
     target-runs.ts              ← in-memory registry of the progress-page runs (scan, match, verify, letter, …)
-    scan-run.ts                 ← beginScan / liveScanRun: every resume scan as a progress-page run, joined by a second request
+    scan-run.ts                 ← beginScan / liveScanRun: a resume's scan as a progress-page run, joined by a second request for the same text
     comparison-run.ts           ← startComparison / runComparison: one text × one stored job as a progress-page run
     suggestions-run.ts          ← startSuggestionsRun: the lazy suggestions call as a run
     resume-source.ts            ← the launchers' "which resume": one of yours / file / paste → scratch row

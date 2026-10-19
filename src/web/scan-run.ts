@@ -4,11 +4,11 @@ import type { ResumeScan } from '../resume/prompts';
 import { t } from '../i18n/t';
 
 /*
- * A resume's scan as a run of the shared progress page. Every scan goes
- * through it — an upload, a new version, Scan, a clean version saved as a new
- * resume, the scan behind Save as vN's comparison — so a second request for
- * the same text joins the one in flight instead of paying for it again (#590,
- * #608). The scan itself comes in as `scan` (resume/scan.ts:scanResume).
+ * A resume's scan as a run of the shared progress page: an upload, a new
+ * version, Scan, a clean version saved as a new resume and the scan behind
+ * Save as vN's comparison all go through it, so a second request for the same
+ * text joins the one in flight instead of paying for it again (#590, #608).
+ * The scan itself comes in as `scan` (resume/scan.ts:scanResume).
  */
 
 type Scan = (resume: { id: number; text: string }) => Promise<ResumeScan | null>;
