@@ -58,7 +58,7 @@ import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, 
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
 import { AiPlan, BILLING_TONE } from './ai-plan';
-import { planSummary, type AiPlanRow } from '../ai-plan';
+import { LOCAL_WINDOW_ID, planSummary, type AiPlanRow } from '../ai-plan';
 import { billingWords, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
@@ -1866,7 +1866,7 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
     <Hint class="mt-2">{server.hint}</Hint>
     {server.more && <More class="mt-1">{server.more}</More>}
     {server.context && (
-      <form method="post" action={server.action} class="mt-3 flex flex-wrap items-end gap-2">
+      <form id={LOCAL_WINDOW_ID} method="post" action={server.action} class="mt-3 flex flex-wrap items-end gap-2">
         <Field
           label={t('settings.contextWindow')}
           hint={t('settings.roomForThePromptAnd')}

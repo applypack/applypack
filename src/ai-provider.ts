@@ -15,6 +15,7 @@ import {
   anthropicUsage,
   buildClaudeCodeArgs,
   buildOllamaChatBody,
+  contextTooSmall,
   DEFAULT_LOCAL_CONTEXT_TOKENS,
   localBudgetTokens,
   ollamaCanThink,
@@ -47,6 +48,7 @@ import {
 import type { AiProviderId } from './ai-engine';
 import { AI_KEY_ENV_VARS } from './ai-keys';
 import { createLimiter, runTimed, type Limiter } from './concurrency';
+import { windowRefused } from './window-refusal';
 import { cliCommand } from './cli-command';
 
 /**
@@ -387,7 +389,8 @@ class LocalApiProvider implements AiProvider {
     const need = localBudgetTokens(req.system, req.user, req.maxTokens);
     if (need > contextTokens) {
       logger.warn({ label: req.label, need, contextTokens }, 'ai: prompt larger than the local context window');
-      req.onError?.(t('engine.fail.contextTooSmall', { need, window: contextTokens }));
+      windowRefused();
+      req.onError?.(contextTooSmall(need, contextTokens));
       return failed('too_large');
     }
     const deadline = Date.now() + (req.timeoutMs ?? CLI_TIMEOUT_MS);

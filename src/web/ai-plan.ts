@@ -9,6 +9,10 @@ import { t } from '../i18n/t';
  * behind. Pure.
  */
 
+/** The local engine's Context window on the AI tab: where a prompt it refused as too large is made to fit (#523). */
+export const LOCAL_WINDOW_ID = 'local-context';
+export const LOCAL_WINDOW_HREF = `/settings?tab=ai#${LOCAL_WINDOW_ID}`;
+
 export interface AiPlanRow {
   task: AiTask;
   label: string;
