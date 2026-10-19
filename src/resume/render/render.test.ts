@@ -10,7 +10,7 @@ import { readZipEntries } from '../zip';
 import { inferFromPdf } from '../style-infer';
 import { readPdfGeometry } from '../pdf-geometry';
 import { renderDocx } from './clean-docx';
-import { renderPdf, typefaceNote } from './clean-pdf';
+import { linesKeepingLinks, renderPdf, typefaceNote } from './clean-pdf';
 import { knobsFrom, readKnobs, readOrder, isMetricTwin, normaliseHex, LIMITS, SECTION_KEYS, sectionName, unknownSections, type RenderKnobs } from './knobs';
 import { planRender, planToText } from './sections';
 
@@ -226,6 +226,35 @@ test('the .pdf reads back as the resume, Cyrillic included', async () => {
   assert.match(text, /Senior Software Engineer/);
   assert.match(text, /Built and deployed a cross-platform notification system\./);
   assert.match(text, /Ukrainian \(Native\)/);
+});
+
+test('a link moves whole to the next line instead of breaking at its hyphen (#585)', async () => {
+  // The contact line of this width wrapped as "linkedin.com/in/marta-" / "keller-berlin" before.
+  const resume = JsonResumeSchema.parse({
+    basics: {
+      name: 'Marta Keller',
+      location: 'Berlinxxxxxxxxxxxxxx, Germany',
+      email: 'marta.keller@example.com',
+      phone: '+49 151 2345 6789',
+      url: 'linkedin.com/in/marta-keller-berlin',
+      profiles: ['github.com/mkeller-example'],
+    },
+    work: [{ name: 'Acme', position: 'Engineer', highlights: [`Shipped the SDK documented at docs.example.com/sdk-guide-for-teams${' and more words'.repeat(5)} today.`] }],
+  });
+  const pdf = await pdfToText(await renderPdf(resume, knobsFrom()));
+  const docx = docxToText(await renderDocx(resume, knobsFrom()));
+  for (const text of [pdf, docx]) {
+    for (const link of ['linkedin.com/in/marta-keller-berlin', 'github.com/mkeller-example', 'docs.example.com/sdk-guide-for-teams']) {
+      assert.ok(text.includes(link), `${link} whole in: ${text}`);
+    }
+  }
+});
+
+test('linesKeepingLinks breaks at spaces only, and leaves a text with no link to pdfkit', () => {
+  const widthOf = (s: string) => s.length;
+  assert.deepEqual(linesKeepingLinks('a · github.com/mkeller-example · b', 20, widthOf), ['a ·', 'github.com/mkeller-example', '· b']);
+  assert.deepEqual(linesKeepingLinks('me@example.com and more', 30, widthOf), ['me@example.com and more']);
+  assert.deepEqual(linesKeepingLinks('a long line of words with no link at all', 10, widthOf), ['a long line of words with no link at all']);
 });
 
 test('the .pdf names the candidate and no tool', async () => {

@@ -39,6 +39,32 @@ const GUTTER_PT = 12;
 const DEFAULT_LABEL_COLUMN_PT = 110;
 const PAIR_GAP_PT = 8;
 
+/** A link or an e-mail address in a line of text. */
+const LINK = /(?:https?:\/\/|www\.)\S+|[\w.+-]+@[\w-]+\.[\w.-]+|\b[\w-]+(?:\.[\w-]+)+\/\S*/i;
+/** pdfkit rounds each piece it measures: a line measured to fit by less than this may still be broken again. */
+const FIT_SLACK_PT = 0.5;
+
+/**
+ * A text that holds a link, broken into lines at its spaces only. pdfkit
+ * breaks a line after any hyphen or slash, so "github.com/mkeller-example"
+ * came out "github.com/mkeller-" / "example" and a parser read two words
+ * (#585). A text with no link, or one that fits, comes back whole and is left
+ * to pdfkit as before. A link longer than the whole line still has to break.
+ */
+export function linesKeepingLinks(text: string, width: number, widthOf: (s: string) => number): string[] {
+  if (!LINK.test(text) || widthOf(text) <= width - FIT_SLACK_PT) return [text];
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    const longer = line ? `${line} ${word}` : word;
+    if (line && widthOf(longer) > width - FIT_SLACK_PT) {
+      lines.push(line);
+      line = word;
+    } else line = longer;
+  }
+  return [...lines, line];
+}
+
 /**
  * pdfkit paginates for itself only when it is doing the layout. Every line and
  * bullet here is positioned by hand, so the page break is ours to make too.
@@ -94,6 +120,11 @@ export async function drawPdf(plan: RenderPlan, knobs: RenderKnobs): Promise<Buf
   };
   const align = knobs.nameCentered ? 'center' : 'left';
   const bodyAlign = looks?.justify ? 'justify' : 'left';
+  // A text that may hold a link, drawn a line per call so pdfkit never breaks inside one (#585).
+  // pdfkit sets a call's last line flush left, so a justified paragraph that wraps a link is set flush left.
+  const textKeepingLinks = (text: string, x: number, y: number | undefined, options: PDFKit.Mixins.TextOptions & { width: number }) => {
+    linesKeepingLinks(text, options.width, (s) => doc.widthOfString(s)).forEach((line, i) => doc.text(line, x, i === 0 ? y : undefined, options));
+  };
 
   if (plan.header.name) {
     setRun({ text: '', bold: true, role: 'name' }, knobs.namePt);
@@ -119,12 +150,13 @@ export async function drawPdf(plan: RenderPlan, knobs: RenderKnobs): Promise<Buf
       doc.x = doc.page.margins.left;
       doc.y = y + doc.currentLineHeight(true);
     } else {
-      doc.font('body').fontSize(knobs.bodyPt).fillColor(MUTED).text(plan.header.contact, { align });
+      doc.font('body').fontSize(knobs.bodyPt).fillColor(MUTED);
+      textKeepingLinks(plan.header.contact, doc.page.margins.left, undefined, { width, align });
     }
   }
   for (const line of plan.header.extra) {
     setRun({ text: '', muted: true, role: 'contact' }, knobs.bodyPt);
-    doc.text(line, { align });
+    textKeepingLinks(line, doc.page.margins.left, undefined, { width, align });
   }
   if (looks?.headerRule) {
     const y = doc.y + 3;
@@ -164,7 +196,7 @@ export async function drawPdf(plan: RenderPlan, knobs: RenderKnobs): Promise<Buf
         doc.text(block.label, left, y, { width: column - PAIR_GAP_PT, align: 'right' });
         const labelEnd = doc.y;
         setRun({ text: '', role: 'skillValues' }, knobs.bodyPt);
-        doc.text(block.values, left + column, y, { width: width - column, align: 'left' });
+        textKeepingLinks(block.values, left + column, y, { width: width - column, align: 'left' });
         doc.x = left;
         doc.y = Math.max(labelEnd, doc.y);
         break;
@@ -216,7 +248,7 @@ export async function drawPdf(plan: RenderPlan, knobs: RenderKnobs): Promise<Buf
         // at the SAME y — the marker's own call moves the cursor otherwise.
         const y = doc.y;
         doc.text('•', doc.page.margins.left, y, { lineBreak: false, width: BULLET_INDENT_PT });
-        doc.text(block.text, doc.page.margins.left + BULLET_INDENT_PT, y, {
+        textKeepingLinks(block.text, doc.page.margins.left + BULLET_INDENT_PT, y, {
           width: width - BULLET_INDENT_PT,
           align: bodyAlign,
         });
@@ -225,7 +257,7 @@ export async function drawPdf(plan: RenderPlan, knobs: RenderKnobs): Promise<Buf
       }
       case 'paragraph':
         setRun({ text: '', role: 'body' }, knobs.bodyPt);
-        doc.text(block.text, doc.page.margins.left, doc.y, { width, align: bodyAlign });
+        textKeepingLinks(block.text, doc.page.margins.left, doc.y, { width, align: bodyAlign });
         doc.x = doc.page.margins.left;
         break;
       case 'gap':
