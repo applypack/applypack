@@ -4,7 +4,7 @@ import { Layout } from '../layout';
 import { ActionForm, Button, Card, Hint, Notice } from '../ui';
 import { Icon } from '../icons';
 import { RunSteps, type StepView } from './run-steps';
-import { FETCH_FAILED, FETCH_RUN_STEPS, isSetupSearch, type FetchRun } from '../fetch-runs';
+import { FETCH_FAILED, FETCH_RUN_STEPS, fetchRunBackLabel, fetchRunSubtitle, isSetupSearch, type FetchRun } from '../fetch-runs';
 import { t } from '../../i18n/t';
 
 function stepView({ classify, scope, backUrl }: Pick<FetchRun, 'classify' | 'scope' | 'backUrl'>): Record<string, StepView> {
@@ -52,13 +52,7 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
       <div class="w-full pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-entity text-ink">{heading}</div>
-          <div class="text-sm text-ink-muted">
-            {run.classify
-              ? t('fetch.everyEnabledSourceThenThe')
-              : isSetupSearch(run)
-                ? t('fetch.setupSearchSubtitle')
-                : t('fetch.everyEnabledSourceNewJobs')}
-          </div>
+          <div class="text-sm text-ink-muted">{t(fetchRunSubtitle(run))}</div>
 
           {failed ? (
             <div class="mt-4 space-y-4">
@@ -67,7 +61,7 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
               </Notice>
               <div class="flex flex-wrap gap-2">
                 <Button href={run.backUrl} variant="secondary">
-                  ← {run.backUrl === '/welcome' ? t('fetch.backToSetup') : t('fetch.backToRuns')}
+                  ← {t(fetchRunBackLabel(run.backUrl))}
                 </Button>
               </div>
             </div>
