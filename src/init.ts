@@ -137,7 +137,8 @@ async function bootstrapTargetsFromEnv(): Promise<void> {
   logger.info({ added }, 'init: bootstrapped notification targets from .env; manage via /settings now');
 }
 
-function applySchema(): void {
+/** The tables this release expects, created or brought up to date — every boot, and `npm run db:import` before the rows go in. */
+export function applySchema(): void {
   const migrationsDir = resolve(process.cwd(), 'prisma', 'migrations');
   if (existsSync(migrationsDir)) {
     logger.info('init: running prisma migrate deploy');

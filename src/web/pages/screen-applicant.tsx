@@ -76,6 +76,8 @@ export interface ScreenApplicantProps {
   scoredAt: Date | null;
   now: Date;
   flash?: FlashMessage | null;
+  /** A refused adjustment, sent back into its form as it was typed (#549); the score above keeps the stored one. */
+  sentAdjustment?: { points: number; note: string } | null;
 }
 
 /** The person's decision as the select names it; the stored value is the key. */
@@ -126,7 +128,7 @@ const CriterionAnswerRow: FC<{ r: ScoreRow; drafted: boolean }> = ({ r, drafted 
   );
 };
 
-export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, applicant, letters, rubric, reply, breakdown, stale, model, promptVersion, scoredAt, now, flash }) => {
+export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, applicant, letters, rubric, reply, breakdown, stale, model, promptVersion, scoredAt, now, flash, sentAdjustment }) => {
   const title = `№${applicant.number}${applicant.name ? ` — ${applicant.name}` : ''}`;
   const back = `/screen/${screening.id}`;
   const career = reply ? trajectoryOf(reply.roles, now) : null;
@@ -443,7 +445,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                     min={-MAX_ADJUSTMENT}
                     max={MAX_ADJUSTMENT}
                     step="1"
-                    value={applicant.adjustment}
+                    value={sentAdjustment?.points ?? applicant.adjustment}
                     class="w-24"
                     aria-label={t('screening.applicant.points')}
                   />
@@ -453,7 +455,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   type="text"
                   name="note"
                   maxlength="200"
-                  value={applicant.adjustmentNote ?? ''}
+                  value={sentAdjustment?.note ?? applicant.adjustmentNote ?? ''}
                   placeholder={t('screening.applicant.reasonPlaceholder')}
                   aria-label={t('screening.applicant.reason')}
                 />

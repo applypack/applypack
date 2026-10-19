@@ -9,16 +9,21 @@ import { t } from '../i18n/t';
 
 type DashboardUrlCheck = { ok: true; url: string } | { ok: false; reason: string };
 
+/** A scheme and its `//`: "192.168.1.20:4747" has none, and "localhost:4747" would read as a scheme of its own. */
+const SCHEME = /^[a-z][a-z\d+.-]*:\/\//i;
+
 /**
  * The address as typed, made one a link can start with: http(s), with its
  * path (a proxy may serve the dashboard under one) and without a trailing
- * slash, a query or a fragment. A user name or password is refused: the link
- * goes into a chat, and the dashboard asks for them itself.
+ * slash, a query or a fragment. An address typed without its scheme gets the
+ * `http://` a browser would put there (#549). A user name or password is
+ * refused: the link goes into a chat, and the dashboard asks for them itself.
  */
 export function checkDashboardUrl(input: string): DashboardUrlCheck {
+  const typed = input.trim();
   let url: URL;
   try {
-    url = new URL(input.trim());
+    url = new URL(SCHEME.test(typed) ? typed : `http://${typed}`);
   } catch {
     return { ok: false, reason: t('engine.url.notAddress') };
   }

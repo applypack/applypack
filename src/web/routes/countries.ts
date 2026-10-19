@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { COUNTRIES, REGIONS } from '../../countries';
+import { COUNTRIES, REGIONS, countrySpellings } from '../../countries';
 import { placeName } from '../../i18n/places';
 import { currentLocale, isLocale, withLocale } from '../../i18n/locale';
 
@@ -7,7 +7,8 @@ import { currentLocale, isLocale, withLocale } from '../../i18n/locale';
  * The gazetteer for the browser (ADR 0032): the country picker on /settings
  * searches it client-side. One static document, the same data
  * src/countries.ts reads, so a spelling that resolves in the picker resolves
- * on the server too. A day of caching — the file changes with a deploy.
+ * on the server too; `spellings` is every one it resolves, so the chip input
+ * refuses what the save would. A day of caching — the file changes with a deploy.
  *
  * Outside English each country also carries `local`, its name in the
  * interface's language (i18n/places.ts:placeName), which the picker searches
@@ -38,6 +39,7 @@ countriesRoute.get('/countries.json', (c) => {
         };
       }),
       regions: REGIONS.map((r) => ({ code: r.code, label: r.label, flag: r.flag ?? '' })),
+      spellings: countrySpellings(),
     }),
   );
 });

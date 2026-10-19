@@ -27,6 +27,7 @@ import {
   Radio,
   SectionTitle,
   Select,
+  SUBMIT_ONCE,
   Table,
   Tag,
   TagListInput,
@@ -246,14 +247,28 @@ export interface SettingsProps {
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
+  /** What "Save & re-classify" asks first: how many jobs, and what a call costs (#562). */
+  reclassifyQuestion: string;
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
   /** Employer mode (ADR 0049) and its guardrails (ADR 0048). */
   screening: ScreeningSettings;
   activeTab: SettingsTab;
   flash?: FlashMessage | null;
-  /** Set by the fill-from-resume POST: the editor shows draft values. */
+  /** Set by `?draft=`, where "Fill from a resume" lands: the editor shows draft values. */
   profileDraft?: ProfileDraftNotice | null;
+  /** A refused save, sent back (#549): the countries and score adjustments as they were typed. */
+  profileSent?: ProfileSentText | null;
+  /** A refused Telegram connection, sent back open (#549): the name and the chat id as typed, never the token. */
+  telegramSent?: { name: string; chatId: string } | null;
+  /** `?keys=<source>` after its keys were saved: that card stays open, so its state can be read (#561). */
+  openSourceKeys?: string;
+}
+
+/** What a refused save shows as it was typed, where the stored form of the field could not hold it. */
+export interface ProfileSentText {
+  countries: string[];
+  priorityRules: string;
 }
 
 export interface ScreeningSettings {
@@ -274,11 +289,6 @@ export interface ScreeningSettings {
 /** A resume in a picker: its name, and what the reader should know about it before choosing it. */
 function resumeOption(r: ResumeListItem, scanned = true): string {
   return t('settings.resumeOption', { name: r.name, isDefault: r.isDefault ? 'yes' : 'no', scanned: scanned ? 'yes' : 'no' });
-}
-
-/** An `onclick` that asks first. The question goes in as a JSON string, so a quote or an apostrophe in a language's wording cannot end it. */
-function confirmScript(question: string): string {
-  return `return confirm(${JSON.stringify(question)})`;
 }
 
 /**
@@ -652,12 +662,16 @@ export const SettingsPage: FC<SettingsProps> = ({
   targets,
   profiles,
   activeProfile,
+  reclassifyQuestion,
   availableTargets,
   resumes,
   screening,
   activeTab,
   flash,
   profileDraft,
+  profileSent,
+  telegramSent,
+  openSourceKeys,
 }) => (
   <Layout title={t('nav.settings')} active="settings">
     <div class="w-full">
@@ -780,15 +794,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                 </ActionForm>
               )}
               {!p.primary && (
-                <ActionForm action="/settings/profiles/delete" hidden={{ id: p.id }}>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onclick={confirmScript(t('settings.deleteSearchConfirm'))}
-                  >
-                    {t('common.delete')}
-                  </Button>
-                </ActionForm>
+                <ConfirmAction action="/settings/profiles/delete" hidden={{ id: p.id }} label={t('common.delete')} confirm={t('settings.deleteSearchConfirm')} />
               )}
             </li>
           ))}
@@ -822,10 +828,12 @@ export const SettingsPage: FC<SettingsProps> = ({
                 <More class="mb-3 mt-1">
                   {t('settings.fillMoreRescanned')}
                 </More>
+                {/* The scan can take half a minute: the button goes quiet at once, so a second press sends nothing (#555). */}
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
                   class="flex flex-wrap items-center gap-2"
+                  onsubmit={SUBMIT_ONCE}
                 >
                   <Select
                     name="resumeId"
@@ -847,13 +855,14 @@ export const SettingsPage: FC<SettingsProps> = ({
                   {t('settings.fillPickAFile', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}
                 </Hint>
                 <More class="mb-3 mt-1">
-                  {t('settings.fillMoreLandsInResumes')}
+                  {t('settings.fillMoreFileNotKept')}
                 </More>
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
                   enctype="multipart/form-data"
                   class="flex flex-wrap items-center gap-2"
+                  onsubmit={SUBMIT_ONCE}
                 >
                   <Input
                     type="file"
@@ -875,6 +884,8 @@ export const SettingsPage: FC<SettingsProps> = ({
             availableTargets={availableTargets}
             resumes={resumes}
             draft={profileDraft}
+            sent={profileSent}
+            reclassifyQuestion={reclassifyQuestion}
           />
         ) : (
           <Empty bare title={t('settings.noSearchSelected')}>
@@ -950,7 +961,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           <Button variant="secondary">{t('settings.saveSources')}</Button>
         </form>
       </Section>
-      <SourceKeysSection rows={sourceKeyRows} />
+      <SourceKeysSection rows={sourceKeyRows} openSourceKeys={openSourceKeys} />
       </>
       )}
 
@@ -1080,17 +1091,28 @@ export const SettingsPage: FC<SettingsProps> = ({
         {/* One way to connect at a time: each opens its own form under the row of buttons
             (the Add sources pattern on Companies), and none stands open by default. */}
         <div class="flex flex-wrap items-start gap-2">
-          <Disclosure variant="button" summary={t('settings.addATelegramTarget')} class="contents">
+          <Disclosure variant="button" summary={t('settings.addATelegramTarget')} open={Boolean(telegramSent)} class="contents">
             <div class="order-last basis-full rounded-md border border-line p-4">
-              <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
+              <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2 sm:items-end">
                 <input type="hidden" name="kind" value="telegram" />
                 <Field label={t('settings.name')}>
-                  <Input type="text" name="name" required placeholder={t('settings.myPhone')} />
+                  <Input type="text" name="name" required placeholder={t('settings.myPhone')} value={telegramSent?.name} />
                 </Field>
-                <Field label={t('settings.chatId')}>
-                  <Input type="text" name="chatId" required placeholder="-100…" mono translate="no" />
+                {/* #561: where each value comes from, one sentence each; the address and the key are Telegram's, never translated. */}
+                <Field
+                  label={t('settings.chatId')}
+                  hint={tRich('settings.chatIdHint', {}, {
+                    url: () => (
+                      <span class="break-all">
+                        <Code>{'https://api.telegram.org/bot<token>/getUpdates'}</Code>
+                      </span>
+                    ),
+                    key: () => <Code>{'"chat":{"id":'}</Code>,
+                  })}
+                >
+                  <Input type="text" name="chatId" required placeholder="-100…" mono translate="no" value={telegramSent?.chatId} />
                 </Field>
-                <Field label={t('settings.botToken')} class="sm:col-span-2">
+                <Field label={t('settings.botToken')} hint={t('settings.botTokenHint')} class="sm:col-span-2">
                   <Input
                     type="password"
                     name="botToken"
@@ -1694,7 +1716,7 @@ export interface SourceKeyRow {
   fields: { field: string; label: string; envVar: string; origin: 'db' | 'env' | 'none'; masked: string }[];
 }
 
-const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
+const SourceKeysSection: FC<{ rows: SourceKeyRow[]; openSourceKeys?: string }> = ({ rows, openSourceKeys }) => (
   <Section
     id="source-keys"
     title={t('settings.extraSourcesAFreeAccount')}
@@ -1728,52 +1750,62 @@ const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
               {r.terms}
             </a>
           </p>
-          {/* The fields open on demand: a source nobody uses shows what it is and how to get it, not four empty inputs. */}
-          <Disclosure summary={r.ready ? t('settings.changeKeys') : t('settings.connectSource', { source: r.label })} class="mt-2">
-            {r.fields.map((f) => (
-              <form method="post" action="/settings/sources/key" class="mt-2.5 flex flex-wrap items-end gap-2">
-                <input type="hidden" name="source" value={r.source} />
-                <input type="hidden" name="field" value={f.field} />
-                <div class="flex min-w-[9rem] flex-col gap-1 text-meta text-ink-muted">
-                  {/* The vendor's own name for the field, as its sign-up page writes it. */}
-                  <span class="font-medium text-ink" translate="no">
-                    {f.label}
-                  </span>
-                  {f.origin === 'db' && (
-                    <span>
-                      <Badge tone="ok">{t('settings.saved')}</Badge>{' '}
-                      <span class="font-mono" translate="no">
-                        {f.masked}
+          {/* The fields open on demand: a source nobody uses shows what it is and how to get it, not four empty inputs.
+              One form takes both values with one Save, and the card stays open after it to say what came of it (#561). */}
+          <Disclosure summary={r.ready ? t('settings.changeKeys') : t('settings.connectSource', { source: r.label })} open={r.source === openSourceKeys} class="mt-2">
+            <form method="post" action="/settings/sources/key" class="mt-2.5 space-y-2.5">
+              <input type="hidden" name="source" value={r.source} />
+              {r.fields.map((f) => (
+                <div class="flex flex-wrap items-end gap-2">
+                  <div class="flex min-w-[9rem] flex-col gap-1 text-meta text-ink-muted">
+                    {/* The vendor's own name for the field, as its sign-up page writes it. */}
+                    <span class="font-medium text-ink" translate="no">
+                      {f.label}
+                    </span>
+                    {f.origin === 'db' && (
+                      <span>
+                        <Badge tone="ok">{t('settings.saved')}</Badge>{' '}
+                        <span class="font-mono" translate="no">
+                          {f.masked}
+                        </span>
                       </span>
-                    </span>
-                  )}
-                  {f.origin === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
-                  {f.origin === 'none' && (
-                    <span class="text-ink-faint" translate="no">
-                      {f.envVar}
-                    </span>
+                    )}
+                    {f.origin === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
+                    {f.origin === 'none' && (
+                      <span class="text-ink-faint" translate="no">
+                        {f.envVar}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    type="password"
+                    name={f.field}
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label={t('settings.sourceKeyField', { source: r.label, field: f.label })}
+                    placeholder={f.origin === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
+                    mono
+                    class="min-w-[14rem] flex-1"
+                  />
+                  {/* Its own form's button (below), so Enter in a field saves instead of removing. */}
+                  {f.origin === 'db' && (
+                    <Button size="sm" variant="danger" form={`source-key-${r.source}-${f.field}`}>
+                      {t('common.remove')}
+                    </Button>
                   )}
                 </div>
-                <Input
-                  type="password"
-                  name="key"
-                  autocomplete="off"
-                  spellcheck="false"
-                  aria-label={t('settings.sourceKeyField', { source: r.label, field: f.label })}
-                  placeholder={f.origin === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
-                  mono
-                  class="min-w-[14rem] flex-1"
-                />
-                <Button variant="secondary">
-                  {t('common.save')}
-                </Button>
-                {f.origin === 'db' && (
-                  <Button size="sm" variant="danger" name="clear" value="1">
-                    {t('common.remove')}
-                  </Button>
-                )}
-              </form>
-            ))}
+              ))}
+              <Button variant="secondary">{t('common.save')}</Button>
+            </form>
+            {r.fields
+              .filter((f) => f.origin === 'db')
+              .map((f) => (
+                <form id={`source-key-${r.source}-${f.field}`} method="post" action="/settings/sources/key" hidden>
+                  <input type="hidden" name="source" value={r.source} />
+                  <input type="hidden" name="field" value={f.field} />
+                  <input type="hidden" name="clear" value="1" />
+                </form>
+              ))}
           </Disclosure>
           <Hint class="mt-2">
             {r.ready
@@ -2182,7 +2214,9 @@ const ProfileEditor: FC<{
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
   draft?: ProfileDraftNotice | null;
-}> = ({ profile, availableTargets, resumes, draft }) => {
+  sent?: ProfileSentText | null;
+  reclassifyQuestion: string;
+}> = ({ profile, availableTargets, resumes, draft, sent, reclassifyQuestion }) => {
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
   // Open the advanced block only when free-form content lives in it. The alert
   // destination deliberately doesn't count: one picked target is not something
@@ -2190,7 +2224,8 @@ const ProfileEditor: FC<{
   const advancedOpen =
     Boolean(profile.notes && profile.notes.trim().length > 0) ||
     profile.onsiteCities.length > 0 ||
-    rulesCount > 0;
+    rulesCount > 0 ||
+    Boolean(sent?.priorityRules.trim());
   return (
   <form
     method="post"
@@ -2287,7 +2322,7 @@ const ProfileEditor: FC<{
         more={t('settings.polandPolskaAndPlAll')}
         name="countries"
         // Each line goes back through the form: the flag is what the save reads, so the name may be in any language.
-        values={profile.countries.map(countryChip)}
+        values={sent?.countries ?? profile.countries.map(countryChip)}
         placeholder={t('settings.polandGermanyNetherlands')}
         rows={2}
         picker="countries"
@@ -2385,7 +2420,7 @@ const ProfileEditor: FC<{
           rows={2}
         />
 
-        <PriorityRulesEditor profile={profile} />
+        <PriorityRulesEditor profile={profile} typed={sent?.priorityRules} />
 
         <Field label={t('settings.alertTarget')} class="sm:max-w-md">
           <Select name="notificationTargetId">
@@ -2405,16 +2440,15 @@ const ProfileEditor: FC<{
     {/* Sticks to the bottom of the window while the editor scrolls: a long form keeps its Save in reach. */}
     <div class="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center gap-3 border-t border-line bg-surface-raised px-5 py-3">
       <Button size="lg">{t('settings.saveProfile')}</Button>
-      <Button
-        size="lg"
+      <ConfirmAction
+        action={`/settings/profiles/${profile.id}/save`}
+        submit={{ name: 'action', value: 'save-and-reclassify' }}
+        label={t('settings.saveReClassify')}
+        confirm={reclassifyQuestion}
         variant="violet"
-        name="action"
-        value="save-and-reclassify"
-        onclick={confirmScript(t('settings.reclassifyConfirm'))}
-      >
-        {t('settings.saveReClassify')}
-      </Button>
-      <span data-dirty-indicator hidden={!draft} class="text-note font-medium text-warn">
+        size="lg"
+      />
+      <span data-dirty-indicator hidden={!draft && !sent} class="text-note font-medium text-warn">
         {t('settings.unsavedChanges')}
       </span>
     </div>
@@ -2422,11 +2456,12 @@ const ProfileEditor: FC<{
   );
 };
 
-const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
+/** `typed`: the text a refused save sent, a line the save could not read included (#549). */
+const PriorityRulesEditor: FC<{ profile: Profile; typed?: string }> = ({ profile, typed }) => {
   const rules = parsePriorityRules(profile.priorityRules);
-  const text = formatPriorityRulesText(rules);
+  const text = typed ?? formatPriorityRulesText(rules);
   return (
-    <details class="rounded-md border border-line" open={rules.length > 0}>
+    <details class="rounded-md border border-line" open={text.trim().length > 0}>
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-note font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
         {t('settings.priorityRulesSummary')}
         <span class="ml-2 font-normal text-ink-faint">
