@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.9] — 2026-10-18
+
+### Changed
+- "Fill from a resume" no longer adds an uploaded file to your resumes, and
+  the page it lands on can be reloaded safely.
+- Adzuna and France Travail keys are saved with one Save, and the card stays
+  open to show whether the source is ready.
+- Save & re-classify says how many jobs it reads again and what scoring
+  costs on your engine; Delete search asks in the page, without a browser
+  dialog.
+- `npm run db:import` works on a new install that has never started: it
+  creates the tables first.
+
+### Fixed
+- A search profile, a dashboard address, a score adjustment or a Telegram
+  connection that is refused keeps what you typed, and the field to fix is
+  marked and focused.
+- The country field refuses an unknown country as you type it, as the save
+  does.
+- A dashboard address typed without `http://` is saved with it instead of
+  being refused.
+- The Telegram form says where to get the bot token and the chat id, and a
+  refused token is no longer blamed on the chat id or shown as raw JSON.
+- Role types drafted from a resume as "qa/test automation" become words a
+  job title can contain.
+
 ## [2.61.8] — 2026-10-18
 
 ### Changed
@@ -6418,6 +6444,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.9]: https://github.com/applypack/applypack/compare/v2.61.8...v2.61.9
 [2.61.8]: https://github.com/applypack/applypack/compare/v2.61.7...v2.61.8
 [2.61.7]: https://github.com/applypack/applypack/compare/v2.61.6...v2.61.7
 [2.61.6]: https://github.com/applypack/applypack/compare/v2.61.5...v2.61.6
