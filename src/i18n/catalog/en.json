@@ -3437,6 +3437,7 @@
   "screening.detail.yearsAgo": "{n, plural, one {# year ago} other {# years ago}}",
   "screening.detail.stale": "last used {when} — past the {window, plural, one {#-month} other {#-month}} window, half credit",
   "screening.detail.lastUsed": "last used {date}",
+  "screening.detail.inUseNow": "in use now",
   "screening.detail.ask": "ask: {question}",
   "screening.detail.level": "reads as {observed}; the criterion asks {wanted}{tolerance, select, atLeast { or above} atMost { or below} one { (one rung either way)} other { exactly}}",
   "screening.detail.years": "{years} relevant {years, plural, one {year} other {years}}{min, select, none {} other { of {min} asked}}{max, select, none {} other {, at most {max}}}; last ended {when}",

@@ -3437,6 +3437,7 @@
   "screening.detail.yearsAgo": "{n, plural, one {# рік} few {# роки} many {# років} other {# року}} тому",
   "screening.detail.stale": "востаннє використано {when} — поза вікном у {window, plural, one {# місяць} few {# місяці} many {# місяців} other {# місяця}}, половина балу",
   "screening.detail.lastUsed": "востаннє використано: {date}",
+  "screening.detail.inUseNow": "використовується й зараз",
   "screening.detail.ask": "спитайте: {question}",
   "screening.detail.level": "за текстом — {observed}; критерій вимагає {wanted}{tolerance, select, atLeast { або вище} atMost { або нижче} one { (на щабель вище чи нижче)} other { точно}}",
   "screening.detail.years": "{years, plural, one {# релевантний рік} few {# релевантні роки} many {# релевантних років} other {# релевантного року}}{min, select, none {} other { із {min, number} потрібних}}{max, select, none {} other {, щонайбільше {max, number}}}; остання роль закінчилася {when}",

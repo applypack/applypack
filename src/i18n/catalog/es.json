@@ -3437,6 +3437,7 @@
   "screening.detail.yearsAgo": "{n, plural, one {hace # año} many {hace # de años} other {hace # años}}",
   "screening.detail.stale": "usado por última vez {when} — fuera del margen de {window, plural, one {# mes} many {# de meses} other {# meses}}, mitad de los puntos",
   "screening.detail.lastUsed": "usado por última vez: {date}",
+  "screening.detail.inUseNow": "en uso ahora",
   "screening.detail.ask": "pregunta: {question}",
   "screening.detail.level": "se lee como {observed}; el criterio pide {wanted}{tolerance, select, atLeast { o superior} atMost { o inferior} one { (un escalón arriba o abajo)} other { exactamente}}",
   "screening.detail.years": "{years} {years, plural, one {año relevante} many {de años relevantes} other {años relevantes}}{min, select, none {} other { de {min} pedidos}}{max, select, none {} other {, como máximo {max}}}; el último puesto terminó {when}",

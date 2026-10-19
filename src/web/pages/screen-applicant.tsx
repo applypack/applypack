@@ -20,7 +20,7 @@ import {
 } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
-import { formatRange, parseRange } from '../../screening/dates';
+import { formatRange } from '../../screening/dates';
 import { trajectoryLine, trajectoryOf } from '../../screening/trajectory';
 import { STANDOUT_SINCE } from '../../screening/prompts';
 import { criterionLabel, CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type Rubric } from '../../screening/rubric';
@@ -280,13 +280,13 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               ) : (
                 <ul class="mt-2 space-y-1.5 text-sm">
                   {reply.roles.map((r) => {
-                    const range = parseRange(r.start, r.end, now);
+                    const range = formatRange(r.start, r.end, now);
                     return (
                       <li class={`flex flex-wrap gap-x-2 ${r.relevant ? 'text-ink' : 'text-ink-faint'}`}>
                         <span class="font-medium">{r.position}</span>
                         {r.employer && <span>· {r.employer}</span>}
                         <span class="tabular-nums text-ink-faint">
-                          {range ? formatRange(range, now) : [r.start, r.end].filter(Boolean).join(' – ') || t('screening.applicant.noDates')}
+                          {range ?? ([r.start, r.end].filter(Boolean).join(' – ') || t('screening.applicant.noDates'))}
                         </span>
                         {(r.sector || r.companyType) && (
                           <span class="text-ink-faint">

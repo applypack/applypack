@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
 import { sectorMatches } from '../sectors';
-import { monthsSinceLatest, parseRange, parseResumeDate, yearsCovered, type DateRange } from './dates';
+import { formatResumeDate, monthsSinceLatest, parseRange, parseResumeDate, yearsCovered, type DateRange } from './dates';
 import { answerShape, type ImpactGrade, type OverallGrade, type ScreenAnswer, type ScreenReply, type ScreenRole } from './prompts';
 import { coreCriteria, CRITERION_MODES, EVIDENCE_RUNGS, SCREEN_LEVELS, wordedTable, type Criterion, type EvidenceRung, type Rubric } from './rubric';
 
@@ -160,11 +160,13 @@ export function scoreScreening(input: ScreenScoreInput): ScreenBreakdown {
           if (rung !== 'absent') skillsCovered++;
           if (rank(rung) >= rank('role')) skillsStrong++;
           if (c.spec.core && rung !== 'absent') coreCovered++;
-          const months = a?.last_used ? monthsSince(a.last_used, now) : null;
+          // A term the resume does not show was never used, whatever date came with it (#565).
+          const lastUsed = rung === 'absent' ? null : (a?.last_used ?? null);
+          const months = lastUsed ? monthsSince(lastUsed, now) : null;
           if (c.spec.recentWithinMonths !== null && months !== null && months > c.spec.recentWithinMonths) {
             credit = round1(credit * SCREEN_SCORING.staleFactor * 100) / 100;
             detail = `last used ${describeMonths(months)} — past the ${c.spec.recentWithinMonths}-month window, half credit`;
-          } else if (a?.last_used) detail = `last used ${a.last_used}`;
+          } else if (lastUsed) detail = `last used ${lastUsed}`;
           gate = rank(rung) >= rank(c.spec.minRung) && rung !== 'absent' ? 'pass' : 'fail';
         } else {
           gate = rung === 'absent' ? 'fail' : rank(rung) >= rank('project') ? 'pass' : 'unknown';
@@ -490,7 +492,11 @@ export function detailWords(detail: string): string {
   if ((m = DETAIL_NO_ROLE_AT.exec(detail))) return t('screening.detail.noRoleAt', { items: m[1]! });
   if ((m = DETAIL_INDUSTRY.exec(detail))) return t('screening.detail.industry', { years: Number(m[1]), items: m[2]!, min: optional(m[3]) });
   if ((m = DETAIL_NO_ROLE_IN.exec(detail))) return t('screening.detail.noRoleIn', { items: m[1]! });
-  if ((m = DETAIL_LAST_USED.exec(detail))) return t('screening.detail.lastUsed', { date: m[1]! });
+  if ((m = DETAIL_LAST_USED.exec(detail))) {
+    // The resume's own words for the date ("heute", "дотепер") are read, then worded for the reader (#565).
+    const date = parseResumeDate(m[1]);
+    return date === 'present' ? t('screening.detail.inUseNow') : t('screening.detail.lastUsed', { date: date ? formatResumeDate(date) : m[1]! });
+  }
   if ((m = DETAIL_ASK.exec(detail))) return t('screening.detail.ask', { question: m[1]! });
   // The overall read: the model's reasons, its concerns marked by us.
   return detail
@@ -528,7 +534,9 @@ const RowSchema = z.object({
   quote: z.string().nullable(),
   detail: z.string().default(''),
   question: z.string().nullable(),
-});
+})
+  // A verdict stored before #565 could date a term the resume does not show.
+  .transform((row) => (row.answer === 'absent' && row.detail.startsWith('last used ') ? { ...row, detail: '' } : row));
 
 const BreakdownSchema = z.object({
   v: z.literal(2),
