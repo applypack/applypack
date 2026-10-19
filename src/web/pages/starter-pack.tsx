@@ -24,6 +24,7 @@ import type {
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { sourceLabel } from '../source-names';
+import type { HideBelow } from '../table-hide';
 
 export interface PackSegmentChoice extends PackSegment {
   count: number;
@@ -60,14 +61,14 @@ export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segme
 const BoardCell: FC<{ entry: ResolvedEntry }> = ({ entry }) => (
   <>
     <span translate="no">
-      <Tag>{sourceLabel(entry.atsType)}</Tag>
+      <Tag wrap>{sourceLabel(entry.atsType)}</Tag>
     </span>{' '}
     <a
       href={entry.boardUrl}
       target="_blank"
       rel="noopener"
       translate="no"
-      class="font-mono text-meta text-ink-muted transition-colors duration-150 hover:text-accent-strong"
+      class="font-mono text-meta text-ink-muted transition-colors duration-150 [overflow-wrap:anywhere] hover:text-accent-strong"
     >
       {entry.atsToken}
     </a>
@@ -80,63 +81,75 @@ const BoardCell: FC<{ entry: ResolvedEntry }> = ({ entry }) => (
   </>
 );
 
+/**
+ * The pack tables' columns (#619): the company takes what is left and
+ * truncates; the board keeps its widest vendor tag and joins from `sm`, where
+ * a phone shows it under the company's name; the open jobs join from `sm`
+ * too. table-hide.test.ts holds them inside the card's padding.
+ */
+export const PACK_WIDTHS = ['w-[5.25rem]', '', 'w-[9rem]', 'w-[5.5rem]'];
+export const PACK_HIDE: HideBelow = ['', '', 'sm', 'sm'];
+export const UNRESOLVED_WIDTHS = ['w-[40%]', ''];
+export const ADDED_WIDTHS = ['', 'w-[9rem]'];
+
 const ResolvedTable: FC<{
   entries: ResolvedEntry[];
   selectable?: boolean;
 }> = ({ entries, selectable = false }) => (
-  <div class="overflow-x-auto">
-    <div class="min-w-[36rem]">
-      <Table
-        columns={[
-          ...(selectable ? [t('packs.col.add')] : []),
-          t('common.company'),
-          t('packs.col.board'),
-          <span class="block text-right">{t('packs.openJobs')}</span>,
-        ]}
-      >
-        {entries.map((e) => (
-          <Tr>
-            {selectable && (
-              <Td>
-                <input
-                  type="checkbox"
-                  class="h-4 w-4 accent-accent"
-                  name="pick"
-                  value={`${e.segment}|${e.name}|${e.atsType}|${e.atsToken}`}
-                  checked
-                  aria-label={t('packs.addNamed', { name: e.name })}
-                />
-              </Td>
-            )}
-            <Td class="font-medium text-ink">
-              <span translate="no">{e.name}</span>
-            </Td>
-            <Td>
-              <BoardCell entry={e} />
-            </Td>
-            <Td class="text-right tabular-nums text-ink-muted">{e.jobsCount}</Td>
-          </Tr>
-        ))}
-      </Table>
-    </div>
-  </div>
+  <Table
+    widths={selectable ? PACK_WIDTHS : PACK_WIDTHS.slice(1)}
+    hideBelow={selectable ? PACK_HIDE : PACK_HIDE.slice(1)}
+    columns={[
+      ...(selectable ? [t('packs.col.add')] : []),
+      t('common.company'),
+      t('packs.col.board'),
+      <span class="block text-right">{t('packs.openJobs')}</span>,
+    ]}
+  >
+    {entries.map((e) => (
+      <Tr>
+        {selectable && (
+          <Td>
+            <input
+              type="checkbox"
+              class="h-4 w-4 accent-accent"
+              name="pick"
+              value={`${e.segment}|${e.name}|${e.atsType}|${e.atsToken}`}
+              checked
+              aria-label={t('packs.addNamed', { name: e.name })}
+            />
+          </Td>
+        )}
+        <Td class="font-medium text-ink">
+          <div class="truncate" translate="no" title={e.name}>
+            {e.name}
+          </div>
+          <div class="mt-0.5 font-normal sm:hidden">
+            <BoardCell entry={e} />
+          </div>
+        </Td>
+        <Td>
+          <BoardCell entry={e} />
+        </Td>
+        <Td class="text-right tabular-nums text-ink-muted">{e.jobsCount}</Td>
+      </Tr>
+    ))}
+  </Table>
 );
 
 const UnresolvedList: FC<{ entries: UnresolvedEntry[] }> = ({ entries }) => (
-  <div class="overflow-x-auto">
-    <div class="min-w-[28rem]">
-      <Table columns={[t('common.company'), t('packs.col.why')]}>
-        {entries.map((e) => (
-          <Tr>
-            <Td class="font-medium text-ink">
-              <span translate="no">{e.name}</span>
-            </Td>
-            <Td class="text-ink-muted">{e.reason}</Td>
-          </Tr>
-        ))}
-      </Table>
-    </div>
-  </div>
+  <Table widths={UNRESOLVED_WIDTHS} columns={[t('common.company'), t('packs.col.why')]}>
+    {entries.map((e) => (
+      <Tr>
+        <Td class="truncate font-medium text-ink">
+          <span translate="no" title={e.name}>
+            {e.name}
+          </span>
+        </Td>
+        <Td class="break-words text-ink-muted">{e.reason}</Td>
+      </Tr>
+    ))}
+  </Table>
 );
 
 /** Where the pack flow came from: the wizard's boards step, or Companies (ADR 0040). */
@@ -241,24 +254,23 @@ export const StarterPackResultPage: FC<{
           <Hint class="mb-4">
             {t('packs.enableThemToIncludeTheir')}
           </Hint>
-          <div class="overflow-x-auto">
-            <div class="min-w-[28rem]">
-              <Table columns={[t('common.company'), t('packs.col.board')]}>
-                {added.map((a) => (
-                  <Tr>
-                    <Td class="font-medium text-ink">
-                      <span translate="no">{a.name}</span>
-                    </Td>
-                    <Td>
-                      <span translate="no">
-                        <Tag>{sourceLabel(a.atsType)}</Tag> <span class="font-mono text-meta text-ink-muted">{a.atsToken}</span>
-                      </span>
-                    </Td>
-                  </Tr>
-                ))}
-              </Table>
-            </div>
-          </div>
+          <Table widths={ADDED_WIDTHS} columns={[t('common.company'), t('packs.col.board')]}>
+            {added.map((a) => (
+              <Tr>
+                <Td class="truncate font-medium text-ink">
+                  <span translate="no" title={a.name}>
+                    {a.name}
+                  </span>
+                </Td>
+                <Td>
+                  <span translate="no">
+                    <Tag wrap>{sourceLabel(a.atsType)}</Tag>{' '}
+                    <span class="font-mono text-meta text-ink-muted [overflow-wrap:anywhere]">{a.atsToken}</span>
+                  </span>
+                </Td>
+              </Tr>
+            ))}
+          </Table>
           <form method="post" action="/companies/starter-pack/enable" class="mt-4 flex gap-2">
             {next && <input type="hidden" name="next" value={next} />}
             {added.map((a) => (

@@ -5,6 +5,8 @@ import { WATCHLIST_HIDE, WATCHLIST_WIDTHS } from './pages/watchlist';
 import { JOBS_HIDE, JOBS_WIDTHS } from './pages/jobs-list';
 import { RUNS_HIDE, RUNS_WIDTHS } from './pages/runs';
 import { CANDIDATE_HIDE, CANDIDATE_WIDTHS } from './pages/discovery';
+import { AI_PLAN_HIDE, AI_PLAN_WIDTHS } from './pages/ai-plan';
+import { ADDED_WIDTHS, PACK_HIDE, PACK_WIDTHS, UNRESOLVED_WIDTHS } from './pages/starter-pack';
 
 test('a column hidden below a breakpoint hides its header and its cells from the same declaration', () => {
   const hide = ['', 'xl', 'lg', '', 'sm', 'sm', ''] as const;
@@ -46,9 +48,14 @@ const NARROWEST_BOX = { '': 320 - 2 * 16, sm: 640 - 2 * 24, md: 768 - 64 - 2 * 2
 const CELL_PADDING = { '': 24, sm: 32, md: 32, lg: 32, xl: 32 } as const;
 const BREAKPOINTS = ['', 'sm', 'md', 'lg', 'xl'] as const;
 
-/** Each column's room for its content in the narrowest box from `at` up; null for a hidden one. */
-const room = (widths: readonly string[], hide: HideBelow, at: (typeof BREAKPOINTS)[number]): (number | null)[] =>
-  columnWidths(widths, hide, at, NARROWEST_BOX[at]).map((w) => (w === null ? null : w - CELL_PADDING[at]));
+/** A card's padding and border (`p-5`, 1 px a side): a table inside one has that much less room — a settings section as much, measured. */
+const CARD_INSET = 2 * (20 + 1);
+/** From lg, Settings puts its tab rail beside the section: 12rem and a 40 px gap. */
+const SETTINGS_RAIL = 192 + 40;
+
+/** Each column's room for its content in the narrowest box from `at` up, less `inset`; null for a hidden one. */
+const room = (widths: readonly string[], hide: HideBelow | undefined, at: (typeof BREAKPOINTS)[number], inset = 0): (number | null)[] =>
+  columnWidths(widths, hide, at, NARROWEST_BOX[at] - inset).map((w) => (w === null ? null : w - CELL_PADDING[at]));
 const where = (at: string): string => at || 'phone';
 
 /** The wider of the watchlist's two selects: the alert one's `min-w-[8.75rem]`. */
@@ -81,6 +88,18 @@ const CANDIDATE_BUTTON_PX = 150;
 const TITLE_MIN_PX = 180;
 const WHAT_HAPPENED_MIN_PX = 120;
 const BOARD_MIN_PX = 64;
+/** The billing badge around its widest word: the Ukrainian "безкоштовно" (#619). */
+const BILLING_WORD_PX = 100;
+/** The widest word of a task's name: the Spanish "presentación". */
+const TASK_WORD_PX = 87;
+/** The widest vendor tag in a starter pack: "SmartRecruiters". */
+const ATS_TAG_PX = 109;
+/** "Add" over the checkboxes, widest in Ukrainian: "Додати". */
+const ADD_HEADER_PX = 49;
+/** The widest word over the open jobs: the French "ouvertes". */
+const JOBS_HEADER_WORD_PX = 56;
+/** The company column's header, widest in French: "Entreprise". */
+const COMPANY_HEADER_PX = 65;
 
 test('the watchlist keeps both selects, and its buttons, in columns at least as wide as they are, at every width (#537)', () => {
   for (const at of BREAKPOINTS) {
@@ -118,5 +137,35 @@ test('the discovered boards keep their buttons in their box at every width (#612
     const cols = room(CANDIDATE_WIDTHS, CANDIDATE_HIDE, at);
     assert.ok(cols[0]! >= BOARD_MIN_PX, `at ${where(at)} width the board gets ${Math.round(cols[0]!)} px`);
     assert.ok(cols[5]! >= CANDIDATE_BUTTON_PX, `at ${where(at)} width the buttons get ${Math.round(cols[5]!)} px`);
+  }
+});
+
+test('the engine table keeps the billing badge and the task in their columns, on /ai and in Settings (#619)', () => {
+  for (const at of BREAKPOINTS) {
+    const inSettings = CARD_INSET + (at === 'lg' || at === 'xl' ? SETTINGS_RAIL : 0);
+    for (const inset of [CARD_INSET, inSettings]) {
+      const [task, answered] = room(AI_PLAN_WIDTHS, AI_PLAN_HIDE, at, inset);
+      assert.ok(answered! >= BILLING_WORD_PX, `at ${where(at)} width the engine that answers gets ${Math.round(answered!)} px`);
+      assert.ok(task! >= TASK_WORD_PX, `at ${where(at)} width the task gets ${Math.round(task!)} px`);
+    }
+  }
+});
+
+test('the starter-pack tables fit their card, the board under the name on a phone (#619)', () => {
+  for (const at of BREAKPOINTS) {
+    for (const [widths, hide] of [[PACK_WIDTHS, PACK_HIDE], [PACK_WIDTHS.slice(1), PACK_HIDE.slice(1)]] as const) {
+      const cols = room(widths, hide, at, CARD_INSET);
+      const [company, board, jobs] = cols.slice(-3);
+      if (cols.length === 4) assert.ok(cols[0]! >= ADD_HEADER_PX, `at ${where(at)} width the checkboxes get ${Math.round(cols[0]!)} px`);
+      assert.ok(company! >= COMPANY_HEADER_PX, `at ${where(at)} width the company gets ${Math.round(company!)} px`);
+      // Below sm the board rides under the company's name, at the company's width.
+      assert.ok((board ?? company!) >= ATS_TAG_PX, `at ${where(at)} width the board gets ${Math.round(board ?? company!)} px`);
+      if (at !== '') assert.ok(board !== null && jobs !== null, `the board and the open jobs have columns from ${at}`);
+      if (jobs != null) assert.ok(jobs >= JOBS_HEADER_WORD_PX, `at ${where(at)} width the open jobs get ${Math.round(jobs)} px`);
+    }
+    const [unresolved] = room(UNRESOLVED_WIDTHS, undefined, at, CARD_INSET);
+    assert.ok(unresolved! >= COMPANY_HEADER_PX, `at ${where(at)} width an unresolved company gets ${Math.round(unresolved!)} px`);
+    const [added, addedBoard] = room(ADDED_WIDTHS, undefined, at, CARD_INSET);
+    assert.ok(added! >= COMPANY_HEADER_PX && addedBoard! >= ATS_TAG_PX, `at ${where(at)} width an added row gets ${Math.round(added!)} and ${Math.round(addedBoard!)} px`);
   }
 });
