@@ -4,6 +4,7 @@ import {
   missingCredentials,
   providerUnusable,
   resolveAiEngine,
+  unsetModelName,
   type AiProviderId,
 } from '../ai-engine';
 import { resolveAiKey } from '../ai-keys';
@@ -106,7 +107,9 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
         ? t('aiTest.offersNone')
         : t('aiTest.offers', { n: offered.length, models: `${offered.slice(0, OFFERED_SHOWN).join(', ')}${offered.length > OFFERED_SHOWN ? ', …' : ''}` });
   if (attempt.text !== null) {
-    const worked = model ? t('aiTest.works', { engine: label, seconds, model }) : t('aiTest.worksCliDefault', { engine: label, seconds });
+    // An empty slot on the OpenAI-compatible engine asked for that engine's own default, which has a name (#606).
+    const named = model || (provider === 'openai_api' ? unsetModelName(provider) : null);
+    const worked = named ? t('aiTest.works', { engine: label, seconds, model: named }) : t('aiTest.worksCliDefault', { engine: label, seconds });
     return { ok: true, text: sentences(worked, pickedForTest ? t('aiTest.pickedForTest') : '', offer) };
   }
   // A model the server never pulled is the likeliest cause on a local server; the list says so.

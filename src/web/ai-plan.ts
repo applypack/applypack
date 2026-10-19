@@ -1,4 +1,4 @@
-import { AI_PROVIDER_LABELS, taskPlans, type AiProviderId, type ResolvedAiEngine } from '../ai-engine';
+import { AI_PROVIDER_LABELS, taskPlans, unsetModelName, type AiProviderId, type ResolvedAiEngine } from '../ai-engine';
 import { AI_TASK_ROLE, taskDesc, taskLabel, type AiTask } from '../ai-tasks';
 import type { AiBilling } from '../ai-usage';
 import { t } from '../i18n/t';
@@ -64,8 +64,8 @@ export function aiPlanRows(engine: ResolvedAiEngine, billingFor: (id: AiProvider
       engines: p.engines.map((id) => ({
         id,
         label: AI_PROVIDER_LABELS[id],
-        // An empty slot runs a CLI's own default; the local engine runs nothing (#563).
-        model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || t(id === 'local_api' ? 'ai.noModel' : 'ai.cliDefault'),
+        // An empty slot runs a CLI's own default, the OpenAI-compatible engine its own (#606); the local engine runs nothing (#563).
+        model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || (unsetModelName(id) ?? t('ai.noModel')),
         billing: billingFor(id),
       })),
     }));

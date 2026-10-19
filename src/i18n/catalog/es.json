@@ -967,7 +967,6 @@
   "settingsRoute.unknownSearch": "La petición no indicaba ninguna búsqueda, así que no cambió nada. Recarga la página y usa sus botones.",
   "settingsRoute.searchGone": "Esa búsqueda ya no existe, así que no se guardó nada. Elige una en Búsquedas, más abajo.",
   "settingsRoute.noReasonGiven": "sin motivo indicado",
-  "settingsRoute.cliDefault": "Predeterminado de la CLI",
   "settingsRoute.engineDesc.anthropic_api": "Messages API: el más rápido, se paga por token.",
   "settingsRoute.engineDesc.claude_code": "claude -p sin interfaz con tu suscripción de Claude.ai. Más lento, sin factura por token.",
   "settingsRoute.engineDesc.gemini_cli": "gemini -p sin interfaz con tu cuenta de Google o GEMINI_API_KEY.",

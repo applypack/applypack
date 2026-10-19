@@ -344,6 +344,19 @@ export function missingCredentials(id: AiProviderId): string {
   return t('aiTest.noCredentials', { engine: AI_PROVIDER_LABELS[id], how });
 }
 
+/** What the OpenAI-compatible engine asks for when neither its slot nor OPENAI_MODEL names a model. */
+export const OPENAI_DEFAULT_MODEL = 'gpt-5-mini';
+
+/**
+ * An empty model slot as a page names it (#606): the model the OpenAI-compatible
+ * engine then asks for, a CLI's own default, or null on the local engine, which
+ * runs no model until one is chosen.
+ */
+export function unsetModelName(id: AiProviderId): string | null {
+  if (id === 'openai_api') return OPENAI_DEFAULT_MODEL;
+  return id === 'local_api' ? null : t('ai.cliDefault');
+}
+
 /**
  * Default model per backend per role when the slot is empty. '' means "let
  * the CLI use its own configured default" (the arg builders omit --model).

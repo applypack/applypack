@@ -77,6 +77,7 @@ import {
   parseAiEngineConfig,
   resolveAiEngine,
   toggleAiEngine,
+  unsetModelName,
   withEngineTasks,
   type AiEngineConfig,
   type AiProviderId,
@@ -320,8 +321,9 @@ async function loadSettingsProps(here: string) {
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
-    // A CLI engine with no model set runs whatever its own configuration names; the local engine runs none (#563).
-    const unset = id === 'local_api' ? '' : t('settingsRoute.cliDefault');
+    // A CLI engine with no model set runs whatever its own configuration names, the OpenAI-compatible engine its own
+    // default (#606); the local engine runs none (#563).
+    const unset = unsetModelName(id) ?? '';
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || unset;
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || unset;
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;

@@ -8,7 +8,7 @@
  * states theirs (#483). Pure — tested in lane.test.ts.
  */
 
-import { AI_PROVIDER_LABELS, isAiProviderId } from '../ai-engine';
+import { AI_PROVIDER_LABELS, isAiProviderId, unsetModelName } from '../ai-engine';
 import { slowTail, TIMED_FROM, type AnswerTimes } from '../ai-spend';
 import type { AiFeature } from '../ai-usage';
 import type { MessageKey } from '../i18n/catalog';
@@ -112,10 +112,13 @@ export interface LaneTimes {
 export function laneTimes(target: { engine: string; model: string } | null, times: readonly AnswerTimes[]): LaneTimes {
   if (!target) return { lane: 'other', name: t('lane.other'), recorded: [] };
   const lane = laneOf(target.engine, target.model);
-  const engine = isAiProviderId(target.engine) ? AI_PROVIDER_LABELS[target.engine] : target.engine;
+  const id = isAiProviderId(target.engine) ? target.engine : null;
+  const engine = id ? AI_PROVIDER_LABELS[id] : target.engine;
+  // An empty slot is named for what answers it: the OpenAI-compatible engine's own default is a model, not a CLI's (#606).
+  const model = target.model || (id && unsetModelName(id)) || t('ai.cliDefault');
   return {
     lane,
-    name: lane === 'other' ? `${engine} · ${target.model || t('ai.cliDefault')}` : t(LABEL[lane][0], { model: LABEL[lane][1] }),
+    name: lane === 'other' ? `${engine} · ${model}` : t(LABEL[lane][0], { model: LABEL[lane][1] }),
     recorded: times.filter((r) => r.engine === target.engine && r.model === target.model),
   };
 }

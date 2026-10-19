@@ -967,7 +967,6 @@
   "settingsRoute.unknownSearch": "That request named no search, so nothing changed. Reload the page and use its buttons.",
   "settingsRoute.searchGone": "That search no longer exists, so nothing was saved. Pick one under Searches below.",
   "settingsRoute.noReasonGiven": "no reason given",
-  "settingsRoute.cliDefault": "CLI default",
   "settingsRoute.engineDesc.anthropic_api": "Messages API: fastest, pays per token.",
   "settingsRoute.engineDesc.claude_code": "Headless claude -p on your Claude.ai subscription. Slower, no per-token bill.",
   "settingsRoute.engineDesc.gemini_cli": "Headless gemini -p on your Google account or GEMINI_API_KEY.",

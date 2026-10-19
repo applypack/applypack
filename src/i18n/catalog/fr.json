@@ -967,7 +967,6 @@
   "settingsRoute.unknownSearch": "Cette requête ne désignait aucune recherche, donc rien n'a changé. Rechargez la page et utilisez ses boutons.",
   "settingsRoute.searchGone": "Cette recherche n'existe plus, donc rien n'a été enregistré. Choisissez-en une sous Recherches ci-dessous.",
   "settingsRoute.noReasonGiven": "aucune raison indiquée",
-  "settingsRoute.cliDefault": "Valeur par défaut de la CLI",
   "settingsRoute.engineDesc.anthropic_api": "Messages API : le plus rapide, facturé au token.",
   "settingsRoute.engineDesc.claude_code": "claude -p sans interface, sur votre abonnement Claude.ai. Plus lent, pas de facturation au token.",
   "settingsRoute.engineDesc.gemini_cli": "gemini -p sans interface, sur votre compte Google ou GEMINI_API_KEY.",
