@@ -41,7 +41,7 @@ import { reviewIsStale } from '../../resume/review-score';
 import { readIssues } from '../../resume/prompts';
 import type { ParseWarning } from '../../resume/parse-warnings';
 import { describeStructure, type DocxStructure } from '../../resume/docx-structure';
-import type { DocxProps } from '../../resume/docx-props';
+import { propsCandidate, type DocxProps } from '../../resume/docx-props';
 import type { ProfileDraft } from '../../resume/profile-draft';
 import type { Coverage, CoverageKind } from '../../resume/coverage';
 import type { MessageKey } from '../../i18n/catalog';
@@ -354,7 +354,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
 
       {coverage && <CoverageCard coverage={coverage} />}
 
-      {structure && <TemplateCheck resumeId={resume.id} candidate={resume.text.split('\n')[0]?.trim() || resume.name} structure={structure} props={props} />}
+      {structure && <TemplateCheck resumeId={resume.id} candidate={propsCandidate(resume.text, resume.name)} structure={structure} props={props} />}
 
       <CleanVersion resumeId={resume.id} kind={structure?.kind ?? null} filename={resume.sourceFilename} />
 

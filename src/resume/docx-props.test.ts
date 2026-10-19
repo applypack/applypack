@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import JSZip from 'jszip';
-import { readProps, withProps } from './docx-props';
+import { propsCandidate, readProps, withProps } from './docx-props';
+import { documentXmlToText } from './docx-text';
 
 const twin = () => readFileSync(join(__dirname, 'fixtures', 'flow-fragmented.docx'));
 
@@ -45,4 +46,19 @@ test('a file with no properties part reads as all null and is returned untouched
   const bare = buildZip([{ name: 'word/document.xml', data: Buffer.from('<w:document/>') }]);
   assert.deepEqual(readProps(bare), { title: null, creator: null, lastModifiedBy: null, modified: null, application: null });
   assert.equal(await withProps(bare, { title: 'x' }), bare, 'no orphan part is invented');
+});
+
+test('#608: the fixed properties carry the name the header reads, not a Word title’s mark', () => {
+  const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const para = (text: string, style = '') =>
+    `<w:p>${style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : ''}<w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const text = documentXmlToText(
+    `<w:document xmlns:w="${W}"><w:body>${para('Alex Rivera', 'Title')}${para('Senior Backend Engineer')}${para('alex@example.com')}<w:sectPr/></w:body></w:document>`,
+  );
+  assert.match(text, /^# Alex Rivera\n/, 'the reader marks a Word title');
+  assert.equal(propsCandidate(text, 'my resume'), 'Alex Rivera');
+  assert.equal(propsCandidate('**Alex Rivera**\nSenior Backend Engineer', 'my resume'), 'Alex Rivera');
+  // A text that opens on a section has no name to read: the resume's own name stands in.
+  assert.equal(propsCandidate('EXPERIENCE\nAcme — Engineer', 'my resume'), 'my resume');
+  assert.equal(propsCandidate('', 'my resume'), 'my resume');
 });

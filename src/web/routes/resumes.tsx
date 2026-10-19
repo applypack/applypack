@@ -37,7 +37,7 @@ import {
 import { readAnswers, unansweredAsks } from '../../resume/answers';
 import { describeStructure, docxStructure, type DocxStructure } from '../../resume/docx-structure';
 import { patchDocx } from '../../resume/docx-patch';
-import { readProps, withProps, type DocxProps } from '../../resume/docx-props';
+import { propsCandidate, readProps, withProps, type DocxProps } from '../../resume/docx-props';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { cleanDocx, patchBase, type DraftInput } from '../../resume/draft-document';
 import { originalFile } from '../../resume/kept-upload';
@@ -409,7 +409,7 @@ resumesRoute.post('/resumes/:id/props', async (c) => {
   const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!resume || !row) return c.text(t('http.notFound'), 404);
   if (!isDocx(row.sourceFilename)) return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.propsOnlyDocx'));
-  const candidate = resume.text.split('\n')[0]?.trim() || resume.name;
+  const candidate = propsCandidate(resume.text, resume.name);
   const fixed = await withProps(Buffer.from(row.original), { title: `${candidate} — Resume`, creator: candidate, lastModifiedBy: candidate });
   await replaceResumeBytes(id, fixed);
   return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.propsFixed', { candidate }));
