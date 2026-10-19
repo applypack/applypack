@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.4] — 2026-10-18
+
+### Changed
+- A skill your resume names, even only on its skills line, counts as in your
+  resume in a comparison; how thinly it is shown goes in the keyword's note
+  ("listed only, no role shows it") instead of a contradictory "can't
+  claim". Each posting's next comparison is analysed afresh once after this
+  update.
+
+### Fixed
+- When a new comparison of the same posting moves the score by no more than
+  re-running the same text would (up to 10 points), the comparison and the
+  Tailor page say so, so a small drop after applying the suggestions no
+  longer looks like your mistake.
+
 ## [2.59.3] — 2026-10-18
 
 ### Fixed
@@ -6214,6 +6229,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.59.4]: https://github.com/applypack/applypack/compare/v2.59.3...v2.59.4
 [2.59.3]: https://github.com/applypack/applypack/compare/v2.59.2...v2.59.3
 [2.59.2]: https://github.com/applypack/applypack/compare/v2.59.1...v2.59.2
 [2.59.1]: https://github.com/applypack/applypack/compare/v2.59.0...v2.59.1

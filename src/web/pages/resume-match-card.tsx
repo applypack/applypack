@@ -43,7 +43,7 @@ import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
 import { readyToApply, scoreLines, type Advice, type ScoreLine } from '../score-lines';
-import { diffMatches } from '../../resume/diff';
+import { diffMatches, RERUN_SPREAD, withinRerunSpread } from '../../resume/diff';
 import { earlierParams, previousFor } from '../../resume/match-name';
 import { jobHref } from '../job-tabs';
 import type { SummaryGuide } from '../../resume/summary-guide';
@@ -618,6 +618,7 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
     { keywords: readKeywords(match.keywords), breakdown: readBreakdown(match.breakdown) },
   );
   if (delta.gained.length === 0 && delta.lost.length === 0 && !delta.components) return null;
+  const scoreDelta = match.matchScore - previous.matchScore;
   return (
     <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-meta leading-5 text-ink-muted">
       <span class="font-medium text-ink">{t('match.delta.heading', earlierParams(previous))} </span>
@@ -645,7 +646,9 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
           {' · '}
         </span>
       )}
-      <span>{delta.components ? componentMoves(delta.components) : t('match.delta.score', { delta: fmtDelta(match.matchScore - previous.matchScore) })}</span>
+      <span>{delta.components ? componentMoves(delta.components) : t('match.delta.score', { delta: fmtDelta(scoreDelta) })}</span>
+      {/* Applying the report's own wording can lower the next score by as much as a plain re-run moves it (#206). */}
+      {withinRerunSpread(scoreDelta) && <span class="mt-1 block">{t('match.delta.withinSpread', { n: RERUN_SPREAD })}</span>}
     </div>
   );
 };

@@ -284,6 +284,12 @@ test('ask_user is sparing, hard-requirement silence is never a fail', () => {
   bothVariants(/choose the lower/);
 });
 
+test('present is a word the resume spells, and the doubt about it goes in the note (#205)', () => {
+  bothVariants(/"present": the resume spells it/);
+  bothVariants(/it is still "present", and the doubt goes in "note"/);
+  bothVariants(/"add": the resume does NOT spell it/);
+});
+
 test('actions demand business impact and forbid invented metrics', () => {
   const { system } = buildMatchPrompt('resume', JOB, 'full');
   assert.match(system, /State the business result \(revenue, cost, latency/);
