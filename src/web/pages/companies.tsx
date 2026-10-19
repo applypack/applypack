@@ -211,6 +211,15 @@ const AGGREGATOR_LABELS = Object.values(AtsType)
 /** Sources that need the user's own vendor account (ADR 0034) — hidden until it exists. */
 const KEYED_ATS: string[] = [AtsType.ADZUNA, AtsType.FRANCETRAVAIL];
 
+/** Add one company's ATS choices: a vendor by its name, a kind that is no vendor in the reader's words — never the stored code (#606). */
+export function atsChoices(keyedUnlocked: readonly string[]): { value: AtsType; label: string; worded: boolean }[] {
+  return PROBEABLE_ATS.filter((ats) => !KEYED_ATS.includes(ats) || keyedUnlocked.includes(ats)).map((ats) => ({
+    value: ats,
+    label: sourceLabel(ats),
+    worded: wordedSource(ats),
+  }));
+}
+
 /**
  * "Enable sources for your countries" (plan §4.3): DOU and Djinni rows for a
  * search that names Ukraine, the Arbeitnow rows for Germany or the UK, built
@@ -461,9 +470,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
               </Field>
               <Field label={t('companies.ats')}>
                 <Select name="atsType">
-                  {PROBEABLE_ATS.filter((ats) => !KEYED_ATS.includes(ats) || keyedUnlocked.includes(ats)).map((ats) => (
-                    <option value={ats} translate="no" selected={draft?.atsType === ats}>
-                      {ats}
+                  {atsChoices(keyedUnlocked).map((ats) => (
+                    <option value={ats.value} translate={ats.worded ? undefined : 'no'} selected={draft?.atsType === ats.value}>
+                      {ats.label}
                     </option>
                   ))}
                 </Select>
