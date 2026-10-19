@@ -14,6 +14,7 @@ import {
   taskPlans,
   toggleAiEngine,
   withEngineFirst,
+  adoptFoundEngine,
   withEngineTasks,
   type AiEngineEnv,
 } from './ai-engine';
@@ -427,5 +428,23 @@ describe('tasks per engine', () => {
     // The same when the engines behind it cannot run here (no key).
     const keyless = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: ['anthropic_api'] }), 'local_api', env, 'gemma4:e4b'), env);
     assert.deepEqual(keyless.chainFor('letters'), ['local_api']);
+  });
+});
+
+describe("setup's Continue", () => {
+  // A fresh install: the .env default is the API with no key, and the Claude CLI answered on this machine.
+  const fresh: AiEngineEnv = { ...ENV, provider: 'anthropic_api' };
+  const none = { order: [], models: {}, tasks: {} };
+
+  it('makes the engine found here the chosen one when nothing in the list can run', () => {
+    assert.deepEqual(adoptFoundEngine(none, fresh, ['claude_code']), { ...none, order: ['claude_code'] });
+    assert.deepEqual(adoptFoundEngine({ order: ['anthropic_api'], models: {}, tasks: {} }, fresh, ['claude_code'])?.order, ['claude_code']);
+  });
+
+  it('leaves a list that runs, and adopts nothing that cannot run or was not found', () => {
+    assert.equal(adoptFoundEngine(none, { ...fresh, hasAnthropicKey: true }, ['claude_code']), null);
+    assert.equal(adoptFoundEngine({ order: ['gemini_cli'], models: {}, tasks: {} }, fresh, ['claude_code']), null);
+    assert.equal(adoptFoundEngine(none, fresh, []), null);
+    assert.equal(adoptFoundEngine(none, fresh, ['codex_cli']), null);
   });
 });

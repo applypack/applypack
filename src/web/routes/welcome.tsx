@@ -29,6 +29,7 @@ import { forgetAiProbe, getAiEngineEnv, localAiBase } from '../../ai-runtime';
 import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_LABELS,
+  adoptFoundEngine,
   aiEngineOrder,
   isAiProviderId,
   parseAiEngineConfig,
@@ -222,6 +223,21 @@ welcomeRoute.post('/welcome/ai/local', async (c) => {
   await setAiEngineConfig(withEngineFirst(parseAiEngineConfig(settings.aiEngine), engine, getAiEngineEnv(keys, settings.openAiBaseUrl), model));
   forgetAiProbe();
   return flashRedirect(AI_STEP, 'ok', t('welcome.flash.localFirst', { model }));
+});
+
+/**
+ * Step 1's Continue: an engine found on this machine becomes the chosen one when nothing in the list can run
+ * (`adoptFoundEngine`), so the AI tab shows the engine that answers as the one picked. Calls go where they went.
+ */
+welcomeRoute.post('/welcome/ai/continue', async (c) => {
+  const { statuses, settings } = await loadWelcomeContext();
+  const env = getAiEngineEnv(await getAiKeys(), settings.openAiBaseUrl);
+  const adopted = adoptFoundEngine(parseAiEngineConfig(settings.aiEngine), env, AI_PROVIDER_IDS.filter((id) => statuses[id].ok));
+  if (adopted) {
+    await setAiEngineConfig(adopted);
+    forgetAiProbe();
+  }
+  return c.redirect(SEARCH_STEP, 303);
 });
 
 /** Step 1's optional proof: one tiny live call through the engine that would serve the pipeline. */
