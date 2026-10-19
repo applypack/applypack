@@ -42,10 +42,13 @@ const MD_HEADING = /^\s*(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/;
 /**
  * Markdown's marks around words — **bold**, __bold__, *italic*, _italic_,
  * `code`. A mark counts only with a word against it on the inside and a space
- * or punctuation outside, so first_last@example.com and 2*3*4 keep theirs.
+ * or punctuation outside, so first_last@example.com and 2*3*4 keep theirs. A
+ * span runs 300 characters at most, as a link's words run 200: every page view
+ * reads the text, and an unbounded search from each lone `*` of a long line
+ * would take time squared in its length.
  */
-const EMPHASIS = /(^|[\s(\["'“‘])(\*\*|__|\*|_|`)(?=\S)(.+?)(?<=\S)\2(?=$|[\s)\]"'”’.,;:!?·|—–-])/gu;
-const MD_LINK = /\[([^\]\n]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/gi;
+const EMPHASIS = /(^|[\s(\["'“‘])(\*\*|__|\*|_|`)(?=\S)(.{1,300}?)(?<=\S)\2(?=$|[\s)\]"'”’.,;:!?·|—–-])/gu;
+const MD_LINK = /\[([^\]\n]{1,200})\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/gi;
 const AUTOLINK = /<(https?:\/\/[^>\s]+)>/gi;
 /** A thematic break (`---`, `***`) or a setext underline (`===`): drawn, never read. */
 const RULE_LINE = /^\s*(?:([-*_])(?:\s*\1){2,}|=+)\s*$/;
@@ -179,9 +182,11 @@ function split(lines: string[]): { header: string[]; sections: Section[] } {
       continue;
     }
     // A heading deeper than its section's — `### Title — Company` under
-    // `## Experience` — is a line of that section: a role, a degree.
+    // `## Experience` — is a line of that section: a role, a degree. Only
+    // under a section we know: a Word title further down ("# Engineer") opens
+    // an unknown one, and the `##` sections below it are its peers.
     const deeper = current !== null && current.level !== null && heading.level !== null && heading.level > current.level;
-    if (current && deeper && !isHeadingPhrase(heading.text)) {
+    if (current && deeper && current.kind !== 'other' && !isHeadingPhrase(heading.text)) {
       current.lines.push(heading.text);
       continue;
     }

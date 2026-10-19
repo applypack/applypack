@@ -277,6 +277,18 @@ test('a heading under a section is a line of it, unless it names a section itsel
   assert.equal(r.headings.projects, 'Projects');
 });
 
+test('a Word title further down opens no section that swallows the ones below it', () => {
+  const r = structureFromText('Nazar Boyko\n# Senior Engineer\n\n## TECHNICAL SKILLS AND TOOLING\nPHP, Go\n\n## EXPERIENCE\nAcme\nEngineer Jan 2020 – Present\n- Built it.');
+  assert.deepEqual(r.skills.map((s) => s.keywords), [['PHP', 'Go']]);
+  assert.equal(r.work.length, 1);
+});
+
+test('a long line of lone asterisks is read in linear time', () => {
+  const started = Date.now();
+  structureFromText(`Alex\n\nSUMMARY\n${' *a'.repeat(50_000)}`);
+  assert.ok(Date.now() - started < 2_000, `${Date.now() - started} ms`);
+});
+
 test('a first line set as a heading is the name: a Word title, a name in capitals', () => {
   assert.equal(structureFromText('# Nazar Boyko\nnb@example.com\n\n## SKILLS\nPHP, Go').basics.name, 'Nazar Boyko');
   const caps = structureFromText('NAZAR BOYKO\nSenior Engineer\nnb@example.com\n\nSKILLS\nPHP, Go');
