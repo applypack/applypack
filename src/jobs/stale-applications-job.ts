@@ -1,25 +1,19 @@
 import { prisma } from '../db';
 import { companyForMessage } from '../employer';
 import { logger } from '../logger';
-import { sendDigest } from '../notifier';
-import { t } from '../i18n/t';
-import { getSettings } from '../settings';
+import { dashboardAddress, sendStaleReminder } from '../notifier';
+import { getSchedule, getSettings } from '../settings';
 import { daysSince } from '../text-utils';
 import { appliedWithLabel } from './applied-with';
-import {
-  formatStaleMessage,
-  type StaleApplicationItem,
-} from './stale-applications-format';
+import { formatStaleMessage, type StaleApplicationItem } from './stale-applications-format';
 import type { CronStats } from './cron-run';
 
 const STALE_APPLICATION_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export { formatStaleMessage, type StaleApplicationItem } from './stale-applications-format';
-
 /**
  * Daily cron: find APPLIED jobs that have sat in 'applied' stage for more
- * than 14 days with no recruiter contact, and send a Telegram nudge.
+ * than 14 days with no recruiter contact, and send a reminder of its own.
  */
 export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
   const settings = await getSettings();
@@ -47,12 +41,12 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
   });
 
   const items: StaleApplicationItem[] = rows.map((j) => ({
+    jobId: j.id,
     title: j.title,
     companyName: companyForMessage(j.employer, j.company),
     url: j.url,
     appliedAt: j.appliedAt as Date,
     daysSince: daysSince(j.appliedAt as Date),
-    recruiterContact: j.recruiterContact,
     appliedWith: appliedWithLabel({
       name: j.appliedResume?.name ?? null,
       version: j.appliedResumeVersion,
@@ -64,25 +58,9 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
     return { stats: { found: 0 } };
   }
 
-  // One synthetic AlertJob whose summary IS the message body: the nudge's
-  // markdown is its own, but the chunking and the multi-target broadcast are
-  // sendDigest's and worth reusing. An empty list is never passed — that
-  // branch prints the recap's "no new matches" placeholder.
-  const delivery = await sendDigest(
-    [
-      {
-        title: t('stale.title', { n: items.length }),
-        companyName: t('stale.reminder'),
-        location: '',
-        url: items[0]?.url ?? '',
-        fitScore: 0,
-        salaryMin: null,
-        salaryMax: null,
-        techMatch: [],
-        redFlags: [],
-        summary: formatStaleMessage(items),
-      },
-    ],
+  const [address, schedule] = await Promise.all([dashboardAddress(), getSchedule()]);
+  const delivery = await sendStaleReminder(
+    formatStaleMessage(items, STALE_APPLICATION_DAYS, { address, timeZone: schedule.timezone }),
   );
 
   // A snapshot of a standing state: tomorrow's first digest hour asks again.
@@ -90,6 +68,6 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
     logger.info({ found: items.length, reason: delivery.skipped }, 'stale-applications: nothing sent');
     return { stats: { skipped: 1, reason: delivery.skipped, found: items.length } };
   }
-  logger.info({ found: items.length }, 'stale-applications: digest sent');
+  logger.info({ found: items.length }, 'stale-applications: reminder sent');
   return { stats: { found: items.length } };
 }
