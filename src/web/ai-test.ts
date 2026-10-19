@@ -2,9 +2,9 @@ import { getAiProviderById } from '../ai-provider';
 import {
   AI_PROVIDER_LABELS,
   missingCredentials,
+  OPENAI_DEFAULT_MODEL,
   providerUnusable,
   resolveAiEngine,
-  unsetModelName,
   type AiProviderId,
 } from '../ai-engine';
 import { resolveAiKey } from '../ai-keys';
@@ -108,7 +108,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
         : t('aiTest.offers', { n: offered.length, models: `${offered.slice(0, OFFERED_SHOWN).join(', ')}${offered.length > OFFERED_SHOWN ? ', …' : ''}` });
   if (attempt.text !== null) {
     // An empty slot on the OpenAI-compatible engine asked for that engine's own default, which has a name (#606).
-    const named = model || (provider === 'openai_api' ? unsetModelName(provider) : null);
+    const named = model || (provider === 'openai_api' ? OPENAI_DEFAULT_MODEL : '');
     const worked = named ? t('aiTest.works', { engine: label, seconds, model: named }) : t('aiTest.worksCliDefault', { engine: label, seconds });
     return { ok: true, text: sentences(worked, pickedForTest ? t('aiTest.pickedForTest') : '', offer) };
   }
