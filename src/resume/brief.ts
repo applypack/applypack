@@ -55,10 +55,19 @@ export interface BriefResult {
  */
 export async function briefForPosting(
   job: MatchJobInput & { id: number },
-  opts: { onError?: (reason: string) => void } = {},
+  opts: {
+    onError?: (reason: string) => void;
+    /**
+     * "Rebuild keywords": the person says the keyword list is wrong, and the
+     * brief IS that list (ADR 0044 §3) — reusing it would hand the match the
+     * same frame again, whichever engine wrote it (#410). The new reading
+     * replaces the stored one.
+     */
+    rebuild?: boolean;
+  } = {},
 ): Promise<BriefResult | null> {
   const postingHash = postingHashOf(job);
-  const stored = await getPostingBrief(job.id, postingHash, BRIEF_PROMPT_VERSION);
+  const stored = opts.rebuild ? null : await getPostingBrief(job.id, postingHash, BRIEF_PROMPT_VERSION);
   if (stored) {
     // A row written by an older schema still has to satisfy today's parser —
     // the reuse is only worth having if what comes back is the shape callers expect.
@@ -111,6 +120,7 @@ export async function briefForPosting(
       industry: answer.data.company.industry,
       keywords: answer.data.keywords.length,
       groups: answer.data.requirement_groups.length,
+      rebuild: opts.rebuild === true,
       chars: answer.chars,
       ms: answer.ms,
     },

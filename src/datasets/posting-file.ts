@@ -149,7 +149,8 @@ export interface SavedFile {
  * model's reading second, the file's name last for the title. Its id is the
  * one `identifyPosting` gave: nothing a model said. Flagged `handPicked`: the
  * user chose it, so no base filter and no employer gate turns it away. A page
- * that states no date takes its file's, when that can be one (map.ts:fileDate).
+ * that states no date takes its file's, when that can be one (map.ts:fileDate),
+ * and is `undated`: the date says when it was saved, not when it was posted.
  */
 export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok: true }>, model: ModelFacts | null, externalId: string, now: Date = new Date()): NormalizedJob {
   const facts = read.facts;
@@ -163,6 +164,7 @@ export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok
     location: facts?.location ?? model?.location ?? '',
     description: read.text,
     postedAt: facts?.postedAt ?? fileDate(file.mtimeMs, now),
+    ...(!facts?.postedAt && { undated: true }),
     ...(workplace && { locationHints: { workplace } }),
     employer: facts?.company ?? model?.company ?? null,
     sourceFile: file.relPath,

@@ -87,14 +87,15 @@ test('rows the user brings carry many employers: the source’s own name is neve
 });
 
 test('a mute turns a posting away; the window spares a watched company that wants everything', () => {
-  const rules = { muted: new Set(['acme']), appliedRecently: new Set(['acme', 'globex']) };
+  const until = new Date('2026-12-01T00:00:00Z');
+  const rules = { muted: new Set(['acme']), appliedUntil: new Map([['acme', until], ['globex', until]]) };
   assert.equal(employerGate('acme', rules), 'muted');
   assert.equal(employerGate('acme', rules, true), 'muted');
   assert.equal(employerGate('globex', rules), 'applied');
   assert.equal(employerGate('globex', rules, true), null);
   assert.equal(employerGate('initech', rules), null);
   assert.equal(employerGate(null, rules), null);
-  assert.equal(employerGate('acme', { muted: new Set(), appliedRecently: new Set() }), null);
+  assert.equal(employerGate('acme', { muted: new Set(), appliedUntil: new Map() }), null);
 });
 
 test('the re-apply window takes its listed choices only', () => {

@@ -67,6 +67,26 @@ export function runCounts(stats: Record<string, unknown>): FunnelCounts {
   return Object.fromEntries(DELIVERED.filter((key) => counts[key] !== undefined).map((key) => [key, counts[key]]));
 }
 
+/**
+ * What the first scoring of postings a paused fetch stored unscored adds to
+ * the funnel (the setup wizard's pass, `reclassify-job.ts:runScoreUnscored`).
+ * The fetch counted them read, past the filter and new; this counts what the
+ * scoring found, and what the search, filled in since, turned away before any
+ * AI. It never adds `fetched`, so its day can read "passed" below "read".
+ */
+export function scorePassCounts(stats: Record<string, unknown>): FunnelCounts {
+  const n = (key: string): number => (typeof stats[key] === 'number' ? (stats[key] as number) : 0);
+  return funnelCounts({
+    classified: n('reclassified'),
+    preFiltered: n('preFiltered'),
+    classifyFailed: n('failed'),
+    matched: n('matched'),
+    dismissed: n('reclassified') - n('matched'),
+    filterRejected: n('filterDismissed'),
+    ...Object.fromEntries([...Object.values(FILTER_KEY), ...Object.values(DISMISS_KEY)].map((key) => [key, n(key)])),
+  });
+}
+
 /** Two sets of counters as one. */
 export function addCounts(a: FunnelCounts, b: FunnelCounts): FunnelCounts {
   const out: FunnelCounts = { ...a };

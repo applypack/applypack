@@ -26,6 +26,7 @@ import { MAX_BODY_MB } from '../../datasets/rows';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
 import { runImportJob } from '../../jobs/import-job';
 import { employerGate, hiringKey } from '../../employer';
+import { knownIds } from '../../jobs/dismissed-store';
 import { loadEmployerRules } from '../../jobs/employer-store';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
@@ -165,22 +166,17 @@ function mappingFromForm(form: Record<string, unknown>, stash: ImportStash): Map
 async function previewFacts(stash: ImportStash) {
   const now = new Date();
   const mapped = mapRows(stash.rows, stash.mapping, stash.source.id ?? 0, now);
-  const [settings, active, employers, stored] = await Promise.all([
+  const [settings, active, employers, storedIds] = await Promise.all([
     getSettings(),
     listActiveProfiles(),
     loadEmployerRules(now),
-    stash.source.id === null || mapped.jobs.length === 0
-      ? []
-      : prisma.job.findMany({
-          where: { companyId: stash.source.id, externalId: { in: mapped.jobs.map((j) => j.externalId) } },
-          select: { externalId: true },
-        }),
+    // What the source holds, a dismissal the cleanup deleted included: the import counts those as duplicates (#474).
+    stash.source.id === null ? new Set<string>() : knownIds(stash.source.id, mapped.jobs.map((j) => j.externalId)),
   ]);
   // The roster the import itself will ask (process-jobs.ts): blank searches judge nothing once scoring is on.
   const scoring = settings.fetchingEnabled;
   const roster = scoring ? active.filter((p) => !isBlankProfile(p)) : active;
   // The employer gate as the tick applies it: these rows always name their own employer, or nobody (ADR 0056).
-  const storedIds = new Set(stored.map((s) => s.externalId));
   const turnsAway = (job: (typeof mapped.jobs)[number]): boolean => employerGate(hiringKey(job.employer, stash.source.name, true), employers) !== null;
   const counts = previewCounts(mapped.jobs, roster, storedIds, turnsAway);
   // What the Alerts choice is about, read only when there is something to choose: who would hear, and how many packs.

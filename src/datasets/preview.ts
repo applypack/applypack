@@ -8,7 +8,7 @@
 import { anyBaseFilterReason, type FilterProfile } from '../filter';
 import { parseLocation } from '../location';
 import type { PackSettings } from '../pack/settings';
-import { autoPack } from '../pack/trigger';
+import { ageCountsFrom, autoPack } from '../pack/trigger';
 import type { NormalizedJob } from '../types';
 import type { FolderAlerts } from './map';
 
@@ -78,7 +78,7 @@ export function defaultImportAlerts(passing: number): FolderAlerts {
 export function packsUpTo(rows: readonly NormalizedJob[], settings: PackSettings, queuedToday: number, now: Date): number {
   if (!settings.enabled) return 0;
   const eligible = rows.filter(
-    (job) => autoPack({ settings, fit: settings.minFit, postedAt: job.postedAt, dated: job.undated !== true, now, queuedToday: 0 }) === 'queue',
+    (job) => autoPack({ settings, fit: settings.minFit, countsFrom: ageCountsFrom(job, null), now, queuedToday: 0 }) === 'queue',
   ).length;
   return settings.dailyLimit > 0 ? Math.min(eligible, Math.max(0, settings.dailyLimit - queuedToday)) : eligible;
 }
