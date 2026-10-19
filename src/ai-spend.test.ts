@@ -11,6 +11,7 @@ import {
   jobSpendText,
   formatUsd,
   ledgerRow,
+  namedOpenAiRow,
   packCostHint,
   packSpendText,
   periodRange,
@@ -75,6 +76,24 @@ test('#583: a call that ran a helper model is priced for both, and is "not price
   assert.equal(row.reportedMicroUsd, 246_110);
   const unknown = { ...spend, alongside: [{ model: 'some-helper-nobody-prices', usage: haiku }] };
   assert.equal(ledgerRow(attempt({ engine: 'claude_code', billing: 'plan', spend: unknown })).costMicroUsd, null);
+});
+
+test('#621: an OpenAI-compatible row stored with an empty model is named the model it asked for, and priced as one naming it', () => {
+  const usage = { ...NO_USAGE, inputTokens: 12_000, cacheReadTokens: 3_000, outputTokens: 2_500 };
+  const call = attempt({ engine: 'openai_api', model: '', spend: { usage, model: null, reportedUsd: null } });
+  const stored = ledgerRow(call);
+  assert.equal(stored.costMicroUsd, null, 'before v2.63.7 the row read "not priced"');
+  const asked = ledgerRow({ ...call, model: 'gpt-5-mini' });
+  assert.ok(asked.costMicroUsd! > 0);
+  assert.deepEqual(namedOpenAiRow(stored), { model: 'gpt-5-mini', costMicroUsd: asked.costMicroUsd, priceAsOf: asked.priceAsOf });
+  // The vendor named the model that ran: its price stands, only the name asked for is filled in.
+  const resolved = ledgerRow({ ...call, spend: { usage, model: 'gpt-5-mini-2025-08-07', reportedUsd: null } });
+  assert.deepEqual(namedOpenAiRow(resolved), { model: 'gpt-5-mini', costMicroUsd: resolved.costMicroUsd, priceAsOf: resolved.priceAsOf });
+  // A local server's call stays free.
+  assert.deepEqual(namedOpenAiRow(ledgerRow({ ...call, billing: 'local' })), { model: 'gpt-5-mini', costMicroUsd: null, priceAsOf: null });
+  // A row that names its model, or another engine's empty slot (a CLI's default), is left alone.
+  assert.equal(namedOpenAiRow(asked), null);
+  assert.equal(namedOpenAiRow(ledgerRow({ ...call, engine: 'codex_cli' })), null);
 });
 
 test('a local call is free: no cost is claimed for it, whatever the model is called', () => {

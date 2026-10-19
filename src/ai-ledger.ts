@@ -7,6 +7,7 @@ import {
   budgetAlertText,
   budgetMonth,
   ledgerRow,
+  namedOpenAiRow,
   typicalMicro,
   type AnswerTimes,
   type LedgerInput,
@@ -15,7 +16,6 @@ import {
 } from './ai-spend';
 import type { AiBilling, AiFeature, AiOutcome } from './ai-usage';
 import type { RecentAttempt } from './ai-health';
-import { OPENAI_DEFAULT_MODEL } from './ai-engine';
 
 /*
  * The AI spend ledger's I/O (ADR 0055): one `ai_call` row per attempt, the
@@ -119,6 +119,20 @@ async function warnOnBudget(now: Date): Promise<void> {
   }
 }
 
+/**
+ * Names the OpenAI-compatible rows written with an empty model before
+ * v2.63.7, and prices them (#621): the page's cost, the time a step takes
+ * here and the estimate under a button all read a row by its model. Run on
+ * every boot by init.ts; after the first, nothing is left to read.
+ */
+export async function fillUnnamedModels(): Promise<void> {
+  const rows = await prisma.aiCall.findMany({ where: { engine: 'openai_api', model: '' } });
+  for (const row of rows) {
+    const named = namedOpenAiRow(row);
+    if (named) await prisma.aiCall.update({ where: { id: row.id }, data: named });
+  }
+}
+
 /** The ledger between two instants, grouped the way the AI usage page reads it: a feature on a model, on one kind of money. */
 /** How far back an engine's last attempts are read, and how many of them: enough to see a run of failures, cheap by the `at` index. */
 const RECENT_DAYS = 7;
@@ -143,8 +157,7 @@ export async function loadRecentAttempts(now = new Date()): Promise<RecentAttemp
 }
 
 export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[]> {
-  // The model that answered, else the one asked for. A row of the OpenAI-compatible engine that left the column empty
-  // asked for the engine's own default — an OPENAI_MODEL would have been in it — and is named so, never "CLI default" (#606).
+  // The model that answered, else the one asked for.
   const rows = await prisma.$queryRaw<
     {
       feature: string;
@@ -167,9 +180,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
       fallbackMicro: bigint;
     }[]
   >`
-    SELECT "feature", "engine",
-      COALESCE("resolvedModel", CASE WHEN "model" = '' AND "engine" = 'openai_api' THEN ${OPENAI_DEFAULT_MODEL} ELSE "model" END) AS "model",
-      "billing",
+    SELECT "feature", "engine", COALESCE("resolvedModel", "model") AS "model", "billing",
       count(*)::int AS "calls",
       count(*) FILTER (WHERE "outcome" <> 'ok')::int AS "failed",
       count(*) FILTER (WHERE "outcome" = 'unparsed')::int AS "unparsed",
