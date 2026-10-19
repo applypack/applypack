@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSourceKeys, redactSecrets, resolveSourceKeys, sourceKeyOrigin } from './source-keys';
+import { parseSourceKeys, redactSecrets, resolveSourceKeys, sourceKeyOrigin, typedSourceKeys } from './source-keys';
 
 describe('parseSourceKeys', () => {
   it('keeps known sources and fields, drops the rest', () => {
@@ -48,5 +48,19 @@ describe('redactSecrets', () => {
       'HTTP 403 for https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=***&app_key=***&max_days_old=1',
     );
     assert.equal(redactSecrets('nothing here', ['', 'zzz']), 'nothing here');
+  });
+});
+
+describe('typedSourceKeys', () => {
+  it('takes every field of the source one form sent, and only those (#561)', () => {
+    assert.deepEqual(typedSourceKeys('ADZUNA', { source: 'ADZUNA', app_id: ' abc123 ', app_key: 'k'.repeat(32), client_id: 'other source' }), [
+      { field: 'app_id', value: 'abc123' },
+      { field: 'app_key', value: 'k'.repeat(32) },
+    ]);
+  });
+
+  it('leaves out a field left empty, so the stored value stays', () => {
+    assert.deepEqual(typedSourceKeys('FRANCETRAVAIL', { client_id: '', client_secret: ' s3cret ' }), [{ field: 'client_secret', value: 's3cret' }]);
+    assert.deepEqual(typedSourceKeys('ADZUNA', { app_id: '   ' }), []);
   });
 });

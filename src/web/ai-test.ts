@@ -1,6 +1,7 @@
 import { getAiProviderById } from '../ai-provider';
 import {
   AI_PROVIDER_LABELS,
+  missingCredentials,
   providerUnusable,
   resolveAiEngine,
   type AiProviderId,
@@ -41,7 +42,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
   if (providerUnusable(provider, env)) {
-    return { ok: false, text: t('aiTest.noCredentials', { engine: label }) };
+    return { ok: false, text: missingCredentials(provider) };
   }
   const engine = resolveAiEngine(settings.aiEngine, env);
   let model = engine.modelFor(provider, 'classifier');
@@ -88,7 +89,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
   // A test is a real call on the user's money: it goes in the ledger like any other (ADR 0055).
   await recordAiCall({
     at: new Date(started),
-    durationMs: Date.now() - started,
+    durationMs: Date.now() - started - (attempt.queuedMs ?? 0),
     engine: provider,
     model,
     feature: 'engine-test',

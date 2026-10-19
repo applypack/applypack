@@ -67,6 +67,11 @@ test('summarizeScoreRun reads the reclassify stats in plain words', () => {
     }).text,
     'Scored 10 jobs — 2 look like a match (not a match: 6 under the fit threshold, 2 with a location mismatch); 35 set aside as off-topic without AI — 30 without a title keyword, 5 outside your places.',
   );
+  // #539: one gate that took them all is named once, not with the same number twice.
+  assert.equal(
+    summarizeScoreRun({ reclassified: 0, filterDismissed: 406, rejectedTitle: 406 }).text,
+    'Scored 0 jobs — 0 look like a match; 406 set aside as off-topic without AI — all without a title keyword.',
+  );
   assert.equal(summarizeScoreRun({ aborted: 1, reason: 'blank-profile' }).kind, 'warn');
   assert.equal(summarizeScoreRun({ reclassified: 0, failed: 3 }).kind, 'warn');
   assert.equal(

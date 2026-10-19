@@ -9,6 +9,7 @@ import {
   draftRubric,
   emptyRubric,
   levelFromBrief,
+  modelWorded,
   parseCriterionText,
   PRESETS,
   protectedCharacteristic,
@@ -114,6 +115,17 @@ test('draftRubric turns the brief into criteria under the kinds their wording na
   assert.equal(byKind(r, 'overall').length, 1);
   assert.ok(r.criteria.every((c) => c.source === 'posting'));
   assert.deepEqual(draftRubric(null), emptyRubric());
+});
+
+// #569: the posting's rows are the model's English and a page marks them so; impact, the overall read and the person's own are not.
+test('modelWorded names the rows the model wrote', () => {
+  const r = draftRubric(BRIEF);
+  assert.deepEqual(
+    r.criteria.filter((c) => !modelWorded(c)).map((c) => c.kind),
+    ['impact', 'overall'],
+  );
+  assert.equal(modelWorded({ kind: 'custom', source: 'you' }), false);
+  assert.equal(modelWorded({ kind: 'skill', source: 'posting' }), true);
 });
 
 test('a redraft keeps the person\'s own criteria and does not resurrect what they removed', () => {

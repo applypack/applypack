@@ -15,6 +15,7 @@ import {
   anthropicUsage,
   buildClaudeCodeArgs,
   buildOllamaChatBody,
+  contextTooSmall,
   DEFAULT_LOCAL_CONTEXT_TOKENS,
   localBudgetTokens,
   ollamaCanThink,
@@ -41,12 +42,14 @@ import {
   readableFailure,
   refusedReason,
   retryWait,
+  unreachableCode,
   webToolsDirectOnly,
   type CliOutcome,
 } from './ai-provider-parse';
 import type { AiProviderId } from './ai-engine';
 import { AI_KEY_ENV_VARS } from './ai-keys';
-import { createLimiter, type Limiter } from './concurrency';
+import { createLimiter, runTimed, type Limiter } from './concurrency';
+import { windowRefused } from './window-refusal';
 import { cliCommand } from './cli-command';
 
 /**
@@ -110,6 +113,8 @@ export interface AiAttempt {
   outcome: AiOutcome;
   /** Null when the vendor reported nothing: a timeout, a refused key, a crash. */
   spend: AiSpend | null;
+  /** How long the call waited for its turn on a one-at-a-time server before it was sent; the ledger's time leaves it out (#564). */
+  queuedMs?: number;
 }
 
 export interface AiProvider {
@@ -348,7 +353,11 @@ class OpenAiApiProvider implements AiProvider {
         req.onError?.(describeAiFailure(kind === 'auth' ? refusedReason(reason, 'key') : reason));
         return failed(out.outcome ?? failureOutcome(kind), out.spend ?? null);
       } catch (err) {
-        logger.error({ err, label: req.label, model }, 'ai: openai request failed');
+        // A server that is not running (LM Studio closed) is a state, not a fault: one line, no stack (#571).
+        // Its origin only: an address from .env is not checked for a key in its query.
+        const unreachable = unreachableCode(err);
+        if (unreachable) logger.warn(`ai: no answer from the server at ${new URL(baseUrl).origin} (${unreachable})`);
+        else logger.error({ err, label: req.label, model }, 'ai: openai request failed');
         req.onError?.(describeAiFailure(errorReason(err)));
         // The request threw before any status came back: nothing answered at that address.
         return failed(ctrl.signal.aborted ? 'timeout' : 'unreachable');
@@ -378,6 +387,7 @@ class LocalApiProvider implements AiProvider {
     const root = req.baseUrl ?? config.OLLAMA_URL;
     const model = req.model || config.LOCAL_MODEL;
     if (!model) {
+      logger.error({ label: req.label }, 'ai: no local model chosen — pick one on /settings');
       req.onError?.(t('engine.fail.noLocalModel'));
       return failed('error');
     }
@@ -385,13 +395,14 @@ class LocalApiProvider implements AiProvider {
     const need = localBudgetTokens(req.system, req.user, req.maxTokens);
     if (need > contextTokens) {
       logger.warn({ label: req.label, need, contextTokens }, 'ai: prompt larger than the local context window');
-      req.onError?.(t('engine.fail.contextTooSmall', { need, window: contextTokens }));
+      windowRefused();
+      req.onError?.(contextTooSmall(need, contextTokens));
       return failed('too_large');
     }
     const deadline = Date.now() + (req.timeoutMs ?? CLI_TIMEOUT_MS);
     const slot = this.slots.get(root) ?? createLimiter(LOCAL_CALLS_AT_ONCE);
     this.slots.set(root, slot);
-    return slot(() => this.send(req, root, model, contextTokens, deadline));
+    return runTimed(slot, async (queuedMs) => ({ ...(await this.send(req, root, model, contextTokens, deadline)), queuedMs }));
   }
 
   private async send(req: AiRequest, root: string, model: string, contextTokens: number, deadline: number): Promise<AiAttempt> {
@@ -401,6 +412,7 @@ class LocalApiProvider implements AiProvider {
     const think = (await this.canThink(root, model)) ? false : undefined;
     const remainingMs = deadline - Date.now();
     if (remainingMs < MIN_LOCAL_CALL_MS) {
+      logger.warn({ label: req.label, model }, 'ai: no time left for the local call after waiting its turn');
       req.onError?.(t('engine.fail.localBusy'));
       return failed('timeout');
     }
@@ -434,7 +446,10 @@ class LocalApiProvider implements AiProvider {
       return failed(out.outcome ?? 'error', out.spend ?? null);
     } catch (err) {
       const timedOut = ctrl.signal.aborted;
-      logger.error({ err, label: req.label, model }, 'ai: local request failed');
+      // Ollama not running is a state, not a fault: one line, no stack (#571).
+      const unreachable = unreachableCode(err);
+      if (unreachable) logger.warn(`ai: no answer from the local server at ${new URL(root).origin} (${unreachable})`);
+      else logger.error({ err, label: req.label, model }, 'ai: local request failed');
       req.onError?.(timedOut ? t('engine.fail.noReplyWithin', { seconds: Math.round(remainingMs / 1000) }) : t('engine.fail.ollamaDown', { root }));
       return failed(timedOut ? 'timeout' : 'unreachable');
     } finally {
@@ -459,7 +474,8 @@ class LocalApiProvider implements AiProvider {
       this.thinks.set(key, read);
       return read;
     } catch (err) {
-      logger.warn({ err, model }, 'ai: could not read what the local model can do');
+      // Nothing at the address: the call that follows says so, once.
+      if (unreachableCode(err) === null) logger.warn({ err, model }, 'ai: could not read what the local model can do');
       return false;
     }
   }

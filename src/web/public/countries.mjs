@@ -16,7 +16,7 @@
  * first part, and the flag resolves it either way.
  */
 
-import { pageLocale } from './i18n.mjs';
+import { pageLocale, t } from './i18n.mjs';
 
 /** How many suggestions show at once. */
 export const SUGGESTION_LIMIT = 8;
@@ -82,6 +82,16 @@ export function chipText(country) {
   return `${country.flag} ${shownName(country).split(',')[0]}`;
 }
 
+/**
+ * Whether the save would name this country, as src/countries.ts:findCountry
+ * does: its code, a flag, or one of the server's `spellings` (#549).
+ */
+export function knowsCountry(value, countries, spellings) {
+  const typed = value.trim();
+  if (typed === '' || countries.some((c) => c.code === typed.toUpperCase() || typed.includes(c.flag))) return true;
+  return spellings.has(normalize(typed));
+}
+
 /** Wire every `[data-picker="countries"]` chip editor on the page. */
 export async function mountCountryPickers(doc = document) {
   const hosts = [...doc.querySelectorAll('[data-picker="countries"]')];
@@ -94,12 +104,16 @@ export async function mountCountryPickers(doc = document) {
   } catch {
     return; // the textarea path still works
   }
-  for (const host of hosts) mountPicker(host, gazetteer.countries, doc);
+  // A copy cached before the server sent its spellings refuses nothing: the save still names an unknown country.
+  const spellings = Array.isArray(gazetteer.spellings) ? new Set(gazetteer.spellings) : null;
+  for (const host of hosts) mountPicker(host, gazetteer.countries, spellings, doc);
 }
 
-function mountPicker(host, countries, doc) {
+function mountPicker(host, countries, spellings, doc) {
   const input = host.querySelector('input[type="text"]');
   if (!input) return;
+  // chips.mjs asks before it makes a chip of what was typed.
+  if (spellings) host.refuse = (value) => (knowsCountry(value, countries, spellings) ? null : t('browser.countries.unknown', { value }));
   const list = doc.createElement('ul');
   list.setAttribute('role', 'listbox');
   list.id = `${input.id || 'countries'}-suggestions-${Math.random().toString(36).slice(2, 7)}`;

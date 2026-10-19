@@ -1,4 +1,4 @@
-import type { CronStats } from '../jobs/cron-run';
+import type { CronStats, RunName } from '../jobs/cron-run';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { runFailure } from './run-failure';
 import type { MessageKey } from '../i18n/catalog';
@@ -12,6 +12,27 @@ import { t } from '../i18n/t';
  * per-source list) stays in the raw block the page folds under "Raw output".
  */
 
+/** What each job is called on /runs and the Overview: the stored name is a code, in every language (#568). */
+const RUN_NAME = {
+  fetch: 'runs.name.fetch',
+  'fetch-now': 'runs.name.fetchNow',
+  'folder-watch': 'runs.name.folderWatch',
+  'hn-hiring': 'runs.name.hnHiring',
+  import: 'runs.name.import',
+  digest: 'runs.name.digest',
+  'stale-applications': 'runs.name.staleApplications',
+  cleanup: 'runs.name.cleanup',
+  discovery: 'runs.name.discovery',
+  pack: 'runs.name.pack',
+  'reclassify-all': 'runs.name.reclassifyAll',
+  'score-unscored': 'runs.name.scoreUnscored',
+} as const satisfies Record<RunName, MessageKey>;
+
+/** A run's job as a reader says it; a name no release writes any more is shown as stored. */
+export function runName(name: string): string {
+  return Object.hasOwn(RUN_NAME, name) ? t(RUN_NAME[name as RunName]) : name;
+}
+
 /** Why a run did nothing, as a sentence. The codes are the ones src/jobs/* write into `reason`. */
 const REASON: Record<string, MessageKey> = {
   'fetching-paused': 'runs.reason.fetchingPaused',
@@ -19,6 +40,8 @@ const REASON: Record<string, MessageKey> = {
   'paused-mid-run': 'runs.reason.pausedMidRun',
   'outside-schedule': 'runs.reason.outsideSchedule',
   'no-active-profile': 'runs.reason.noActiveProfile',
+  'no-sources': 'runs.reason.noSources',
+  'none-due': 'runs.reason.noneDue',
   'discovery-disabled': 'runs.reason.discoveryDisabled',
   'parser-disabled': 'runs.reason.parserDisabled',
   'source-disabled': 'runs.reason.sourceDisabled',
@@ -83,6 +106,8 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'aiCallsDeleted', words: 'runs.fact.aiCallsDeleted' },
   { key: 'candidates', words: 'runs.fact.candidates', always: true },
   { key: 'candidatesRecorded', words: 'runs.fact.candidatesRecorded' },
+  // What a discovery run leaves for review: the number /discovery shows beside "Pending review" (#542).
+  { key: 'pending', job: 'discovery', words: 'runs.fact.discoveryPending', always: true },
 ];
 
 /**
@@ -106,6 +131,10 @@ const ELSEWHERE = new Set([
   'filterRejected',
   'preFiltered',
   'dismissed',
+  // What a read of a watched careers page found: a Check now's flash says it (#533).
+  'pagesFirstRead',
+  'pageChangesFound',
+  'pageChangesHeld',
   ...Object.values(FILTER_KEY),
   ...Object.values(DISMISS_KEY),
 ]);
@@ -157,6 +186,12 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
   return out;
 }
 
+/** A finished run in one line, for the terminal of the once-script that ran it (#571): what /runs says of it. */
+export function runSummaryLine(name: string, stats: CronStats | null): string {
+  const facts = summarizeRun(name, stats ?? {});
+  return `${name}: ${facts.length > 0 ? facts.join(' · ') : t('run.status.ok')}`;
+}
+
 /**
  * A run that finished and scored nothing it tried to (#366): postings reached
  * the classifier, and not one came back with a verdict — neither scored nor
@@ -197,5 +232,5 @@ const REASON_MAX_CHARS = 160;
 export function failedRunLine(name: string, error: string): string {
   const first = error.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
   const reason = first.length > REASON_MAX_CHARS ? `${first.slice(0, REASON_MAX_CHARS - 1)}…` : first.replace(/[.\s]+$/, '');
-  return runFailure(t('runs.failed', { name }), reason, t(AFTER_FAILURE[name] ?? 'runs.after.other'));
+  return runFailure(t('runs.failed', { name: runName(name) }), reason, t(AFTER_FAILURE[name] ?? 'runs.after.other'));
 }

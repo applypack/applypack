@@ -9,7 +9,8 @@ import { displayZoneLabel } from '../display-zone';
 import type { FetchRun } from '../fetch-runs';
 import type { CronStats, SourceStat } from '../../jobs/cron-run';
 import { tRich } from '../rich';
-import { failedRunLine, summarizeRun, unscoredRun } from '../runs-summary';
+import { failedRunLine, runName, summarizeRun, unscoredRun } from '../runs-summary';
+import { healthLabel } from '../health-label';
 import { FetchNowButton } from './fetch-run';
 import { FunnelCard } from './funnel-card';
 import { runBadge } from './overview';
@@ -57,7 +58,7 @@ export const RunsPage: FC<RunsProps> = ({ runs, funnel, fetchRun, flash }) => {
   const earlierFailed = earlier.filter((r) => r.status === 'FAILED').length;
   return (
     <Layout title={t('runs.runs')} active="runs">
-      <PageHeader title={t('runs.runs')} meta={t('runs.lastN', { n: runs.length })} actions={<FetchNowButton run={fetchRun} />}>
+      <PageHeader title={t('runs.runs')} meta={runs.length > 0 ? t('runs.lastN', { n: runs.length }) : undefined} actions={<FetchNowButton run={fetchRun} />}>
         {t('runs.whatTheSearchKeptAnd')}
       </PageHeader>
       <Flash flash={flash} />
@@ -99,9 +100,7 @@ const RunsTable: FC<{ runs: RunRow[]; caption: string }> = ({ runs, caption }) =
         <Table caption={caption} columns={columns()} widths={WIDTHS} hideBelow={['', 'sm', 'md', '', '']}>
           {runs.map((r) => (
             <Tr class="align-top">
-              <Td class="whitespace-nowrap font-mono text-note text-ink">
-                <span translate="no">{r.name}</span>
-              </Td>
+              <Td class="text-note text-ink">{runName(r.name)}</Td>
               <Td class="whitespace-nowrap text-ink-muted">
                 <span title={formatDate(r.startedAt)}>{formatStamp(r.startedAt)}</span>
               </Td>
@@ -175,7 +174,7 @@ const StatsCell: FC<{ name: string; stats: unknown }> = ({ name, stats }) => {
                 .sort((a: SourceStat, b: SourceStat) => b.ms - a.ms)
                 .map((s: SourceStat) => (
                   <li>
-                    {formatDuration(s.ms)} · <span translate="no">{s.name} · {s.status}</span>
+                    {formatDuration(s.ms)} · <span translate="no">{s.name}</span> · {healthLabel(s.status, s.kind)}
                     {s.count > 0 ? ` · ${s.count}` : ''}
                   </li>
                 ))}

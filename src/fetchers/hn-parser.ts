@@ -119,17 +119,21 @@ function labelFields(fields: string[]): {
   // Heuristics: if the first field looks like a role (contains "engineer",
   // "developer", "manager", etc.) the company is missing.
   const ROLE_HINT = /\b(engineer|developer|manager|designer|lead|director|architect|specialist|analyst|head)\b/i;
-  if (ROLE_HINT.test(fields[0]!)) {
+  if (ROLE_HINT.test(fields[0]!) && !URL_RE.test(fields[0]!)) {
     return {
       companyName: null,
       title: fields[0]!.trim(),
       location: pickLocation(fields, 1),
     };
   }
+  // A link is never a title (#541): "3Gimbals | https://…/4477632187 (US/Remote) Hiring…"
+  // became a job titled with the whole line. The next field without one is
+  // the title; with none, the comment has no title and is dropped.
+  const at = fields.findIndex((f, i) => i > 0 && !URL_RE.test(f));
   return {
     companyName: fields[0]!.trim(),
-    title: (fields[1] ?? '').trim(),
-    location: pickLocation(fields, 2),
+    title: at === -1 ? '' : fields[at]!.trim(),
+    location: at === -1 ? null : pickLocation(fields, at + 1),
   };
 }
 

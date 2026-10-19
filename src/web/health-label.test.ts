@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FETCH_STATUSES, describeStatus } from '../fetchers/source-health';
 import { withLocale } from '../i18n/locale';
+import { t } from '../i18n/t';
 import { healthLabel, healthStreak, statusBranch } from './health-label';
 
 // Every status there is, so one added later is held to the same two rules without an edit here.
@@ -34,4 +35,13 @@ test('statusBranch: a folder’s own branch where it has words, `other` for none
   assert.equal(statusBranch('network', 'FOLDER'), 'network');
   assert.equal(statusBranch(null, 'FOLDER'), 'other');
   assert.equal(statusBranch('never-heard-of', 'LEVER'), 'other');
+});
+
+test('the streak a screen reader hears after the label reads on from it as the tooltip does, in every language (#546)', () => {
+  // An sr-only span is a block of its own, so a copy of the row put a space before ", 1 tick in a row".
+  for (const locale of ['en', 'uk', 'es', 'fr'] as const)
+    for (const n of [1, 2, 5, 21])
+      withLocale(locale, () =>
+        assert.equal(t('sources.health.withStreak', { label: 'X', n }), `X ${t('sources.health.streakAfterLabel', { n })}`, `${locale} ${n}`),
+      );
 });

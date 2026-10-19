@@ -120,6 +120,13 @@ export function anyBaseFilterReason(
  *   nothing needed ("es", "ship", a version digit as in "PHP8") is not here
  *   — a tolerance that was never measured is a guess about which words a
  *   user will type.
+ *
+ * And one spelling rule (#528): a hyphen, a space, a dot or nothing between
+ * the parts of a word are the same word, so "back-end", "back end" and
+ * "backend" meet, as do "node.js", "node js" and "nodejs". The setup's own
+ * suggestions ("backend, full-stack") turned away 17 of 406 titles that only
+ * spelled them another way. The parts are joined on both sides and the
+ * boundaries still read off the title as written, so "ASP.NET" keeps ".net".
  */
 const KEYWORD_SUFFIXES = [
   's', // 40 hits: "sale" → "Sales"
@@ -133,22 +140,55 @@ const KEYWORD_SUFFIXES = [
 export function titleHasKeyword(title: string, keyword: string): boolean {
   const k = keyword.toLowerCase();
   if (k.length === 0) return false;
+  if (hasBoundedRun(title, k, title, null)) return true;
+  const joined = joinParts(title);
+  return hasBoundedRun(joined.text, joinParts(k).text, title, joined.at);
+}
+
+/**
+ * The keyword inside `haystack` on word boundaries. `at` maps each character
+ * of a joined haystack back to the title, where the boundaries are read.
+ */
+function hasBoundedRun(haystack: string, k: string, title: string, at: readonly number[] | null): boolean {
   const boundedLeft = isWordChar(k[0]);
   const boundedRight = isWordChar(k[k.length - 1]);
-
-  let at = title.indexOf(k);
-  while (at >= 0) {
-    const before = at > 0 ? title[at - 1] : undefined;
-    const rest = title.slice(at + k.length);
+  let i = haystack.indexOf(k);
+  while (i >= 0) {
+    const start = at ? at[i]! : i;
+    const end = at ? at[i + k.length - 1]! + 1 : i + k.length;
+    const before = start > 0 ? title[start - 1] : undefined;
+    const rest = title.slice(end);
     if (
       (!boundedLeft || !isWordChar(before)) &&
       (!boundedRight || !isWordChar(rest[0]) || endsOnSuffix(rest))
     ) {
       return true;
     }
-    at = title.indexOf(k, at + 1);
+    i = haystack.indexOf(k, i + 1);
   }
   return false;
+}
+
+/** Hyphens (the Unicode ones too), spaces and dots between two parts of a word: "back-end", "node js". */
+const PART_SEPARATOR = /[\s.\-\u2010\u2011]/u;
+
+/** The text with every run of separators between two word characters taken out, and where each kept character stood. */
+function joinParts(text: string): { text: string; at: number[] } {
+  let out = '';
+  const at: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (PART_SEPARATOR.test(text[i]!) && isWordChar(text[i - 1])) {
+      let next = i;
+      while (next < text.length && PART_SEPARATOR.test(text[next]!)) next++;
+      if (isWordChar(text[next])) {
+        i = next - 1;
+        continue;
+      }
+    }
+    out += text[i];
+    at.push(i);
+  }
+  return { text: out, at };
 }
 
 /** One allowed suffix, itself ending on a boundary: "golang" yes, "google" no. */

@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../http';
+import { FolderError } from '../datasets/folder-io';
 import {
   FETCH_STATUSES,
   QUIET_STREAK,
@@ -9,6 +10,8 @@ import {
   classifyFetchCount,
   classifyFetchError,
   describeStatus,
+  expectedFailure,
+  healthUpdate,
   isFailing,
   isFailureStatus,
   isSilent,
@@ -173,6 +176,28 @@ describe('nextStreak — the inversion', () => {
   });
 });
 
+describe('healthUpdate — what one attempt writes', () => {
+  const at = new Date('2026-10-19T10:00:00Z');
+
+  it('every attempt stamps when the source was read, an empty answer and a failure too (#547)', () => {
+    // "Last fetch" read the newest stored posting, so a board read fine whose postings the filter turned away showed "—".
+    for (const status of FETCH_STATUSES) assert.equal(healthUpdate(status, 0, null, at).lastFetchedAt, at, status);
+  });
+
+  it('moves lastOkAt only on an answer that proves the source still posts', () => {
+    assert.equal(healthUpdate('ok', 0, null, at).lastOkAt, at);
+    assert.equal(healthUpdate('not_modified', 0, 12, at).lastOkAt, at);
+    assert.equal('lastOkAt' in healthUpdate('not_modified', 0, 0, at), false);
+    assert.equal('lastOkAt' in healthUpdate('empty', 0, null, at), false);
+    assert.equal('lastOkAt' in healthUpdate('network', 2, null, at), false);
+  });
+
+  it('carries the status and the streak', () => {
+    assert.deepEqual(healthUpdate('network', 2, null, at), { lastFetchStatus: 'network', consecutiveFailures: 3, lastFetchedAt: at });
+    assert.equal(healthUpdate('empty', 7, null, at).consecutiveFailures, 0);
+  });
+});
+
 const NOW = new Date('2026-08-30T12:00:00Z');
 const daysAgo = (n: number): Date => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
 
@@ -283,6 +308,14 @@ describe('classifyFetchError — a folder source', () => {
     // #397: a disk that stopped answering is a source that cannot be reached, and it counts toward the failure streak.
     assert.equal(classifyFetchError(fault('stalled')), 'network');
     assert.equal(classifyFetchError(fault('something-new')), 'unknown');
+  });
+
+  it('a folder that moved is logged as its own sentence, a fault anywhere else as the error it is (#546)', () => {
+    const moved = new FolderError('missing', 'There is no folder at /Users/me/inbox.');
+    assert.equal(expectedFailure(moved), 'There is no folder at /Users/me/inbox.');
+    assert.equal(expectedFailure(http(404)), null);
+    assert.equal(expectedFailure(new Error('boom')), null);
+    assert.equal(expectedFailure(undefined), null);
   });
 });
 

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildProfileDraft, NICE_TO_HAVE_MAX, readsAsNonEngineering, type ProfileForDraft, type ScanForDraft } from './profile-draft';
+import { titleHasKeyword } from '../filter';
 
 const PROFILE: ProfileForDraft = {
   name: 'PHP hunt',
@@ -115,4 +116,13 @@ test('a resume from outside software engineering keeps the stack and says why (#
   assert.equal(readsAsNonEngineering({ title: 'Engineering Manager', roleTypes: ['backend'] }), null);
   assert.equal(readsAsNonEngineering({ title: null, roleTypes: ['product owner'] }), 'product owner');
   assert.equal(readsAsNonEngineering({ title: 'UX Engineer', roleTypes: [] }), null);
+});
+
+test('role words joined with a slash become one each, so a title can carry them (#555)', () => {
+  const d = buildProfileDraft(PROFILE, { ...SCAN, roleTypes: ['qa/test automation', 'QA', 'devops / sre'] });
+  assert.deepEqual(d.changes.roleTypes, ['qa', 'test automation', 'devops', 'sre']);
+  // The filter compares lowercased titles.
+  assert.equal(titleHasKeyword('senior qa engineer', 'qa'), true);
+  assert.equal(titleHasKeyword('test automation engineer', 'test automation'), true);
+  assert.equal(titleHasKeyword('test automation engineer', 'qa/test automation'), false, 'the joined pair matched no title');
 });

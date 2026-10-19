@@ -325,6 +325,8 @@ function httpLink(value: unknown): string | null {
  * A date the row states: ISO, a month name with a year, or an epoch. Words
  * ("2 days ago", "yesterday") and day/month orders that depend on the locale
  * are not dates here — the caller's fallback is more honest than a guess.
+ * A day with no time is its midnight UTC, which `web/format.ts:formatPosted`
+ * writes as that day in every zone (#532).
  */
 export function readDate(value: unknown, now: Date): Date | null {
   const text = cellText(value);
