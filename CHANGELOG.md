@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.3] — 2026-10-18
+
+### Changed
+- Pages, styles and scripts of the dashboard are sent compressed: a page is
+  about a fifth of its size, which matters on a server install reached over
+  a network or a phone on Wi-Fi.
+- `npm install` no longer warns about install scripts on npm 11, and no
+  longer reports advisories in the tools that build the stylesheet, which
+  ApplyPack never runs.
+- The cron scripts you run by hand (`cleanup`, `digest` and the rest) end
+  with one line saying what the run did.
+
+### Fixed
+- Starting ApplyPack no longer lets the database tool report to its maker's
+  server: nothing leaves your computer but the calls to the AI you chose and
+  your own chats.
+- While a model server on your computer is not running, the terminal shows
+  one line per call instead of a stack trace and two warnings, and nothing
+  while ApplyPack rests that engine.
+
 ## [2.61.2] — 2026-10-18
 
 ### Fixed
@@ -6283,6 +6303,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.3]: https://github.com/applypack/applypack/compare/v2.61.2...v2.61.3
 [2.61.2]: https://github.com/applypack/applypack/compare/v2.61.1...v2.61.2
 [2.61.1]: https://github.com/applypack/applypack/compare/v2.61.0...v2.61.1
 [2.61.0]: https://github.com/applypack/applypack/compare/v2.60.0...v2.61.0
