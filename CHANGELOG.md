@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.12] — 2026-10-19
+
+### Fixed
+- A PDF resume keeps the title line under the name. When the title had no
+  full stop and the contact line opened with an address, the PDF reader
+  joined the two, and the clean version kept the address and dropped the
+  title. New uploads keep the lines apart, and a resume stored with the
+  joined line gets its title back in the clean version.
+- The clean version of a file already set in Liberation Sans says so,
+  instead of comparing Liberation Sans with itself.
+- On a phone, the Tailor page's bar under the editor stays short when there
+  is no score: the reason is one sentence and takes the place of the line
+  about where edits are kept.
+- The live demo on applypack.dev tells a screen reader "Not scored" instead
+  of reading out a dash.
+
 ## [2.63.11] — 2026-10-19
 
 ### Changed
@@ -6739,6 +6755,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.12]: https://github.com/applypack/applypack/compare/v2.63.11...v2.63.12
 [2.63.11]: https://github.com/applypack/applypack/compare/v2.63.10...v2.63.11
 [2.63.10]: https://github.com/applypack/applypack/compare/v2.63.9...v2.63.10
 [2.63.9]: https://github.com/applypack/applypack/compare/v2.63.8...v2.63.9
