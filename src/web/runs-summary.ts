@@ -19,6 +19,8 @@ const REASON: Record<string, MessageKey> = {
   'paused-mid-run': 'runs.reason.pausedMidRun',
   'outside-schedule': 'runs.reason.outsideSchedule',
   'no-active-profile': 'runs.reason.noActiveProfile',
+  'no-sources': 'runs.reason.noSources',
+  'none-due': 'runs.reason.noneDue',
   'discovery-disabled': 'runs.reason.discoveryDisabled',
   'parser-disabled': 'runs.reason.parserDisabled',
   'source-disabled': 'runs.reason.sourceDisabled',

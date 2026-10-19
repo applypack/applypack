@@ -21,6 +21,8 @@ function num(stats: CronStats, key: string): number {
 export function summarizeFetchRun(stats: CronStats, label = t('fetch.fetchNow'), setup = false): { kind: FlashKind; text: string } {
   if (stats.reason === 'overlap') return { kind: 'warn', text: t('fetchSummary.overlap', { label }) };
   if (stats.reason === 'no-active-profile') return { kind: 'err', text: t('fetchSummary.noProfile', { label }) };
+  // A walk with nothing switched on reached no board, so there is no network to blame (#557).
+  if (stats.reason === 'no-sources') return { kind: 'warn', text: t('fetchSummary.noSources', { label }) };
   const fetched = num(stats, 'fetched');
   const sources = num(stats, 'sources');
   const failed = num(stats, 'sourcesFailed');

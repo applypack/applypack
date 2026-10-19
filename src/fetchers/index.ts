@@ -59,7 +59,7 @@ import { config } from '../config';
 import { localInstall } from '../local/install';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
-import { dueCutoff, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
+import { dueCutoff, idleReason, nextCheckAfter, nextCheckAfterManual, watchRules, type IdleReason, type WatchRules } from '../watchlist/interval';
 import type { NormalizedJob } from '../types';
 import { forgetListing, wasListedInFull } from './listing';
 import { markClockDated } from './dates';
@@ -103,11 +103,17 @@ export interface FetchWalkOptions {
   places?: Pick<FetchContext, 'countries' | 'regions'>;
 }
 
+/** What a walk brought, and why it read nothing when it read nothing. */
+export interface FetchWalk {
+  results: FetcherResult[];
+  idle: IdleReason | null;
+}
+
 export async function runAllFetchers(
   isCancelled?: () => Promise<boolean>,
   onSource?: (progress: SourceProgress) => void,
   opts: FetchWalkOptions = {},
-): Promise<FetcherResult[]> {
+): Promise<FetchWalk> {
   const settings = await getSettings();
   const disabled = pausedFamilies(settings);
   if (disabled.length > 0) {
@@ -241,14 +247,14 @@ export async function runAllFetchers(
       }
     }
     const durationMs = Date.now() - startedAt;
-    await recordFetchHealth(company, status, cachedCount(company.id), now);
+    await recordFetchHealth(company, status, cachedCount(company.id), now, opts.manual === true);
     onSource?.({ company: company.name, status, count, done, total: due.length, durationMs });
     // Back off in proportion to what we just spent of the board's: a feed we
     // did not download does not earn the same second as one we did.
     await sleep(politeDelayMs(status, company.atsType, company.crawlDelayMs ?? null));
   }
 
-  return out;
+  return { results: out, idle: idleReason({ roster, due: companies.length, walked: due.length }) };
 }
 
 /**
@@ -297,6 +303,8 @@ async function recordFetchHealth(
    * end would push every row past the next heartbeat, one source at a time.
    */
   tickStartedAt: Date,
+  /** A read the user asked for, stamped so the next tick still reads the row (#557). */
+  manual: boolean,
 ): Promise<void> {
   const streak = nextStreak(status, company.consecutiveFailures);
   try {
@@ -308,7 +316,7 @@ async function recordFetchHealth(
         // Stamped after EVERY attempt, failures included: a board that throws
         // has to wait its interval like a healthy one, or a broken feed is
         // retried every heartbeat while a working one waits an hour.
-        nextCheckAt: nextCheckAfter(company, tickStartedAt),
+        nextCheckAt: manual ? nextCheckAfterManual(company, tickStartedAt) : nextCheckAfter(company, tickStartedAt),
         ...(advancesLastOk(status, lastFullCount) ? { lastOkAt: new Date() } : {}),
       },
     });

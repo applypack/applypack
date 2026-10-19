@@ -10,6 +10,13 @@ test('a run that met another fetch says it did nothing and why', () => {
   assert.match(text, /did nothing: another fetch is running/);
 });
 
+test('a run with no source to read says so, and does not blame the network (#557)', () => {
+  const { kind, text } = summarizeFetchRun({ reason: 'no-sources', fetched: 0, sources: 0, sourcesFailed: 0, durationMs: 30 });
+  assert.equal(kind, 'warn');
+  assert.match(text, /^Fetch now: no source to read/);
+  assert.doesNotMatch(text, /network/);
+});
+
 test('a paused-pipeline run reports unscored storage and no AI spend', () => {
   const { kind, text } = summarizeFetchRun({ ...base, classify: false });
   assert.equal(kind, 'ok');

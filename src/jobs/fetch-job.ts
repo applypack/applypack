@@ -154,7 +154,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   beginPageChangeTick();
   // What a look at a folder learns about its files is staged the same way (ADR 0062).
   beginFolderTick();
-  const fetched = await runAllFetchers(paused, (progress) => {
+  const { results: fetched, idle } = await runAllFetchers(paused, (progress) => {
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
     if (progress.status === 'not_modified') sourcesUnchanged++;
@@ -249,6 +249,8 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {
+    // A walk that read nothing says why, instead of a bare "0 fetched" (#557).
+    ...(idle !== null && { reason: idle }),
     profile: searchNames(profiles),
     classifierMode,
     ...(!classify && { classify: false }),
