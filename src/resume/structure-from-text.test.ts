@@ -237,8 +237,10 @@ test('a title with a comma opens the contact line before the place (#624)', () =
   assert.equal(r.basics.label, 'Software Engineer, Backend');
   assert.equal(r.basics.location, 'Austin, TX');
   assert.deepEqual(r.basics.lines, []);
-  // The one place on the line is the place, whatever comes first.
+  // A line that opens with the place keeps it, and two places are never read as a title.
   assert.equal(structureFromText('Jane Example\nAustin, TX · jane@example.com').basics.location, 'Austin, TX');
+  const two = structureFromText('Jane Example\nKyiv, Ukraine · Remote, EU · jane@example.com').basics;
+  assert.deepEqual([two.label, two.location], [null, 'Kyiv, Ukraine']);
 });
 
 /* ---------- a Markdown resume (#573) ---------- */

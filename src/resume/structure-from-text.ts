@@ -1,5 +1,6 @@
 import { emptyResume, JsonResumeSchema, type JsonResume } from './json-resume';
 import type { PdfLayout } from './pdf-layout';
+import { parseLocation } from '../location';
 
 /** What a PDF's own page says about its lines (pdf-layout.ts) — the only hints the reader takes. */
 export type TextLayout = Pick<PdfLayout, 'columns' | 'pairs'>;
@@ -278,9 +279,10 @@ function basicsFrom(header: string[]): JsonResume['basics'] {
     for (const [j, part] of parts.entries()) {
       // "Senior Developer | dana@example.com | Lisbon": with no line of its own,
       // the title is what opens the contact line — one with a comma too, when
-      // a place follows it ("Software Engineer, Backend · Austin, TX", #624).
+      // it names no place and a later part does ("Software Engineer, Backend ·
+      // Austin, TX", #624).
       const opensWithTitle = j === 0 && basics.label === null;
-      if (opensWithTitle && looksLikePlace(part) && parts.slice(1).some(looksLikePlace)) basics.label = part;
+      if (opensWithTitle && looksLikePlace(part) && !namesPlace(part) && parts.slice(1).some(namesPlace)) basics.label = part;
       else if (readContactPart(basics, part)) continue;
       else if (opensWithTitle) basics.label = part;
       else unread.push(part);
@@ -306,6 +308,13 @@ function readContactPart(basics: JsonResume['basics'], part: string): boolean {
   // A comma-joined place is the likeliest remaining part of a contact line.
   if (!basics.location && looksLikePlace(part)) { basics.location = part; return true; }
   return false;
+}
+
+/** A place the gazetteer knows, written as one: "Austin, TX", never "Software Engineer, Backend". */
+function namesPlace(part: string): boolean {
+  if (!looksLikePlace(part)) return false;
+  const { countries, regions } = parseLocation(part);
+  return countries.length + regions.length > 0;
 }
 
 /** Not a sentence: a resume with no headings is all header, and its prose has commas too. */
