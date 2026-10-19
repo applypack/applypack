@@ -55,6 +55,11 @@ describe('formatSalaryRange', () => {
     assert.equal(formatSalaryRange(150_000, 150_000, 'USD', 'year'), '$150k');
   });
 
+  it('writes one figure when both ends round to the same one (#606)', () => {
+    assert.equal(formatSalaryRange(91_800, 92_300, 'USD', 'year'), '$92k');
+    assert.equal(formatSalaryRange(85.2, 85.4, 'USD', 'hour'), '$85/hr');
+  });
+
   it('falls back to USD a year when the columns say nothing, and to a dash when there is no number', () => {
     assert.equal(formatSalaryRange(140_000, 180_000, null, null), '$140k-180k');
     assert.equal(formatSalaryRange(null, null, 'EUR', 'year'), '—');
@@ -71,6 +76,7 @@ describe('formatUsdPerYear', () => {
     assert.equal(formatUsdPerYear(85, null, 'USD', 'hour'), '≈ $150k+/yr');
     assert.equal(formatUsdPerYear(null, 80_000, 'EUR', 'year'), '≈ up to $93k/yr');
     assert.equal(formatUsdPerYear(80_000, 80_000, 'EUR', 'year'), '≈ $93k/yr');
+    assert.equal(formatUsdPerYear(79_000, 79_500, 'EUR', 'year'), '≈ $92k/yr');
     assert.equal(formatUsdPerYear(null, null, 'EUR', 'year'), '');
   });
 });
