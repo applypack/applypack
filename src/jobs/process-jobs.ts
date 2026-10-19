@@ -7,12 +7,14 @@ import { anyBaseFilterReason } from '../filter';
 import { COMPANY_NOT_NAMED, employerGate, fetchedHiringName, hiringKey } from '../employer';
 import { t } from '../i18n/t';
 import { loadEmployerRules } from './employer-store';
+import { dismissedKeys } from './dismissed-store';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { withApplyLinkFlags } from '../apply-link';
 import { validDate } from '../fetchers/dates';
 import { countTurnedAway, type TurnedAwayTally } from '../fetchers/folder-ledger';
 import { parseLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
+import { attributeCalls } from '../ai-ledger';
 import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
 import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
@@ -20,7 +22,7 @@ import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
 import { packsOnSince } from '../pack/settings';
 import { autoPacksToday, queuePack, sameRole } from '../pack/store';
-import { autoPack, copyPack } from '../pack/trigger';
+import { ageCountsFrom, autoPack, copyPack } from '../pack/trigger';
 import { sourceLine } from '../web/pages/attribution';
 import { getPackSettings, type ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
@@ -317,14 +319,16 @@ export async function processNormalizedJobs(
   const pending = candidates.map((item) => ({
     ...item,
     outcome: limit(async (): Promise<ClassifyOutcome> => {
-      if (cancelled) return { results: new Map(), location: null, preFiltered: false };
+      if (cancelled) return { results: new Map(), location: null, preFiltered: false, ledgerIds: [] };
       return classifyJob(
         // The employer an aggregator named — and when it named none, nobody: never the feed's or the folder's own name (ADR 0056).
         buildClassifyInput(item.job, fetchedHiringName(item.job.employer, item.companyName) ?? COMPANY_NOT_NAMED, item.place),
         profiles,
         classifierMode,
-        (reason) => {
-          stats.classifyError = reason;
+        {
+          onError: (reason) => {
+            stats.classifyError = reason;
+          },
         },
       );
     }),
@@ -353,7 +357,7 @@ export async function processNormalizedJobs(
       break;
     }
     consumed++;
-    const { results, location, preFiltered, prefilterReason } = await outcome;
+    const { results, location, preFiltered, prefilterReason, ledgerIds } = await outcome;
     // The model read the whole description; where it knows more than the
     // location line said, the row is stored with that (ADR 0032).
     const placed: Candidate = { ...item, place: mergeAiLocation(item.place, location) };
@@ -365,6 +369,7 @@ export async function processNormalizedJobs(
       // posting the user saved is kept Saved instead, as below (ADR 0062).
       await persistJob(placed, null, job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, [], batch, {
         summary: prefilterReason ? `Set aside by the prefilter: ${prefilterReason}` : 'Set aside by the prefilter.',
+        ledgerIds,
       });
       continue;
     }
@@ -399,6 +404,7 @@ export async function processNormalizedJobs(
       const status = job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED;
       const stored = await persistJob(placed, finalClassification, status, winner.priorityRulesApplied, batch, {
         verdicts,
+        ledgerIds,
       });
       if (stored) {
         stats.dismissed++;
@@ -429,6 +435,7 @@ export async function processNormalizedJobs(
     const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {
       verdicts,
       alertHeldAt,
+      ledgerIds,
     });
     if (!stored) continue;
     stats.matched++;
@@ -440,7 +447,7 @@ export async function processNormalizedJobs(
     if (
       !skipsAlert &&
       item.quiet !== true &&
-      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday: packsToday }) === 'queue'
+      autoPack({ settings: packs, fit: created.fitScore, countsFrom: ageCountsFrom(item.job, item.source?.atsType ?? null), now: new Date(), queuedToday: packsToday }) === 'queue'
     ) {
       // A pack is an extra: failing to queue one must never cost the match its alert.
       try {
@@ -567,21 +574,24 @@ function pairKey(job: Pick<NormalizedJob, 'companyId' | 'externalId'>): string {
 }
 
 /**
- * The (companyId, externalId) pairs already in the table, for a batch. The
- * query asks for any company of the batch × any external id of the batch —
- * a superset — and the Set holds the exact pairs, so a collision of
- * external ids across two boards cannot mark a new posting as stored.
+ * The (companyId, externalId) pairs already in the table, for a batch, and
+ * those of the Dismissed postings the cleanup deleted, whose keys it kept
+ * (#474). The query asks for any company of the batch × any external id of
+ * the batch — a superset — and the Set holds the exact pairs, so a collision
+ * of external ids across two boards cannot mark a new posting as stored.
  */
 async function storedKeys(jobs: Pick<NormalizedJob, 'companyId' | 'externalId'>[]): Promise<Set<string>> {
   if (jobs.length === 0) return new Set();
-  const rows = await prisma.job.findMany({
-    where: {
-      companyId: { in: [...new Set(jobs.map((j) => j.companyId))] },
-      externalId: { in: [...new Set(jobs.map((j) => j.externalId))] },
-    },
-    select: { companyId: true, externalId: true },
-  });
-  return new Set(rows.map(pairKey));
+  const companyIds = [...new Set(jobs.map((j) => j.companyId))];
+  const externalIds = [...new Set(jobs.map((j) => j.externalId))];
+  const [rows, dismissed] = await Promise.all([
+    prisma.job.findMany({
+      where: { companyId: { in: companyIds }, externalId: { in: externalIds } },
+      select: { companyId: true, externalId: true },
+    }),
+    dismissedKeys(companyIds, externalIds),
+  ]);
+  return new Set([...rows, ...dismissed].map(pairKey));
 }
 
 function buildClassifyInput(
@@ -644,11 +654,14 @@ async function persistJob(
     verdicts = [],
     alertHeldAt = null,
     summary = null,
+    ledgerIds = [],
   }: {
     verdicts?: ProfileVerdict[];
     alertHeldAt?: Date | null;
     /** A row stored without a classification still says why it was set aside. */
     summary?: string | null;
+    /** The ledger rows of the calls that scored the posting before it had a row (#483). */
+    ledgerIds?: number[];
   } = {},
 ): Promise<{ created: Job; crossListing: CrossListing } | null> {
   const fingerprint = simhash64(job.description);
@@ -687,6 +700,7 @@ async function persistJob(
     }
     throw err;
   }
+  await attributeCalls(ledgerIds, created.id);
   recentFingerprints.push({
     id: created.id,
     companyId: job.companyId,
@@ -738,6 +752,7 @@ function buildJobData(
     locationSource: place.source,
     description: job.description,
     postedAt: job.postedAt,
+    postedAtKnown: job.undated !== true,
     fitScore: c?.fit_score ?? null,
     salaryMin: c?.salary_min ?? null,
     salaryMax: c?.salary_max ?? null,

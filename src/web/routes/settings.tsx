@@ -1139,6 +1139,7 @@ settingsRoute.post('/settings/sources', async (c) => {
 settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/settings?tab=notifications'), async (c) => {
   const form = await c.req.parseBody();
   const back = '/settings?tab=notifications';
+  const first = (await listNotificationTargets()).length === 0;
   if (form.kind === 'discord') {
     const parsed = DiscordTargetSchema.safeParse({ name: form.name, webhookUrl: form.webhookUrl });
     if (!parsed.success) {
@@ -1155,7 +1156,7 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
     if (!added) {
       return flashRedirect(back, 'err', t('settingsRoute.targets.webhookRace'));
     }
-    return flashRedirect(back, 'ok', t('settingsRoute.targets.discordAdded', { name: parsed.data.name }));
+    return flashRedirect(back, 'ok', `${t('settingsRoute.targets.discordAdded', { name: parsed.data.name })}${await alertsOnForFirst(first)}`);
   }
   const parsed = TelegramTargetSchema.safeParse({
     name: form.name,
@@ -1175,8 +1176,18 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   if (!added) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.telegramRace'));
   }
-  return flashRedirect(back, 'ok', t('settingsRoute.targets.telegramAdded', { name: parsed.data.name, bot: test.botUsername ?? '?' }));
+  return flashRedirect(back, 'ok', `${t('settingsRoute.targets.telegramAdded', { name: parsed.data.name, bot: test.botUsername ?? '?' })}${await alertsOnForFirst(first)}`);
 });
+
+/**
+ * The first chat turns Alerts on, as a chat read from `.env` does at first boot (init.ts): a fresh install starts
+ * with them off, and a person whose test message arrived was then never sent a match. The sentence that says so.
+ */
+async function alertsOnForFirst(first: boolean): Promise<string> {
+  if (!first || (await getSettings()).telegramEnabled) return '';
+  await setTelegramEnabled(true);
+  return ` ${t('settingsRoute.targets.alertsOn')}`;
+}
 
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = idParam(c.req.param('id'));

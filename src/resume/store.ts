@@ -7,6 +7,7 @@ import { logger } from '../logger';
 import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
 import { readFrameReason, type FrameReason } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
+import { annotateAliasOnly } from './keyword-anchor';
 import { withEvidence } from './evidence';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
@@ -541,16 +542,21 @@ export async function rescoreMatchKeywords<T>(
     if (keywords === null || !breakdown) {
       return { detail, before, after: before, scored: breakdown !== null };
     }
+    // Score v6 reads each row's evidence grade; a row written before the grade
+    // existed gets it here, off the text this comparison judged (ADR 0058). The
+    // alias-only mark is read off the same text, as match.ts reads it: a term a
+    // backfill or an edit just made present may be spelled only by an alias (#204).
+    const graded =
+      match.resumeText === ''
+        ? keywords
+        : withEvidence(annotateAliasOnly(keywords, match.resumeText, matcher), match.resumeText, matcher);
     // Exactly the pair match.ts scores with: countable flags over the FULL
     // list (a flag restating a keyword gap is already priced by that keyword's
     // zero credit), points over the effective one. Passing the raw
     // `redFlags.length` here charged ten points the analysis never charged, so
     // every keyword edit dragged the score down and "reset" never came back to
     // where it started.
-    const flags = countableFlags(match.redFlags, keywords, matcher);
-    // Score v6 reads each row's evidence grade; a row written before the grade
-    // existed gets it here, off the text this comparison judged (ADR 0058).
-    const graded = match.resumeText === '' ? keywords : withEvidence(keywords, match.resumeText, matcher);
+    const flags = countableFlags(match.redFlags, graded, matcher);
     const next = scoreMatch(effectiveKeywords(graded), breakdown.alignment, flags.counted.length);
     await tx.resumeMatch.update({
       where: { id },

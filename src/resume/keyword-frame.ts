@@ -6,7 +6,8 @@
  * bad frame, both decided here and nowhere else:
  *
  * - "Rebuild keywords" — the user says this frame is wrong: run once without
- *   it and let the model read the posting again.
+ *   it and let the model read the posting again. Where a brief exists it is
+ *   the frame (ADR 0044), so the brief is written again too (#410).
  * - A prompt bump — a frame extracted under rules the current prompt no
  *   longer follows is never inherited, or the bump would keep re-deriving the
  *   old prompt's list.

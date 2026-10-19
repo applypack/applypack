@@ -43,6 +43,7 @@ import { previewCounts } from '../../datasets/preview';
 import { decodeBody, type Row, type RowFormat } from '../../datasets/rows';
 import { isUniqueViolation, prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
+import { knownIds } from '../../jobs/dismissed-store';
 import { loadEmployerRules } from '../../jobs/employer-store';
 import { folderSummaries, jobsByFile, listSourceFiles, loadLedger, misfitsWaitAgain, readFilesAgain } from '../../jobs/source-file-store';
 import { localInstall } from '../../local/install';
@@ -215,12 +216,11 @@ async function previewRows(
   const [{ scoring, active, roster }, employers, stored] = await Promise.all([
     searchesNow(),
     loadEmployerRules(now),
-    existingId !== null && jobs.length > 0
-      ? prisma.job.findMany({ where: { companyId: existingId, externalId: { in: [...new Set(jobs.map((j) => j.externalId))] } }, select: { externalId: true } })
-      : [],
+    // A dismissal the cleanup deleted counts as held, as the tick counts it (#474).
+    existingId === null ? new Set<string>() : knownIds(existingId, jobs.map((j) => j.externalId)),
   ]);
   const unique = [...new Map(jobs.map((j) => [j.externalId, j])).values()];
-  const counts = previewCounts(unique, roster, new Set(stored.map((s) => s.externalId)), (job) => employerGate(hiringKey(job.employer, base.name, true), employers) !== null);
+  const counts = previewCounts(unique, roster, stored, (job) => employerGate(hiringKey(job.employer, base.name, true), employers) !== null);
   return {
     ...base,
     holds: 'rows',

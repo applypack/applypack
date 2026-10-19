@@ -17,6 +17,7 @@ import {
   buildOllamaChatBody,
   DEFAULT_LOCAL_CONTEXT_TOKENS,
   localBudgetTokens,
+  ollamaCanThink,
   ollamaError,
   parseOllamaStream,
   buildCliEnv,
@@ -134,6 +135,8 @@ const OPENAI_FALLBACK_MODEL = 'gpt-5-mini';
 const LOCAL_CALLS_AT_ONCE = 1;
 /** A local call that got its turn with less than this left is not worth starting. */
 const MIN_LOCAL_CALL_MS = 5_000;
+/** How long the call waits for /api/show; past it the model is asked as it was before #409. */
+const LOCAL_SHOW_TIMEOUT_MS = 5_000;
 
 const execFileAsync = promisify(execFile);
 
@@ -368,6 +371,8 @@ class OpenAiApiProvider implements AiProvider {
 class LocalApiProvider implements AiProvider {
   readonly name = 'local_api';
   private readonly slots = new Map<string, Limiter>();
+  /** Whether each server's model can think, read off /api/show once per process (#409). */
+  private readonly thinks = new Map<string, boolean>();
 
   async complete(req: AiRequest): Promise<AiAttempt> {
     const root = req.baseUrl ?? config.OLLAMA_URL;
@@ -390,6 +395,10 @@ class LocalApiProvider implements AiProvider {
   }
 
   private async send(req: AiRequest, root: string, model: string, contextTokens: number, deadline: number): Promise<AiAttempt> {
+    // Thinking is switched off where the model has it: on our calls it made
+    // them five times slower and scored no better. A model without it is not
+    // sent the field at all, since one may refuse it.
+    const think = (await this.canThink(root, model)) ? false : undefined;
     const remainingMs = deadline - Date.now();
     if (remainingMs < MIN_LOCAL_CALL_MS) {
       req.onError?.(t('engine.fail.localBusy'));
@@ -401,7 +410,7 @@ class LocalApiProvider implements AiProvider {
       const resp = await fetch(`${root}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: buildOllamaChatBody({ system: req.system, user: req.user, model, maxTokens: req.maxTokens, contextTokens, json: req.json }),
+        body: buildOllamaChatBody({ system: req.system, user: req.user, model, maxTokens: req.maxTokens, contextTokens, json: req.json, think }),
         signal: ctrl.signal,
       });
       const raw = await resp.text();
@@ -430,6 +439,28 @@ class LocalApiProvider implements AiProvider {
       return failed(timedOut ? 'timeout' : 'unreachable');
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  /** An answer is remembered; a failed read is asked again on the next call, and until then the model is asked as before. */
+  private async canThink(root: string, model: string): Promise<boolean> {
+    const key = `${root} ${model}`;
+    const known = this.thinks.get(key);
+    if (known !== undefined) return known;
+    try {
+      const resp = await fetch(`${root}/api/show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+        signal: AbortSignal.timeout(LOCAL_SHOW_TIMEOUT_MS),
+      });
+      const read = resp.ok ? ollamaCanThink(await resp.text()) : null;
+      if (read === null) return false;
+      this.thinks.set(key, read);
+      return read;
+    } catch (err) {
+      logger.warn({ err, model }, 'ai: could not read what the local model can do');
+      return false;
     }
   }
 }
