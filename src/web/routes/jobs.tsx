@@ -51,7 +51,6 @@ import { TargetPage } from '../pages/target';
 import { describeStructure, docxStructure } from '../../resume/docx-structure';
 import { oneOffDraft, previousFor } from '../../resume/match-name';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
-import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, findLiveRun, LETTER_FAILED, startRun, updateRun } from '../target-runs';
 import { runFailure } from '../run-failure';
@@ -66,7 +65,6 @@ import {
   listFacts,
   listMatchesForJob,
   listResumes,
-  replaceResumeFile,
   updateCoverLetterEdit,
   getResumeOriginal,
 } from '../../resume/store';
