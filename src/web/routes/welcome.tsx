@@ -166,12 +166,14 @@ welcomeRoute.get('/welcome', async (c) => {
 });
 
 welcomeRoute.post('/welcome/skip', async () => {
+  await keepFoundEngine();
   await setSetupCompleted(currentLocale());
   return flashRedirect('/', 'ok', t('welcome.flash.skipped'));
 });
 
 /** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
 welcomeRoute.post('/welcome/finish', async () => {
+  await keepFoundEngine();
   await setFetchingEnabled(true);
   await setSetupCompleted(currentLocale());
   return flashRedirect('/', 'ok', t('welcome.flash.finished'));
@@ -226,10 +228,11 @@ welcomeRoute.post('/welcome/ai/local', async (c) => {
 });
 
 /**
- * Step 1's Continue: an engine found on this machine becomes the chosen one when nothing in the list can run
- * (`adoptFoundEngine`), so the AI tab shows the engine that answers as the one picked. Calls go where they went.
+ * Leaving step 1 by Continue, or setup by Skip or Finish (#559): an engine found on this machine becomes the chosen
+ * one when nothing in the list can run (`adoptFoundEngine`), so the AI tab shows the engine that answers as the one
+ * picked. Calls go where they went.
  */
-welcomeRoute.post('/welcome/ai/continue', async (c) => {
+async function keepFoundEngine(): Promise<void> {
   const { statuses, settings } = await loadWelcomeContext();
   const env = getAiEngineEnv(await getAiKeys(), settings.openAiBaseUrl);
   const adopted = adoptFoundEngine(parseAiEngineConfig(settings.aiEngine), env, AI_PROVIDER_IDS.filter((id) => statuses[id].ok));
@@ -237,6 +240,10 @@ welcomeRoute.post('/welcome/ai/continue', async (c) => {
     await setAiEngineConfig(adopted);
     forgetAiProbe();
   }
+}
+
+welcomeRoute.post('/welcome/ai/continue', async (c) => {
+  await keepFoundEngine();
   return c.redirect(SEARCH_STEP, 303);
 });
 
