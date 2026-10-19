@@ -59,6 +59,7 @@ const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/;
 const PHONE = /(?:\+\d[\d\s().-]{7,})|(?:\(\d{3}\)\s*\d{3}[\s.-]?\d{4})/;
 /** Up to a closing bracket: "Portfolio (https://x.dev)" is the link without the ")". */
 const URL = /(?:https?:\/\/|www\.)[^\s)]+|\b[\w-]+\.(?:com|dev|io|net|org|me|co)\/[^\s)]+/i;
+const OPENS_WITH_CONTACT = new RegExp(`^(?:${EMAIL.source}|${PHONE.source}|${URL.source})`, 'i');
 /** A dash between two dates, in any of the shapes the corpus writes it. */
 const DATE_RANGE =
   /((?:\w{3,9}\.?\s*)?\d{4}|Present|Current)\s*[–—-]\s*((?:\w{3,9}\.?\s*)?\d{4}|Present|Current)/i;
@@ -275,7 +276,7 @@ function basicsFrom(header: string[]): JsonResume['basics'] {
     // printed the title twice (reported 2026-09-30).
     if (i === labelAt) continue;
     const unread: string[] = [];
-    const parts = line.split(SEPARATORS).map((p) => p.trim()).filter(Boolean);
+    const parts = line.split(SEPARATORS).map((p) => p.trim()).filter(Boolean).flatMap(splitAtContact);
     for (const [j, part] of parts.entries()) {
       // "Senior Developer | dana@example.com | Lisbon": with no line of its own,
       // the title is what opens the contact line — one with a comma too, when
@@ -291,9 +292,23 @@ function basicsFrom(header: string[]): JsonResume['basics'] {
     // What no field reads — "Fully Work Authorized ∙ No Visa Sponsorship
     // Required" — stays as the resume writes it: dropping it lost a line of
     // the owner's own header, and a renderer cannot put back what it never got.
-    basics.lines.push(unread.length === line.split(SEPARATORS).filter((p) => p.trim()).length ? line.trim() : unread.join(' · '));
+    basics.lines.push(unread.length === parts.length ? line.trim() : unread.join(' · '));
   }
   return basics;
+}
+
+/**
+ * Words before an address, a phone number or a link are a part of their own:
+ * "Senior Full-Stack Developer dana@example.com" is a title and an address a
+ * PDF's text layer put on one line, and reading the part as the address alone
+ * dropped the title. A field's own label ("Email:") is still dropped.
+ */
+function splitAtContact(part: string): string[] {
+  const at = Math.min(...[EMAIL, PHONE, URL].map((re) => re.exec(part)?.index ?? Infinity));
+  if (!Number.isFinite(at) || at === 0) return [part];
+  const before = part.slice(0, at).trim();
+  const contact = part.slice(at);
+  return before.length === 0 || before.endsWith(':') ? [contact] : [before, contact];
 }
 
 /** Put one part of a contact line where it belongs; false when nothing reads it. */
@@ -563,9 +578,24 @@ export function joinWrapped(lines: string[]): string[] {
 
 function isContinuation(previous: string, line: string): boolean {
   if (BULLET.test(line)) return false;
+  // A contact line starts lower-case ("dana@…", "github.com/…") and follows a
+  // title with no full stop: joined, the title was read as part of an address
+  // and the clean version lost it.
+  if (isContactLine(line)) return false;
   // A line that opens a new thought — capitalised after a finished sentence —
   // is a new item, not a wrap.
   if (/[.:;!?]$/.test(previous)) return false;
   if (DATE_RANGE.test(line)) return false;
   return /^[\p{Ll}\p{N}(]/u.test(line) || previous.endsWith(',');
+}
+
+/**
+ * One address, phone number or link alone, or one beside a contact separator.
+ * A link that opens a sentence ("github.com/acme and the API reference") is
+ * still the rest of a wrapped bullet.
+ */
+function isContactLine(line: string): boolean {
+  const opening = OPENS_WITH_CONTACT.exec(line)?.[0];
+  if (opening !== undefined && opening.trim() === line.trim()) return true;
+  return (EMAIL.test(line) || PHONE.test(line) || URL.test(line)) && SEPARATORS.test(line);
 }

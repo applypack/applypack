@@ -307,6 +307,9 @@ test('an empty structure renders a file rather than throwing', async () => {
 test('typefaceNote says which case the reader is in', () => {
   assert.match(typefaceNote('Arial'), /same letter widths as Arial/);
   assert.match(typefaceNote('Calibri'), /may break differently/);
+  // Our own clean PDF read back is set in the bundled face: no "same widths as itself".
+  assert.equal(typefaceNote('Liberation Sans').match(/Liberation Sans/g)?.length, 2);
+  assert.doesNotMatch(typefaceNote('liberation sans'), /same letter widths/);
 });
 
 /* ---------- a file whose page said how it looks (pdf-layout.ts) ---------- */

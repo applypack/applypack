@@ -42,6 +42,17 @@ const MUTED = '#667085';
 // resume that is gone, and the page shows no number rather than a guess.
 const STALE_NOTE = 'Too little is left of the resume the AI read to score this text. In the app, “Analyse my resume again” reads the new text in one AI call.';
 
+/** The number with no score: a dash to see, words to hear — it is a live region. */
+function noScore() {
+  const dash = document.createElement('span');
+  dash.textContent = '—';
+  dash.setAttribute('aria-hidden', 'true');
+  const words = document.createElement('span');
+  words.className = 'sr-only';
+  words.textContent = 'Not scored';
+  return [dash, words];
+}
+
 /** What a chip's title says: how hard the posting wants the word, how often, where it would go. */
 const chipWhy = (r) =>
   [wantsLabel(r), r.count > 1 ? '×' + r.count + ' in the posting' : null, r.where ? 'add in: ' + r.where : null, r.note]
@@ -77,7 +88,8 @@ function wire(data) {
     }
 
     const tone = stale ? MUTED : toneColor(display);
-    scoreValue.textContent = stale ? '—' : String(display);
+    if (stale) scoreValue.replaceChildren(...noScore());
+    else scoreValue.textContent = String(display);
     scoreValue.style.color = tone;
     scoreBar.style.width = (stale ? 0 : display) + '%';
     scoreBar.style.background = tone;

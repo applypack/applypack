@@ -36,3 +36,14 @@ test('normalizePdfText joins the page-width wraps a text layer leaves, and nothi
     'EDUCATION',
   ]);
 });
+
+test('normalizePdfText keeps a contact line apart from the title above it', () => {
+  // The clean PDF's own header, read back: the title has no full stop and the address opens lower-case.
+  const layer = 'Dana Ruiz\nSenior Full-Stack Developer\ndana.ruiz@example.com · github.com/danaruiz-dev\nSUMMARY';
+  assert.deepEqual(normalizePdfText(layer).split('\n'), [
+    'Dana Ruiz',
+    'Senior Full-Stack Developer',
+    'dana.ruiz@example.com · github.com/danaruiz-dev',
+    'SUMMARY',
+  ]);
+});
