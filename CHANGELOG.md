@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.0] — 2026-10-18
+
+### Added
+- **Try it on my postings** on each engine's card in Settings → AI & costs:
+  scores up to 20 of your scored postings again on that engine alone and
+  shows how often it agrees with the scores on record, the false and missed
+  matches, how far apart the scores are and how long each takes. Free on a
+  local model. The last result stays on the card.
+- An engine card says when a task you gave it did not fit its context window
+  in the last 30 days, and whether the engine behind it answered instead or
+  the call failed.
+
+### Changed
+- The AI usage hints quote an engine's last try on your postings instead of
+  saying its quality is not measured, and point to **Try it on my postings**
+  when there is none yet.
+
 ## [2.60.0] — 2026-10-18
 
 ### Added
@@ -6245,6 +6262,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.0]: https://github.com/applypack/applypack/compare/v2.60.0...v2.61.0
 [2.60.0]: https://github.com/applypack/applypack/compare/v2.59.4...v2.60.0
 [2.59.4]: https://github.com/applypack/applypack/compare/v2.59.3...v2.59.4
 [2.59.3]: https://github.com/applypack/applypack/compare/v2.59.2...v2.59.3
