@@ -60,29 +60,44 @@ describe('jobTabLabels', () => {
 });
 
 describe('shownMatch — the comparison a job page opens on', () => {
-  // Newest first, as the page lists them: the pack's draft of its tailored text, then the resume as saved.
-  const matches = [{ id: 31, score: 100 }, { id: 30, score: 70 }, { id: 12, score: 64 }];
+  const row = (id: number, resumeId: number, score: number, over: { draft?: boolean; hidden?: boolean } = {}) => ({
+    id,
+    resumeId,
+    score,
+    draft: over.draft ?? false,
+    resume: { hidden: over.hidden ?? false },
+  });
+  // Newest first, as the page lists them: a pack's draft of its tailored text,
+  // another person's file compared over resume 2, a one-off file from the
+  // Tailor resume page, then resume 2 as saved, then another resume.
+  const matches = [
+    row(40, 2, 100, { draft: true }),
+    row(39, 2, 24, { draft: true }),
+    row(38, 9, 78, { hidden: true }),
+    row(30, 2, 54),
+    row(20, 3, 85),
+  ];
 
-  it('is the latest when no pack made one', () => {
-    assert.equal(shownMatch(matches, NaN, null)?.id, 31);
+  it('is the latest comparison of the resume the job is linked to, as saved (#582, #384)', () => {
+    // "Resume match · 24" headed the job, and "marta short" (78) opened the Tailor page.
+    assert.equal(shownMatch(matches, NaN, 2)?.score, 54);
+    assert.equal(shownMatch(matches, NaN, 3)?.score, 85);
   });
 
-  it('is not the draft a pack made of its own tailored text (#384)', () => {
-    // "Resume match · 100" headed a resume that scores 70.
-    assert.equal(shownMatch(matches, NaN, 31)?.score, 70);
-    // An older draft of a pack that was prepared again is just another comparison.
-    assert.equal(shownMatch(matches, NaN, 12)?.id, 31);
+  it('is the latest saved comparison when the job is linked to no resume, or to one never compared', () => {
+    assert.equal(shownMatch(matches, NaN, null)?.id, 30);
+    assert.equal(shownMatch(matches, NaN, 7)?.id, 30);
   });
 
-  it('is the one asked for, the pack\'s draft included', () => {
-    assert.equal(shownMatch(matches, 31, 31)?.id, 31);
-    assert.equal(shownMatch(matches, 12, 31)?.id, 12);
+  it('is the one asked for, a draft or a one-off included', () => {
+    assert.equal(shownMatch(matches, 40, 2)?.id, 40);
+    assert.equal(shownMatch(matches, 38, 2)?.id, 38);
     // An id that is not this job's falls back as if none was asked.
-    assert.equal(shownMatch(matches, 999, 31)?.id, 30);
+    assert.equal(shownMatch(matches, 999, 2)?.id, 30);
   });
 
   it('is the draft when it is all there is, and nothing when there is nothing', () => {
-    assert.equal(shownMatch([{ id: 31 }], NaN, 31)?.id, 31);
-    assert.equal(shownMatch([], NaN, 31), null);
+    assert.equal(shownMatch([row(31, 2, 90, { draft: true })], NaN, 2)?.id, 31);
+    assert.equal(shownMatch([], NaN, 2), null);
   });
 });

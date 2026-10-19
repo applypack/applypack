@@ -395,6 +395,14 @@ async function orderedKeywords(
   return ordered.map((k) => (usage.has(k.term) ? { ...k, usage: usage.get(k.term) } : k));
 }
 
+/** The resume a job is linked to: the search that scored it best, else the primary's. */
+function linkedResumeOf(
+  scores: { profile: { resumeId: number | null } }[],
+  primary: { resumeId: number | null } | null,
+): number | null {
+  return scores[0]?.profile.resumeId ?? primary?.resumeId ?? null;
+}
+
 /**
  * The comparison as its card shows it: the red flags the score charged for,
  * and the free ones that are true among the cautions (red-flags.ts:shownFlags).
@@ -486,17 +494,17 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const hiringKey = hiring === null ? null : employerKey(hiring);
   const muted = hiringKey === null ? null : await findMute(hiringKey);
 
-  // ?match=<id> shows an older comparison; default is the latest. Same for ?letter.
-  const requestedMatch = idParam(c.req.query('match'));
-  const applicationPack = await loadPackView(id, job.url);
-  const selected = shownMatch(matches, requestedMatch, applicationPack.pack?.tailoredMatchId ?? null);
-  const requestedLetter = idParam(c.req.query('letter'));
-  const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
   // The search that speaks for this posting is the one that scored it best,
   // not merely the primary (ADR 0028) — its linked resume wins the preselect.
   // Falls back to the primary for a posting nothing has scored yet.
   const winning = job.scores[0]?.profile ?? null;
-  const linkedResumeId = winning?.resumeId ?? activeProfile?.resumeId ?? null;
+  const linkedResumeId = linkedResumeOf(job.scores, activeProfile);
+  // ?match=<id> shows another comparison; default is the linked resume's latest (shownMatch). Same for ?letter.
+  const requestedMatch = idParam(c.req.query('match'));
+  const applicationPack = await loadPackView(id, job.url);
+  const selected = shownMatch(matches, requestedMatch, linkedResumeId);
+  const requestedLetter = idParam(c.req.query('letter'));
+  const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
   const suggested = preselectResume(resumes, `${job.title} ${job.description}`, linkedResumeId);
   const linkedSearch = winning?.resumeId ? winning : activeProfile;
   const suggestedNote = preselectNote(suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap', linkedSearch?.name ?? null);
@@ -1114,14 +1122,20 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
 jobsRoute.get('/jobs/:id/target', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const [job, matches, verifications] = await Promise.all([
-    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
+  const [job, matches, verifications, primary] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id },
+      include: {
+        company: { select: { name: true, atsType: true } },
+        scores: { select: { profile: { select: { resumeId: true } } }, orderBy: { fitScore: 'desc' }, take: 1 },
+      },
+    }),
     listMatchesForJob(id),
     listVerificationsForJob(id),
+    getActiveProfile(),
   ]);
   if (!job) return c.text(t('http.notFound'), 404);
-  const requested = idParam(c.req.query('match'));
-  const match = matches.find((m) => m.id === requested) ?? matches[0];
+  const match = shownMatch(matches, idParam(c.req.query('match')), linkedResumeOf(job.scores, primary));
   if (!match) {
     return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', t('jobRoute.target.needsComparison'));
   }
@@ -1138,6 +1152,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const file = await describeResumeFile(resume);
   // Opened from a pack's tab: its edits come along as applied cards, over the comparison they were made from (#487).
   const pack = c.req.query('from') === 'pack' ? await getPack(id) : null;
+  const seed = pack?.matchId === match.id ? tailorSeed(pack) : null;
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
@@ -1154,7 +1169,8 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       verification={verifications[0] ?? null}
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
-      seed={pack?.matchId === match.id ? tailorSeed(pack) : null}
+      seed={seed}
+      packScore={seed ? (pack?.scoreAfter ?? null) : null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
