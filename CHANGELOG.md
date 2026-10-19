@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.1] — 2026-10-18
+
+### Changed
+- In employer mode, the step that turns a posting into criteria speaks to
+  the person hiring, not to a job seeker.
+- The screening CSV gives your score adjustment and its reason two columns,
+  so a spreadsheet reads the adjustment as a number.
+- The engine try says when the scores it compared with came from the same
+  model.
+- The Board columns setting names the fixed columns: Applied, Rejected and
+  Ghosted.
+
+### Fixed
+- A screening no longer fails, and spends a second call, when a resume has a
+  freelance or self-employed role.
+- "Keep 90 more days" on a screening adds 90 days to the date it is kept
+  until, and the message writes that date the way the page does.
+- The scorecard shows "in use now" in your language instead of the resume's
+  own word, keeps a year as a year, and no longer gives a "last used" date
+  for a skill the resume does not show.
+- The screening table fits a 1024-pixel screen: names, file names and the
+  Decision column are readable, and the steering-text badge no longer covers
+  the gate marks.
+- A scorecard's verdict no longer says "Priority to talk to" next to "Ask
+  first".
+- Switching alerts on with no chat set up says that nothing will arrive
+  until one is added.
+- Typing "rust, elixir" and Enter in a list field makes two entries.
+- A Go posting no longer shows "Go · Go".
+
 ## [2.63.0] — 2026-10-18
 
 ### Added
@@ -6529,6 +6559,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.1]: https://github.com/applypack/applypack/compare/v2.63.0...v2.63.1
 [2.63.0]: https://github.com/applypack/applypack/compare/v2.62.0...v2.63.0
 [2.62.0]: https://github.com/applypack/applypack/compare/v2.61.10...v2.62.0
 [2.61.10]: https://github.com/applypack/applypack/compare/v2.61.9...v2.61.10
