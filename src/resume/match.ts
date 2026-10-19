@@ -17,7 +17,7 @@ import {
 import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
 import { countableFlags } from './red-flags';
-import { dropNoOps, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
+import { finishEdits, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
 import { structureFromText } from './structure-from-text';
 import { floorDemand, floorGaps, unwrittenMusts } from './suggestion-floor';
 import { suggestForMatch } from './suggestions';
@@ -194,7 +194,7 @@ export async function matchResumeToJob(
   const churn = rewritesOfApplied(applied, gate.actions, resume.text, matcher.locateQuote);
   const fresh = freshActions(gate.actions, applied, keywords, resume.text, matcher);
   // A card that asks for nothing is not a suggestion, and the count says so.
-  const edits = dropNoOps(fresh.kept, cuts.removals, gateSources);
+  const edits = finishEdits(fresh.kept, cuts.removals, gateSources);
   // A flag that only restates a keyword the resume does not have is the same
   // fact billed twice: the keyword pool already charged for it, and whether the
   // model bothers to write the sentence was 80% of a ten-point spread across

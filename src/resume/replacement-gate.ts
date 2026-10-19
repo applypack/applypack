@@ -338,7 +338,32 @@ const TAKE_OUT = /\b(?:remove|drop|delete|cut|strip|take out)\b/i;
 /** A keep that moves the line is a reorder, and a reorder changes something. */
 const MOVES = /\b(?:move|reorder|swap|lead|open|first|top|above|below|before|after|up)\b/i;
 
-export interface NoOpReport {
+/*
+ * The prompt's own words for its verdicts, as they reach a "why" the candidate
+ * reads, and plain ones for them. Measured on prompt v18, which asks for plain
+ * words: "title graded partial", "SQL is a must-have keyword marked add" still
+ * came back. Only this vocabulary is touched — it means one thing here.
+ */
+const PLAIN_WHY: [RegExp, string][] = [
+  [/\brecent_role\b/gi, 'recent role'],
+  [/\bgraded (?:as )?partial\b/gi, 'only partly matches the posting'],
+  [/\bgraded (?:as )?off\b/gi, 'does not match the posting'],
+  [/\bmarked (?:as )?["']?add\b["']?/gi, 'not written in the resume yet'],
+  [/\bmarked (?:as )?["']?cannot_claim["']?/gi, 'with nothing in the resume behind it'],
+  [/\bmarked (?:as )?["']?ask_user["']?/gi, 'still to confirm'],
+  [/\bcannot_claim\b/gi, 'unsupported'],
+  [/\bask_user\b/gi, 'to confirm'],
+  [/\bpresent\/add\b/gi, 'the resume can claim'],
+  [/\badd-status\b/gi, 'not yet written'],
+  [/\bmust-level\b/gi, 'must-have'],
+  [/\b(?:the )?screening block\b/gi, "the posting's screening points"],
+];
+
+function plainWhy<T extends { why: string }>(item: T): T {
+  return { ...item, why: PLAIN_WHY.reduce((why, [re, words]) => why.replace(re, words), item.why) };
+}
+
+export interface FinishedEdits {
   actions: MatchAction[];
   removals: MatchRemoval[];
   /** How many cards asked for nothing. */
@@ -346,18 +371,19 @@ export interface NoOpReport {
 }
 
 /**
- * The edits that ask for nothing, taken out after the gates (#577): a rewording
- * identical to the text it replaces, a "keep … as is" with no wording, a
- * removal that says there is nothing to remove, and an order to take out terms
- * the text does not carry ("remove React" where React is nowhere). The prompt
- * already says every action earns its place; these still came back, and a card
- * that can only be read and skipped makes the count on the page a lie.
+ * The edits as they reach the page, after the gates (#577). Those that ask for
+ * nothing are taken out: a rewording identical to the text it replaces, a
+ * "keep … as is" with no wording, a removal that says there is nothing to
+ * remove, an order to take out terms the text does not carry ("remove React"
+ * where React is nowhere). The prompt already says every action earns its
+ * place; these still came back, and a card that can only be read and skipped
+ * makes the count on the page a lie. Every "why" left is put in plain words.
  */
-export function dropNoOps(
+export function finishEdits(
   actions: MatchAction[],
   removals: MatchRemoval[],
   sources: Pick<GateSources, 'resumeText' | 'keywords' | 'matcher'>,
-): NoOpReport {
+): FinishedEdits {
   const has = (text: string, k: MatchKeyword) => sources.matcher.findTerm(text, k.term, k.aliases ?? []).length > 0;
   /** An order to take out terms none of which the resume carries. */
   const takesOutAbsent = (what: string) => {
@@ -375,8 +401,8 @@ export function dropNoOps(
   const keptActions = actions.filter((a) => !actionAsksNothing(a));
   const keptRemovals = removals.filter((r) => !removalAsksNothing(r));
   return {
-    actions: keptActions,
-    removals: keptRemovals,
+    actions: keptActions.map(plainWhy),
+    removals: keptRemovals.map(plainWhy),
     dropped: actions.length - keptActions.length + removals.length - keptRemovals.length,
   };
 }

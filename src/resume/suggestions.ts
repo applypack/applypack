@@ -17,7 +17,7 @@ import {
 import { briefForPosting } from './brief';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
-import { dropNoOps, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
+import { finishEdits, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
 import { structureFromText } from './structure-from-text';
 import { rewriteRefusedLeads } from './rewrite';
 import { appliedWording, freshActions, rewritesOfApplied } from './applied';
@@ -93,7 +93,7 @@ export async function suggestForMatch(
   const cuts = gateRemovals(answer.data.removals, gateSources);
   const churn = rewritesOfApplied(applied, gate.actions, match.resumeText, matcher.locateQuote);
   const fresh = freshActions(gate.actions, applied, gateSources.keywords, match.resumeText, matcher);
-  const edits = dropNoOps(fresh.kept, cuts.removals, gateSources);
+  const edits = finishEdits(fresh.kept, cuts.removals, gateSources);
   const row = await updateMatchSuggestions(
     match.id,
     { ...answer.data, actions: edits.actions, removals: edits.removals },

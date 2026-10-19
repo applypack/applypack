@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropNoOps, gateActions, gateRemovals, hasCheckNote, instructionIn, splitRefusal, titleOverHeadline, type GateSources } from './replacement-gate';
+import { finishEdits, gateActions, gateRemovals, hasCheckNote, instructionIn, splitRefusal, titleOverHeadline, type GateSources } from './replacement-gate';
 import { structureFromText } from './structure-from-text';
 import { readKeywords, readRemovals, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
@@ -473,7 +473,7 @@ test('an edit that asks for nothing is dropped, and the count says how many (#57
     keywords: [keyword({ term: 'React', status: 'cannot_claim' }), keyword({ term: 'Laravel' })],
   });
   const real = action({ quote: 'Designed Laravel payment workflows', replacement: 'Owned Laravel payment workflows.' });
-  const out = dropNoOps(
+  const out = finishEdits(
     [
       real,
       action({ what: 'Keep refunds-service bullet as is', quote: 'Designed Laravel payment workflows' }),
@@ -497,4 +497,26 @@ test('an edit that asks for nothing is dropped, and the count says how many (#57
   );
   assert.deepEqual(out.removals.map((r) => r.what), ['Drop MySQL from the skills line']);
   assert.equal(out.dropped, 5);
+});
+
+test('a why the candidate reads is in plain words, not the prompt\'s field names (#577)', async () => {
+  const src = await sources();
+  const why = (text: string) => action({ quote: 'Designed Laravel payment workflows', replacement: 'Owned Laravel payment workflows.', why: text });
+  const out = finishEdits(
+    [
+      why('title graded partial; recruiter scans for the role name first'),
+      why('SQL is a must-have keyword marked add; this bullet already has the evidence'),
+      why('recent_role graded off per screening block'),
+      why('must show must-level keywords present/add up top'),
+    ],
+    [removal({ what: 'Drop the noise.', quote: 'MySQL', why: 'cannot_claim term, add-status context keyword' })],
+    src,
+  );
+  assert.deepEqual(out.actions.map((a) => a.why), [
+    'title only partly matches the posting; recruiter scans for the role name first',
+    'SQL is a must-have keyword not written in the resume yet; this bullet already has the evidence',
+    "recent role does not match the posting per the posting's screening points",
+    'must show must-have keywords the resume can claim up top',
+  ]);
+  assert.equal(out.removals[0]!.why, 'unsupported term, not yet written context keyword');
 });
