@@ -19,6 +19,8 @@ import { config } from '../config';
 import { classifyJob } from '../classifier';
 import { createLimiter } from '../concurrency';
 import { companyForPrompt } from '../employer';
+import { storedPlace } from '../jobs/classify-existing';
+import { mergeAiLocation } from '../jobs/location-merge';
 import { buildVerdicts } from '../jobs/verdict-merge';
 import { isBlankProfile } from '../profile-guards';
 import { listActiveProfiles } from '../profiles';
@@ -102,7 +104,7 @@ async function main(): Promise<void> {
 
     for (const profile of profiles) {
       const runs: (Run | null)[] = outcomes.map((o) => {
-        const { verdicts } = buildVerdicts(o.results, [profile], job);
+        const { verdicts } = buildVerdicts(o.results, [profile], job, mergeAiLocation(storedPlace(job), o.location));
         const v = verdicts[0];
         return v
           ? { fit: v.classification.fit_score, locationMatch: v.classification.location_match, dismissed: v.dismissReason }

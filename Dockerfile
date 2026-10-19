@@ -5,12 +5,15 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 ENV PRISMA_SKIP_POSTINSTALL_GENERATE=1
+# Every stage runs the Prisma CLI: no update check, no telemetry (#524).
+ENV CHECKPOINT_DISABLE=1
 # The lockfile, exactly: an image built today and one built next month hold
 # the same dependencies.
 RUN npm ci --ignore-scripts && npx prisma generate
 
 FROM node:24-alpine AS build
 WORKDIR /app
+ENV CHECKPOINT_DISABLE=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # npm run build is tsc plus the PDF fonts beside dist/ (ADR 0039). Then the
@@ -25,6 +28,7 @@ RUN npx prisma generate && npm run build \
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV CHECKPOINT_DISABLE=1
 # The three CLI engines (docs/ai-engines.md), pinned for the same reason as
 # the lockfile. Bump them together, after a Test on /settings → AI engine.
 ARG CLAUDE_CODE_VERSION=2.1.274

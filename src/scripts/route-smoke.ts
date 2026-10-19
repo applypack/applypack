@@ -809,6 +809,7 @@ async function main(): Promise<void> {
   rows.push(...(await engineTroubleChecks()));
   rows.push(await ledgerUpdateCheck(f.jobId));
   rows.push(await recordedBandCheck());
+  rows.push(...(await compressionChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -875,6 +876,48 @@ const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job 
 type Check = { route: string; url: string; status: number; ok: boolean };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * #548: what a browser that asks for gzip gets — a page and a stylesheet
+ * compressed, a font left as it is (woff2 is compressed already), and a
+ * client that does not ask gets the plain bytes.
+ */
+async function compressionChecks(): Promise<Check[]> {
+  const gzip = { headers: { ...ORIGIN, 'accept-encoding': 'gzip' } };
+  const checks: { route: string; url: string; init: RequestInit; expect: (res: Response) => Promise<boolean> }[] = [
+    {
+      route: 'GET /companies asking for gzip (compressed, and whole)',
+      url: '/companies',
+      init: gzip,
+      expect: async (res) =>
+        res.headers.get('content-encoding') === 'gzip' && res.body !== null && (await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text()).includes('</html>'),
+    },
+    {
+      route: 'GET /static/tailwind.css asking for gzip (compressed)',
+      url: '/static/tailwind.css',
+      init: gzip,
+      expect: async (res) => res.headers.get('content-encoding') === 'gzip',
+    },
+    {
+      route: 'GET a bundled font asking for gzip (left as it is)',
+      url: '/static/fonts/inter-latin.woff2',
+      init: gzip,
+      expect: async (res) => !res.headers.has('content-encoding'),
+    },
+    {
+      route: 'GET /companies not asking for gzip (plain)',
+      url: '/companies',
+      init: { headers: ORIGIN },
+      expect: async (res) => !res.headers.has('content-encoding') && (await res.text()).includes('</html>'),
+    },
+  ];
+  const out: Check[] = [];
+  for (const c of checks) {
+    const res = await app.request(c.url, c.init);
+    out.push({ route: c.route, url: c.url, status: res.status, ok: res.status === 200 && (await c.expect(res)) });
+  }
+  return out;
+}
 
 /**
  * #413: an engine whose last calls all failed says so on AI usage and on its

@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.61.2",
+  "version": "2.61.6",
   "private": true,
   "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 7 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
   "license": "MIT",
@@ -56,6 +56,21 @@
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2"
+  },
+  "allowScripts": {
+    "@embedded-postgres/darwin-arm64": true,
+    "@embedded-postgres/darwin-x64": true,
+    "@embedded-postgres/linux-arm": true,
+    "@embedded-postgres/linux-arm64": true,
+    "@embedded-postgres/linux-ia32": true,
+    "@embedded-postgres/linux-ppc64": true,
+    "@embedded-postgres/linux-x64": true,
+    "@embedded-postgres/windows-x64": true,
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "esbuild": true,
+    "fsevents": false,
+    "prisma": true
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

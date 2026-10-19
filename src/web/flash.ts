@@ -33,9 +33,21 @@ export interface FlashMessage {
   download?: string;
   /** The form field a schema refused — the page marks it invalid and points it at this message (TASKS U15). */
   field?: RefusedField;
+  /** What a refused form held — the page puts it back instead of an empty form (#534). */
+  draft?: FormDraft;
+}
+
+/** A refused form's values, by the form they came from. */
+export interface FormDraft {
+  /** The form's `action` — the path the POST went to. */
+  form: string;
+  values: Record<string, string>;
 }
 
 const FLASH_TTL_SECONDS = 5;
+/** A draft is a few short fields; the cap keeps a pasted essay from pushing the cookie past what a browser keeps. */
+const MAX_DRAFT_FIELDS = 8;
+const MAX_DRAFT_CHARS = 300;
 /** A schema's message can echo the value it refused; a flash rides in a cookie, so the echo is cut. */
 const MAX_ISSUE_CHARS = 160;
 
@@ -61,7 +73,7 @@ export function flashRedirect(
   location: string,
   kind: FlashMessage['kind'],
   text: string,
-  opts: { rerun?: boolean; mode?: string; tailor?: string; download?: string; field?: RefusedField } = {},
+  opts: { rerun?: boolean; mode?: string; tailor?: string; download?: string; field?: RefusedField; draft?: FormDraft } = {},
 ): Response {
   const value = encodeFlash({
     kind,
@@ -70,6 +82,7 @@ export function flashRedirect(
     ...(opts.tailor ? { tailor: opts.tailor } : {}),
     ...(opts.download ? { download: opts.download } : {}),
     ...(opts.field ? { field: opts.field } : {}),
+    ...(opts.draft ? { draft: readDraft(opts.draft) } : {}),
   });
   return new Response(null, {
     status: 303,
@@ -103,6 +116,7 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
       (parsed.kind === 'ok' || parsed.kind === 'warn' || parsed.kind === 'err') &&
       typeof parsed.text === 'string'
     ) {
+      const draft = readDraft(parsed.draft);
       return {
         kind: parsed.kind,
         text: parsed.text,
@@ -116,6 +130,8 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
         ...(typeof parsed.download === 'string' && /^\/resumes\/\d+\/download$/.test(parsed.download) ? { download: parsed.download } : {}),
         // A form's path and a field's name, nothing else: both land in a selector on the page.
         ...(isRefusedField(parsed.field) ? { field: { form: parsed.field.form, name: parsed.field.name } } : {}),
+        // Values only go back into the form they came from, as attribute values the renderer escapes.
+        ...(draft ? { draft } : {}),
       };
     }
   } catch {
@@ -198,6 +214,15 @@ function boundReason(type: string, side: 'min' | 'max', n: number, exact: boolea
 export function refusedField(form: string, issues: readonly { path: readonly PropertyKey[] }[]): { field?: RefusedField } {
   const name = issues[0]?.path[0];
   return typeof name === 'string' && isRefusedField({ form, name }) ? { field: { form, name } } : {};
+}
+
+/** A draft as the cookie may carry it: a form of ours, field names only, short string values. Anything else is none. */
+function readDraft(value: unknown): FormDraft | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { form, values } = value as Record<string, unknown>;
+  if (typeof form !== 'string' || !FORM_ACTION.test(form) || !values || typeof values !== 'object') return undefined;
+  const fields = Object.entries(values).filter((e): e is [string, string] => FIELD_NAME.test(e[0]) && typeof e[1] === 'string');
+  return { form, values: Object.fromEntries(fields.slice(0, MAX_DRAFT_FIELDS).map(([name, v]) => [name, v.slice(0, MAX_DRAFT_CHARS)])) };
 }
 
 function isRefusedField(value: unknown): value is RefusedField {

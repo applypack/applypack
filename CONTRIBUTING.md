@@ -26,6 +26,12 @@ filters and the dashboard run without one.
 npm run lint:types && npm test   # must be green before every PR; CI runs the same
 ```
 
+`npm install` does not audit (`.npmrc`): run `npm audit` yourself, CI
+audits what ships with `npm audit --omit=dev`. A dependency that brings an
+install script needs its line in `allowScripts` in `package.json`
+(`npm approve-scripts --no-allow-scripts-pin <pkg>`, or `npm deny-scripts`);
+`src/install-scripts.test.ts` fails until it has one.
+
 ## Where to start
 
 - **Add a job source.** The highest-value contribution and close to a
