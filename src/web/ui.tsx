@@ -558,7 +558,8 @@ const SparkBars: FC<{ values: readonly number[]; tone: Tone; class?: string }> =
  * One number that stands alone: its icon on the tone's tint, the label, the
  * value at the KPI step and one line of what moved. With `href` the value is
  * a link stretched over the card; `spark` draws the last fortnight beside it
- * where there is room.
+ * where there is room. On a phone, two to a row (#570): the icon steps back
+ * and the padding tightens, so the label and the number keep their room.
  */
 export const StatCard: FC<{
   label: string;
@@ -572,11 +573,11 @@ export const StatCard: FC<{
   spark?: readonly number[];
 }> = ({ label, value, tone, icon, delta, href, hrefLabel, spark }) => (
   <div
-    class={`relative flex gap-3.5 rounded-lg border border-line bg-surface-raised p-5 shadow-card transition-colors duration-150 ${
+    class={`relative flex gap-3.5 rounded-lg border border-line bg-surface-raised p-4 shadow-card transition-colors duration-150 sm:p-5 ${
       href ? 'hover:border-line-strong' : ''
     }`}
   >
-    <IconTile icon={icon} tone={tone} />
+    <IconTile icon={icon} tone={tone} class="hidden h-10 w-10 sm:grid" />
     <div class="min-w-0 flex-1">
       <div class="break-words text-label text-ink-muted">{label}</div>
       {/* The bars share the number's row and give way first: a narrow card clips the oldest days, never the number. */}

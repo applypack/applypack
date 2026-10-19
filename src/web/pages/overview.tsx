@@ -222,7 +222,7 @@ export const OverviewPage: FC<OverviewProps> = ({
         </Notice>
       )}
 
-      <section aria-label={t('overview.jobsByStatus')} class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(18rem,27%)]">
+      <section aria-label={t('overview.jobsByStatus')} class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(18rem,27%)]">
         {KPI_STATUSES.map((status) => {
           const moved = stats.kpi[status].last24h;
           return (
@@ -251,9 +251,12 @@ export const OverviewPage: FC<OverviewProps> = ({
       {readyPacks.length > 0 && <ReadyPacksCard packs={readyPacks} total={readyPacksTotal} />}
 
       <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,27%)]">
-        <div class="min-w-0 space-y-4">
+        {/* #570: on a phone the latest matches come before the chart, so the first one is in the first screen. */}
+        <div class="flex min-w-0 flex-col gap-4">
           <MatchesChart chart={stats.chart} funnel={stats.funnel} />
-          <RecentMatches jobs={recentMatches} places={places} />
+          <div class="order-first sm:order-none">
+            <RecentMatches jobs={recentMatches} places={places} />
+          </div>
         </div>
 
         <div class="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">

@@ -318,8 +318,10 @@ Content gutters are 16px, stepping to 24px ≥640px and 32px ≥1024px. A page
 opens with `PageHeader`: the title and its one sentence at the left, what the
 page offers — a quiet meta line, a status pill, the buttons — at the right,
 level with the title. Cards stack and grid at 16px gaps. Detail pages split
-into a fluid main column and a 340px facts-and-actions rail at ≥1280px (rail
-first in DOM so actions lead on small screens). Settings puts its eight tabs,
+into a fluid main column and a 340px facts-and-actions rail at ≥1280px; below
+that the job page shows its status actions as one row above the open tab, the
+tab's content next (on the posting tab, the posting's own words before the
+classifier), and the rest of the rail after it. Settings puts its eight tabs,
 each with its icon, in a sticky left column of links from 1024px and keeps
 them as a segmented row below that — same `?tab=` URLs either way. The
 launchers (Compare, Cover letter, New screening) show one input mode at a
@@ -333,7 +335,9 @@ a row, then a main column (the matches chart with the search funnel at its
 foot, then the recent alerts) beside a narrower one (pipeline health, recent
 activity, jobs by stack). The fourth card and the side column share one grid
 track (`minmax(18rem, 27%)`), so their edges line up; under 1280px everything
-stacks, the cards two by two.
+stacks, the cards two by two — on a phone too, where their icon steps back and
+the recent matches come before the chart, so the first one is in the first
+screen.
 
 All spacing sits on the 4px grid; the working steps are 4 / 8 / 12 / 16 / 20 /
 24 / 32px. 20px card padding, 12px table cells, 16px between cards.
