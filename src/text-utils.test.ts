@@ -7,6 +7,7 @@ import {
   feedItemKey,
   normalizeTextKey,
   normalizeUrlKey,
+  urlKeyNeedle,
   decideStageStrategy,
   extractAtsToken,
   extractJson,
@@ -369,6 +370,13 @@ describe('url and text keys', () => {
   // Same posting, different ordering, trailing slash, fragment and campaign.
   assert.equal(normalizeUrlKey('https://example.com/jobs/7?a=1&b=2#apply'), canonical);
   assert.equal(normalizeUrlKey('https://example.com/jobs/7?utm_medium=cpc&b=2&a=1'), canonical);
+  });
+
+  it('urlKeyNeedle is the part a stored link with the same key contains (#579)', () => {
+    assert.equal(urlKeyNeedle('https://jobicy.com/jobs/152752-senior-backend-engineer-core-team/?utm_source=x'), '/jobs/152752-senior-backend-engineer-core-team');
+    assert.equal(urlKeyNeedle('https://Acme.example/?job=7'), 'acme.example');
+    assert.equal(urlKeyNeedle('n/a'), null);
+    assert.equal(urlKeyNeedle('javascript:alert(1)'), null);
   });
 
   it('normalizeUrlKey returns null for junk, never an empty string', () => {
