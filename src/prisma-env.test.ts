@@ -22,6 +22,15 @@ test('every stage of the image sets it, so a build and a `docker compose exec ap
   }
 });
 
+test('every npm script that runs the Prisma CLI, `npm install`’s postinstall among them, goes through the helper that sets it (#610)', () => {
+  const { scripts } = JSON.parse(readFileSync(join(SRC, '..', 'package.json'), 'utf8')) as { scripts: Record<string, string> };
+  const runners = Object.entries(scripts).filter(([, command]) => /\bprisma\b/.test(command));
+  assert.ok(runners.some(([name]) => name === 'postinstall'));
+  for (const [name, command] of runners) assert.match(command, /^node scripts\/prisma\.cjs /, name);
+  const helper = readFileSync(join(SRC, '..', 'scripts', 'prisma.cjs'), 'utf8');
+  for (const [key, value] of Object.entries(PRISMA_CLI_ENV)) assert.match(helper, new RegExp(`\\b${key}: '${value}'`));
+});
+
 test('every file that runs the Prisma CLI gives it that environment', () => {
   const runners = readdirSync(SRC, { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile() && /\.tsx?$/.test(e.name) && !e.name.includes('.test.'))
