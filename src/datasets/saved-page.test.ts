@@ -51,6 +51,17 @@ describe('readSavedPage: the posting block', () => {
     assert.doesNotMatch(got.text, /Sign in|© Acme/);
   });
 
+  // #543: the block said more than the page it sat on, and the page's few words were all that was read.
+  it('reads a short description when the page says less, and says whether the block describes the role', () => {
+    const short = 'Own our Playwright suite end to end: the flaky tests, the CI matrix and the release gate. Two years of TypeScript and one of Playwright or Cypress.';
+    const got = readSavedPage(page({ head: block({ '@type': 'JobPosting', title: 'QA Engineer', description: `<p>${short}</p>` }), body: '<main><h1>QA Engineer</h1></main>' }), NOW);
+    assert.equal(got.text, short);
+    assert.equal(got.facts?.described, true);
+    assert.equal(readSavedPage(page({ head: block({ '@type': 'JobPosting', title: 'QA Engineer' }) }), NOW).facts?.described, false);
+    // The keys earlier versions gave the page read it as they did.
+    assert.notEqual(got.earlierKey, short);
+  });
+
   it('says there is no block when the page carries none, and keeps the whole text', () => {
     const got = readSavedPage(page(), NOW);
     assert.equal(got.facts, null);

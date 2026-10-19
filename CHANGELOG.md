@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.6] — 2026-10-18
+
+### Changed
+- Tailor resume reuses a posting the dashboard already has when you paste
+  it, instead of storing a second copy and reading it twice. On both Tailor
+  resume and Cover letter, this also works when you paste only the posting's
+  body without its title.
+- On a job page, when the posting is remote across a region that includes
+  where your search looks, a short line under the classifier's summary says
+  so, even when the summary claims otherwise.
+
+### Fixed
+- Two different roles from the same agency are no longer marked as copies of
+  each other because they share the agency's standard text. Copies marked
+  that way before are unmarked when ApplyPack starts.
+- A saved job page that states its title, company and description in its
+  page data is kept even when the page is short.
+- The AI call that reads a saved posting is now counted in that job's "AI
+  spent", and AI usage shows it as "Reading a saved posting".
+- The AI call that reads a posting pasted into Tailor resume or Cover letter
+  is now counted in that job's "AI spent".
+
 ## [2.63.5] — 2026-10-18
 
 ### Fixed
@@ -6635,6 +6657,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.6]: https://github.com/applypack/applypack/compare/v2.63.5...v2.63.6
 [2.63.5]: https://github.com/applypack/applypack/compare/v2.63.4...v2.63.5
 [2.63.4]: https://github.com/applypack/applypack/compare/v2.63.3...v2.63.4
 [2.63.3]: https://github.com/applypack/applypack/compare/v2.63.2...v2.63.3

@@ -21,10 +21,12 @@ export interface PageFacts {
   location: string | null;
   workplace: WorkplaceCode | null;
   postedAt: Date | null;
+  /** Whether the block describes the role in words of its own. */
+  described: boolean;
 }
 
 export interface SavedPage {
-  /** The posting as text: the block's description when it has one long enough, else the page's main text. */
+  /** The posting as text: the block's description when it has one long enough or the page says less, else the page's main text. */
   text: string;
   /** Where the page was saved from, http(s) only; null when the page does not say. */
   address: string | null;
@@ -240,7 +242,13 @@ function readFacts(posting: Record<string, unknown>, now: Date): PageFacts {
     location: location === null ? null : clipText(location, MAX_FIELD_CHARS),
     workplace: remote ? 'REMOTE' : null,
     postedAt: readDate(posting.datePosted, now),
+    described: describedAs(posting).length > 0,
   };
+}
+
+/** A block's own description as text; empty when it has none. */
+function describedAs(block: Record<string, unknown> | null): string {
+  return block && typeof block.description === 'string' ? stripHtml(storableText(block.description)) : '';
 }
 
 /**
@@ -389,13 +397,16 @@ export function readSavedPage(html: string, now: Date = new Date(), savedFrom: s
   let main: MainText | undefined;
   const mainOf = (): MainText => (main ??= mainText(html));
   // The posting as text: its block's description when that is long enough, else the page's main text —
-  // `whole`: with the form and the navigation its container holds, as versions up to 2.55.38 read it.
-  const textOf = (block: Record<string, unknown> | null, whole = false): string => {
-    const blockText = block && typeof block.description === 'string' ? stripHtml(storableText(block.description)) : '';
-    const body = blockText.length >= MIN_BLOCK_TEXT_CHARS ? blockText : whole ? mainOf().whole : mainOf().text;
+  // `whole`: with the form and the navigation its container holds, as versions up to 2.55.38 read it;
+  // `saysMore`: also the description when the page's own text says less (#543), which the keys of
+  // earlier versions below never read.
+  const textOf = (block: Record<string, unknown> | null, whole = false, saysMore = false): string => {
+    const blockText = describedAs(block);
+    const main = whole ? mainOf().whole : mainOf().text;
+    const body = blockText.length >= MIN_BLOCK_TEXT_CHARS || (saysMore && blockText.length > main.length) ? blockText : main;
     return clipText(storableText(body).trim(), MAX_POSTING_TEXT_CHARS).trim();
   };
-  const text = textOf(posting);
+  const text = textOf(posting, false, true);
   const titleTag = /<title\b[^<>]*>([^<]{1,1000})<\/title\s*>/i.exec(head)?.[1];
   const { address, own } = pageAddress(from, posting?.url);
   // As versions up to 2.55.11 read it: the first posting on the page, whichever the page was about.

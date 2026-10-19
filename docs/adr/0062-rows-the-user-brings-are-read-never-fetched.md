@@ -746,3 +746,19 @@ real ones (the twelve above, and six short or oddly laid out: a vacancy
 notice in fields, a table, a Spanish posting, a page in its board's chrome,
 a short text over an application form, a 300-character teaser): six of six
 caught, none of the eighteen called no posting.
+
+*Amended 2026-10-19 (#543).* **A page that states its posting is one,
+however short.** The 200-character floor is for notes and empty pages. A
+saved page whose own `JobPosting` block names the role and the employer and
+describes the role is neither, so the floor does not apply to it
+(`posting-file.ts:statesItself`, `PageFacts.described`). Its text is the
+block's description when the page's own text says less, even under 200
+characters. The keys that earlier versions gave such a page are still read
+the old way, and those versions set such a page aside, so no stored job
+changes its id. **The reading of a saved file is booked where it belongs.**
+It is its own ledger feature, `saved-posting-extract` ("Reading a saved
+posting" on `/ai`, task `scoring` like the paste's). The call has no job yet
+when it is made. Its ledger rows travel with the posting
+(`NormalizedJob.readCalls`) and are named on the job when it is stored,
+together with the scoring calls (#483). The job's "AI spent" therefore
+counts it.

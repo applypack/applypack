@@ -129,23 +129,39 @@ export function buildVerdicts(
  * lives, only for a group that holds that country inside the search's own
  * places — elsewhere, work rights are the model's call (ADR 0033).
  */
-export function openThroughGroup(
-  place: StoredPlace,
-  profile: Pick<Profile, 'countries' | 'regions' | 'workplace' | 'residence'>,
-): boolean {
-  if (place.workplace !== 'REMOTE' || place.source === 'ai') return false;
-  if (profile.workplace.length > 0 && !profile.workplace.includes('REMOTE')) return false;
+export function openThroughGroup(place: StoredPlace, profile: GroupProfile): boolean {
+  return openingGroup(place, profile) !== null;
+}
+
+type GroupProfile = Pick<Profile, 'countries' | 'regions' | 'workplace' | 'residence'>;
+
+/**
+ * The group that opens a remote posting to the search, as `openThroughGroup`
+ * decides it, and the search's places it holds — the residence alone when the
+ * search names one. Read again on the job page from the stored place, so the
+ * page can say why beside a summary that may say the opposite (#605).
+ */
+export function openingGroup(
+  place: Pick<StoredPlace, 'workplace' | 'regions'> & { source: string | null },
+  profile: GroupProfile,
+): { group: string; places: string[] } | null {
+  if (place.workplace !== 'REMOTE' || place.source === 'ai') return null;
+  if (profile.workplace.length > 0 && !profile.workplace.includes('REMOTE')) return null;
   const residence = profile.residence ?? null;
-  if (residence !== null && !placesOverlap({ countries: [residence], regions: [] }, profile)) return false;
-  return place.regions.some((region) => {
-    if (region === 'WORLDWIDE') return false;
-    const members = countriesOf(region);
-    if (residence !== null) return members.includes(residence);
-    return (
-      profile.countries.some((c) => members.includes(c)) ||
-      profile.regions.some((g) => g === region || countriesOf(g).every((c) => members.includes(c)))
-    );
-  });
+  if (residence !== null && !placesOverlap({ countries: [residence], regions: [] }, profile)) return null;
+  for (const group of place.regions) {
+    if (group === 'WORLDWIDE') continue;
+    const members = countriesOf(group);
+    const places =
+      residence !== null
+        ? [residence].filter((c) => members.includes(c))
+        : [
+            ...profile.countries.filter((c) => members.includes(c)),
+            ...profile.regions.filter((g) => g === group || countriesOf(g).every((c) => members.includes(c))),
+          ];
+    if (places.length > 0) return { group, places };
+  }
+  return null;
 }
 
 /** Would THIS search drop the posting? Its own threshold, its own regions. */

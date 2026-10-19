@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildExtractPrompt, fallbackTitle, parseExtractReply } from './posting-extract';
+import type { AiCallRequest, AiCallResult } from '../ai-runtime';
+import { buildExtractPrompt, extractPostingFacts, fallbackTitle, parseExtractReply } from './posting-extract';
 import { fenceClose, fenceOpen } from '../prompt-fence';
 
 test('buildExtractPrompt truncates the description to the posting head', () => {
@@ -104,4 +105,22 @@ test('parseExtractReply caps runaway field lengths', () => {
   const long = 'A'.repeat(500);
   const facts = parseExtractReply(`{"company":"${long}","title":"ok","location":null}`);
   assert.equal(facts?.company?.length, 200);
+});
+
+// #543: a saved file's reading was booked as "Reading a pasted posting" and to no job.
+test('a saved posting is read under its own feature, and the call’s ledger rows go to the caller', async () => {
+  const asked: AiCallRequest[] = [];
+  const ai = {
+    complete: async (req: AiCallRequest): Promise<AiCallResult> => {
+      asked.push(req);
+      return { text: '{"company":"Acme","title":"QA Engineer","location":null}', providerId: 'claude_code', model: '', viaFallback: false, ledgerIds: [41, 42] };
+    },
+    unparsed: async (): Promise<void> => {},
+  };
+  const calls: number[] = [];
+  const facts = await extractPostingFacts('QA Engineer at Acme', { pageTitle: 'QA Engineer | Acme', saved: true, calls, ai });
+  assert.equal(facts?.title, 'QA Engineer');
+  assert.deepEqual(calls, [41, 42]);
+  await extractPostingFacts('QA Engineer at Acme', { ai });
+  assert.deepEqual(asked.map((req) => req.label), ['saved-posting-extract', 'posting-extract']);
 });
