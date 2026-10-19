@@ -1,5 +1,6 @@
 import type { JsonResume } from '../json-resume';
 import type { LookRole } from '../pdf-layout';
+import { plainLine } from '../structure-from-text';
 import { drawable, undrawable } from './drawable';
 import { SECTION_LABELS, type RenderKnobs, type SectionKey } from './knobs';
 
@@ -127,7 +128,8 @@ function lineHeading(line: string): string | null {
  * version is drawn from this instead, plainer and complete.
  */
 export function planLines(text: string, opts: PlanOptions = {}): RenderPlan {
-  const lines = text.replace(/\r\n/g, '\n').split('\n').map((l) => l.trimEnd());
+  // Plain as the structured plan is: a Markdown resume's asterisks are not words to print (#574).
+  const lines = text.replace(/\r\n/g, '\n').split('\n').map((l) => plainLine(l).trimEnd());
   const first = lines.findIndex((l) => l.trim().length > 0);
   const name = first >= 0 ? lines[first]!.trim().replace(MD_HEADING, '$1') : null;
   const blocks: RenderBlock[] = [];

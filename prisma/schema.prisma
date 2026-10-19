@@ -777,6 +777,12 @@ model Resume {
   sourceFilename  String
   mimeType        String
   original        Bytes
+  // The file the person uploaded, once a Save as vN has put a file ApplyPack
+  // wrote in `original` (#590): "Download original" hands this one back. NULL
+  // while `original` is still the upload; the next upload clears it.
+  uploadFile      Bytes?
+  uploadName      String?
+  uploadMime      String?
   text            String         @db.Text
   // Bumped on "Upload new version"; matches record the version they scored.
   version         Int            @default(1)

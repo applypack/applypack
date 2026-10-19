@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { joinWrapped, structureFromText } from './structure-from-text';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { joinWrapped, plainLine, structureFromText } from './structure-from-text';
 import { structureCoverage } from './json-resume';
 
 /*
@@ -216,4 +218,108 @@ test('a contact line that opens with the title gives the label, and a date takes
   assert.equal(r.basics.location, 'Lisbon, Portugal');
   assert.equal(r.work[0]?.position, 'Senior Developer - Harborline (remote)');
   assert.equal(r.work[0]?.startDate, '2022');
+});
+
+/* ---------- a Markdown resume (#573) ---------- */
+
+const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
+
+test('a Markdown resume with `### Title — Company` roles reads its name, contacts and roles', () => {
+  const r = structureFromText(fixture('markdown-headed-roles.md'));
+  assert.equal(r.basics.name, 'Marta Keller');
+  assert.equal(r.basics.label, 'Senior Backend Engineer');
+  assert.equal(r.basics.email, 'marta.keller@example.com');
+  assert.equal(r.basics.phone, '+49 151 2345 6789');
+  assert.equal(r.basics.url, 'github.com/mkeller-example');
+  assert.equal(r.basics.location, 'Berlin, Germany');
+  assert.deepEqual(r.headings, { summary: 'Summary', skills: 'Skills', work: 'Experience', education: 'Education', languages: 'Languages' });
+  assert.deepEqual(r.extras, [], 'neither the name nor a role is a section of its own');
+  assert.deepEqual(
+    r.work.map((w) => [w.position, w.startDate, w.endDate, w.highlights.length]),
+    [
+      ['Senior Backend Engineer — Marketplace Co', 'March 2021', 'Present', 2],
+      ['Backend Engineer — Payments GmbH', 'June 2017', 'February 2021', 2],
+    ],
+  );
+  assert.deepEqual(r.skills[0], { name: 'Languages', keywords: ['Go', 'TypeScript', 'Python'] });
+  assert.deepEqual(
+    r.education.map((e) => [e.institution, e.startDate, e.endDate]),
+    [['B.Sc. Computer Science — TU Berlin', '2013', '2017']],
+  );
+  assert.doesNotMatch(JSON.stringify(r), /\*|__|#/, 'no Markdown mark is read as a word');
+});
+
+test('a Markdown resume with `**Title — Company** · dates` roles reads the same way', () => {
+  const r = structureFromText(fixture('markdown-bold-roles.md'));
+  assert.equal(r.basics.name, 'Alex Rivera');
+  assert.equal(r.basics.label, 'Senior Backend Engineer');
+  assert.equal(r.basics.email, 'alex.rivera@example.com');
+  assert.equal(r.basics.phone, '(512) 555-0147');
+  assert.equal(r.basics.location, 'Austin, TX');
+  assert.deepEqual(
+    r.work.map((w) => [w.position, w.startDate, w.endDate]),
+    [
+      ['Senior Backend Engineer — Ledgerly, Austin, TX', 'March 2021', 'Present'],
+      ['Backend Engineer — ShipFast, Remote', 'June 2018', 'February 2021'],
+      ['Software Engineer — CityApps, Dallas, TX', 'July 2016', 'May 2018'],
+    ],
+  );
+  assert.doesNotMatch(JSON.stringify(r), /\*/);
+});
+
+test('a heading under a section is a line of it, unless it names a section itself', () => {
+  const r = structureFromText(
+    '# Dana Ruiz\ndana@example.com\n\n## Experience\n### Full Stack Developer — Harborline\n2022 – Present\n- Built the dispatch API.\n\n### Projects\nA meetup site.\n',
+  );
+  assert.equal(r.work.length, 1);
+  assert.equal(r.work[0]?.position, 'Full Stack Developer — Harborline', '"Stack" in a title opens no skills section');
+  assert.deepEqual(r.skills, []);
+  assert.equal(r.headings.projects, 'Projects');
+});
+
+test('a Word title further down opens no section that swallows the ones below it', () => {
+  const r = structureFromText('Nazar Boyko\n# Senior Engineer\n\n## TECHNICAL SKILLS AND TOOLING\nPHP, Go\n\n## EXPERIENCE\nAcme\nEngineer Jan 2020 – Present\n- Built it.');
+  assert.deepEqual(r.skills.map((s) => s.keywords), [['PHP', 'Go']]);
+  assert.equal(r.work.length, 1);
+});
+
+test('a long line of lone asterisks is read in linear time', () => {
+  const started = Date.now();
+  structureFromText(`Alex\n\nSUMMARY\n${' *a'.repeat(50_000)}`);
+  assert.ok(Date.now() - started < 2_000, `${Date.now() - started} ms`);
+});
+
+test('a first line set as a heading is the name: a Word title, a name in capitals', () => {
+  assert.equal(structureFromText('# Nazar Boyko\nnb@example.com\n\n## SKILLS\nPHP, Go').basics.name, 'Nazar Boyko');
+  const caps = structureFromText('NAZAR BOYKO\nSenior Engineer\nnb@example.com\n\nSKILLS\nPHP, Go');
+  assert.equal(caps.basics.name, 'NAZAR BOYKO');
+  assert.equal(caps.basics.email, 'nb@example.com');
+  assert.deepEqual(caps.extras, []);
+  // A first heading that names a section is still the section.
+  assert.equal(structureFromText('## Summary\nBackend engineer.').basics.summary, 'Backend engineer.');
+});
+
+test('dates taken out of a title leave no empty brackets behind', () => {
+  const r = structureFromText('Alex\n\nEXPERIENCE\nMarketplace Co — Senior Backend Engineer (2022 – 2026)\n- Built the API.\nAcme (Remote, 2019 – 2022)\n- Ran it.');
+  assert.deepEqual(r.work.map((w) => w.position), ['Marketplace Co — Senior Backend Engineer', 'Acme (Remote)']);
+});
+
+test('plainLine takes Markdown marks off and leaves look-alikes alone', () => {
+  assert.equal(plainLine('**B.Sc.** — *TU Berlin*, _2017_ and `Go`'), 'B.Sc. — TU Berlin, 2017 and Go');
+  assert.equal(plainLine('***Lead*** engineer'), 'Lead engineer');
+  assert.equal(plainLine('- **Languages:** Go'), '- Languages: Go');
+  assert.equal(plainLine('first_last@example.com · github.com/some_user_name'), 'first_last@example.com · github.com/some_user_name');
+  assert.equal(plainLine('Throughput 2*3*4 and C++'), 'Throughput 2*3*4 and C++');
+  assert.equal(plainLine('* a bullet, not a mark'), '* a bullet, not a mark');
+  assert.equal(
+    plainLine('[github.com/mk](https://github.com/mk) · [Portfolio](https://mk.dev) · <https://x.io>'),
+    'github.com/mk · Portfolio (https://mk.dev) · https://x.io',
+  );
+  assert.equal(plainLine('[Mail me](mailto:mk@example.com)'), 'Mail me (mk@example.com)');
+  assert.equal(plainLine('---'), '');
+  assert.equal(plainLine('==='), '');
+});
+
+test('a link written as its words and address is read as the address, without the bracket', () => {
+  assert.equal(structureFromText('Marta Keller\nmk@example.com · [Portfolio](https://mk.dev)').basics.url, 'https://mk.dev');
 });
