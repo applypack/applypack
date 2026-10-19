@@ -35,6 +35,7 @@ export interface CompareRow {
   label: string;
   kind: Criterion['kind'];
   mode: Criterion['mode'];
+  source: Criterion['source'];
   /** One per column; null when that verdict has no row for the criterion. */
   cells: (ScoreRow | null)[];
 }
@@ -75,6 +76,7 @@ export function sideBySide(rubric: Rubric, applicants: ApplicantWithVerdict[], n
     label: c.label,
     kind: c.kind,
     mode: c.mode,
+    source: c.source,
     cells: columns.map((col) => col.rows.get(c.id) ?? null),
   }));
   return { columns, rows };

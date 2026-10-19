@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capExplanation, levelCredit, orderVerdicts, readScreenBreakdown, scoreScreening } from './score';
+import { capExplanation, detailParts, levelCredit, orderVerdicts, readScreenBreakdown, scoreScreening } from './score';
+import { withLocale } from '../i18n/locale';
+import { tParts } from '../i18n/t';
 import { sectorMatches } from '../sectors';
 import { parseCriterionText, RubricSchema, specOf, type Criterion, type Rubric } from './rubric';
 import { ScreenReplySchema, type ScreenReply } from './prompts';
@@ -132,6 +134,21 @@ test('gates: a failed gate buckets; an unknown asks; a years gate reads the date
   const junior = scoreScreening({ rubric: RUBRIC, reply: reply({ roles: [{ position: 'Java Developer', employer: 'Shop', start: '2023', end: 'Present', relevant: true, why: 'same', sector: null, companyType: null }] }), textChars: 3000, now: NOW });
   assert.equal(junior.rows.find((r) => r.id === 'g-years')!.gate, 'fail', '3.7 years against 5 asked');
   assert.equal(junior.rows.find((r) => r.id === 'i')!.credit, null, 'no sector read → unknown, out of the denominator');
+});
+
+// #569: "demandez : Are you legally able to work in Ukraine…" was read by a French screen reader as French.
+test('a detail keeps the model\'s own words apart, so the page marks them English', () => {
+  assert.deepEqual(detailParts('ask: Can you work in the EU?'), [{ key: 'screening.detail.ask', params: { question: 'Can you work in the EU?' } }]);
+  assert.deepEqual(detailParts('the resume does not say — ask'), [{ key: 'screening.detail.resumeSilent', params: {} }]);
+  // The overall read: the model's reasons, its concerns marked by us.
+  assert.deepEqual(detailParts('ships end to end; concern: no tests mentioned'), [
+    { model: 'ships end to end' },
+    { key: 'screening.detail.concern', params: { text: 'no tests mentioned' } },
+  ]);
+  // Ours in the reader's language, the model's inside the en tag the page renders as lang="en".
+  const ask = withLocale('fr', () => tParts('screening.detail.ask', { question: 'Can you work in the EU?' }));
+  assert.match(String(ask[0]), /^demandez/);
+  assert.deepEqual(ask[1], { tag: 'en', children: ['Can you work in the EU?'] });
 });
 
 test('a years band with a maximum fails the over-qualified as a gate', () => {

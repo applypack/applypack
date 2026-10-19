@@ -50,6 +50,7 @@ import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
 import { config } from '../../config';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
+import { canonicalZone, readZone, timeZoneChoices } from '../time-zones';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import {
   addStage,
@@ -242,16 +243,6 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 
-/**
- * The zone picker's options: every IANA zone the runtime knows, plus the
- * stored one if this Node build has never heard of it (so a schedule saved
- * on another machine is not silently rewritten by the select).
- */
-function supportedTimezones(current: string): string[] {
-  const zones = Intl.supportedValuesOf('timeZone');
-  return zones.includes(current) ? [...zones] : [current, ...zones];
-}
-
 /** Engine cards: the list in priority order, then the last resort (it serves), then the rest. */
 function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }): number {
   if (e.enabled) return e.position;
@@ -283,10 +274,10 @@ async function loadSettingsProps(here: string) {
   const check = await loadNextCheck(settings.schedule);
   const scheduleView = {
     schedule: check.schedule,
-    zones: supportedTimezones(check.schedule.timezone),
+    zone: canonicalZone(check.schedule.timezone) ?? check.schedule.timezone,
+    zones: timeZoneChoices(),
     nextFetch: check.next,
     held: await loadHeldLine(check.schedule),
-    unsaved: settings.schedule === null,
   };
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
@@ -525,8 +516,8 @@ settingsRoute.post('/settings/schedule', async (c) => {
   const part = schedulePart(form.part);
   const takes = (p: SchedulePart): boolean => part === null || part === p;
   const candidate = {
-    // The zone form always sends it; the other two only while no zone was ever saved — the browser's guess (TASKS S28).
-    timezone: str(form.timezone) || current.timezone,
+    // Only the zone's own form moves it: saving the hours never changes how every date reads (#538).
+    timezone: takes('zone') ? readZone(str(form.timezone)) || current.timezone : current.timezone,
     fetch: takes('fetch')
       ? {
           every: str(form.fetchEvery),
@@ -545,13 +536,17 @@ settingsRoute.post('/settings/schedule', async (c) => {
         }
       : current.alerts,
   };
-  const back = SCHEDULE_BACK[part ?? 'fetch'];
+  // The browser's zone, offered beside the hours, lands back where it was pressed.
+  const back = SCHEDULE_BACK[schedulePart(form.from) ?? part ?? 'fetch'];
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
     return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   await setSchedule(parsed.data);
-  if (part === 'zone') return flashRedirect(back, 'ok', t('settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
+  if (part === 'zone') {
+    const moved = canonicalZone(parsed.data.timezone) !== canonicalZone(current.timezone);
+    return flashRedirect(back, 'ok', t(moved ? 'settingsRoute.schedule.zoneChanged' : 'settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
+  }
   const held = await loadHeldLine(parsed.data);
   const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
   return flashRedirect(back, 'ok', sentences(saved, held === null ? '' : `${held.text}.`));

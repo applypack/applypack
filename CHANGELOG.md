@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.7] — 2026-10-18
+
+### Changed
+- Settings: the time zone field takes a city or a zone name and suggests
+  today's names (Kyiv, Kolkata).
+- Settings: when your browser is in another zone, a button offers it beside
+  the schedule. Nothing changes until you press it, and the confirmation
+  says that every date now reads in the new zone.
+- AI usage: token counts are shortened the way your language writes numbers.
+
+### Fixed
+- A posting date given without a time (an imported file, a saved page)
+  showed as the day before west of UTC. It now reads as that day everywhere,
+  for postings already stored too.
+- Saving the search hours or the alert timing switched the dashboard to the
+  browser's time zone without saying so.
+- Two installs on one computer (for example Docker and `npm start`) showed
+  each other's confirmation messages.
+- In employer mode, the interview questions, the reasons and the criteria
+  the AI wrote are marked as English, so a screen reader reads them
+  correctly in any interface language.
+
 ## [2.61.6] — 2026-10-18
 
 ### Fixed
@@ -6370,6 +6392,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.7]: https://github.com/applypack/applypack/compare/v2.61.6...v2.61.7
 [2.61.6]: https://github.com/applypack/applypack/compare/v2.61.5...v2.61.6
 [2.61.5]: https://github.com/applypack/applypack/compare/v2.61.4...v2.61.5
 [2.61.4]: https://github.com/applypack/applypack/compare/v2.61.3...v2.61.4

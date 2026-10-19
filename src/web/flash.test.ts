@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from './flash';
+import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack, withFlashCookie } from './flash';
 
 /** A flash cookie as a browser sends it back — or as someone who edits cookies would write one. */
 const cookieOf = (payload: unknown): string => `flash=${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
@@ -37,6 +37,26 @@ test('a flash survives the redirect cookie and nothing else does', () => {
   assert.equal(parseFlashCookie('flash=%7Bnot-json'), null);
   assert.equal(parseFlashCookie(`flash=${Buffer.from('{not-json').toString('base64url')}`), null);
   assert.equal(parseFlashCookie(cookieOf({ kind: 'loud', text: 'x' })), null);
+});
+
+// #556: cookies ignore the port, and a new install on :4993 showed another install's flash.
+test('a flash belongs to the port the page was asked at', () => {
+  const at = (url: string) => withFlashCookie(url, () => flashRedirect('/jobs', 'ok', `saved on ${url}`).headers.get('set-cookie')!.split(';')[0]!);
+  const docker = at('http://127.0.0.1:4747/jobs/new');
+  const local = at('http://127.0.0.1:4848/jobs/new');
+  assert.match(docker, /^flash-4747=/);
+  assert.match(local, /^flash-4848=/);
+  // The browser sends both to either port; each install reads its own.
+  const both = `${docker}; ${local}`;
+  assert.equal(withFlashCookie('http://127.0.0.1:4848/jobs', () => parseFlashCookie(both))?.text, 'saved on http://127.0.0.1:4848/jobs/new');
+  assert.equal(withFlashCookie('http://127.0.0.1:4747/jobs', () => parseFlashCookie(both))?.text, 'saved on http://127.0.0.1:4747/jobs/new');
+  assert.equal(withFlashCookie('http://127.0.0.1:4993/', () => parseFlashCookie(both)), null);
+  // A plain `flash` cookie from before is nobody's now, and the clear names the port's.
+  assert.equal(withFlashCookie('http://127.0.0.1:4848/jobs', () => parseFlashCookie(cookieOf({ kind: 'ok', text: 'old' }))), null);
+  assert.match(withFlashCookie('http://127.0.0.1:4848/jobs', clearFlashCookie), /^flash-4848=; /);
+  // A default port, and no request at all, keep the plain name.
+  assert.match(at('https://jobs.example/jobs'), /^flash=/);
+  assert.match(clearFlashCookie(), /^flash=; /);
 });
 
 test('safeBack keeps a redirect on this site', () => {
