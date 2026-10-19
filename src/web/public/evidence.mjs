@@ -26,7 +26,14 @@ export function lineAt(text, index) {
   return { line: text.slice(start, end === -1 ? text.length : end), column: index - start };
 }
 
-/** The part of a line around one position: a flattened table row is judged cell by cell. */
+/** The dash between a title and what follows it on one line. */
+const TITLE_DASH = / [—–] /;
+
+/**
+ * The part of a line around one position: a flattened table row is judged
+ * cell by cell, and a term in a headline's stack ("Senior QA Engineer —
+ * Playwright, TypeScript") by that list — never on a bullet or a role line.
+ */
 export function segmentAt(line, column) {
   let start = 0;
   let end = line.length;
@@ -36,7 +43,13 @@ export function segmentAt(line, column) {
     if (left !== -1) start = Math.max(start, left + sep.length);
     if (right !== -1) end = Math.min(end, right);
   }
-  return line.slice(start, end);
+  const cell = line.slice(start, end);
+  const dash = TITLE_DASH.exec(cell);
+  if (dash !== null && column >= start + dash.index + dash[0].length && !/^\s*[-•*]/.test(cell)) {
+    const tail = cell.slice(dash.index + dash[0].length);
+    if (isTermList(tail)) return tail;
+  }
+  return cell;
 }
 
 /** Is this line a list of terms rather than a sentence? */
