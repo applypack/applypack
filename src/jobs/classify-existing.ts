@@ -16,8 +16,8 @@ export type ClassifiableJob = Job & { company: { name: string; atsType: AtsType;
 
 /** What became of one re-score: the caller says it, so a press that changed nothing is not silent. */
 export type Rescored =
-  /** A verdict was formed and stored; `status` is the job's status after it. */
-  | { kind: 'scored'; status: JobStatus }
+  /** A verdict was formed and stored; `status` and `fitScore` are the job's after it. */
+  | { kind: 'scored'; status: JobStatus; fitScore: number }
   /** Two-stage scoring: the prefilter turned the posting away, so no verdict was formed. `status` as above. */
   | { kind: 'prefiltered'; status: JobStatus }
   /** No running search has a stack or role types to score against. */
@@ -89,7 +89,7 @@ export async function classifyExistingJob(
     { jobId: job.id, searches: profiles.length, kept: merged.kept, ms: Date.now() - started },
     'classify-existing: scored',
   );
-  return { kind: 'scored', status };
+  return { kind: 'scored', status, fitScore: merged.winner.classification.fit_score };
 }
 
 /** The row's own columns as the merge's starting point (ADR 0031 wrote them). */

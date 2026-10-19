@@ -54,7 +54,18 @@ test('the stages read left to right, with the reasons largest first', () => {
     { label: 'under the fit threshold', count: 40 },
     { label: 'with a location mismatch', count: 4 },
   ]);
-  assert.equal(reasonsText(view.filtered, 2), '4,900 without a title keyword, 150 outside your places');
+  // #539: the reasons a line leaves out are counted, so the parts add up to the total.
+  assert.equal(reasonsText(view.filtered, { max: 2 }), '4,900 without a title keyword, 150 outside your places and 70 more');
+  assert.equal(reasonsText(view.filtered), '4,900 without a title keyword, 150 outside your places, 70 with an excluded word in the title');
+});
+
+test('one reason that is the whole total does not repeat the number the sentence already says (#539)', () => {
+  const titleOnly = [{ label: 'without a title keyword', count: 406 }];
+  assert.equal(reasonsText(titleOnly, { total: 406 }), 'all without a title keyword');
+  assert.equal(reasonsText([{ label: 'outside your places', count: 1 }], { total: 1 }), 'outside your places');
+  // A total the reason does not cover, or no total in the sentence, keeps the number.
+  assert.equal(reasonsText(titleOnly, { total: 500 }), '406 without a title keyword');
+  assert.equal(reasonsText(titleOnly), '406 without a title keyword');
 });
 
 test('a total the reasons do not cover ends on the rest, which predates them', () => {

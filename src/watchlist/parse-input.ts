@@ -7,6 +7,8 @@
  * list of links is. A `.txt` / `.csv` upload is the same text.
  */
 
+import { extractAtsToken } from '../text-utils';
+
 /** How many lines one paste may carry. Beyond this the resolve run is long
  *  enough that the user should split it, and the request budget says so. */
 export const MAX_LINES = 50;
@@ -87,12 +89,14 @@ function dedupeKey(url: string): string {
  * Careers - Shopify" as often as it is the company's name).
  *
  * Labels that only say "this is the careers site" are skipped, so
- * `careers.datadoghq.com` suggests Datadoghq rather than Careers.
+ * `careers.datadoghq.com` suggests Datadoghq rather than Careers. A board's
+ * host is its vendor's, so a board URL suggests the company's slug:
+ * `jobs.ashbyhq.com/deno` is Deno, never Ashbyhq (#544).
  */
 const GENERIC_LABELS = new Set(['www', 'careers', 'career', 'jobs', 'job', 'apply', 'boards', 'job-boards', 'work', 'hiring']);
 
 export function nameFromUrl(url: string): string {
   const labels = new URL(url).hostname.toLowerCase().split('.');
-  const label = labels.find((l) => !GENERIC_LABELS.has(l)) ?? labels[0] ?? '';
+  const label = extractAtsToken(url)?.atsToken ?? labels.find((l) => !GENERIC_LABELS.has(l)) ?? labels[0] ?? '';
   return label.charAt(0).toUpperCase() + label.slice(1);
 }

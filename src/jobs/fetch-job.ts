@@ -154,11 +154,11 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   beginPageChangeTick();
   // What a look at a folder learns about its files is staged the same way (ADR 0062).
   beginFolderTick();
-  const fetched = await runAllFetchers(paused, (progress) => {
+  const { results: fetched, idle } = await runAllFetchers(paused, (progress) => {
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
     if (progress.status === 'not_modified') sourcesUnchanged++;
-    bySource.push({ name: progress.company, status: progress.status, count: progress.count, ms: progress.durationMs });
+    bySource.push({ name: progress.company, kind: progress.atsType, status: progress.status, count: progress.count, ms: progress.durationMs });
     opts.onSource?.(progress);
   }, { manual: opts.manual === true, only: opts.only, places: opts.places });
   logger.info(
@@ -169,7 +169,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   // Written down straight after the walk, and reported at once if the
   // schedule allows: the message carries no posting and costs no AI, so there
   // is nothing to wait for.
-  await recordPageChanges();
+  const pages = await recordPageChanges();
   const pagesNow = await deliverPageChanges(new Date(), schedule);
   if (pagesNow.alerted > 0) delivery.pagesChanged = pagesWaiting.alerted + pagesNow.alerted;
 
@@ -249,6 +249,8 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {
+    // A walk that read nothing says why, instead of a bare "0 fetched" (#557).
+    ...(idle !== null && { reason: idle }),
     profile: searchNames(profiles),
     classifierMode,
     ...(!classify && { classify: false }),
@@ -259,6 +261,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
     candidatesRecorded: candidates,
     ...licence,
     ...delivery,
+    ...pages,
     ...inner,
     durationMs,
     bySource,

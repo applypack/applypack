@@ -223,12 +223,24 @@ export function stageCount(view: FunnelView, key: StageKey): number {
   return view.stages.find((s) => s.key === key)?.count ?? 0;
 }
 
-/** "4,900 without a title keyword, 150 outside your places" — the first `max` reasons. */
-export function reasonsText(list: readonly FunnelReason[], max = list.length): string {
-  return list
+/** How many reasons a one-line flash names before "and N more". */
+export const FLASH_REASONS = 2;
+
+/**
+ * "4,900 without a title keyword, 150 outside your places" — the first `max`
+ * reasons, then "and 12 more" for the rest, so the parts add up to the total
+ * (#539). `total` is the number the sentence already says: one reason that is
+ * all of it reads "all without a title keyword", not the number again.
+ */
+export function reasonsText(list: readonly FunnelReason[], { max = list.length, total }: { max?: number; total?: number } = {}): string {
+  const only = list.length === 1 ? list[0] : undefined;
+  if (only && only.count === total) return t('funnel.reasonAll', { n: only.count, label: only.label });
+  const named = list
     .slice(0, max)
     .map((r) => t('funnel.reason', { n: r.count, label: r.label }))
     .join(', ');
+  const rest = list.slice(max).reduce((sum, r) => sum + r.count, 0);
+  return rest > 0 ? t('funnel.reasonsMore', { reasons: named, n: rest }) : named;
 }
 
 /** The UTC day a run belongs to — the rollup's key. */

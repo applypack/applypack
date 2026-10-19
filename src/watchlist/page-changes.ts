@@ -13,21 +13,30 @@
  * delivered waits rather than being swallowed.
  */
 
-export interface PageChange {
+/**
+ * What one read of a watched page found, staged rather than written on the
+ * spot so that a fetcher never touches the database — the rule every other
+ * fetcher in this project follows.
+ */
+export type PageChange = {
   companyId: number;
   companyName: string;
   /** The page the user asked us to watch. */
   url: string;
-  /** The hash to store. */
-  hash: string;
+} & (
   /**
-   * false for the first read of a page: there is no previous text to differ
-   * from, so the hash is stored and nothing is said. Staged rather than
-   * written on the spot so that a fetcher never touches the database — the
-   * rule every other fetcher in this project follows.
+   * `first`: there is no previous text to differ from, so the hash is stored
+   * and nothing is said. `changed`: the hash waits on the row until the
+   * notice is out.
    */
-  announce: boolean;
-}
+  | { kind: 'first' | 'changed'; hash: string }
+  /**
+   * Changed again less than a day after the last notice. Nothing is written,
+   * so the next check after the day still sees it; staged only so the run can
+   * say what it found (#533).
+   */
+  | { kind: 'held' }
+);
 
 const staged: PageChange[] = [];
 
@@ -43,4 +52,11 @@ export function takePageChanges(): PageChange[] {
 /** Start of a tick: anything a previous run staged and never delivered is dropped. */
 export function beginPageChangeTick(): void {
   staged.length = 0;
+}
+
+/** What the walk found on the watched pages, as run stats: a count only where one happened (#533). */
+export function pageStats(changes: readonly PageChange[]): Record<string, number> {
+  const count = (kind: PageChange['kind']): number => changes.filter((c) => c.kind === kind).length;
+  const stats = { pagesFirstRead: count('first'), pageChangesFound: count('changed'), pageChangesHeld: count('held') };
+  return Object.fromEntries(Object.entries(stats).filter(([, n]) => n > 0));
 }
