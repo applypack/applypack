@@ -156,9 +156,15 @@ export function elsewhereForPosting<S extends { skill: string }>(
   return otherSkills.filter((s) => matcher.findTerm(posting, s.skill, aliasesFor(s.skill)).length > 0);
 }
 
-/** The words a gate's note uses to say a term is not in the resume. */
+/**
+ * The words a gate's note uses to say a term is not in the resume — "React is
+ * absent", "no React experience", and as the live notes also put it, "no React
+ * anywhere in resume", "no React in the resume", "without React". Within one
+ * clause only (CLAUSE_BREAK), and harmless when it over-reads: the line it
+ * adds is shown only for a term the text does spell.
+ */
 const SAYS_ABSENT =
-  /\b(?:absent|nowhere|missing|lacks?|not (?:shown|present|mentioned|found|listed|evidenced|named)|no (?:\w+ )?(?:experience|evidence|mention))\b/i;
+  /\b(?:absent|nowhere|missing|lacks?|without|not (?:shown|present|mentioned|found|listed|evidenced|named)|no (?:\w+ )?(?:experience|evidence|mention))\b|\b(?:no|not)\b.*\banywhere\b|\bno \S+(?: \S+)? (?:in|on) (?:the |your )?(?:resume|cv)\b/i;
 /** Where one claim of a note ends and the next begins: "TypeScript strong; React is absent". Not the dot of "Node.js". */
 const CLAUSE_BREAK = /[;,]\s|\.\s|\s[—–-]\s|\bbut\b/;
 
