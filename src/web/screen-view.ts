@@ -67,6 +67,13 @@ export function scoredBeforePosting(rows: { scoredAt: Date | null }[], postingUp
   return rows.filter((r) => r.scoredAt !== null && r.scoredAt < postingUpdatedAt).length;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "Keep N more days": N days past the date the screening is kept until now — or past today, if that date has gone (#554). */
+export function extendedRetention(retainUntil: Date, days: number, now = new Date()): Date {
+  return new Date(Math.max(retainUntil.getTime(), now.getTime()) + days * DAY_MS);
+}
+
 export interface ApplicantRowView {
   id: number;
   number: number;

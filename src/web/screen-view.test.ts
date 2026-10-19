@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adjustedScore, calibrationRows, exportRows, groupRows, rowView, scoredBeforePosting } from './screen-view';
+import { adjustedScore, calibrationRows, exportRows, extendedRetention, groupRows, rowView, scoredBeforePosting } from './screen-view';
 import type { ApplicantWithVerdict } from '../screening/store';
+import { formatDateShort } from './format';
+import { offeredLocales, withLocale } from '../i18n/locale';
+import { t } from '../i18n/t';
 
 function applicant(over: Partial<ApplicantWithVerdict & { letters: number }> & { verdict?: ApplicantWithVerdict['verdict'] }): ApplicantWithVerdict & { letters: number } {
   return {
@@ -94,6 +97,23 @@ test('scoredBeforePosting counts verdicts older than the posting edit', () => {
   assert.equal(scoredBeforePosting(rows, null), 0, 'no edit, nothing stale');
   assert.equal(scoredBeforePosting(rows, new Date('2026-09-09T11:00:00Z')), 1);
   assert.equal(scoredBeforePosting(rows, new Date('2026-09-09T13:00:00Z')), 2);
+});
+
+test('Keep 90 more days adds to the date the screening is kept until, not to today (#554)', () => {
+  const now = new Date('2026-10-18T09:00:00Z');
+  const fresh = new Date('2027-01-16T09:00:00Z');
+  assert.equal(extendedRetention(fresh, 90, now).toISOString(), '2027-04-16T09:00:00.000Z', 'a new screening, kept 90 days from creation, gains 90 more');
+  assert.equal(extendedRetention(new Date('2026-10-01T00:00:00Z'), 90, now).toISOString(), '2027-01-16T09:00:00.000Z', 'a date already gone counts from today');
+  // The flash writes the date as the header does, and an abbreviated month ("17 квіт.") ends it without a second dot.
+  for (const locale of offeredLocales()) {
+    withLocale(locale, () => {
+      for (let month = 0; month < 12; month++) {
+        const date = formatDateShort(new Date(Date.UTC(2027, month, 17)));
+        const flash = t('screenRoute.kept', { date });
+        assert.ok(flash.includes(date) && !flash.endsWith('..'), `${locale}: ${flash}`);
+      }
+    });
+  }
 });
 
 test('rowView reads the stored verdict; groupRows orders by the adjusted score and separates', () => {

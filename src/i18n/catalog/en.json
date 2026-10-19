@@ -3815,7 +3815,7 @@
   "settingsRoute.priority.badFloor": "min fit must be a number 0-100, got \"{value}\"",
   "schedule.unknownZone": "unknown time zone",
   "screen.detail.meta": "{n, plural, one {# applicant} other {# applicants}} · kept until {date}",
-  "screen.detail.keepTitle": "{n, plural, one {Keep for another # day from today} other {Keep for another # days from today}}",
+  "screen.detail.keepTitle": "{n, plural, one {Adds # day to the date it is kept until} other {Adds # days to the date it is kept until}}",
   "screen.detail.keep": "{n, plural, one {Keep # more day} other {Keep # more days}}",
   "screen.detail.delete": "Delete screening",
   "screen.detail.deleteConfirm": "Delete this screening? It removes the screening, the uploaded copies of the resumes and every verdict from the database. Your files on disk are not touched. This cannot be undone.",

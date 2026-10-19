@@ -3815,7 +3815,7 @@
   "settingsRoute.priority.badFloor": "la compatibilidad mínima debe ser un número de 0 a 100, no “{value}”",
   "schedule.unknownZone": "zona horaria desconocida",
   "screen.detail.meta": "{n, plural, one {# candidato} many {# de candidatos} other {# candidatos}} · se conserva hasta el {date}",
-  "screen.detail.keepTitle": "{n, plural, one {Conservar # día más a partir de hoy} many {Conservar # de días más a partir de hoy} other {Conservar # días más a partir de hoy}}",
+  "screen.detail.keepTitle": "{n, plural, one {Suma # día a la fecha hasta la que se conserva} many {Suma # de días a la fecha hasta la que se conserva} other {Suma # días a la fecha hasta la que se conserva}}",
   "screen.detail.keep": "{n, plural, one {Conservar # día más} many {Conservar # de días más} other {Conservar # días más}}",
   "screen.detail.delete": "Eliminar la preselección",
   "screen.detail.deleteConfirm": "¿Eliminar esta preselección? Se borran de la base de datos la preselección, las copias subidas de los currículums y todos los veredictos. Tus archivos en disco no se tocan. No se puede deshacer.",

@@ -66,7 +66,8 @@ import { ScreenDetailPage } from '../pages/screen-detail';
 import { ScreenApplicantPage } from '../pages/screen-applicant';
 import { ScreenComparePage } from '../pages/screen-compare';
 import { sideBySide } from '../screen-compare';
-import { applicantStatus, calibrationRows, exportRows, rowView, scoredBeforePosting } from '../screen-view';
+import { applicantStatus, calibrationRows, exportRows, extendedRetention, rowView, scoredBeforePosting } from '../screen-view';
+import { formatDateShort } from '../format';
 import { calibrate } from '../../screening/calibration';
 import { toPickOption } from '../job-pick';
 import { claimRun, startRun, updateRun } from '../target-runs';
@@ -853,9 +854,9 @@ screenRoute.post('/screen/:id/retain', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const settings = await getSettings();
-  const until = new Date(Date.now() + settings.screeningRetentionDays * DAY_MS);
+  const until = extendedRetention(screening.retainUntil, settings.screeningRetentionDays);
   await extendRetention(screening.id, until);
-  return flashRedirect(`/screen/${screening.id}`, 'ok', t('screenRoute.kept', { date: until.toISOString().slice(0, 10) }));
+  return flashRedirect(`/screen/${screening.id}`, 'ok', t('screenRoute.kept', { date: formatDateShort(until) }));
 });
 
 screenRoute.post('/screen/:id/delete', async (c) => {
