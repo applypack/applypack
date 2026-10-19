@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.62.0] — 2026-10-18
+
+### Added
+- After you save a new version of a resume, its page offers both the new
+  version and the file you uploaded.
+
+### Changed
+- Saving the clean version as a new resume now shows its progress, then
+  opens the new resume already read.
+
+### Fixed
+- A Markdown resume is read properly: its name, contact details and roles
+  are found, and no asterisks or hash marks show anywhere.
+- The clean version of a Markdown resume, in the Tailor document view, in
+  its downloads and in a saved version, opens with your name and contacts
+  and keeps every job under Experience.
+- The section-order field takes the section names it lists, such as
+  "experience", and says so when it does not know a name instead of quietly
+  moving that section to the end.
+- A web address or e-mail in the clean PDF is never split across two lines.
+- "Download original" returns the file you uploaded, even after you saved a
+  newer version.
+- A role title no longer keeps empty brackets after its dates are read.
+
 ## [2.61.10] — 2026-10-18
 
 ### Changed
@@ -6472,6 +6496,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.62.0]: https://github.com/applypack/applypack/compare/v2.61.10...v2.62.0
 [2.61.10]: https://github.com/applypack/applypack/compare/v2.61.9...v2.61.10
 [2.61.9]: https://github.com/applypack/applypack/compare/v2.61.8...v2.61.9
 [2.61.8]: https://github.com/applypack/applypack/compare/v2.61.7...v2.61.8
