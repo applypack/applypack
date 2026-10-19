@@ -29,3 +29,10 @@ export function heldLine(count: number, reason: HeldReason): HeldLine {
       return { text: t('held.window', n), href: SCHEDULE_HREF, action: t('held.window.action') };
   }
 }
+
+/** The flash after the Alerts switch. With no chat set up there is no channel to speak of, and nothing is held (#572). */
+export function alertsSwitchedLine(enabled: boolean, activeTargets: number, held: HeldLine | null): string {
+  if (!enabled) return t(activeTargets === 0 ? 'settingsRoute.alerts.disabledNoChat' : 'settingsRoute.alerts.disabled');
+  const switched = t(activeTargets === 0 ? 'settingsRoute.alerts.enabledNoChat' : 'settingsRoute.alerts.enabled');
+  return held ? `${switched} ${held.text}.` : switched;
+}

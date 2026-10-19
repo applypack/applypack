@@ -42,6 +42,23 @@ export interface RecordedVerdict {
   kept: boolean;
   /** Scored before the search was last changed: a changed search changes the score. */
   stale: boolean;
+  /** Written by the engine and model on trial: the comparison then measures how steady it is, not how it differs. */
+  sameModel: boolean;
+}
+
+/** Who wrote a posting's scores on record: the latest scoring call the ledger holds for it. */
+export interface RecordAuthor {
+  engine: string;
+  model: string;
+}
+
+/** The ledger's scoring calls, newest first → the author of each posting's record. */
+export function recordAuthors(calls: readonly (RecordAuthor & { jobId: number | null })[]): Map<number, RecordAuthor> {
+  const authors = new Map<number, RecordAuthor>();
+  for (const call of calls) {
+    if (call.jobId !== null && !authors.has(call.jobId)) authors.set(call.jobId, { engine: call.engine, model: call.model });
+  }
+  return authors;
 }
 
 /**
@@ -52,6 +69,7 @@ export function recordedVerdicts(
   job: { salaryMin: number | null; salaryCurrency: string | null; salaryPeriod: string | null },
   scores: readonly Pick<JobScore, 'profileId' | 'fitScore' | 'locationMatch' | 'scoredAt'>[],
   profiles: readonly Pick<Profile, 'id' | 'minFitScore' | 'minSalaryUsd' | 'updatedAt'>[],
+  sameModel = false,
 ): RecordedVerdict[] {
   return scores.flatMap((score) => {
     const profile = profiles.find((p) => p.id === score.profileId);
@@ -66,7 +84,7 @@ export function recordedVerdicts(
       },
       profile,
     );
-    return [{ profileId: profile.id, fit: score.fitScore, kept: reason === null, stale: score.scoredAt < profile.updatedAt }];
+    return [{ profileId: profile.id, fit: score.fitScore, kept: reason === null, stale: score.scoredAt < profile.updatedAt, sameModel }];
   });
 }
 
@@ -110,6 +128,8 @@ export interface TrialReport {
   failed: number;
   /** Pairs whose record predates the last change to its search. */
   stale: number;
+  /** Pairs whose record the engine and model on trial wrote themselves. */
+  sameModel: number;
 }
 
 export function trialReport(readings: readonly TrialReading[]): TrialReport {
@@ -128,6 +148,7 @@ export function trialReport(readings: readonly TrialReading[]): TrialReport {
     unparsed: readings.filter((r) => r.kind === 'unparsed').length,
     failed: readings.filter((r) => r.kind === 'failed').length,
     stale: pairs.filter((p) => p.record.stale).length,
+    sameModel: pairs.filter((p) => p.record.sameModel).length,
   };
 }
 
@@ -148,6 +169,9 @@ export function trialLine(report: TrialReport): string {
           distance: formatNumber(report.meanDistance ?? 0, DISTANCE_FORMAT),
         })
       : t('trial.result.nothingCompared'),
+    ...(report.sameModel === 0
+      ? []
+      : [report.sameModel === report.compared ? t('trial.result.sameModelAll') : t('trial.result.sameModelSome', { n: report.sameModel })]),
     ...(report.msPerPosting === null ? [] : [t('trial.result.speed', { seconds: formatNumber(report.msPerPosting / 1000, SECONDS_FORMAT) })]),
     ...(report.unparsed > 0 ? [t('trial.result.unparsed', { n: report.unparsed })] : []),
     ...(report.failed > 0 ? [t('trial.result.failed', { n: report.failed })] : []),

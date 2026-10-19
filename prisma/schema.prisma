@@ -498,6 +498,8 @@ model EngineTrial {
   unparsed     Int
   failed       Int
   stale        Int
+  // Pairs whose score on record this same engine and model wrote (#572).
+  sameModel    Int      @default(0)
 
   @@id([engine, model])
   @@map("engine_trial")

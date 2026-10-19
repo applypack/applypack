@@ -26,7 +26,7 @@ import {
 } from '../ui';
 import { toCheckInterval } from '../../watchlist/interval';
 import { formatDate, formatRelative, formatSalary, safeHref } from '../format';
-import { techLabel } from '../tech-label';
+import { techLabels } from '../tech-label';
 import { sourceLabel } from '../source-names';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
@@ -500,7 +500,7 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
             </p>
           )}
           <dl class="space-y-2">
-            <TagRow label={t('job.tech')} items={job.techMatch.map(techLabel)} tone="ok" />
+            <TagRow label={t('job.tech')} items={techLabels(job.techMatch)} tone="ok" />
             <TagRow label={t('job.flags')} items={flags} tone="danger" modelText />
             <TagRow label={t('job.priorityRules')} items={job.priorityRulesApplied} tone="neutral" />
           </dl>
