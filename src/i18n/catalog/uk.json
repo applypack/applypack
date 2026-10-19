@@ -3357,7 +3357,7 @@
   "rubric.kindHint.years": "«5+», «0–2», «3–5» — роки в такій роботі; вид роботи — після двокрапки: «5+: автоматизація тестування»",
   "rubric.kindHint.level": "junior, mid, senior або lead; додайте «or above» / «or below» / «exactly»",
   "rubric.kindHint.industry": "галузі через кому; за бажанням роки: «fintech, payments: 3+»",
-  "rubric.kindHint.companyType": "одне чи кілька з: product, agency, consultancy, startup, enterprise, public sector, non-profit",
+  "rubric.kindHint.companyType": "одне чи кілька з: product, agency, consultancy, startup, enterprise, public sector, non-profit, freelance",
   "rubric.kindHint.language": "«англійська B2», «українська рідна»",
   "rubric.kindHint.location": "місто чи країна; додайте «or remote»",
   "rubric.kindHint.authorization": "країна: «Україна», «ЄС», «США»",

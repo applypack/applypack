@@ -136,7 +136,7 @@ export const KIND_ANSWER: Record<CriterionKind, 'status' | 'rung' | 'level' | 'i
 const LEVEL_TOLERANCES = ['exact', 'one', 'atLeast', 'atMost'] as const;
 export type LevelTolerance = (typeof LEVEL_TOLERANCES)[number];
 
-export const COMPANY_TYPES = ['product', 'agency', 'consultancy', 'startup', 'enterprise', 'public sector', 'non-profit'] as const;
+export const COMPANY_TYPES = ['product', 'agency', 'consultancy', 'startup', 'enterprise', 'public sector', 'non-profit', 'freelance'] as const;
 export type CompanyType = (typeof COMPANY_TYPES)[number];
 
 const MAX_CRITERIA = 40;

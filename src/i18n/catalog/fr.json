@@ -3357,7 +3357,7 @@
   "rubric.kindHint.years": "« 5+ », « 0–2 », « 3–5 » — années dans ce type de travail ; ajoutez le type après un deux-points : « 5+: automatisation des tests »",
   "rubric.kindHint.level": "junior, mid, senior ou lead ; ajoutez « or above » / « or below » / « exactly »",
   "rubric.kindHint.industry": "secteurs séparés par des virgules ; années facultatives : « fintech, payments: 3+ »",
-  "rubric.kindHint.companyType": "un ou plusieurs parmi : product, agency, consultancy, startup, enterprise, public sector, non-profit",
+  "rubric.kindHint.companyType": "un ou plusieurs parmi : product, agency, consultancy, startup, enterprise, public sector, non-profit, freelance",
   "rubric.kindHint.language": "« anglais B2 », « ukrainien natif »",
   "rubric.kindHint.location": "une ville ou un pays ; ajoutez « or remote »",
   "rubric.kindHint.authorization": "le pays : « Ukraine », « UE », « États-Unis »",

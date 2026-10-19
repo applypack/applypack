@@ -3357,7 +3357,7 @@
   "rubric.kindHint.years": "\"5+\", \"0–2\", \"3–5\" — years in this kind of work; add the kind after a colon: \"5+: test automation\"",
   "rubric.kindHint.level": "junior, mid, senior or lead; add \"or above\" / \"or below\" / \"exactly\"",
   "rubric.kindHint.industry": "sectors, comma-separated; optional years: \"fintech, payments: 3+\"",
-  "rubric.kindHint.companyType": "product, agency, consultancy, startup, enterprise, public sector, non-profit",
+  "rubric.kindHint.companyType": "product, agency, consultancy, startup, enterprise, public sector, non-profit, freelance",
   "rubric.kindHint.language": "\"English B2\", \"Ukrainian native\"",
   "rubric.kindHint.location": "a city or country; add \"or remote\"",
   "rubric.kindHint.authorization": "the country: \"Ukraine\", \"EU\", \"United States\"",

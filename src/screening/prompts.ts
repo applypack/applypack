@@ -10,6 +10,7 @@ import {
   EVIDENCE_RUNGS,
   KIND_ANSWER,
   SCREEN_LEVELS,
+  type CompanyType,
   type Criterion,
   type Rubric,
 } from './rubric';
@@ -29,8 +30,9 @@ import {
 /**
  * v4: v3 with the evidence ladder spelled out for lists — a stack line is at most "role"; a term the text never spells is absent.
  * v5: a role's sector is picked from the sector vocabulary (sectors.ts, TASKS E6) — free words only when none fits.
+ * v6: "freelance" is a company type (#553).
  */
-export const SCREEN_PROMPT_VERSION = 5;
+export const SCREEN_PROMPT_VERSION = 6;
 /** The version that began reading stand-out facts: a verdict from before it has none to show. */
 export const STANDOUT_SINCE = 3;
 /** The answer: one entry per criterion, the roles with dates, three stand-out facts, a few quotes and five questions. */
@@ -112,9 +114,19 @@ const RoleSchema = z.object({
   why: z.string().default(''),
   /** The sector the employer was in, in two or three words; null when the text does not say. */
   sector: nullableText,
-  companyType: z.enum(COMPANY_TYPES).nullish().transform((v) => v ?? null),
+  /** A type outside the list costs that role its type, never the whole reply (#553). */
+  companyType: z.unknown().transform(readCompanyType),
 });
 export type ScreenRole = z.infer<typeof RoleSchema>;
+
+/** The words a resume and a model use for a type the list names otherwise. */
+const COMPANY_TYPE_ALIASES: Readonly<Record<string, CompanyType>> = { 'self-employed': 'freelance', 'self employed': 'freelance', freelancer: 'freelance' };
+
+function readCompanyType(value: unknown): CompanyType | null {
+  if (typeof value !== 'string') return null;
+  const key = value.trim().toLowerCase();
+  return (COMPANY_TYPES as readonly string[]).includes(key) ? (key as CompanyType) : (COMPANY_TYPE_ALIASES[key] ?? null);
+}
 
 /** A fact worth knowing that no criterion asked for, with the line that carries it (plan §5). Never scored. */
 const StandoutSchema = z.object({
@@ -147,7 +159,7 @@ const RULE_ANSWERS = `"answers" — one entry per criterion in the SCREENING RUB
    - overall: the whole resume against the whole posting, in "overall": "exceptional" (would be shortlisted at any company for this role), "strong", "partial", "weak", "none" — with three "reasons" and up to three "concerns", each one clause, and the single line that most supports the grade in "quote". This is the one place you weigh everything at once; the other criteria are answered on their own.
    - roles: no entry — the application reads years, sectors and company types off "roles".`;
 
-const RULE_ROLES = `"roles" — every job in the resume, most recent first: "position", "employer", "start" and "end" copied CHARACTER FOR CHARACTER (the application parses the dates and drops any string it cannot find); "relevant" true when the role is the kind of work the position asks for, "why" in one clause; "sector" the employer's sector — the closest of ${SECTORS.map((s) => s.label).join(', ')}; two or three words of the text's own when none fits, null when the text does not say; "companyType" one of product | agency | consultancy | startup | enterprise | public sector | non-profit, or null. Internships and study projects are roles too, marked as such in "why".`;
+const RULE_ROLES = `"roles" — every job in the resume, most recent first: "position", "employer", "start" and "end" copied CHARACTER FOR CHARACTER (the application parses the dates and drops any string it cannot find); "relevant" true when the role is the kind of work the position asks for, "why" in one clause; "sector" the employer's sector — the closest of ${SECTORS.map((s) => s.label).join(', ')}; two or three words of the text's own when none fits, null when the text does not say; "companyType" one of ${COMPANY_TYPES.join(' | ')}, or null. Internships and study projects are roles too, marked as such in "why".`;
 
 const RULE_STANDOUT = `"standout" — up to ${MAX_STANDOUT} facts a hiring manager would want to know that NO criterion asked about, most notable first: a technology or a domain beyond the rubric, a number the person quotes (users, revenue, scale, savings), a publication, a patent, open source, a conference talk, a language, an award. "fact" in eight words or fewer, "quote" the line that carries it, copied character for character — a fact without a located quote is dropped. These are never scored; they are what the person reads before deciding.`;
 
@@ -175,7 +187,7 @@ Every "quote", role field and "last_used" is copied character for character from
 OUTPUT (exactly this shape):
 {
   "summary": {"who": string, "did": string, "verdict": string},
-  "roles": [{"position": string, "employer": string|null, "start": string|null, "end": string|null, "relevant": boolean, "why": string, "sector": string|null, "companyType": "product"|"agency"|"consultancy"|"startup"|"enterprise"|"public sector"|"non-profit"|null}],
+  "roles": [{"position": string, "employer": string|null, "start": string|null, "end": string|null, "relevant": boolean, "why": string, "sector": string|null, "companyType": ${COMPANY_TYPES.map((type) => `"${type}"`).join('|')}|null}],
   "answers": [{"id": string, "status": "pass"|"partial"|"unknown"|"fail"|null, "rung": "absent"|"listed"|"project"|"role"|"production"|null, "level": "junior"|"mid"|"senior"|"lead"|null, "impact": "strong"|"ok"|"weak"|null, "overall": "exceptional"|"strong"|"partial"|"weak"|"none"|null, "quote": string|null, "note": string|null, "question": string|null, "last_used": string|null, "reasons": [string], "concerns": [string]}],
   "standout": [{"fact": string, "quote": string}],
   "questions": [string],
