@@ -46,7 +46,7 @@ import type { PackOffer } from '../pack-offers';
 import type { WatchlistRun } from '../watchlist-runs';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
-import { AddFolderCard, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
+import { AddFolderCard, FOLDER_CHECK, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
 
 interface CompanyRow {
   id: number;
@@ -310,6 +310,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   folderHost,
 }) => {
   const empty = companies.length === 0;
+  // A folder path Check turned away comes back in its form, open, with the reason beside it (#546).
+  const refusedFolder =
+    flash?.field?.form === FOLDER_CHECK && flash.field.name === 'path' ? { path: flash.field.value ?? '', reason: flash.text } : undefined;
   return (
   <Layout title={t('nav.companies')} active="companies">
     <PageHeader
@@ -476,9 +479,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
             </Card>
           </div>
         </Disclosure>
-        <Disclosure variant="button" summary={t('companies.aFolderOnThisComputer')} class="contents">
+        <Disclosure variant="button" summary={t('companies.aFolderOnThisComputer')} open={refusedFolder !== undefined} class="contents">
           <div class="order-last basis-full">
-            <AddFolderCard host={folderHost} />
+            <AddFolderCard host={folderHost} refused={refusedFolder} />
           </div>
         </Disclosure>
         {(suggestions.length > 0 || fitPacks.length > 0) && (

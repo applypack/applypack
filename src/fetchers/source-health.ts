@@ -177,6 +177,17 @@ export function healthUpdate(
 }
 
 /**
+ * The words of a failure that is a state of the user's own folder (ADR
+ * 0062): gone, refused, not fitting its mapping. Each carries a sentence of
+ * its own, so it is logged as that sentence, not as a stack trace. Null for
+ * anything else.
+ */
+export function expectedFailure(err: unknown): string | null {
+  const { name, message } = (err ?? {}) as { name?: unknown; message?: unknown };
+  return name === 'FolderError' && typeof message === 'string' ? message : null;
+}
+
+/**
  * Sources that never yield a posting by design, so ageing them into "silent"
  * would be reporting the design as a fault. A change watch (ADR 0036) reports
  * that a page moved and stores no Job; a MANUAL, BROWSER_PAGE or IMPORT row is

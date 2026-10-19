@@ -30,6 +30,10 @@ describe('folderAllowed on a local install', () => {
     assert.match(reason('/etc', local), /inside your home folder/);
   });
 
+  it('says how to read a folder outside home with npm start: its line in .env, then a restart (#546)', () => {
+    assert.match(reason('/Volumes/Backup/jobs', local), /add the line APPLYPACK_INBOX_ROOTS=\/Volumes\/Backup\/jobs to the \.env file in the ApplyPack folder and restart ApplyPack \(npm run stop, then npm start\)\.$/);
+  });
+
   it('refuses a hidden folder at any depth', () => {
     assert.equal(allowed('/Users/sam/.ssh', local), false);
     assert.equal(allowed('/Users/sam/.config/tool/out', local), false);
@@ -50,7 +54,7 @@ describe('folderAllowed on a local install', () => {
     const drive = '/Users/sam/Library/CloudStorage/Dropbox/job-exports';
     const verdict = folderAllowed(drive, local, posix);
     assert.equal(verdict.ok, false);
-    assert.match(verdict.ok ? '' : verdict.reason, /Library\/CloudStorage.*name it in APPLYPACK_INBOX_ROOTS\.$/);
+    assert.match(verdict.ok ? '' : verdict.reason, /Library\/CloudStorage.*add the line APPLYPACK_INBOX_ROOTS=\/Users\/sam\/Library\/CloudStorage\/Dropbox\/job-exports to the \.env file/);
     assert.equal(allowed(drive, { ...local, roots: [drive] }), true);
     assert.equal(allowed(`${drive}/2026`, { ...local, roots: [drive] }), true);
     // Naming one synced folder opens that folder, not the rest of Library.

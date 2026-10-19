@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../http';
+import { FolderError } from '../datasets/folder-io';
 import {
   FETCH_STATUSES,
   QUIET_STREAK,
@@ -9,6 +10,7 @@ import {
   classifyFetchCount,
   classifyFetchError,
   describeStatus,
+  expectedFailure,
   healthUpdate,
   isFailing,
   isFailureStatus,
@@ -306,6 +308,14 @@ describe('classifyFetchError — a folder source', () => {
     // #397: a disk that stopped answering is a source that cannot be reached, and it counts toward the failure streak.
     assert.equal(classifyFetchError(fault('stalled')), 'network');
     assert.equal(classifyFetchError(fault('something-new')), 'unknown');
+  });
+
+  it('a folder that moved is logged as its own sentence, a fault anywhere else as the error it is (#546)', () => {
+    const moved = new FolderError('missing', 'There is no folder at /Users/me/inbox.');
+    assert.equal(expectedFailure(moved), 'There is no folder at /Users/me/inbox.');
+    assert.equal(expectedFailure(http(404)), null);
+    assert.equal(expectedFailure(new Error('boom')), null);
+    assert.equal(expectedFailure(undefined), null);
   });
 });
 

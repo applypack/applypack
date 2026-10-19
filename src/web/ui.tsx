@@ -191,13 +191,14 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
       {children}
     </div>
     {/* TASKS U15: the field the message is about says so itself — invalid, described by the message, focused.
-        Looked up inside the form that posted; both parts passed flash.ts's patterns, so neither can close a quote.
+        Looked up inside the form that posted, past a hidden copy of the field (a folder's own Check, #546); both
+        parts passed flash.ts's patterns, so neither can close a quote.
         Focused on load: the jump to a redirect's #fragment comes after this script and takes the focus back. */}
     {flash.field && (
       <script
         type="module"
         dangerouslySetInnerHTML={{
-          __html: `const f = document.querySelector('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]'); if (f) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', ['flash-text', f.getAttribute('aria-describedby')].filter(Boolean).join(' ')); const focus = () => f.focus(); if (document.readyState === 'complete') focus(); else addEventListener('load', focus, { once: true }); }`,
+          __html: `const f = [...document.querySelectorAll('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]')].find((e) => e.type !== 'hidden'); if (f) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', ['flash-text', f.getAttribute('aria-describedby')].filter(Boolean).join(' ')); const focus = () => f.focus(); if (document.readyState === 'complete') focus(); else addEventListener('load', focus, { once: true }); }`,
         }}
       />
     )}

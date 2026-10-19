@@ -299,11 +299,13 @@ async function previewPostings(
 /** Check: the folder read, nothing stored, no AI spent. Rendered straight from the POST — there is nothing to keep. */
 foldersRoute.post('/companies/folder/check', async (c) => {
   const form = await c.req.parseBody();
+  // A path typed into the add form comes back in it, open, when it is refused (#546); a row's own Check needs no form.
+  const keep = form.add === '1' ? { field: { form: c.req.path, name: 'path', value: text(form.path) } } : {};
   const folder = await resolveFolder(text(form.path));
   // Check never adds anything, so its refusal does not say "Nothing was added" (#365).
-  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${folder.error}`);
+  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${folder.error}`, keep);
   const preview = await previewFolder(folder.root, form);
-  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${preview.error}`);
+  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.notChecked')} ${preview.error}`, keep);
   return c.html(<FolderPreviewPage {...preview} />);
 });
 
