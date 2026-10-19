@@ -430,16 +430,6 @@ export function versionFileName(name: string, version: number, ext: string): str
   return `${slug}-v${version}.${ext}`;
 }
 
-export async function saveResumeTextVersion(id: number, text: string): Promise<ResumeSummary> {
-  const current = await prisma.resume.findUniqueOrThrow({ where: { id }, select: { name: true, version: true } });
-  return replaceResumeFile(id, {
-    sourceFilename: versionFileName(current.name, current.version + 1, 'md'),
-    mimeType: 'text/markdown',
-    original: Buffer.from(text, 'utf8'),
-    text,
-  });
-}
-
 /**
  * Swap the stored bytes and nothing else — the text, the version and the scan
  * stay. For the document-properties fix (ADR 0038): the words did not change,
