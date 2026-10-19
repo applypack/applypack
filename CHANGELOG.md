@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.10] — 2026-10-18
+
+### Changed
+- On a phone the Overview shows its four counts two to a row and the latest
+  matches right under them, before the chart.
+- On a screen narrower than 1280 px a job page shows Mark applied and the
+  status buttons first, then the tab you opened (the posting's own text on
+  the Posting tab), then the details and tracking.
+- The watchlist shows how often a company is checked and what it alerts
+  about in one column; the Companies list shows each source's kind under its
+  name.
+
+### Fixed
+- The watchlist no longer draws its selects over each other on a phone or a
+  tablet.
+- The Companies list fits its box at 1024 px: Active and Delete no longer
+  need a sideways scroll.
+- "Last fetch" shows when a source was last read, also when nothing it
+  brought was kept.
+- A folder's Files page has Check now, and a folder can be switched off from
+  its card.
+- A folder path that Check turns away stays in the form, and the message
+  says how to allow a folder outside your home folder.
+- A moved folder is logged as one short warning instead of an error with a
+  stack trace.
+- A failing source's health no longer reads "Folder not found , 1 tick in a
+  row" when copied or read aloud.
+
 ## [2.61.9] — 2026-10-18
 
 ### Changed
@@ -6444,6 +6472,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.10]: https://github.com/applypack/applypack/compare/v2.61.9...v2.61.10
 [2.61.9]: https://github.com/applypack/applypack/compare/v2.61.8...v2.61.9
 [2.61.8]: https://github.com/applypack/applypack/compare/v2.61.7...v2.61.8
 [2.61.7]: https://github.com/applypack/applypack/compare/v2.61.6...v2.61.7

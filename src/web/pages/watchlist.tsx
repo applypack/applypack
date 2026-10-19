@@ -23,6 +23,7 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative, formatUntil } from '../format';
+import type { HideBelow } from '../table-hide';
 import { wordedSource } from '../source-groups';
 import { sourceLabel } from '../source-names';
 import { CHECK_INTERVALS, intervalLabel } from '../../watchlist/interval';
@@ -343,6 +344,16 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
   );
 };
 
+/**
+ * The watchlist table's columns (#537). The two selects share a column and
+ * stack, so a phone keeps the name and both; the actions join from `md`, the
+ * next check from `lg`, what is new from `xl`. A fixed column narrower than
+ * the control in it drew the control over its neighbour — table-hide.test.ts
+ * holds the selects' column and the buttons' column to their widths.
+ */
+export const WATCHLIST_WIDTHS = ['w-[20%]', 'w-[32%]', 'w-[12%]', 'w-[12%]', 'w-[24%]'];
+export const WATCHLIST_HIDE: HideBelow = ['', '', 'lg', 'xl', 'md'];
+
 /** The watchlist section at the top of /companies. */
 export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
   if (rows.length === 0) return null;
@@ -358,10 +369,10 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
         <More class="mb-3 mt-1">{tRich('watchlist.more', {}, { em: (words) => <em>{words}</em> })}</More>
       </div>
       <Table
-        columns={[t('common.company'), t('watchlist.col.checked'), t('watchlist.col.alerts'), t('watchlist.col.nextCheck'), t('watchlist.col.new'), '']}
-        widths={['w-[24%]', 'w-[16%]', 'w-[16%]', 'w-[13%]', 'w-[7%]', 'w-[24%]']}
-        hideBelow={['', '', '', 'sm', '', '']}
-        thClasses={['', '', '', '', '', 'text-right']}
+        columns={[t('common.company'), t('watchlist.col.checkedAlerts'), t('watchlist.col.nextCheck'), t('watchlist.col.new'), '']}
+        widths={WATCHLIST_WIDTHS}
+        hideBelow={WATCHLIST_HIDE}
+        thClasses={['', '', '', '', 'text-right']}
       >
         {rows.map((r) => (
           <Tr>
@@ -371,20 +382,32 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
               </div>
               <div class="mt-0.5 flex flex-wrap items-center gap-2 text-meta text-ink-faint">
                 <span translate={wordedSource(r.atsType) ? undefined : 'no'}>
-                  <Tag>{sourceLabel(r.atsType)}</Tag>
+                  <Tag wrap>{sourceLabel(r.atsType)}</Tag>
                 </span>
                 {!r.active && !needsPaste(r) && <Badge tone="warn">{t('watchlist.off')}</Badge>}
               </div>
             </Td>
             <Td class="text-ink-muted">
               {needsPaste(r) ? (
-                <span class="text-note" title={t('watchlist.thePageDrawsItsJobs')}>
-                  {t('watchlist.notChecked')}
-                </span>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-note">
+                  <span title={t('watchlist.thePageDrawsItsJobs')}>{t('watchlist.notChecked')}</span>
+                  <a href="#browser-pages" class="font-medium text-accent-strong hover:text-accent-deep">
+                    {t('watchlist.pasteThePage')}
+                  </a>
+                </div>
               ) : (
-                <form method="post" action={`/companies/${r.id}/watch`}>
+                <form method="post" action={`/companies/${r.id}/watch`} class="flex flex-wrap items-center gap-2">
                   {INTERVAL_SELECT('checkEvery', r.checkEvery, r.name)}
-                  <input type="hidden" name="alertPolicy" value={r.alertPolicy} />
+                  {isChangeWatch(r) ? (
+                    <>
+                      <input type="hidden" name="alertPolicy" value={r.alertPolicy} />
+                      <span class="text-note" title={t('watchlist.thisPagePublishesNoBoard')}>
+                        {t('watchlist.pageChanges')}
+                      </span>
+                    </>
+                  ) : (
+                    POLICY_SELECT('alertPolicy', r.alertPolicy, r.name)
+                  )}
                   <noscript>
                     <Button size="sm" variant="secondary">{t('common.save')}</Button>
                   </noscript>
@@ -392,28 +415,9 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
               )}
             </Td>
             <Td class="text-ink-muted">
-              {needsPaste(r) ? (
-                <a href="#browser-pages" class="text-note font-medium text-accent-strong hover:text-accent-deep">
-                  {t('watchlist.pasteThePage')}
-                </a>
-              ) : isChangeWatch(r) ? (
-                <span class="text-note" title={t('watchlist.thisPagePublishesNoBoard')}>
-                  {t('watchlist.pageChanges')}
-                </span>
-              ) : (
-                <form method="post" action={`/companies/${r.id}/watch`}>
-                  {POLICY_SELECT('alertPolicy', r.alertPolicy, r.name)}
-                  <input type="hidden" name="checkEvery" value={r.checkEvery} />
-                  <noscript>
-                    <Button size="sm" variant="secondary">{t('common.save')}</Button>
-                  </noscript>
-                </form>
-              )}
-            </Td>
-            <Td class="whitespace-nowrap text-ink-muted">
               {needsPaste(r) ? '—' : r.nextCheckAt === null ? t('watchlist.nextTick') : formatUntil(r.nextCheckAt)}
             </Td>
-            <Td class="whitespace-nowrap">
+            <Td>
               {needsPaste(r) ? (
                 <span class="text-note text-ink-faint">
                   {r.paste === null

@@ -244,12 +244,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     />
 
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-      {/* The rail rides on every tab, and its three forms carry the tab so a status change returns to it. On a
-          narrow screen it leads on the posting, where its facts and actions are the point, and follows any other
-          tab: a comparison or a letter under a screen of status buttons and tracking fields was found below the fold. */}
-      {tab === 'posting' && <JobRail job={job} appliedResumePicker={appliedResumePicker} applicationTrackingEnabled={applicationTrackingEnabled} pipelineStages={pipelineStages} aiSpent={aiSpent} mute={mute} tab={tab} />}
-
-      <div class="min-w-0 space-y-4 xl:order-1">
+      <div class="min-w-0 space-y-4">
 
         {tab === 'verify' && (
         <VerificationCard
@@ -277,11 +272,15 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
         {tab === 'pack' && <ApplicationPackCard {...applicationPack} />}
 
+        {/* #570: on a narrower screen the posting's own words lead and the classifier follows them; from xl the
+            classifier heads the column as before. The rules between the parts follow the order they are seen in. */}
         {tab === 'posting' && (
-        <Card flush class="divide-y divide-line">
-        <ClassifierCard job={job} scores={profileScores} tab={tab} />
+        <Card flush class="flex flex-col">
+        <div class="order-last border-t border-line xl:order-none xl:border-t-0">
+          <ClassifierCard job={job} scores={profileScores} tab={tab} />
+        </div>
         {job.company.atsType === 'FRANCETRAVAIL' && job.sourcePayload !== null && job.sourcePayload !== undefined && (
-          <Card variant="flat" class="p-5">
+          <Card variant="flat" class="border-t border-line p-5">
             <SectionTitle>{t('job.fullOfferAsPublishedBy')}</SectionTitle>
             <Hint class="mb-3">
               {t('job.everyFieldTheBoardSent')}
@@ -296,7 +295,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           </Card>
         )}
 
-        <Card variant="flat" class="p-5">
+        <Card variant="flat" class="order-first p-5 xl:order-none xl:border-t xl:border-line">
           <SectionTitle>{t('job.description')}</SectionTitle>
           {job.descriptionRefreshedAt && (
             <div class="mb-3 flex flex-wrap items-center gap-2 text-note text-ink-muted">
@@ -322,7 +321,13 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         </Card>
         )}
       </div>
-      {tab !== 'posting' && <JobRail job={job} appliedResumePicker={appliedResumePicker} applicationTrackingEnabled={applicationTrackingEnabled} pipelineStages={pipelineStages} aiSpent={aiSpent} mute={mute} tab={tab} />}
+      {/* The rail rides on every tab, and its forms carry the tab so a status change returns to it. From xl it
+          stands beside the tab; on a narrower screen it is no box of its own (`contents`), so its status actions
+          lead and its facts and tracking follow what the tab shows (#570). */}
+      <div class="contents xl:block xl:space-y-4">
+        <JobActions job={job} appliedResumePicker={appliedResumePicker} tab={tab} />
+        <JobRail job={job} appliedResumePicker={appliedResumePicker} applicationTrackingEnabled={applicationTrackingEnabled} pipelineStages={pipelineStages} aiSpent={aiSpent} mute={mute} tab={tab} />
+      </div>
     </div>
     {/* Copy on the suggestion cards and the change sheet; the card itself is
         server-rendered, so this is all the JavaScript this page needs. */}
@@ -333,27 +338,30 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
 type RailProps = Pick<JobDetailProps, 'job' | 'appliedResumePicker' | 'applicationTrackingEnabled' | 'pipelineStages' | 'aiSpent' | 'mute' | 'tab'>;
 
-/** Status, details and application tracking, beside every tab. */
-const JobRail: FC<RailProps> = ({ job, appliedResumePicker, applicationTrackingEnabled, pipelineStages, aiSpent, mute, tab }) => (
-  <Card flush class="min-w-0 divide-y divide-line xl:order-2">
-    <div class="p-5">
-      <MarkAppliedPicker job={job} picker={appliedResumePicker} tab={tab} />
-      <div class="flex flex-wrap items-center gap-2">
-        {job.status !== 'APPLIED' && (
-          <Button variant="secondary" size="sm" form={MARK_APPLIED_FORM}>
-            {t('job.markApplied')}
+/** Mark applied and the status buttons: the rail's head, and on a narrower screen the row above the tab. */
+const JobActions: FC<Pick<RailProps, 'job' | 'appliedResumePicker' | 'tab'>> = ({ job, appliedResumePicker, tab }) => (
+  <Card class="order-first min-w-0">
+    <MarkAppliedPicker job={job} picker={appliedResumePicker} tab={tab} />
+    <div class="flex flex-wrap items-center gap-2">
+      {job.status !== 'APPLIED' && (
+        <Button variant="secondary" size="sm" form={MARK_APPLIED_FORM}>
+          {t('job.markApplied')}
+        </Button>
+      )}
+      {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
+        <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status, tab }}>
+          <Button variant={a.variant} size="sm">
+            {t(a.label)}
           </Button>
-        )}
-        {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
-          <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status, tab }}>
-            <Button variant={a.variant} size="sm">
-              {t(a.label)}
-            </Button>
-          </ActionForm>
-        ))}
-      </div>
+        </ActionForm>
+      ))}
     </div>
+  </Card>
+);
 
+/** Details, the mute and application tracking, beside every tab. */
+const JobRail: FC<RailProps> = ({ job, appliedResumePicker, applicationTrackingEnabled, pipelineStages, aiSpent, mute, tab }) => (
+  <Card flush class="min-w-0 divide-y divide-line">
     <Card variant="flat" class="p-5">
       <SectionTitle>{t('job.details')}</SectionTitle>
       <dl class="space-y-2.5 text-sm">

@@ -8,10 +8,10 @@ import { isBlankProfile } from '../profile-guards';
 import { EMPTY_CONTEXT, searchPlaces, type FetchContext } from './fetch-context';
 import {
   QUIET_STREAK,
-  advancesLastOk,
   classifyFetchCount,
   classifyFetchError,
-  nextStreak,
+  expectedFailure,
+  healthUpdate,
   type FetchStatus,
 } from './source-health';
 import { cachedCount, judgeUnder } from './conditional';
@@ -235,12 +235,19 @@ export async function runAllFetchers(
       }
     } catch (err) {
       status = classifyFetchError(err);
+      const expected = expectedFailure(err);
       if (status === 'not_modified') {
         // Not a failure: the board says its feed is what we already read, so
         // there is nothing to fetch and nothing to store (scale-plan §4).
         logger.info(
           { company: company.name, ats: company.atsType },
           'fetcher: unchanged since the last tick',
+        );
+      } else if (expected !== null) {
+        // A folder moved or refused is the user's to fix, and its row on Companies says so (#546).
+        logger.warn(
+          { company: company.name, ats: company.atsType, status, reason: expected, ms: Date.now() - startedAt },
+          'fetcher: failed',
         );
       } else {
         logger.error(
@@ -309,18 +316,17 @@ async function recordFetchHealth(
   /** A read the user asked for, stamped so the next tick still reads the row (#557). */
   manual: boolean,
 ): Promise<void> {
-  const streak = nextStreak(status, company.consecutiveFailures);
+  const health = healthUpdate(status, company.consecutiveFailures, lastFullCount, new Date());
+  const streak = health.consecutiveFailures;
   try {
     await prisma.company.update({
       where: { id: company.id },
       data: {
-        lastFetchStatus: status,
-        consecutiveFailures: streak,
+        ...health,
         // Stamped after EVERY attempt, failures included: a board that throws
         // has to wait its interval like a healthy one, or a broken feed is
         // retried every heartbeat while a working one waits an hour.
         nextCheckAt: manual ? nextCheckAfterManual(company, tickStartedAt) : nextCheckAfter(company, tickStartedAt),
-        ...(advancesLastOk(status, lastFullCount) ? { lastOkAt: new Date() } : {}),
       },
     });
   } catch (err) {

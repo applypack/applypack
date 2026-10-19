@@ -18,7 +18,12 @@ export interface RefusedField {
   /** The form's `action` — the path the POST went to. */
   form: string;
   name: string;
+  /** What was typed into it, for a page that puts it back (#546): only the page reads it, as an attribute. */
+  value?: string;
 }
+
+/** A typed value the flash carries back: a path, a name — never a page of text, which would outgrow the cookie. */
+const MAX_VALUE_CHARS = 1024;
 
 export interface FlashMessage {
   kind: FlashKind;
@@ -81,7 +86,9 @@ export function flashRedirect(
     ...(opts.rerun ? { rerun: true, mode: opts.mode } : {}),
     ...(opts.tailor ? { tailor: opts.tailor } : {}),
     ...(opts.download ? { download: opts.download } : {}),
-    ...(opts.field ? { field: opts.field } : {}),
+    ...(opts.field
+      ? { field: { form: opts.field.form, name: opts.field.name, ...(typedValue(opts.field.value) ? { value: opts.field.value } : {}) } }
+      : {}),
     ...(opts.draft ? { draft: readDraft(opts.draft) } : {}),
   });
   return new Response(null, {
@@ -129,7 +136,9 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
           : {}),
         ...(typeof parsed.download === 'string' && /^\/resumes\/\d+\/download$/.test(parsed.download) ? { download: parsed.download } : {}),
         // A form's path and a field's name, nothing else: both land in a selector on the page.
-        ...(isRefusedField(parsed.field) ? { field: { form: parsed.field.form, name: parsed.field.name } } : {}),
+        ...(isRefusedField(parsed.field)
+          ? { field: { form: parsed.field.form, name: parsed.field.name, ...(typedValue(parsed.field.value) ? { value: parsed.field.value } : {}) } }
+          : {}),
         // Values only go back into the form they came from, as attribute values the renderer escapes.
         ...(draft ? { draft } : {}),
       };
@@ -225,6 +234,10 @@ function readDraft(value: unknown): FormDraft | undefined {
   if (typeof form !== 'string' || !FORM_ACTION.test(form) || !values || typeof values !== 'object') return undefined;
   const fields = Object.entries(values).filter((e): e is [string, string] => FIELD_NAME.test(e[0]) && typeof e[1] === 'string');
   return { form, values: Object.fromEntries(fields.slice(0, MAX_DRAFT_FIELDS).map(([name, v]) => [name, v.slice(0, MAX_DRAFT_CHARS)])) };
+}
+
+function typedValue(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= MAX_VALUE_CHARS && !CONTROL_CHARS.test(value);
 }
 
 function isRefusedField(value: unknown): value is RefusedField {

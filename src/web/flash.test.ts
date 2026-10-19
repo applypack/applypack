@@ -157,6 +157,16 @@ test('a refused form\'s values ride the flash back to the form they came from (#
   assert.ok((long.headers.get('set-cookie') ?? '').length < 4096);
 });
 
+test('a refused field can carry back what was typed, so the form keeps it (#546)', () => {
+  const at = '/companies/folder/check';
+  const res = flashRedirect('/companies', 'err', 'Not checked.', { field: { form: at, name: 'path', value: '/Volumes/Backup/jobs' } });
+  assert.deepEqual(parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]!)?.field, { form: at, name: 'path', value: '/Volumes/Backup/jobs' });
+  const cookie = (value: unknown) => parseFlashCookie(cookieOf({ kind: 'err', text: 'x', field: { form: at, name: 'path', value } }))?.field;
+  assert.deepEqual(cookie('a\nb'), { form: at, name: 'path' }, 'a control character drops the value, not the field');
+  assert.deepEqual(cookie('x'.repeat(2000)), { form: at, name: 'path' }, 'nor does a value past the cookie’s room');
+  assert.deepEqual(cookie(42), { form: at, name: 'path' });
+});
+
 // ADR 0061: a browser drops a cookie past 4 096 bytes silently, and the old percent-encoding
 // spent six characters on a Cyrillic letter and nine on a Devanagari one.
 test('a long message in Ukrainian or Hindi still fits the cookie, and comes back whole', () => {

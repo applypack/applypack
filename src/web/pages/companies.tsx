@@ -26,7 +26,7 @@ import {
   When,
 } from '../ui';
 import { formatRelative, safeHref } from '../format';
-import { sourceFamily } from '../source-groups';
+import { sourceFamily, wordedSource } from '../source-groups';
 import { sourceLabel } from '../source-names';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import {
@@ -46,7 +46,7 @@ import type { PackOffer } from '../pack-offers';
 import type { WatchlistRun } from '../watchlist-runs';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
-import { AddFolderCard, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
+import { AddFolderCard, FOLDER_CHECK, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
 
 interface CompanyRow {
   id: number;
@@ -101,8 +101,9 @@ const HealthDot: FC<{ status: string | null; streak: number; atsType: string }> 
   const { tone } = describeStatus(status, atsType);
   const label = healthLabel(status, atsType);
   return (
+    // On a phone the label may take two lines, or the name beside it is cut to a letter or two.
     <span
-      class="inline-flex items-center gap-2 whitespace-nowrap"
+      class="inline-flex items-center gap-2 sm:whitespace-nowrap"
       title={streak > 0 ? t('sources.health.withStreak', { label, n: streak }) : label}
     >
       <span class={`h-2 w-2 shrink-0 rounded-full ${DOT_TONE[tone]}`} aria-hidden="true" />
@@ -311,6 +312,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   const empty = companies.length === 0;
   // What a refused "Add one company" held, put back (#534).
   const draft = flash?.draft?.form === '/companies/new' ? flash.draft.values : null;
+  // A folder path Check turned away comes back in its form, open, with the reason beside it (#546).
+  const refusedFolder =
+    flash?.field?.form === FOLDER_CHECK && flash.field.name === 'path' ? { path: flash.field.value ?? '', reason: flash.text } : undefined;
   return (
   <Layout title={t('nav.companies')} active="companies">
     <PageHeader
@@ -337,96 +341,91 @@ export const CompaniesPage: FC<CompaniesProps> = ({
       </Empty>
     ) : (
       <Card flush>
-        <div class="overflow-x-auto">
-          {/* TASKS U7: a phone keeps the name, the health and the actions. */}
-          <div class="lg:min-w-[56rem]">
-            <Table caption={t('companies.companiesAndSources')}
-              hideBelow={['', 'sm', 'lg', '', 'md', 'lg', 'md', 'sm', '']}
-              columns={[
-                t('companies.name'),
-                t('companies.col.source'),
-                t('companies.col.token'),
-                t('companies.col.health'),
-                <span class="block text-right">{t('companies.jobs')}</span>,
-                <span class="block text-right">{t('companies.alerted')}</span>,
-                <span class="block text-right">{t('companies.lastFetch')}</span>,
-                t('companies.col.active'),
-                <span class="block text-right">{t('common.actions')}</span>,
-              ]}
-            >
-              {companies.map((c) => (
-                <Tr>
-                  <Td class="max-w-[14rem] font-medium text-ink">
-                    <div class="truncate" title={c.name} translate="no">
-                      {safeHref(c.careerUrl) ? (
-                        <a
-                          href={safeHref(c.careerUrl)!}
-                          target="_blank"
-                          rel="noopener"
-                          class="transition-colors duration-150 hover:text-accent-strong"
-                        >
-                          {c.name}
-                        </a>
-                      ) : (
-                        c.name
-                      )}
-                    </div>
-                  </Td>
-                  <Td>
-                    <span translate="no">
-                      <Tag>{c.atsType.replace('_', ' ')}</Tag>
-                    </span>
-                  </Td>
-                  {/* A feed query can run to fifty characters; untruncated it pushed Active and
-                      Delete out of a 1440 px window, behind a sideways scroll inside the card. */}
-                  <Td class="max-w-[11rem] font-mono text-meta text-ink-muted">
-                    <div class="truncate" title={c.atsToken} translate="no">
-                      {c.atsToken}
-                    </div>
-                  </Td>
-                  <Td>
-                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} atsType={c.atsType} />
-                  </Td>
-                  <Td class="text-right tabular-nums text-ink-muted">{c.jobsTotal}</Td>
-                  <Td
-                    class={`text-right tabular-nums ${
-                      c.alertedTotal ? 'font-medium text-ok' : 'text-ink-faint'
-                    }`}
+        {/* TASKS U7: a phone keeps the name, the health and the actions; the rest joins as the screen widens.
+            #547: the name takes what the other columns leave and the source rides under it, so Active and
+            Delete stay in the card at 1024 px instead of behind a sideways scroll. */}
+        <Table caption={t('companies.companiesAndSources')}
+          hideBelow={['', 'xl', '', 'lg', 'xl', 'md', 'sm', '']}
+          columns={[
+            t('companies.name'),
+            t('companies.col.token'),
+            t('companies.col.health'),
+            <span class="block text-right">{t('companies.jobs')}</span>,
+            <span class="block text-right">{t('companies.alerted')}</span>,
+            <span class="block text-right">{t('companies.lastFetch')}</span>,
+            t('companies.col.active'),
+            <span class="block text-right">{t('common.actions')}</span>,
+          ]}
+        >
+          {companies.map((c) => (
+            <Tr>
+              <Td class="w-full max-w-0 font-medium text-ink">
+                <div class="truncate" title={c.name} translate="no">
+                  {safeHref(c.careerUrl) ? (
+                    <a
+                      href={safeHref(c.careerUrl)!}
+                      target="_blank"
+                      rel="noopener"
+                      class="transition-colors duration-150 hover:text-accent-strong"
+                    >
+                      {c.name}
+                    </a>
+                  ) : (
+                    c.name
+                  )}
+                </div>
+                <div class="mt-0.5 hidden sm:block" translate={wordedSource(c.atsType) ? undefined : 'no'}>
+                  <Tag wrap>{sourceLabel(c.atsType)}</Tag>
+                </div>
+              </Td>
+              {/* A feed query can run to fifty characters; untruncated it pushed Active and
+                  Delete out of a 1440 px window, behind a sideways scroll inside the card. */}
+              <Td class="max-w-[8rem] font-mono text-meta text-ink-muted">
+                <div class="truncate" title={c.atsToken} translate="no">
+                  {c.atsToken}
+                </div>
+              </Td>
+              <Td>
+                <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} atsType={c.atsType} />
+              </Td>
+              <Td class="text-right tabular-nums text-ink-muted">{c.jobsTotal}</Td>
+              <Td
+                class={`text-right tabular-nums ${
+                  c.alertedTotal ? 'font-medium text-ok' : 'text-ink-faint'
+                }`}
+              >
+                {c.alertedTotal}
+              </Td>
+              <Td class="whitespace-nowrap text-right text-note text-ink-faint">
+                <When at={c.lastFetchedAt} />
+              </Td>
+              <Td>
+                <ActionForm action={`/companies/${c.id}/toggle-active`}>
+                  {/* The badge shows the state; the button's name says the action and the company (A11Y-4). */}
+                  <button
+                    type="submit"
+                    class="cursor-pointer rounded-full"
+                    aria-label={t(c.active ? 'companies.disableNamed' : 'companies.enableNamed', { name: c.name })}
+                    title={t(c.active ? 'companies.disableNamed' : 'companies.enableNamed', { name: c.name })}
                   >
-                    {c.alertedTotal}
-                  </Td>
-                  <Td class="whitespace-nowrap text-right text-note text-ink-faint">
-                    <When at={c.lastFetchedAt} />
-                  </Td>
-                  <Td>
-                    <ActionForm action={`/companies/${c.id}/toggle-active`}>
-                      {/* The badge shows the state; the button's name says the action and the company (A11Y-4). */}
-                      <button
-                        type="submit"
-                        class="cursor-pointer rounded-full"
-                        aria-label={t(c.active ? 'companies.disableNamed' : 'companies.enableNamed', { name: c.name })}
-                        title={t(c.active ? 'companies.disableNamed' : 'companies.enableNamed', { name: c.name })}
-                      >
-                        <Badge tone={c.active ? 'ok' : 'neutral'}>
-                          {c.active ? t('companies.active') : t('companies.inactive')}
-                        </Badge>
-                      </button>
-                    </ActionForm>
-                  </Td>
-                  <Td>
-                    <ConfirmAction
-                      action={`/companies/${c.id}/delete`}
-                      label={t('common.delete')}
-                      ariaLabel={t('companies.deleteNamed', { name: c.name })}
-                      confirm={companyDeleteConfirm(c.name, c.deleteImpact)}
-                      class="flex justify-end"
-                    />
-                  </Td>
-                </Tr>
-              ))}
-            </Table>
-          </div>
-        </div>
+                    <Badge tone={c.active ? 'ok' : 'neutral'}>
+                      {c.active ? t('companies.active') : t('companies.inactive')}
+                    </Badge>
+                  </button>
+                </ActionForm>
+              </Td>
+              <Td>
+                <ConfirmAction
+                  action={`/companies/${c.id}/delete`}
+                  label={t('common.delete')}
+                  ariaLabel={t('companies.deleteNamed', { name: c.name })}
+                  confirm={companyDeleteConfirm(c.name, c.deleteImpact)}
+                  class="flex justify-end"
+                />
+              </Td>
+            </Tr>
+          ))}
+        </Table>
       </Card>
     )}
 
@@ -482,9 +481,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
             </Card>
           </div>
         </Disclosure>
-        <Disclosure variant="button" summary={t('companies.aFolderOnThisComputer')} class="contents">
+        <Disclosure variant="button" summary={t('companies.aFolderOnThisComputer')} open={refusedFolder !== undefined} class="contents">
           <div class="order-last basis-full">
-            <AddFolderCard host={folderHost} />
+            <AddFolderCard host={folderHost} refused={refusedFolder} />
           </div>
         </Disclosure>
         {(suggestions.length > 0 || fitPacks.length > 0) && (

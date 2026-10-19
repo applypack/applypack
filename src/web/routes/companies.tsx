@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { isUniqueViolation, prisma } from '../../db';
 import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
-import { quietReason } from '../../fetchers/source-health';
+import { classifyFetchCount, healthUpdate, quietReason } from '../../fetchers/source-health';
 import { getSettings, getSourceKeys, pausedFamilies } from '../../settings';
 import { unlockedSources } from '../../source-keys';
 import { toStringArray } from '../../text-utils';
@@ -89,14 +89,7 @@ companiesRoute.get('/companies', async (c) => {
     // A pasted job's row and an imported file's (managed on /jobs/import) are not sources the tick reads.
     where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT] } },
     orderBy: [{ active: 'desc' }, { name: 'asc' }],
-    include: {
-      _count: { select: { jobs: true } },
-      jobs: {
-        select: { fetchedAt: true, status: true },
-        orderBy: { fetchedAt: 'desc' },
-        take: 1,
-      },
-    },
+    include: { _count: { select: { jobs: true } } },
   });
 
   const alertedCounts = await prisma.job.groupBy({
@@ -153,7 +146,7 @@ companiesRoute.get('/companies', async (c) => {
       comparisons: matchMap.get(c.id) ?? 0,
       letters: letterMap.get(c.id) ?? 0,
     },
-    lastFetchedAt: c.jobs[0]?.fetchedAt ?? null,
+    lastFetchedAt: c.lastFetchedAt,
     lastFetchStatus: c.lastFetchStatus,
     consecutiveFailures: c.consecutiveFailures,
     lastOkAt: c.lastOkAt,
@@ -565,11 +558,7 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
   const jobsCount = probe.jobsCount ?? 0;
   await prisma.company.update({
     where: { id },
-    data: {
-      lastFetchStatus: jobsCount > 0 ? 'ok' : 'empty',
-      consecutiveFailures: 0,
-      ...(jobsCount > 0 ? { lastOkAt: new Date() } : {}),
-    },
+    data: healthUpdate(classifyFetchCount(jobsCount), 0, null, new Date()),
   });
   return redirectWithFlash('ok', t('companies.flash.reprobeOk', { name: company.name, n: jobsCount }));
 });

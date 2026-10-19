@@ -191,7 +191,8 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
       {children}
     </div>
     {/* TASKS U15: the field the message is about says so itself — invalid, described by the message, focused.
-        Looked up inside the form that posted; both parts passed flash.ts's patterns, so neither can close a quote.
+        Looked up inside the form that posted, past a hidden copy of the field (a folder's own Check, #546); both
+        parts passed flash.ts's patterns, so neither can close a quote.
         Marked on load: the jump to a redirect's #fragment comes after this script and takes the focus back, and by
         then a chip editor (chips.mjs) has hidden its textarea behind a field of its own. A field folded in a closed
         <details> is unfolded first, or it could not take the focus (#549). */}
@@ -199,7 +200,7 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
       <script
         type="module"
         dangerouslySetInnerHTML={{
-          __html: `const f = document.querySelector('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]'); if (f) { for (let d = f.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; const mark = () => { const c = (f.hidden && f.parentElement.querySelector('input[type=text]')) || f; c.setAttribute('aria-invalid', 'true'); c.setAttribute('aria-describedby', ['flash-text', c.getAttribute('aria-describedby')].filter(Boolean).join(' ')); c.focus(); }; if (document.readyState === 'complete') mark(); else addEventListener('load', mark, { once: true }); }`,
+          __html: `const f = [...document.querySelectorAll('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]')].find((e) => e.type !== 'hidden'); if (f) { for (let d = f.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; const mark = () => { const c = (f.hidden && f.parentElement.querySelector('input[type=text]')) || f; c.setAttribute('aria-invalid', 'true'); c.setAttribute('aria-describedby', ['flash-text', c.getAttribute('aria-describedby')].filter(Boolean).join(' ')); c.focus(); }; if (document.readyState === 'complete') mark(); else addEventListener('load', mark, { once: true }); }`,
         }}
       />
     )}
@@ -559,7 +560,8 @@ const SparkBars: FC<{ values: readonly number[]; tone: Tone; class?: string }> =
  * One number that stands alone: its icon on the tone's tint, the label, the
  * value at the KPI step and one line of what moved. With `href` the value is
  * a link stretched over the card; `spark` draws the last fortnight beside it
- * where there is room.
+ * where there is room. On a phone, two to a row (#570): the icon steps back
+ * and the padding tightens, so the label and the number keep their room.
  */
 export const StatCard: FC<{
   label: string;
@@ -573,11 +575,11 @@ export const StatCard: FC<{
   spark?: readonly number[];
 }> = ({ label, value, tone, icon, delta, href, hrefLabel, spark }) => (
   <div
-    class={`relative flex gap-3.5 rounded-lg border border-line bg-surface-raised p-5 shadow-card transition-colors duration-150 ${
+    class={`relative flex gap-3.5 rounded-lg border border-line bg-surface-raised p-4 shadow-card transition-colors duration-150 sm:p-5 ${
       href ? 'hover:border-line-strong' : ''
     }`}
   >
-    <IconTile icon={icon} tone={tone} />
+    <IconTile icon={icon} tone={tone} class="hidden h-10 w-10 sm:grid" />
     <div class="min-w-0 flex-1">
       <div class="break-words text-label text-ink-muted">{label}</div>
       {/* The bars share the number's row and give way first: a narrow card clips the oldest days, never the number. */}
@@ -618,12 +620,14 @@ export const Badge: FC<PropsWithChildren<{ tone?: Tone; size?: keyof typeof BADG
   </span>
 );
 
-export const Tag: FC<PropsWithChildren<{ tone?: Tone }>> = ({
+/** `wrap`: a long tag in a narrow cell takes a second line rather than run past the cell's edge (#537). */
+export const Tag: FC<PropsWithChildren<{ tone?: Tone; wrap?: boolean }>> = ({
   children,
   tone = 'neutral',
+  wrap = false,
 }) => (
   <span
-    class={`inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-meta font-medium ring-1 ring-inset ${TONE_SOFT[tone]}`}
+    class={`inline-flex items-center ${wrap ? 'whitespace-normal [overflow-wrap:anywhere]' : 'whitespace-nowrap'} rounded-md px-2 py-0.5 text-meta font-medium ring-1 ring-inset ${TONE_SOFT[tone]}`}
   >
     {children}
   </span>
