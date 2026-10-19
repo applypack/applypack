@@ -114,12 +114,14 @@ interface Issue {
 
 /**
  * The first thing a schema refused, as "field: reason" — so a flash can name
- * what was wrong instead of "Invalid form values".
+ * what was wrong instead of "Invalid form values". `label` gives a field the
+ * name its form shows it under (#549); a field it does not name keeps its own.
  */
-export function firstIssue(issues: readonly Issue[]): string {
+export function firstIssue(issues: readonly Issue[], label?: (field: string) => string | undefined): string {
   const first = issues[0];
   if (!first) return t('flash.formEmpty');
-  const field = first.path.map(String).join('.');
+  const name = first.path.map(String).join('.');
+  const field = (label && label(name)) ?? name;
   const reason = issueReason(first);
   const text = field ? `${field}: ${reason}` : reason;
   return text.length > MAX_ISSUE_CHARS ? `${text.slice(0, MAX_ISSUE_CHARS)}…` : text;

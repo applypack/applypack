@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
@@ -147,7 +147,8 @@ import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
+import { isSettingsTab, SettingsPage, type EngineServer, type SettingsProps, type SourceKeyRow } from '../pages/settings';
+import { profileFieldLabel, sentProfile } from '../profile-form';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -488,6 +489,22 @@ settingsRoute.get('/settings', async (c) => {
     'Set-Cookie': clearFlashCookie(),
   });
 });
+
+/**
+ * A refused form, sent back with what was typed in it (#549): the page again
+ * from this POST, its flash on it and the field it is about marked, instead
+ * of a redirect that would render the stored values over the typing.
+ */
+async function settingsAgain(
+  c: Context,
+  page: Partial<SettingsProps> & Pick<SettingsProps, 'activeTab'>,
+  text: string,
+  field?: string,
+): Promise<Response> {
+  const props = await loadSettingsProps(new URL(c.req.url).origin);
+  const flash = { kind: 'err' as const, text, ...(field ? { field: { form: c.req.path, name: field } } : {}) };
+  return c.html(<SettingsPage {...props} {...page} flash={flash} />, 422);
+}
 
 // --- Fetching pause / resume -----------------------------------------------
 
@@ -1375,13 +1392,19 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // `all: true` is required so multi-value checkboxes (seniority,
   // remoteRegions) come back as arrays instead of just the last value.
   const form = await c.req.parseBody({ all: true });
+  // #549: a refused save sends the editor back as it was typed, the field it is about marked — never the stored values.
+  const refuse = async (text: string, field?: string): Promise<Response> => {
+    const sent = sentProfile(before, form);
+    return settingsAgain(c, { activeTab: 'profile', activeProfile: sent.profile, profileSent: sent }, text, field);
+  };
   const parsed = ProfileFormSchema.safeParse(form);
   if (!parsed.success) {
     logger.warn(
       { errors: parsed.error.flatten().fieldErrors, form },
       'profile form: validation failed',
     );
-    return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.search.notSavedIssue', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    const issue = firstIssue(parsed.error.issues, profileFieldLabel);
+    return refuse(t('settingsRoute.search.notSavedIssue', { issue }), refusedField(c.req.path, parsed.error.issues).field?.name);
   }
   const f = parsed.data;
 
@@ -1392,11 +1415,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     parsePriorityRulesText(f.priorityRules);
   if (priorityErrors.length > 0) {
     const first = priorityErrors[0]!;
-    return flashRedirect(
-      '/settings?tab=profile',
-      'err',
-      t('settingsRoute.search.priorityRule', { line: first.line, reason: first.reason }),
-    );
+    return refuse(t('settingsRoute.search.priorityRule', { line: first.line, reason: first.reason }), 'priorityRules');
   }
 
   // Both ids come from dropdowns rendered when the page loaded; either row
@@ -1408,21 +1427,18 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       ? null
       : prisma.notificationTarget.findUnique({ where: { id: notificationTargetId }, select: { id: true } }),
   ]);
+  const resumeGone = resumeId !== null && resumeRow === null;
   const missing = missingLinkMessage({
-    resumeGone: resumeId !== null && resumeRow === null,
+    resumeGone,
     notificationTargetGone: notificationTargetId !== null && targetRow === null,
   });
-  if (missing) return flashRedirect('/settings?tab=profile', 'err', missing);
+  if (missing) return refuse(missing, resumeGone ? 'resumeId' : 'notificationTargetId');
 
   // Countries arrive as names, codes or flags in any spelling; an entry the
   // gazetteer does not know is an error, not a silent drop.
   const countries = resolveCountries(toStringArray(f.countries).flatMap(parseTagList));
   if (countries.unknown.length > 0) {
-    return flashRedirect(
-      '/settings?tab=profile',
-      'err',
-      t('settingsRoute.search.countryUnknown', { list: countries.unknown.join(', ') }),
-    );
+    return refuse(t('settingsRoute.search.countryUnknown', { list: countries.unknown.join(', ') }), 'countries');
   }
 
   const input = {

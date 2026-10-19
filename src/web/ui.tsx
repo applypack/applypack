@@ -192,12 +192,14 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
     </div>
     {/* TASKS U15: the field the message is about says so itself — invalid, described by the message, focused.
         Looked up inside the form that posted; both parts passed flash.ts's patterns, so neither can close a quote.
-        Focused on load: the jump to a redirect's #fragment comes after this script and takes the focus back. */}
+        Marked on load: the jump to a redirect's #fragment comes after this script and takes the focus back, and by
+        then a chip editor (chips.mjs) has hidden its textarea behind a field of its own. A field folded in a closed
+        <details> is unfolded first, or it could not take the focus (#549). */}
     {flash.field && (
       <script
         type="module"
         dangerouslySetInnerHTML={{
-          __html: `const f = document.querySelector('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]'); if (f) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', ['flash-text', f.getAttribute('aria-describedby')].filter(Boolean).join(' ')); const focus = () => f.focus(); if (document.readyState === 'complete') focus(); else addEventListener('load', focus, { once: true }); }`,
+          __html: `const f = document.querySelector('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]'); if (f) { for (let d = f.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; const mark = () => { const c = (f.hidden && f.parentElement.querySelector('input[type=text]')) || f; c.setAttribute('aria-invalid', 'true'); c.setAttribute('aria-describedby', ['flash-text', c.getAttribute('aria-describedby')].filter(Boolean).join(' ')); c.focus(); }; if (document.readyState === 'complete') mark(); else addEventListener('load', mark, { once: true }); }`,
         }}
       />
     )}

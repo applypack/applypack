@@ -251,6 +251,14 @@ export interface SettingsProps {
   flash?: FlashMessage | null;
   /** Set by the fill-from-resume POST: the editor shows draft values. */
   profileDraft?: ProfileDraftNotice | null;
+  /** A refused save, sent back (#549): the countries and score adjustments as they were typed. */
+  profileSent?: ProfileSentText | null;
+}
+
+/** What a refused save shows as it was typed, where the stored form of the field could not hold it. */
+export interface ProfileSentText {
+  countries: string[];
+  priorityRules: string;
 }
 
 export interface ScreeningSettings {
@@ -634,6 +642,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   activeTab,
   flash,
   profileDraft,
+  profileSent,
 }) => (
   <Layout title={t('nav.settings')} active="settings">
     <div class="w-full">
@@ -851,6 +860,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             availableTargets={availableTargets}
             resumes={resumes}
             draft={profileDraft}
+            sent={profileSent}
           />
         ) : (
           <Empty bare title={t('settings.noSearchSelected')}>
@@ -2149,7 +2159,8 @@ const ProfileEditor: FC<{
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
   draft?: ProfileDraftNotice | null;
-}> = ({ profile, availableTargets, resumes, draft }) => {
+  sent?: ProfileSentText | null;
+}> = ({ profile, availableTargets, resumes, draft, sent }) => {
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
   // Open the advanced block only when free-form content lives in it. The alert
   // destination deliberately doesn't count: one picked target is not something
@@ -2157,7 +2168,8 @@ const ProfileEditor: FC<{
   const advancedOpen =
     Boolean(profile.notes && profile.notes.trim().length > 0) ||
     profile.onsiteCities.length > 0 ||
-    rulesCount > 0;
+    rulesCount > 0 ||
+    Boolean(sent?.priorityRules.trim());
   return (
   <form
     method="post"
@@ -2254,7 +2266,7 @@ const ProfileEditor: FC<{
         more={t('settings.polandPolskaAndPlAll')}
         name="countries"
         // Each line goes back through the form: the flag is what the save reads, so the name may be in any language.
-        values={profile.countries.map(countryChip)}
+        values={sent?.countries ?? profile.countries.map(countryChip)}
         placeholder={t('settings.polandGermanyNetherlands')}
         rows={2}
         picker="countries"
@@ -2352,7 +2364,7 @@ const ProfileEditor: FC<{
           rows={2}
         />
 
-        <PriorityRulesEditor profile={profile} />
+        <PriorityRulesEditor profile={profile} typed={sent?.priorityRules} />
 
         <Field label={t('settings.alertTarget')} class="sm:max-w-md">
           <Select name="notificationTargetId">
@@ -2381,7 +2393,7 @@ const ProfileEditor: FC<{
       >
         {t('settings.saveReClassify')}
       </Button>
-      <span data-dirty-indicator hidden={!draft} class="text-note font-medium text-warn">
+      <span data-dirty-indicator hidden={!draft && !sent} class="text-note font-medium text-warn">
         {t('settings.unsavedChanges')}
       </span>
     </div>
@@ -2389,11 +2401,12 @@ const ProfileEditor: FC<{
   );
 };
 
-const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
+/** `typed`: the text a refused save sent, a line the save could not read included (#549). */
+const PriorityRulesEditor: FC<{ profile: Profile; typed?: string }> = ({ profile, typed }) => {
   const rules = parsePriorityRules(profile.priorityRules);
-  const text = formatPriorityRulesText(rules);
+  const text = typed ?? formatPriorityRulesText(rules);
   return (
-    <details class="rounded-md border border-line" open={rules.length > 0}>
+    <details class="rounded-md border border-line" open={text.trim().length > 0}>
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-note font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
         {t('settings.priorityRulesSummary')}
         <span class="ml-2 font-normal text-ink-faint">

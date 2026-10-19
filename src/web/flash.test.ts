@@ -13,6 +13,12 @@ test('firstIssue names the field and the reason', () => {
   if (!result.success) assert.equal(firstIssue(result.error.issues), 'name: a name is required');
 });
 
+test('firstIssue names a field by the label its form shows, when it is given one (#549)', () => {
+  const label = (field: string) => (field === 'minFitScore' ? 'Min fit score (0-100)' : undefined);
+  assert.equal(firstIssue([{ path: ['minFitScore'], message: 'too big' }], label), 'Min fit score (0-100): too big');
+  assert.equal(firstIssue([{ path: ['notes'], message: 'too long' }], label), 'notes: too long');
+});
+
 test('firstIssue joins a nested path and survives a root-level issue', () => {
   assert.equal(firstIssue([{ path: ['search', 'hours', 0], message: 'out of range' }]), 'search.hours.0: out of range');
   assert.equal(firstIssue([{ path: [], message: 'pick one source' }]), 'pick one source');
