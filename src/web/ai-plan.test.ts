@@ -35,6 +35,15 @@ test('an empty slot is a CLI default, and on the local engine no model at all (#
   assert.deepEqual(models, ['no model chosen', 'CLI default']);
 });
 
+test('an empty slot on the OpenAI-compatible engine names the model it asks for, not a CLI default (#606)', () => {
+  const engine = resolveAiEngine({ order: ['openai_api'] }, { ...ENV, hasOpenAiKey: true });
+  assert.equal(aiPlanRows(engine, () => 'billed', false)[0]?.engines[0]?.model, 'gpt-5-mini');
+  const named = resolveAiEngine({ order: ['openai_api'] }, { ...ENV, hasOpenAiKey: true, openAiModel: 'gpt-5.1' });
+  assert.equal(aiPlanRows(named, () => 'billed', false)[0]?.engines[0]?.model, 'gpt-5.1');
+  const local = resolveAiEngine({ order: ['openai_api'] }, { ...ENV, openAiLocal: true, openAiServerModel: 'qwen2.5-14b-instruct' });
+  assert.equal(aiPlanRows(local, () => 'local', false)[0]?.engines[0]?.model, 'qwen2.5-14b-instruct', 'what a server on this machine runs');
+});
+
 test('Screening is a row only while employer mode is on', () => {
   const engine = resolveAiEngine(null, ENV);
   assert.equal(aiPlanRows(engine, () => 'plan', true).at(-1)?.label, 'Screening applicants');

@@ -23,6 +23,7 @@ import type {
 } from '../../starter-packs/resolve';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { sourceLabel } from '../source-names';
 
 export interface PackSegmentChoice extends PackSegment {
   count: number;
@@ -59,7 +60,7 @@ export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segme
 const BoardCell: FC<{ entry: ResolvedEntry }> = ({ entry }) => (
   <>
     <span translate="no">
-      <Tag>{entry.atsType}</Tag>
+      <Tag>{sourceLabel(entry.atsType)}</Tag>
     </span>{' '}
     <a
       href={entry.boardUrl}
@@ -250,7 +251,7 @@ export const StarterPackResultPage: FC<{
                     </Td>
                     <Td>
                       <span translate="no">
-                        <Tag>{a.atsType}</Tag> <span class="font-mono text-meta text-ink-muted">{a.atsToken}</span>
+                        <Tag>{sourceLabel(a.atsType)}</Tag> <span class="font-mono text-meta text-ink-muted">{a.atsToken}</span>
                       </span>
                     </Td>
                   </Tr>

@@ -56,11 +56,19 @@ const REASON_FOR: Record<string, Record<string, MessageKey>> = {
   pack: { overlap: 'runs.reason.packOverlap' },
 };
 
+/** One count's words: for every job, or for the one job whose count it is. */
+interface FactRow {
+  key: string;
+  words: MessageKey;
+  always?: true;
+  job?: RunName;
+}
+
 /**
  * Known counts in reading order. `always` facts show at zero too — "0 new" is
  * the news of an uneventful tick; the rest speak only when they happened.
  */
-const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] = [
+const FACTS = [
   { key: 'fetched', words: 'runs.fact.fetched', always: true },
   { key: 'fetched', job: 'import', words: 'runs.fact.importRows', always: true },
   { key: 'persisted', words: 'runs.fact.persisted', always: true },
@@ -68,9 +76,11 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'crossListed', words: 'runs.fact.crossListed' },
   { key: 'classified', words: 'runs.fact.classified' },
   { key: 'classifyFailed', words: 'runs.fact.classifyFailed' },
+  { key: 'skippedByPause', words: 'runs.fact.skippedByPause' },
   // A re-score (Save & re-classify) and the wizard's first scoring of stored postings.
   { key: 'reclassified', words: 'runs.fact.rescored' },
   { key: 'matched', words: 'runs.fact.matched' },
+  { key: 'watchedKept', words: 'runs.fact.watchedKept' },
   { key: 'promoted', words: 'runs.fact.promoted' },
   { key: 'demoted', words: 'runs.fact.demoted' },
   { key: 'keptSaved', words: 'runs.fact.keptSaved' },
@@ -86,7 +96,15 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'alertNoTarget', words: 'runs.fact.alertNoTarget' },
   { key: 'alertSourceOff', words: 'runs.fact.alertSourceOff' },
   { key: 'alertCounted', words: 'runs.fact.alertCounted' },
+  // What the top of a fetch tick sent before it searched: matches held for the alert window, careers pages that changed.
+  { key: 'heldDelivered', words: 'runs.fact.heldDelivered' },
+  { key: 'pagesChanged', words: 'runs.fact.pagesChanged' },
   { key: 'sourcesFailed', words: 'runs.fact.sourcesFailed' },
+  // France Travail's daily re-check of the offers it stored (ADR 0034 rule 5).
+  { key: 'ftChecked', words: 'runs.fact.ftChecked' },
+  { key: 'ftDeleted', words: 'runs.fact.ftDeleted' },
+  { key: 'ftAnonymised', words: 'runs.fact.ftAnonymised' },
+  { key: 'ftExpired', words: 'runs.fact.ftExpired' },
   // Bare words a second job could reuse for something else: worded for the job that writes them.
   { key: 'found', job: 'stale-applications', words: 'runs.fact.staleFound', always: true },
   { key: 'count', job: 'digest', words: 'runs.fact.digestCount', always: true },
@@ -108,7 +126,11 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'candidatesRecorded', words: 'runs.fact.candidatesRecorded' },
   // What a discovery run leaves for review: the number /discovery shows beside "Pending review" (#542).
   { key: 'pending', job: 'discovery', words: 'runs.fact.discoveryPending', always: true },
-];
+  { key: 'probed', job: 'discovery', words: 'runs.fact.discoveryProbed' },
+  { key: 'alive', job: 'discovery', words: 'runs.fact.discoveryAlive' },
+  { key: 'dead', job: 'discovery', words: 'runs.fact.discoveryDead' },
+  { key: 'jobsCountUpdated', job: 'discovery', words: 'runs.fact.discoveryJobsUpdated' },
+] as const satisfies readonly FactRow[];
 
 /**
  * Counts the sentence leaves to other places: the Duration column, the
@@ -117,7 +139,7 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
  * dismissed, and why), which are the pipeline working, not news. They stay
  * in the raw block, and the funnel card above the table sums them.
  */
-const ELSEWHERE = new Set([
+const ELSEWHERE_KEYS = [
   'durationMs',
   // A re-score's machinery: how wide it ran, what it read, what stayed as it was.
   'concurrency',
@@ -126,6 +148,8 @@ const ELSEWHERE = new Set([
   'unscored',
   'sources',
   'sourcesUnchanged',
+  // How many messages carried the held matches: the count of matches says the news.
+  'heldMessages',
   'skipped',
   'aborted',
   'filterRejected',
@@ -137,13 +161,27 @@ const ELSEWHERE = new Set([
   'pageChangesHeld',
   ...Object.values(FILTER_KEY),
   ...Object.values(DISMISS_KEY),
-]);
+] as const;
+const ELSEWHERE = new Set<string>(ELSEWHERE_KEYS);
 
 /** A 0 / 1 flag a job raises, as the sentence it stands for. */
-const FLAG: Record<string, MessageKey> = {
+const FLAG = {
   skippedBlankProfile: 'runs.flag.skippedBlankProfile',
   abortedMidRun: 'runs.flag.abortedMidRun',
-};
+} as const satisfies Record<string, MessageKey>;
+
+type Fact = (typeof FACTS)[number];
+/**
+ * The counts /runs has words for in one job's row — its own facts and the
+ * shared ones — or leaves to the raw block on purpose. runs-summary.test.ts
+ * holds every count each job writes to it, so a new one fails `tsc` until it
+ * is worded here (#606).
+ */
+export type WordedCount<J extends RunName> =
+  | Extract<Fact, { job: J }>['key']
+  | Exclude<Fact, { job: string }>['key']
+  | (typeof ELSEWHERE_KEYS)[number]
+  | keyof typeof FLAG;
 
 /** `priorityBoosted` → "priority boosted". */
 function humanise(key: string): string {
@@ -152,14 +190,16 @@ function humanise(key: string): string {
 
 /**
  * The facts of one run, in order. A `reason` leads as a sentence; known counts
- * follow in their fixed order; a count this file has never heard of is
- * humanised rather than dropped, so a new stat shows up without an edit here.
+ * follow in their fixed order; a count this file has never heard of — one an
+ * older release stored — is humanised rather than dropped. A count a job
+ * writes today is never one: `WordedCount` holds them to the tables above.
  * An alert count rides along whenever something new was stored — "3 new,
  * 0 alerted" is a finding, "0 new, 0 alerted" is noise.
  */
 export function summarizeRun(name: string, stats: CronStats): string[] {
   // A job's own wording for a count replaces the shared one ("3 rows read from the file", not "3 fetched").
-  const facts = FACTS.filter((f) => f.job === name || (f.job === undefined && !FACTS.some((own) => own.job === name && own.key === f.key)));
+  const rows: readonly FactRow[] = FACTS;
+  const facts = rows.filter((f) => f.job === name || (f.job === undefined && !rows.some((own) => own.job === name && own.key === f.key)));
   const out: string[] = [];
   const num = (key: string): number | null => (typeof stats[key] === 'number' ? (stats[key] as number) : null);
 
@@ -178,7 +218,7 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
     out.push(t(f.words, { n }));
   }
 
-  const known = new Set(facts.map((f) => f.key));
+  const known = new Set<string>(facts.map((f) => f.key));
   for (const [key, value] of Object.entries(stats)) {
     if (typeof value !== 'number' || value === 0 || known.has(key) || ELSEWHERE.has(key) || key in FLAG) continue;
     out.push(`${formatNumber(value)} ${humanise(key)}`);

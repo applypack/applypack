@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.7] — 2026-10-18
+
+### Changed
+- The Runs page describes every count in your language: what a discovery run
+  checked, held matches sent, careers-page changes reported and the France
+  Travail re-check.
+- The ATS list under Add one company shows the vendors' names instead of
+  codes.
+- With no model chosen, Settings, AI usage and the run page name the model
+  an OpenAI-compatible engine actually uses, not "CLI default".
+- The starter pack preview names each board's vendor instead of a code.
+- Check now's progress page talks about the one source you checked, and its
+  button after a failure goes back to where you started.
+- Opening a Settings tab other than Job search no longer counts your jobs
+  for the re-score question.
+
+### Fixed
+- A salary whose two ends round to the same figure reads "$92k", not
+  "$92k-92k".
+- "Cities you would commute to" keeps "Austin, TX" as one city, and that
+  city also matches postings that write "Austin, Texas".
+- A refused Discord webhook keeps the name you typed.
+- Testing a saved Telegram chat now says whether Telegram refused the bot
+  token or the chat.
+- An OpenAI-compatible engine on this computer (LM Studio, Ollama) with no
+  model chosen now uses, on every call, the model its Test used: the first
+  chat model the server offers. Before, the Test passed but every call asked
+  for gpt-5-mini, which a local server does not have. On a server on the
+  internet, the Test now tries the same model the calls use.
+
 ## [2.63.6] — 2026-10-18
 
 ### Changed
@@ -6657,6 +6687,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.7]: https://github.com/applypack/applypack/compare/v2.63.6...v2.63.7
 [2.63.6]: https://github.com/applypack/applypack/compare/v2.63.5...v2.63.6
 [2.63.5]: https://github.com/applypack/applypack/compare/v2.63.4...v2.63.5
 [2.63.4]: https://github.com/applypack/applypack/compare/v2.63.3...v2.63.4

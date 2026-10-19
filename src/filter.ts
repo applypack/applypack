@@ -252,7 +252,8 @@ export function baseFilterReason(
  */
 function locationReason(job: FilterableJob, profile: FilterProfile): FilterReason | null {
   const location = job.location.toLowerCase();
-  const cities = profile.onsiteCities.map((c) => c.toLowerCase()).filter((c) => c.length > 0);
+  // A city by its name: "Austin, TX" admits "Austin, Texas" too, and never every location with "tx" in it (#607).
+  const cities = profile.onsiteCities.map((c) => (c.split(',')[0] ?? '').trim().toLowerCase()).filter((c) => c.length > 0);
   if (cities.some((c) => location.includes(c))) return null;
 
   if (

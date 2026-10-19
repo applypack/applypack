@@ -229,6 +229,12 @@ describe('passesBaseFilter — location: on-site cities + hybrid', () => {
     assert.equal(passesBaseFilter(job('Senior Java Engineer', 'On-site, Chicago, IL'), austinHybridProfile), false);
   });
 
+  it('reads a listed city by its name, however the posting writes its state (#607)', () => {
+    assert.equal(passesBaseFilter(job('Senior Java Engineer', 'On-site · Austin, Texas, United States'), austinHybridProfile), true);
+    // The state alone is no city: "TX" once stood as an item of its own and admitted all of Texas.
+    assert.equal(passesBaseFilter(job('Senior Java Engineer', 'On-site, Dallas, TX'), austinHybridProfile), false);
+  });
+
   it('accepts hybrid in a listed city and hybrid in a listed country', () => {
     assert.equal(passesBaseFilter(job('Senior Java Engineer', 'Hybrid, Austin, TX'), austinHybridProfile), true);
     assert.equal(passesBaseFilter(job('Senior Java Engineer', 'Hybrid · Denver, CO'), austinHybridProfile), true);

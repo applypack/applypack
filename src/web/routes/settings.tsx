@@ -77,6 +77,7 @@ import {
   parseAiEngineConfig,
   resolveAiEngine,
   toggleAiEngine,
+  unsetModelName,
   withEngineTasks,
   type AiEngineConfig,
   type AiProviderId,
@@ -137,7 +138,7 @@ import {
 import { countReclassifyAll, runReclassifyAll } from '../../jobs/reclassify-job';
 import { spendHint } from '../cost-hint';
 import { recordCronRun } from '../../jobs/cron-run';
-import { parseTagList, toStringArray } from '../../text-utils';
+import { parseLineList, parseTagList, toStringArray } from '../../text-utils';
 import { isCountryCode, isRegionCode, resolveCountries } from '../../countries';
 import { isRelocation, parseResidence } from '../../eligibility';
 import { isProfileWorkplace } from '../../location';
@@ -152,7 +153,7 @@ import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SourceKeyRow } from '../pages/settings';
+import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SettingsTab, type SourceKeyRow } from '../pages/settings';
 import { profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
@@ -164,6 +165,7 @@ import { isSelectableLocale, withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { describeDestination } from '../../notify/targets';
 import { isDiscordWebhookUrl, testDiscordWebhook } from '../../notify/discord';
+import { savedChatRefusal } from '../../notify/telegram-check';
 import { missingLinkMessage } from '../profile-links';
 import { getResume, listResumes, upsertScratchResume, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
@@ -255,7 +257,7 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 }
 
 /** `here` is the address this page was asked at: the example the dashboard address field offers. */
-async function loadSettingsProps(here: string) {
+async function loadSettingsProps(here: string, tab: SettingsTab) {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
@@ -321,7 +323,7 @@ async function loadSettingsProps(here: string) {
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
     // A CLI engine with no model set runs whatever its own configuration names; the local engine runs none (#563).
-    const unset = id === 'local_api' ? '' : t('settingsRoute.cliDefault');
+    const unset = unsetModelName(id) ?? '';
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || unset;
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || unset;
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
@@ -381,7 +383,12 @@ async function loadSettingsProps(here: string) {
   }
   const keys = await getSourceKeys();
   const screeningCount = await prisma.screening.count();
-  const [reclassifyJobs, scoringCost] = await Promise.all([countReclassifyAll(), spendHint('classifier')]);
+  // "Save & re-classify" is on the Job search tab alone: the jobs are counted and the cost read for it only (#607).
+  let reclassifyAsk = '';
+  if (tab === 'profile') {
+    const [jobs, cost] = await Promise.all([countReclassifyAll(), spendHint('classifier')]);
+    reclassifyAsk = reclassifyQuestion(jobs, cost);
+  }
   const screeningEngine = engine.chainFor('screening')[0]!;
   const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const aiStatus = {
@@ -442,7 +449,7 @@ async function loadSettingsProps(here: string) {
       line: profileLine(p),
     })),
     activeProfile: active,
-    reclassifyQuestion: reclassifyQuestion(reclassifyJobs, scoringCost),
+    reclassifyQuestion: reclassifyAsk,
     availableTargets: targets.map((target) => ({
       id: target.id,
       name: target.name,
@@ -471,9 +478,9 @@ async function loadSettingsProps(here: string) {
 }
 
 settingsRoute.get('/settings', async (c) => {
-  const props = await loadSettingsProps(new URL(c.req.url).origin);
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
+  const props = await loadSettingsProps(new URL(c.req.url).origin, activeTab);
   // ?profile= points the editor at a specific (possibly inactive) profile.
   // "+ New profile" lands here: new profiles are born inactive (issue #50)
   // and must be editable before activation.
@@ -514,7 +521,7 @@ async function settingsAgain(
   text: string,
   field?: string,
 ): Promise<Response> {
-  const props = await loadSettingsProps(new URL(c.req.url).origin);
+  const props = await loadSettingsProps(new URL(c.req.url).origin, page.activeTab);
   const flash = { kind: 'err' as const, text, ...(field ? { field: { form: c.req.path, name: field } } : {}) };
   return c.html(<SettingsPage {...props} {...page} flash={flash} />, 422);
 }
@@ -1228,16 +1235,21 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   const back = '/settings?tab=notifications';
   const first = (await listNotificationTargets()).length === 0;
   if (form.kind === 'discord') {
+    // #607: a refusal sends the form back open with the name kept — never the webhook URL, a secret no page echoes.
+    const refuse = (text: string, field?: string): Promise<Response> =>
+      settingsAgain(c, { activeTab: 'notifications', discordSent: { name: str(form.name) } }, text, field);
     const parsed = DiscordTargetSchema.safeParse({ name: form.name, webhookUrl: form.webhookUrl });
     if (!parsed.success) {
-      return flashRedirect(back, 'err', t('settingsRoute.targets.invalidDiscord'));
+      // Only the URL is marked: both forms post here, and a marked `name` would be the Telegram form's.
+      const refused = refusedField(c.req.path, parsed.error.issues).field?.name;
+      return refuse(t('settingsRoute.targets.invalidDiscord'), refused === 'webhookUrl' ? refused : undefined);
     }
     // Before the test message, so a repeat does not post twice to the channel.
     const same = await findSameDestination({ kind: 'DISCORD', ...parsed.data });
-    if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.webhookExists', { name: same.name }));
+    if (same) return refuse(t('settingsRoute.targets.webhookExists', { name: same.name }), 'webhookUrl');
     const test = await testDiscordWebhook(parsed.data.webhookUrl);
     if (!test.ok) {
-      return flashRedirect(back, 'err', t('settingsRoute.targets.discordTestFailed', { reason: test.error ?? noReason() }));
+      return refuse(t('settingsRoute.targets.discordTestFailed', { reason: test.error ?? noReason() }), 'webhookUrl');
     }
     const added = await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
     if (!added) {
@@ -1318,7 +1330,8 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
       t('settingsRoute.targets.testSentBot', { name: target.name, bot: result.botUsername ?? '?' }),
     );
   }
-  return flashRedirect('/settings?tab=notifications', 'err', testFailed(target.name, result.error));
+  const refused = savedChatRefusal(result.failed, { name: target.name, chatId: target.chatId ?? '', bot: result.botUsername });
+  return flashRedirect('/settings?tab=notifications', 'err', refused ?? testFailed(target.name, result.error));
 });
 
 // --- Profiles ---------------------------------------------------------------
@@ -1486,7 +1499,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     workplace: toStringArray(f.workplace).filter(isProfileWorkplace),
     residence: parseResidence(f.residence, isCountryCode),
     relocation: isRelocation(f.relocation) ? f.relocation : 'no',
-    onsiteCities: parseTagList(f.onsiteCities),
+    onsiteCities: parseLineList(f.onsiteCities),
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
     notificationTargetId,

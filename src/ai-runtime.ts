@@ -17,7 +17,7 @@ import { aiKeySource, parseAiKeys, resolveAiKey, type AiKeys, type AiKeySource }
 import { createCooldownTracker } from './ai-cooldown';
 import { markUnparsed, recordAiCall } from './ai-ledger';
 import { currentPack } from './ai-subject';
-import { listOllamaModels, listServerModels, LOCAL_LIST_TIMEOUT_MS } from './server-models';
+import { knownModels, listOllamaModels, listServerModels, LOCAL_LIST_TIMEOUT_MS, preferredModel } from './server-models';
 import { billingOf, isLocalUrl, type AiFeature, type BillingFacts } from './ai-usage';
 import type { AiTask } from './ai-tasks';
 import {
@@ -40,11 +40,14 @@ const cooldowns = createCooldownTracker();
  * rules in ai-engine.ts stay the single place that decides.
  */
 export function getAiEngineEnv(keys: AiKeys = {}, openAiBaseUrl: string | null = null): AiEngineEnv {
+  const openAi = openAiBase(openAiBaseUrl);
+  const openAiLocal = isLocalUrl(openAi);
   return {
     provider: config.AI_PROVIDER,
     hasAnthropicKey: Boolean(resolveAiKey('anthropic_api', keys)),
     hasOpenAiKey: Boolean(resolveAiKey('openai_api', keys)),
-    openAiLocal: isLocalUrl(openAiBase(openAiBaseUrl)),
+    openAiLocal,
+    openAiServerModel: openAiLocal ? preferredModel(knownModels(openAi)) : null,
     geminiUsable: Boolean(keys.gemini_cli) || geminiAuthConfigured(),
     codexUsable: codexAuthConfigured(),
     classifierModel: config.CLAUDE_MODEL,
@@ -120,13 +123,29 @@ export async function getAiRuntime(): Promise<AiRuntime> {
   } catch (err) {
     logger.warn({ err }, 'ai: settings read failed, using .env engine');
   }
-  const resolved = resolveAiEngine(raw, getAiEngineEnv(keys, servers.openAiBaseUrl));
+  let resolved = resolveAiEngine(raw, getAiEngineEnv(keys, servers.openAiBaseUrl));
+  if (resolved.chain.includes('openai_api') && (await askLocalModels(servers.openAiBaseUrl, keys))) {
+    resolved = resolveAiEngine(raw, getAiEngineEnv(keys, servers.openAiBaseUrl));
+  }
   return {
     chainFor: resolved.chainFor,
     modelFor: resolved.modelFor,
     complete: (req) => completeWithFailover(resolved, keys, servers, req),
     unparsed: (result) => markUnparsed(result.ledgerIds.at(-1)),
   };
+}
+
+/**
+ * A server on this machine is asked what it runs before an empty slot is read
+ * (#606), as the engine's Test asks it: a call asks for the model the Test
+ * would, from what the server lists now — a model pulled since is seen, in
+ * the worker too. A local request, and a server that is not running refuses
+ * at once. True when it answered.
+ */
+async function askLocalModels(stored: string | null, keys: AiKeys): Promise<boolean> {
+  const base = openAiBase(stored);
+  if (config.OPENAI_MODEL || !isLocalUrl(base)) return false;
+  return 'models' in (await listServerModels(base, resolveAiKey('openai_api', keys), LOCAL_LIST_TIMEOUT_MS));
 }
 
 /** Where the two base-URL engines send their calls, as the AI tab set them; null = .env's. */

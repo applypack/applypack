@@ -29,7 +29,7 @@ import { shouldDeliverHeld, type Schedule } from '../user-schedule';
  * waits to be sent; a change held by the once-a-day rule writes nothing.
  * Returns what the walk found, for the run's stats (#533).
  */
-export async function recordPageChanges(): Promise<Record<string, number>> {
+export async function recordPageChanges(): Promise<ReturnType<typeof pageStats>> {
   const changes = takePageChanges();
   for (const change of changes) {
     if (change.kind === 'held') continue;

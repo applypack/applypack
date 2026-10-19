@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activeFetchRun, createFetchRun, getFetchRun, updateFetchRun } from './fetch-runs';
+import { activeFetchRun, createFetchRun, fetchRunBackLabel, fetchRunSubtitle, getFetchRun, updateFetchRun } from './fetch-runs';
 
 /*
  * How long "Fetch now" remembers a run (#407). The registry is one per
@@ -55,4 +55,18 @@ test('a run that failed is kept as a finished one is', (t) => {
   t.mock.timers.tick(10 * MIN);
   nextPress();
   assert.equal(getFetchRun(run.id)?.stage, 'error');
+});
+
+test('a Check now speaks of its one source, and a failed run goes back the way it came (#606)', () => {
+  const one = { companyId: 7, name: 'Acme' };
+  assert.equal(fetchRunSubtitle({ classify: true, scope: one, backUrl: '/companies' }), 'fetch.oneSourceThenThe');
+  assert.equal(fetchRunSubtitle({ classify: false, scope: { ...one, folder: true }, backUrl: '/companies/7/files' }), 'fetch.oneSourceNewJobs');
+  assert.equal(fetchRunSubtitle({ classify: true, scope: 'every', backUrl: '/runs' }), 'fetch.everyEnabledSourceThenThe');
+  assert.equal(fetchRunSubtitle({ classify: false, scope: 'every', backUrl: '/runs' }), 'fetch.everyEnabledSourceNewJobs');
+  assert.equal(fetchRunSubtitle({ classify: false, scope: 'aggregators', backUrl: '/welcome' }), 'fetch.setupSearchSubtitle');
+
+  assert.equal(fetchRunBackLabel('/runs'), 'fetch.backToRuns');
+  assert.equal(fetchRunBackLabel('/welcome'), 'fetch.backToSetup');
+  assert.equal(fetchRunBackLabel('/companies'), 'fetch.backToCompanies');
+  assert.equal(fetchRunBackLabel('/companies/7/files'), 'fetch.backToFiles');
 });

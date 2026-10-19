@@ -5,7 +5,6 @@ import { listActiveProfiles } from '../profiles';
 import { getSchedule, getSettings } from '../settings';
 import type { NormalizedJob } from '../types';
 import { deliverHeldAlerts } from './alert-delivery';
-import type { CronStats } from './cron-run';
 import { tryFetchLock } from './fetch-lock';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { addToFunnel } from './funnel-store';
@@ -25,7 +24,7 @@ import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
  * the rest counted (alert-delivery.ts). With `alerts: 'off'` nothing is sent
  * or held and no pack is queued, as for a folder whose alerts are off.
  */
-export async function runImportJob(source: { id: number; name: string }, jobs: NormalizedJob[], alerts: FolderAlerts): Promise<{ stats: CronStats }> {
+export async function runImportJob(source: { id: number; name: string }, jobs: NormalizedJob[], alerts: FolderAlerts) {
   const lock = await tryFetchLock();
   if (!lock) {
     logger.warn({ source: source.name }, 'import-job: a fetch is running; nothing imported');
@@ -67,7 +66,7 @@ export async function runImportJob(source: { id: number; name: string }, jobs: N
       inner.alertHeld = Math.max(0, inner.alertHeld - sent.delivered - sent.counted - sent.failed);
       alertCounted = sent.counted;
     }
-    const stats: CronStats = {
+    const stats = {
       source: source.name,
       profile: profiles.map((p) => p.name).join(' · '),
       classifierMode: settings.classifierMode,

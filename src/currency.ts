@@ -128,7 +128,7 @@ export function formatSalaryRange(
   const amount = (n: number) => `${SYMBOL[money] ?? `${money} `}${round(n, per)}`;
   const range =
     lo !== null && hi !== null
-      ? lo === hi
+      ? amount(lo) === amount(hi)
         ? amount(lo)
         : `${amount(lo)}-${trimSymbol(amount(hi), money)}`
       : lo !== null

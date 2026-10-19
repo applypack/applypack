@@ -6,7 +6,6 @@ import { getSchedule, getSettings } from '../settings';
 import { daysSince } from '../text-utils';
 import { appliedWithLabel } from './applied-with';
 import { formatStaleMessage, type StaleApplicationItem } from './stale-applications-format';
-import type { CronStats } from './cron-run';
 
 const STALE_APPLICATION_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -15,7 +14,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Daily cron: find APPLIED jobs that have sat in 'applied' stage for more
  * than 14 days with no recruiter contact, and send a reminder of its own.
  */
-export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
+export async function runStaleApplicationsJob() {
   const settings = await getSettings();
   if (!settings.applicationTrackingEnabled) {
     logger.info('stale-applications: skipped (tracking disabled)');
