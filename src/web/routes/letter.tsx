@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import { companyForPrompt } from '../../employer';
 import { z } from 'zod';
 import { prisma } from '../../db';
+import { attributeCalls } from '../../ai-ledger';
+import { secondLookTitle } from '../../fingerprint';
 import { hashShortId } from '../../text-utils';
 import { createManualJob, findJobByText, findJobByUrl, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
@@ -179,7 +181,8 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
       // The text of a posting already stored, under another link or pasted here, is that job too (#579);
       // the role is the title typed, else the one a stored job with this link carries, else the text's (#604).
       const linked = jobUrl ? await findJobByUrl(jobUrl) : null;
-      const sameText = await findJobByText(description, title || linked?.title);
+      const role = title || linked?.title || '';
+      const sameText = await findJobByText(description, role);
       if (sameText !== null) {
         job = await storedJob(sameText);
         const left = steps.filter((step) => step !== 'extract');
@@ -188,9 +191,12 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         let location = '';
         let salaryMin: number | undefined;
         let salaryMax: number | undefined;
+        let readTitle: string | null = null;
+        const calls: number[] = [];
         if (needExtract) {
           if (fetchUrl) updateRun(run.id, { stage: 'extract' });
-          const facts = await extractPostingFacts(description);
+          const facts = await extractPostingFacts(description, { calls });
+          readTitle = facts?.title ?? null;
           companyName = companyName || facts?.company || 'Unknown company';
           title = title || facts?.title || fallbackTitle(description);
           location = facts?.location || '';
@@ -198,30 +204,40 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
           salaryMax = facts?.salaryMax ?? undefined;
           updateRun(run.id, { jobTitle: title });
         }
-        // No fit-score call: the letter never reads it and the user is waiting.
-        // "Re-classify" on the job page fills it in later, for free time.
-        const result = await createManualJob(
-          {
+        // A paste that named no role is looked up again by the one the extraction read.
+        const again = secondLookTitle(role, readTitle);
+        const sameRole = again === null ? null : await findJobByText(description, again);
+        if (sameRole !== null) {
+          job = await storedJob(sameRole);
+          updateRun(run.id, { jobId: job.id, jobTitle: job.title });
+        } else {
+          // No fit-score call: the letter never reads it and the user is waiting.
+          // "Re-classify" on the job page fills it in later, for free time.
+          const result = await createManualJob(
+            {
+              companyName: companyName || 'Unknown company',
+              title: title || fallbackTitle(description),
+              url: jobUrl,
+              location,
+              description,
+              salaryMin,
+              salaryMax,
+            },
+            { classify: false },
+          );
+          job = {
+            id: result.job.id,
+            title: result.job.title,
             companyName: companyName || 'Unknown company',
-            title: title || fallbackTitle(description),
-            url: jobUrl,
-            location,
-            description,
-            salaryMin,
-            salaryMax,
-          },
-          { classify: false },
-        );
-        job = {
-          id: result.job.id,
-          title: result.job.title,
-          companyName: companyName || 'Unknown company',
-          location: result.job.location,
-          description: result.job.description,
-          url: result.job.url,
-          postedAt: result.job.postedAt,
-        };
-        updateRun(run.id, { jobId: job.id });
+            location: result.job.location,
+            description: result.job.description,
+            url: result.job.url,
+            postedAt: result.job.postedAt,
+          };
+          updateRun(run.id, { jobId: job.id });
+        }
+        // The extraction read the posting before it had a row: its call is booked to the job it became.
+        await attributeCalls(calls, job.id);
       }
     }
 

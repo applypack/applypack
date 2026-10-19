@@ -178,6 +178,17 @@ export function pastedRole(text: string, title: string): (stored: string) => boo
 }
 
 /**
+ * The title a second look for a pasted posting goes by: the one the
+ * extraction read off the paste, when the first look had none — no title
+ * typed, no stored job with its link. Null when a second look would ask what
+ * the first one did.
+ */
+export function secondLookTitle(first: string, read: string | null | undefined): string | null {
+  const title = read?.trim() ?? '';
+  return first.length === 0 && title.length > 0 ? title : null;
+}
+
+/**
  * Closest cross-company near-duplicate of `fingerprint` that is the same
  * role (`sameRole` reads the candidate's title), or null. Same-company rows
  * are skipped by design: at this threshold a quarter of them are genuinely

@@ -132,9 +132,13 @@ next role.
   names the stored job when a title agrees, or when the stored title is
   written in the pasted text (`fingerprint.ts:pastedRole`). The title is the
   one the person typed, or else the title of the stored job that carries the
-  link they gave. A body pasted with no title line, no title and no known
-  link therefore matches nothing and is stored as before. That is the safe
-  direction: the alternative is a letter or a comparison for the wrong role.
+  link they gave. When a paste names no role at all (no title line, no title,
+  no known link), the lookup runs a second time with the title the
+  extraction step reads off it (`fingerprint.ts:secondLookTitle`). That call
+  is made anyway to store the posting, so the second look costs nothing. A
+  role that still does not agree matches nothing, and the posting is stored
+  as before. That is the safe direction: the alternative is a letter or a
+  comparison for the wrong role.
 - **Links stored before the rule are corrected on boot.**
   `jobs/cross-listing-store.ts:unlinkOtherRoles` reads every link with both
   titles, clears `crossListedOfJobId` where they disagree, and writes nothing

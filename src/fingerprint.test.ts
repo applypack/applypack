@@ -11,6 +11,7 @@ import {
   normalizeJdText,
   normalizedLength,
   pastedRole,
+  secondLookTitle,
   simhash64,
   titlesAgree,
   toDbBigInt,
@@ -241,4 +242,19 @@ test('pastedRole: the title the person typed, else the stored title written in t
   assert.equal(pastedRole(body, '')('Senior Full-stack PHP Developer'), false);
   assert.equal(pastedRole(body, 'Full-stack PHP Developer')('Senior Full-stack PHP Developer'), true);
   assert.equal(pastedRole(body, 'Angular Developer')('Senior Full-stack PHP Developer'), false);
+});
+
+test('secondLookTitle: a paste that named no role is looked up again by the title read off it', () => {
+  // The body names the role only in passing: the stored title is not written in it, the one the extraction read agrees.
+  const body = 'Lemon.io matches a PHP Developer with US startups. Laravel, Vue, five years of commercial work.';
+  const stored = 'Senior Full-stack PHP Developer';
+  assert.equal(pastedRole(body, '')(stored), false);
+  const again = secondLookTitle('', 'PHP Developer');
+  assert.equal(again, 'PHP Developer');
+  assert.equal(pastedRole(body, again!)(stored), true);
+  // Another role read off the paste finds nothing; a typed or linked title was asked already; nothing read, nothing to ask.
+  assert.equal(pastedRole(body, secondLookTitle('', 'Angular Developer')!)(stored), false);
+  assert.equal(secondLookTitle('Backend Engineer', 'PHP Developer'), null);
+  assert.equal(secondLookTitle('', null), null);
+  assert.equal(secondLookTitle('', '  '), null);
 });
