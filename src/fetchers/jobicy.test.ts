@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { JOBICY_GEO, jobicyFeedUrl, jobicySlugsFor, mapJobicyItem, type JobicyItem } from './jobicy';
+import { JOBICY_GEO, jobicyFeedUrl, jobicySlugsFor, mapJobicyItem } from './jobicy';
 
 const COMPANY_ID = 99;
 

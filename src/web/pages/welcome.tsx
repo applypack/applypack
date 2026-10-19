@@ -26,7 +26,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import type { AiProviderId } from '../../ai-engine';
 import { SCORE_BATCH } from '../../jobs/score-pick';
-import { WELCOME_STEPS, type WelcomeStep } from '../welcome-steps';
+import { type WelcomeStep } from '../welcome-steps';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 import type { PackOffer } from '../pack-offers';
 import { LanguageMenu } from '../language-menu';

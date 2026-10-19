@@ -35,7 +35,7 @@ import {
   versionFileName,
 } from '../../resume/store';
 import { readAnswers, unansweredAsks } from '../../resume/answers';
-import { describeStructure, docxStructure, type DocxStructure } from '../../resume/docx-structure';
+import { docxStructure, type DocxStructure } from '../../resume/docx-structure';
 import { patchDocx } from '../../resume/docx-patch';
 import { propsCandidate, readProps, withProps, type DocxProps } from '../../resume/docx-props';
 import { DOCX_MIME } from '../../resume/docx-write';

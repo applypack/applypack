@@ -25,7 +25,6 @@ import {
   PageHeader,
   PillCheckbox,
   Radio,
-  SectionTitle,
   Select,
   SUBMIT_ONCE,
   Table,
