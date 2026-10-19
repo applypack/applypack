@@ -2,6 +2,8 @@
 import { Hono } from 'hono';
 import { jobSpend, typicalCost } from '../../ai-ledger';
 import { costHintText, jobSpendText } from '../../ai-spend';
+import { spendHint } from '../cost-hint';
+import { displayZone } from '../display-zone';
 import { idParam, intQuery } from '../params';
 import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -10,12 +12,15 @@ import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
 import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
+  jobsHref,
   parsePlaces,
   parsePosted,
   parseWorkplaces,
+  pastEndPage,
   placeWhere,
   postedWhere,
   tallyFacets,
+  type JobsFilters,
 } from '../job-facets';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
@@ -92,6 +97,7 @@ import { termUsage, type TermUsage } from '../../resume/usage';
 import { factCheck } from '../../resume/fact-check';
 import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
 import { buildLetterPdf } from '../../resume/pdf-write';
+import { letterHead, letterPaper } from '../../resume/letter-head';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
@@ -233,12 +239,13 @@ jobsRoute.get('/jobs', async (c) => {
   // facet then applies the others' selections in tallyFacets. Five narrow
   // columns per row — ~1k rows today; past ~50k move the tally into SQL.
   const facetWhere: Prisma.JobWhereInput = { ...where };
-  const facetAnd: Prisma.JobWhereInput[] = [...hide];
+  const facets: Prisma.JobWhereInput[] = [];
   const postedIn = postedWhere(posted, now);
-  if (postedIn) facetAnd.push(postedIn);
+  if (postedIn) facets.push(postedIn);
   const place = placeWhere(country);
-  if (place) facetAnd.push(place);
-  if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
+  if (place) facets.push(place);
+  if (workplace.length > 0) facets.push({ workplace: { in: workplace } });
+  const facetAnd = [...hide, ...facets];
   if (facetAnd.length > 0) where.AND = facetAnd;
   // A status tab's count is what the tab would show: every filter but the status itself.
   const { status: _status, ...anyStatusWhere } = where;
@@ -293,7 +300,8 @@ jobsRoute.get('/jobs', async (c) => {
     prisma.job.groupBy({ by: ['status'], where: anyStatusWhere, _count: { _all: true } }),
     getActiveProfile(),
     listActiveProfiles(),
-    hiddenKeys.length > 0 ? prisma.job.count({ where: { employerKey: { in: hiddenKeys } } }) : 0,
+    // What the same filters would show of the muted companies (#540): a search that matches nothing hides nothing.
+    hiddenKeys.length > 0 ? prisma.job.count({ where: { ...where, AND: facets, employerKey: { in: hiddenKeys } } }) : 0,
     loadUnscored(),
   ]);
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
@@ -302,26 +310,31 @@ jobsRoute.get('/jobs', async (c) => {
     ? (statusCounts[status as JobStatus] ?? 0)
     : statusGroups.reduce((sum, g) => (g.status === JobStatus.DISMISSED ? sum : sum + g._count._all), 0);
 
+  const filters: JobsFilters = {
+    status: status ?? '',
+    minFit,
+    q,
+    sort,
+    verified,
+    open,
+    watched,
+    muted,
+    profile: profile ?? null,
+    country,
+    workplace: workplace.map((w) => w.toLowerCase()),
+    posted,
+  };
+  // A link to a page the list no longer reaches — the last rows muted, dismissed or deleted — lands on its last page (#540).
+  const last = pastEndPage(page, total, PAGE_SIZE);
+  if (last !== null) return c.redirect(jobsHref(filters, { page: last, panel: panel === '1' }), 302);
+
   return c.html(
     <JobsListPage
       jobs={jobs}
       total={total}
       page={page}
       pageSize={PAGE_SIZE}
-      filters={{
-        status: status ?? '',
-        minFit,
-        q,
-        sort,
-        verified,
-        open,
-        watched,
-        muted,
-        profile: profile ?? null,
-        country,
-        workplace: workplace.map((w) => w.toLowerCase()),
-        posted,
-      }}
+      filters={filters}
       panelOpen={panel === '1'}
       statusCounts={statusCounts}
       facets={tallyFacets(facetRows, { places: country, workplaces: workplace, posted }, now)}
@@ -495,9 +508,11 @@ jobsRoute.get('/jobs/:id', async (c) => {
   // preselect (Stage C).
   const appliedPick = preselectAppliedResume(resumes, selected?.resumeId ?? null, suggested);
 
-  // The letter distils the latest comparison with the resume the cover card
-  // preselects; a quick check carries no strengths to distil (#89).
-  const coverMatch = matches.find((m) => m.resumeId === (suggested?.id ?? resumes[0]?.id)) ?? null;
+  // The cover card starts where the letter on show was generated (#581), and
+  // the letter distils the latest comparison with the resume it preselects; a
+  // quick check carries no strengths to distil (#89).
+  const coverResumeId = resumes.find((r) => r.id === selectedLetter?.resumeId)?.id ?? suggested?.id ?? null;
+  const coverMatch = matches.find((m) => m.resumeId === (coverResumeId ?? resumes[0]?.id)) ?? null;
   const quickCheck =
     coverMatch && readMatchMode(coverMatch.breakdown) === 'fast'
       ? { matchId: coverMatch.id, resumeName: coverMatch.resume.name }
@@ -560,12 +575,13 @@ jobsRoute.get('/jobs/:id', async (c) => {
         job: { title: job.title, companyName: companyForPage(job.employer, job.company) },
         verification: verifications[0] ?? null,
         costHint: costHintText(matchCost),
+        rebuildCost: await spendHint('resume-match'),
       }}
       applicationPack={applicationPack}
       coverLetters={{
         jobId: id,
         resumes: resumeOptions,
-        suggestedResumeId: suggested?.id ?? null,
+        suggestedResumeId: coverResumeId,
         letters,
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
@@ -655,6 +671,8 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
 
 /** A letter is a page; past this it is something else. */
 const MAX_LETTER_CHARS = 20_000;
+/** A name, as the card's Addressed to field takes it. */
+const MAX_ADDRESSEE_CHARS = 80;
 
 jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.param('id')}`, (c) => `/jobs/${c.req.param('id')}`), async (c) => {
   const id = idParam(c.req.param('id'));
@@ -672,9 +690,9 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
     logger.error({ err, jobId: id }, 'web: reclassify failed');
     outcome = { kind: 'failed', reason: '' };
   }
-  // A press that formed no verdict says so: the page it comes back to looks exactly as it did.
-  const said = rescoreFlash(outcome, job.status);
-  return said ? flashRedirect(jobHref(id, tab), said.kind, said.text) : c.redirect(jobHref(id, tab), 303);
+  // Every press says what it came to: a page that comes back looking exactly as it did reads as nothing done.
+  const said = rescoreFlash(outcome, job);
+  return flashRedirect(jobHref(id, tab), said.kind, said.text);
 });
 
 /**
@@ -868,7 +886,9 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     resultUrl: (matchId) => (toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`),
     label: draft ? t('jobRoute.match.draft') : `"${resume.name}"`,
     draft,
-  });
+  }, toTarget
+    ? { url: `/jobs/${id}/target${base ? `?match=${base.id}` : ''}`, label: t('target.run.backToComparison') }
+    : { url: jobHref(id, 'match'), label: t('job.backToTheJob') });
 });
 
 
@@ -963,7 +983,8 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   // wipes them.
   const fromForm = form.saveAngles === '1';
   // Per letter, never saved with the angles: a regenerate carries the name its letter greeted.
-  const addressee = angle(form.addressee, 80);
+  // An emptied field is kept as '' — the team, chosen — so the next Generate starts from it (#581).
+  const addressee = typeof form.addressee === 'string' ? form.addressee.trim().slice(0, MAX_ADDRESSEE_CHARS) : undefined;
   const angles = fromForm
     ? {
         whyCompany: angle(form.whyCompany),
@@ -1025,17 +1046,23 @@ jobsRoute.get('/jobs/:id/cover/:letterId/file/:fmt', async (c) => {
   if (fmt !== 'pdf' && fmt !== 'docx') return c.text(t('http.badFormat'), 400);
   const letter = await getCoverLetter(letterId);
   if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
-  const job = await prisma.job.findUnique({
-    where: { id },
-    include: { company: { select: { name: true } } },
-  });
+  const [job, resume] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id },
+      include: { company: { select: { name: true } } },
+    }),
+    getResume(letter.resumeId),
+  ]);
   if (!job) return c.text(t('http.notFound'), 404);
 
   const text = letter.editedText ?? letter.text;
   const slug =
     (job.employer ?? job.company.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') ||
     'company';
-  const body = fmt === 'docx' ? buildLetterDocx(text) : buildLetterPdf(text);
+  // The sender and the date on top, on the paper the posting's country prints on (#581).
+  const paper = letterPaper(job.countries);
+  const file = { paper, head: letterHead(resume?.text ?? '', paper, new Date(), displayZone()) };
+  const body = fmt === 'docx' ? buildLetterDocx(text, file) : buildLetterPdf(text, file);
   c.header('Content-Type', fmt === 'docx' ? DOCX_MIME : 'application/pdf');
   c.header('Content-Disposition', `attachment; filename="cover-letter-${slug}.${fmt}"`);
   return c.body(new Uint8Array(body));
@@ -1082,7 +1109,8 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
       description: job.description,
     }, snapshot),
     facts,
-    addressee: job.employer ?? job.company.name,
+    // The greeting's words are not claims: the person it was generated for, and the company (cover-letter.ts).
+    addressee: [letter.addressee, job.employer ?? job.company.name].filter(Boolean).join(' '),
   });
   const reverted = text === letter.text;
   await updateCoverLetterEdit(letter.id, {
@@ -1144,6 +1172,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
       seed={pack?.matchId === match.id ? tailorSeed(pack) : null}
+      rebuildCost={await spendHint('resume-match')}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -1192,7 +1221,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     force: false,
     resultUrl: (matchId) => `/jobs/${id}/target?match=${matchId}`,
     label: `"${upload.sourceFilename}"`,
-  });
+  }, { url: `/jobs/${id}/target${base ? `?match=${base.id}` : ''}`, label: t('target.run.backToComparison') });
 });
 
 /** The person the verifier found, as the letter's prefilled greeting, with the finding beside it (#162 stage 4). */

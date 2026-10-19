@@ -63,6 +63,20 @@ test('a timeout has no usage and no cost; the vendor\'s own figure is kept besid
   assert.equal(cli.reportedMicroUsd, 12_346);
 });
 
+test('#583: a call that ran a helper model is priced for both, and is "not priced" when either is unknown', () => {
+  // The recorded deep check (fixtures/claude-code-web-search.json): Sonnet 5 answered, Haiku searched six times.
+  const sonnet = { ...NO_USAGE, inputTokens: 10, cacheWriteTokens: 0, cacheWrite1hTokens: 8_507, cacheReadTokens: 33_181, outputTokens: 2_752, webSearches: 6 };
+  const haiku = { ...NO_USAGE, inputTokens: 68_409, cacheWriteTokens: 0, cacheReadTokens: 0, outputTokens: 3_079 };
+  const spend = { usage: sonnet, model: 'claude-sonnet-5', reportedUsd: 0.2461103, alongside: [{ model: 'claude-haiku-4-5-20251001', usage: haiku }] };
+  const row = ledgerRow(attempt({ engine: 'claude_code', billing: 'plan', feature: 'job-verify', spend }));
+  // Sonnet 5 with its six searches (128 204) and Haiku (83 804); the CLI's own figure is kept beside it.
+  assert.equal(row.costMicroUsd, 212_008);
+  assert.deepEqual([row.webSearches, row.outputTokens, row.resolvedModel], [6, 2_752, 'claude-sonnet-5']);
+  assert.equal(row.reportedMicroUsd, 246_110);
+  const unknown = { ...spend, alongside: [{ model: 'some-helper-nobody-prices', usage: haiku }] };
+  assert.equal(ledgerRow(attempt({ engine: 'claude_code', billing: 'plan', spend: unknown })).costMicroUsd, null);
+});
+
 test('a local call is free: no cost is claimed for it, whatever the model is called', () => {
   const row = ledgerRow(attempt({ engine: 'openai_api', billing: 'local', model: 'gpt-4o', spend: { usage: { ...NO_USAGE, inputTokens: 10 }, model: 'gpt-4o', reportedUsd: null } }));
   assert.equal(row.costMicroUsd, null);
@@ -111,6 +125,8 @@ test('the notes say where the money goes, what is not priced and what ended unhe
     group({ calls: 92, micro: 11_000 }),
     group({ feature: 'resume-match', calls: 8, micro: 89_000, failed: 1, noUsage: 1 }),
     group({ feature: 'resume-scan', engine: 'openai_api', model: 'anthropic/claude-sonnet-5', calls: 3, unpriced: 3 }),
+    // A local call that timed out is on nobody's bill (#563).
+    group({ feature: 'classifier', engine: 'local_api', billing: 'local', model: 'gemma4:e4b', calls: 4, failed: 2, noUsage: 2 }),
   ]);
   // A row the table could not price carries the count, so its cell never reads "$0".
   assert.equal(view.rows.find((r) => r.feature === 'Resume scan')?.unpriced, 3);

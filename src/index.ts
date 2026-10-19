@@ -10,8 +10,8 @@ import { runStaleApplicationsJob } from './jobs/stale-applications-job';
 import { runHnHiringJob } from './jobs/hn-hiring-job';
 import { runDiscoveryJob } from './jobs/discovery-job';
 import { packWorkWaiting, runPackJob, stopPackJob } from './jobs/pack-job';
-import { recordCronRun, type CronStats } from './jobs/cron-run';
-import { spreadMinute } from './schedule';
+import { recordCronRun, type CronStats, type RunName } from './jobs/cron-run';
+import { cronWarningLevel, spreadMinute } from './schedule';
 import { getInstanceId, getSchedule } from './settings';
 import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule';
 import { announceReady, onLauncherStop, underLauncher } from './local/child';
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   cron.setLogger({
     info: (message) => logger.debug({ cron: true }, message),
     debug: (message) => logger.debug({ cron: true }, String(message)),
-    warn: (message) => logger.warn({ cron: true }, message),
+    warn: (message) => logger[cronWarningLevel(message)]({ cron: true }, message),
     error: (message, err) => logger.error({ cron: true, err }, String(message)),
   });
 
@@ -136,7 +136,7 @@ function startHeartbeat(file: string): void {
  * there for the 90 days `cleanup-job.ts` keeps runs.
  */
 async function onSchedule(
-  name: string,
+  name: RunName,
   due: (now: Date, schedule: Schedule) => boolean,
   fn: () => Promise<{ stats: CronStats }>,
 ): Promise<void> {
@@ -148,7 +148,7 @@ async function onSchedule(
 function registerCron(
   expression: string,
   name: string,
-  fn: () => Promise<void>,
+  fn: () => Promise<unknown>,
   /** `quiet`: a beat a minute would otherwise write its start and end 2 880 times a day. */
   { quiet = false }: { quiet?: boolean } = {},
 ): void {

@@ -4,7 +4,7 @@ import { companyForPrompt } from '../../employer';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { hashShortId } from '../../text-utils';
-import { createManualJob, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { createManualJob, findJobByText, findJobByUrl, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { checkPostingUrl, fetchPostingText } from '../../jobs/posting-url';
 import { generateCoverLetter } from '../../resume/cover-letter';
@@ -112,6 +112,8 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
       }
       const checked = checkPostingUrl(jobUrl);
       if (!checked.ok) return flashRedirect(`/letter?url=${encodeURIComponent(jobUrl)}`, 'err', checked.error);
+      // A link the dashboard already stores is that job (#579): no request, no extraction, no second copy.
+      existingJob = await findJobByUrl(jobUrl);
     } else if (description.length < MIN_DESCRIPTION_CHARS) {
       return flashRedirect('/letter', 'err', t('letter.flash.postingTooShort', { n: MIN_DESCRIPTION_CHARS }));
     }
@@ -119,7 +121,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
 
   // Fetch only when there is nothing pasted; a description the user supplied
   // is always the better source than a scraped page.
-  const fetchUrl = f.jobMode === 'new' && description.length === 0;
+  const fetchUrl = !existingJob && description.length === 0;
   // Detection is about the company and the title, not about where the text
   // came from: filling both in skips the call even for a fetched page.
   const needExtract = !existingJob && (!companyName || !title);
@@ -137,7 +139,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     `letter:${existingJob?.id ?? `new:${hashShortId(`${jobUrl}\n${description}`)}`}:${resume.id}:${tone}:${runMatch ? 'm' : ''}${runVerify ? 'v' : ''}`,
     {
       steps,
-      jobTitle: existingJob?.title ?? title ?? t('letter.run.detectingRole'),
+      jobTitle: existingJob?.title || title || t('letter.run.detectingRole'),
       resumeName: resume.name,
       jobId: existingJob?.id,
       backUrl: '/letter',
@@ -150,16 +152,17 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     const warnings: string[] = [];
     let job: { id: number; title: string; companyName: string; location: string; description: string; url: string; postedAt: Date };
 
-    if (existingJob) {
+    const storedJob = async (id: number) => {
       const row = await prisma.job.findUniqueOrThrow({
-        where: { id: existingJob.id },
+        where: { id },
         include: { company: { select: { name: true, atsType: true } } },
       });
-      job = { id: row.id, title: row.title, companyName: companyForPrompt(row.employer, row.company), location: row.location, description: row.description, url: row.url, postedAt: row.postedAt };
+      return { id: row.id, title: row.title, companyName: companyForPrompt(row.employer, row.company), location: row.location, description: row.description, url: row.url, postedAt: row.postedAt };
+    };
+
+    if (existingJob) {
+      job = await storedJob(existingJob.id);
     } else {
-      let location = '';
-      let salaryMin: number | undefined;
-      let salaryMax: number | undefined;
       if (fetchUrl) {
         const fetched = await fetchPostingText(jobUrl);
         if (!fetched.ok) {
@@ -172,41 +175,52 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
           return;
         }
         description = fetched.text;
-        if (needExtract) updateRun(run.id, { stage: 'extract' });
       }
-      if (needExtract) {
-        const facts = await extractPostingFacts(description);
-        companyName = companyName || facts?.company || 'Unknown company';
-        title = title || facts?.title || fallbackTitle(description);
-        location = facts?.location || '';
-        salaryMin = facts?.salaryMin ?? undefined;
-        salaryMax = facts?.salaryMax ?? undefined;
-        updateRun(run.id, { jobTitle: title });
-      }
-      // No fit-score call: the letter never reads it and the user is waiting.
-      // "Re-classify" on the job page fills it in later, for free time.
-      const result = await createManualJob(
-        {
+      // The text of a posting already stored, under another link or pasted here, is that job too (#579).
+      const sameText = await findJobByText(description);
+      if (sameText !== null) {
+        job = await storedJob(sameText);
+        const left = steps.filter((step) => step !== 'extract');
+        updateRun(run.id, { jobId: job.id, jobTitle: job.title, steps: left, stage: left[left.indexOf('fetch') + 1] ?? 'letter' });
+      } else {
+        let location = '';
+        let salaryMin: number | undefined;
+        let salaryMax: number | undefined;
+        if (needExtract) {
+          if (fetchUrl) updateRun(run.id, { stage: 'extract' });
+          const facts = await extractPostingFacts(description);
+          companyName = companyName || facts?.company || 'Unknown company';
+          title = title || facts?.title || fallbackTitle(description);
+          location = facts?.location || '';
+          salaryMin = facts?.salaryMin ?? undefined;
+          salaryMax = facts?.salaryMax ?? undefined;
+          updateRun(run.id, { jobTitle: title });
+        }
+        // No fit-score call: the letter never reads it and the user is waiting.
+        // "Re-classify" on the job page fills it in later, for free time.
+        const result = await createManualJob(
+          {
+            companyName: companyName || 'Unknown company',
+            title: title || fallbackTitle(description),
+            url: jobUrl,
+            location,
+            description,
+            salaryMin,
+            salaryMax,
+          },
+          { classify: false },
+        );
+        job = {
+          id: result.job.id,
+          title: result.job.title,
           companyName: companyName || 'Unknown company',
-          title: title || fallbackTitle(description),
-          url: jobUrl,
-          location,
-          description,
-          salaryMin,
-          salaryMax,
-        },
-        { classify: false },
-      );
-      job = {
-        id: result.job.id,
-        title: result.job.title,
-        companyName: companyName || 'Unknown company',
-        location: result.job.location,
-        description: result.job.description,
-        url: result.job.url,
-        postedAt: result.job.postedAt,
-      };
-      updateRun(run.id, { jobId: job.id });
+          location: result.job.location,
+          description: result.job.description,
+          url: result.job.url,
+          postedAt: result.job.postedAt,
+        };
+        updateRun(run.id, { jobId: job.id });
+      }
     }
 
     if (runMatch) {

@@ -9,7 +9,7 @@ import { anchorStructure, structureIsUsable } from '../../resume/structure-ancho
 import { structureGaps, structureIsComplete } from '../../resume/structure-complete';
 import { blankStyle, type InferredStyle } from '../../resume/style-infer';
 import { resumeStyle } from '../resume-style';
-import { knobsFrom, readKnobs, type RenderKnobs } from '../../resume/render/knobs';
+import { knobsFrom, readKnobs, SECTION_KEYS, sectionName, unknownSections, type RenderKnobs } from '../../resume/render/knobs';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { renderDocx } from '../../resume/render/clean-docx';
 import { PDF_MIME, renderPdf } from '../../resume/render/clean-pdf';
@@ -17,13 +17,13 @@ import { droppedByRender } from '../../resume/render/sections';
 import { docxStructure } from '../../resume/docx-structure';
 import { docxToText } from '../../resume/docx-text';
 import { parseWarnings } from '../../resume/parse-warnings';
-import { scanInBackground } from '../../resume/scan';
 import { structureResume } from '../../resume/structure';
 import { hashShortId } from '../../text-utils';
 import { claimRun, startRun, updateRun, type TargetRun } from '../target-runs';
 import { runFailure } from '../run-failure';
 import { ResumeRenderPage } from '../pages/resume-render';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { startScanRun } from './resumes';
+import { clearFlashCookie, flashRedirect, parseFlashCookie, type FlashMessage } from '../flash';
 import { t } from '../../i18n/t';
 
 /*
@@ -115,6 +115,17 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
   if ('response' in ctx) return ctx.response;
   const form = await c.req.parseBody();
   const knobs = readKnobs(form as Record<string, unknown>, knobsFrom(ctx.style));
+  // A name no section answers to is refused with the field still holding it, and nothing is drawn (#575).
+  const typedOrder = typeof form.sectionOrder === 'string' ? form.sectionOrder : null;
+  const unknown = unknownSections(typedOrder);
+  if (unknown.length > 0) {
+    const refused: FlashMessage = {
+      kind: 'err',
+      text: t('render.flash.unknownSection', { names: unknown.join(', '), known: SECTION_KEYS.map(sectionName).join(', ') }),
+      field: { form: c.req.path, name: 'sectionOrder' },
+    };
+    return c.html(await page(ctx, knobs, refused, typedOrder));
+  }
   // The button's own value when the browser sent one (no JavaScript), else
   // the hidden field the onclick set. See the form for why there are two.
   const mode =
@@ -142,13 +153,14 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
       'resume: saved clean render as a new resume',
     );
     // The new row has no scan of its own yet, and the page it lands on reads
-    // one. Nobody waits on it (the same background scan an upload gets).
-    scanInBackground(saved);
-    return flashRedirect(
-      `/resumes/${saved.id}`,
-      'ok',
-      t('render.flash.saved', { name, original: resume.name }),
-    );
+    // one: the same scan run an upload gets, so the page is reached once the
+    // scan has landed. Behind it, the page said "Not scanned yet — press Scan"
+    // while the scan ran, and a press paid for it twice (#590).
+    return startScanRun(c, saved, {
+      subtitle: t('resume.run.scanSubtitle', { name }),
+      onScanned: () => t('render.flash.saved', { name, original: resume.name }),
+      onFailed: t('render.flash.savedScanFailed', { name }),
+    });
   }
 
   return c.html(await page(ctx, knobs, null));
@@ -213,7 +225,7 @@ function reasonFor(resume: ResumeSummary, bytes: Buffer | null): string {
   return t('render.reason.text');
 }
 
-async function page(ctx: RenderContext, knobs: RenderKnobs, flash: ReturnType<typeof parseFlashCookie>) {
+async function page(ctx: RenderContext, knobs: RenderKnobs, flash: FlashMessage | null, typedOrder: string | null = null) {
   // The preview is the real thing read back, not a description of it: render
   // the .docx and run it through the same reader an upload goes through.
   const preview = docxToText(await renderDocx(ctx.structure, knobs));
@@ -230,6 +242,7 @@ async function page(ctx: RenderContext, knobs: RenderKnobs, flash: ReturnType<ty
       warnings={parseWarnings(preview)}
       reason={ctx.reason}
       flash={flash}
+      typedOrder={typedOrder}
     />
   );
 }

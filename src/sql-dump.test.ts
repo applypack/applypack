@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { importPlan, splitSql } from './sql-dump';
+import { importPlan, splitSql, truncateStatement } from './sql-dump';
 
 // TASKS S7. The fixture is what pg_dump 16.15 wrote for `--data-only --inserts
 // --column-inserts` of a scratch database seeded with text a naive split breaks.
@@ -62,4 +62,9 @@ test('a dump an import cannot run says why', () => {
   assert.match(refuse('SET x = 1;') ?? '', /no rows/);
   assert.match(refuse("INSERT INTO public.job (id) VALUES (1);\nVACUUM;") ?? '', /does not run/);
   assert.equal(refuse('ALTER TABLE public.job DISABLE TRIGGER ALL;\nINSERT INTO public.job (id) VALUES (1);\nALTER TABLE public.job ENABLE TRIGGER ALL;'), null);
+});
+
+test('the tables are emptied in one statement, and a database with none is not asked to (#550)', () => {
+  assert.equal(truncateStatement([]), null);
+  assert.equal(truncateStatement(['job', 'company']), 'TRUNCATE "public"."job", "public"."company" RESTART IDENTITY CASCADE');
 });

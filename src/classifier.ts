@@ -8,7 +8,7 @@ import { getAiRuntime, type AiRuntime } from './ai-runtime';
 import type { AiProviderId } from './ai-engine';
 import { preClassify, prefilterMayJudge } from './classifier-prefilter';
 import { capFitForMissingStack } from './profile-guards';
-import { isCountryCode, isRegionCode } from './countries';
+import { isCountryCode, isRegionCode, REGIONS } from './countries';
 import { arrangementOnly } from './location';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
 import type { ClassifyInput, ClaudeClassification } from './types';
@@ -25,7 +25,8 @@ const MAX_DESC_CHARS = 4000;
 // fencing) — cross-engine quality comparisons are meaningless across versions.
 // v3: one call scores every active search (ADR 0028).
 // v5: a bare "Remote" is decided in code — unknown, not a mismatch (#386).
-const CLASSIFIER_PROMPT_VERSION = 5;
+// v6: each search names the groups that hold its countries (#530).
+const CLASSIFIER_PROMPT_VERSION = 6;
 // The parsed line's words for a bare "Remote"; the location rules quote them.
 const NO_PLACE_NAMED = 'no country named';
 // #386: left to the rules, one posting scored 92 nine times and 45 once on a
@@ -371,7 +372,7 @@ function describeProfile(profile: Profile): string {
 - Acceptable role types (job category, NOT a tech match by themselves): ${list(profile.roleTypes, '(any role type)')}
 - Nice-to-have stack (boost fit_score when present): ${list(profile.stackNiceToHave, '(none specified)')}
 - Auto-reject signals (drastically lower fit_score if these match the role): ${list(profile.stackExclude, '(none)')}
-- Location preferences: ${describeLocation(profile)}${describeEligibility(profile)}
+- Location preferences: ${describeLocation(profile)}${describeGroups(profile)}${describeEligibility(profile)}
 - ${salaryLine}${notesLine}`;
 }
 
@@ -394,7 +395,7 @@ CRITICAL — LOCATION MATCHING (per search, SET location_match):
 Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and groups — EU = the 27 member states; EUROPE = the continent, which also holds GB, CH, NO, UA; EMEA; AMERICAS; NORTH_AMERICA; LATAM; APAC; DACH; NORDICS; BENELUX; CEE; WORLDWIDE = anywhere — plus the arrangements it accepts. A search that lists no countries and no regions accepts any place.
 - Read the location line AND the description: residency, work-permit, payroll, contract-type and time-zone sentences override the location line. "Location as parsed from the source" is a starting point, not a verdict.
 - Country-locked remote ("Remote · Germany", "must reside in Poland", a national flag, local-payroll wording) → true only for a search that lists that country or a group containing it.
-- Region-locked remote ("EU only", "Europe", "EMEA", "US time zones") → true only for a search that lists that region, a country inside it, or WORLDWIDE. EU is law and EUROPE is geography: an EU work-right requirement fails a GB or UA search even when that search lists EUROPE.
+- Region-locked remote ("EU only", "Europe", "EMEA", "US time zones") → true only for a search that lists that region, a country inside it, or WORLDWIDE; "Its countries lie inside" names those regions for each search. EU is law and EUROPE is geography: an EU work-right requirement fails a GB or UA search even when that search lists EUROPE.
 - Worldwide / "anywhere" / "we hire globally" with no restriction → true for every search that accepts remote.
 - Parsed "${NO_PLACE_NAMED}" (a bare "Remote") is not doubt: true for every search accepting remote unless the description overrides it; fit_score not lowered; the summary says "country unconfirmed".
 - Hybrid / on-site roles → true only for a search that accepts that arrangement AND lists the office's city, its country, or a group containing it (a listed city adds to the countries, it never narrows them). Never infer remote eligibility from an office address.
@@ -461,6 +462,19 @@ function describeEligibility(profile: Profile): string {
   if (!profile.residence && relocation === 'no') return '';
   const lives = profile.residence ? `lives in: ${profile.residence}` : 'residence not stated';
   return `\n- Candidate ${lives}; ${RELOCATION_PROMPT[relocation]}`;
+}
+
+/**
+ * The groups that hold a search's countries, said outright (#530): with the
+ * rule alone, the model wrote "remote EUROPE excludes PL/DE" and dismissed
+ * the posting. Groups the search lists itself, and WORLDWIDE, go unsaid.
+ */
+function describeGroups(profile: Profile): string {
+  const groups = REGIONS.filter(
+    (r) => !profile.regions.includes(r.code) && r.countries.some((c) => profile.countries.includes(c)),
+  ).map((r) => r.code);
+  if (groups.length === 0) return '';
+  return `\n- Its countries lie inside: ${groups.join(', ')}`;
 }
 
 /**

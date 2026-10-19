@@ -46,6 +46,8 @@ export interface AiSpend {
   model: string | null;
   /** The vendor's or the CLI's own figure (OpenRouter's `usage.cost`, Claude Code's `total_cost_usd`). */
   reportedUsd: number | null;
+  /** Models the call ran beside `model` — the Claude CLI's search helper (#583) — each priced on its own. */
+  alongside?: { model: string; usage: AiUsage }[];
 }
 
 export const NO_USAGE: AiUsage = {
@@ -154,6 +156,31 @@ export function billingOf(id: AiProviderId, facts: BillingFacts): AiBilling {
  * key at all.
  */
 export function checkOpenAiBaseUrl(input: string): { ok: true; url: string } | { ok: false; reason: string } {
+  const checked = serverUrl(input);
+  if (!checked.ok) return checked;
+  if (checked.url.startsWith('http:') && !isLocalUrl(checked.url)) {
+    return { ok: false, reason: t('engine.url.https') };
+  }
+  return checked;
+}
+
+/**
+ * The Ollama address typed for the local engine (ADR 0057): its root, on this
+ * machine or the user's own network — the engine is called local because it
+ * is. A pasted `/v1` or `/api` is dropped: the native API lives at the root.
+ * It takes no key, so an address off this network is refused for that alone (#563).
+ */
+export function checkLocalAiUrl(input: string): { ok: true; url: string } | { ok: false; reason: string } {
+  const checked = serverUrl(input);
+  if (!checked.ok) return checked;
+  if (!isLocalUrl(checked.url)) {
+    return { ok: false, reason: t('engine.url.notLocal') };
+  }
+  return { ok: true, url: checked.url.replace(/\/(v1|api)$/, '') };
+}
+
+/** A typed server address as one we send to: http(s), no credentials in it, no trailing slash. */
+function serverUrl(input: string): { ok: true; url: string } | { ok: false; reason: string } {
   let url: URL;
   try {
     url = new URL(input.trim());
@@ -164,25 +191,7 @@ export function checkOpenAiBaseUrl(input: string): { ok: true; url: string } | {
     return { ok: false, reason: t('engine.url.scheme') };
   }
   if (url.username || url.password) return { ok: false, reason: t('engine.url.noKey') };
-  const clean = `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
-  if (url.protocol === 'http:' && !isLocalUrl(clean)) {
-    return { ok: false, reason: t('engine.url.https') };
-  }
-  return { ok: true, url: clean };
-}
-
-/**
- * The Ollama address typed for the local engine (ADR 0057): its root, on this
- * machine or the user's own network — the engine is called local because it
- * is. A pasted `/v1` or `/api` is dropped: the native API lives at the root.
- */
-export function checkLocalAiUrl(input: string): { ok: true; url: string } | { ok: false; reason: string } {
-  const checked = checkOpenAiBaseUrl(input);
-  if (!checked.ok) return checked;
-  if (!isLocalUrl(checked.url)) {
-    return { ok: false, reason: t('engine.url.notLocal') };
-  }
-  return { ok: true, url: checked.url.replace(/\/(v1|api)$/, '') };
+  return { ok: true, url: `${url.origin}${url.pathname.replace(/\/+$/, '')}` };
 }
 
 /**

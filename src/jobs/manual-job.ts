@@ -5,9 +5,11 @@ import { prisma, retryOnUniqueViolation } from '../db';
 import { decodeHtmlEntities } from '../http';
 import { parseLocation } from '../location';
 import { logger } from '../logger';
-import { hashShortId } from '../text-utils';
+import { hashShortId, normalizeUrlKey, urlKeyNeedle } from '../text-utils';
 import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
 import { employerKey } from '../employer';
+import { findCrossListing, simhash64 } from '../fingerprint';
+import { loadRecentFingerprints } from './process-jobs';
 
 /*
  * Pasted postings (the /jobs/new form and the /target compare page) become
@@ -108,6 +110,38 @@ export async function createManualJob(
     opts.classify === false ? false : (await classifyExistingJob(job, { keepStatus: true })).kind === 'scored';
   logger.info({ jobId: job.id, company: company.name, classified }, 'web: manual job saved');
   return { kind: 'created', job, classified };
+}
+
+/**
+ * A stored job a posting's link already belongs to (#579): the same link once
+ * tracking parameters, case and a trailing slash are set aside, as a feed's
+ * row key reads it (`normalizeUrlKey`). The oldest such row, or null.
+ */
+export async function findJobByUrl(url: string): Promise<{ id: number; title: string } | null> {
+  const key = normalizeUrlKey(url);
+  const needle = urlKeyNeedle(url);
+  if (key === null || needle === null) return null;
+  const rows = await prisma.job.findMany({
+    where: { url: { contains: needle, mode: 'insensitive' } },
+    select: { id: true, title: true, url: true },
+    orderBy: { id: 'asc' },
+  });
+  const found = rows.find((r) => normalizeUrlKey(r.url) === key);
+  return found ? { id: found.id, title: found.title } : null;
+}
+
+/** No stored row is skipped as "the same company's": a posting the user brings has no company row yet. */
+const NO_COMPANY = -1;
+
+/**
+ * A stored job whose description is this text near enough (#579): the
+ * fingerprint the tick marks a cross-listing with (ADR 0018), over the same
+ * window. Null for a text too short to fingerprint, or no such job.
+ */
+export async function findJobByText(text: string): Promise<number | null> {
+  const fingerprint = simhash64(text);
+  if (fingerprint === null) return null;
+  return findCrossListing(fingerprint, NO_COMPANY, await loadRecentFingerprints())?.job.id ?? null;
 }
 
 /** "Acme Corp." → "acme-corp" — the MANUAL company's atsToken. */

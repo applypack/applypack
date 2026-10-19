@@ -157,16 +157,35 @@ export function readKnobs(form: Record<string, unknown>, base: RenderKnobs): Ren
   };
 }
 
-/** A comma-separated order, with anything missing appended so no section is lost. */
+/** The name the order field shows and its hint lists for a section: the label where it has one ("experience"), else the key. */
+export function sectionName(key: SectionKey): string {
+  return (SECTION_LABELS[key] || key).toLowerCase();
+}
+
+/** The section a typed name means — its name or its key, in any case ("Experience", "work"). */
+function sectionOf(name: string): SectionKey | null {
+  const typed = name.trim().toLowerCase();
+  return SECTION_KEYS.find((k) => k === typed || sectionName(k) === typed) ?? null;
+}
+
+const orderNames = (value: string): string[] => value.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+
+/** The names in a typed order that no section answers to. */
+export function unknownSections(value: string | null): string[] {
+  return orderNames(value ?? '').filter((s) => sectionOf(s) === null);
+}
+
+/**
+ * A comma-separated order, with anything missing appended so no section is
+ * lost. One unknown name refuses the whole order (null): dropped, a typo sent
+ * the section it meant to the end without a word (#575).
+ */
 export function readOrder(value: string | null): SectionKey[] | null {
   if (value === null) return null;
-  const asked = value
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s): s is SectionKey => (SECTION_KEYS as readonly string[]).includes(s));
-  if (asked.length === 0) return null;
-  const seen = new Set(asked);
-  return [...asked, ...SECTION_KEYS.filter((k) => !seen.has(k))];
+  const names = orderNames(value);
+  if (names.length === 0 || unknownSections(value).length > 0) return null;
+  const seen = new Set(names.map(sectionOf).filter((k): k is SectionKey => k !== null));
+  return [...seen, ...SECTION_KEYS.filter((k) => !seen.has(k))];
 }
 
 /**

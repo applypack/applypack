@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { ActionForm, Badge, Button, Card, Hint, HistoryChip, Input, SectionTitle, Select, Tag, Textarea, When } from '../ui';
-import { greetingOf } from '../../resume/addressee';
+import { letterAddressee } from '../../resume/addressee';
 import type { Tone } from '../format';
 
 import type { CoverLetterWithResume } from '../../resume/store';
@@ -22,7 +22,7 @@ export interface CoverLetterCardProps {
   jobId: number;
   /** `label` is `resume-label.ts:resumeOptionLabel`, the preselect's reason included. */
   resumes: { id: number; label: string }[];
-  /** Preselected, same as the match card. */
+  /** Preselected: the resume of the letter on show, else the match card's (#581). */
   suggestedResumeId: number | null;
   letters: CoverLetterWithResume[];
   selected: CoverLetterWithResume | null;
@@ -116,7 +116,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
               <span class="block text-label text-ink">{t('letter.tone')}</span>
               <Select name="tone" class="mt-1.5 !w-auto">
                 {COVER_TONES.map((tone) => (
-                  <option value={tone} selected={tone === 'warm'}>
+                  <option value={tone} selected={tone === (selected?.tone ?? 'warm')}>
                     {toneLabel(tone)}
                   </option>
                 ))}
@@ -128,7 +128,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
                 name="addressee"
                 maxlength="80"
                 class="mt-1.5 !w-auto"
-                value={addressee.suggested ?? ''}
+                value={formAddressee(selected, addressee.suggested)}
                 placeholder={t('letter.theTeam')}
                 title={t('letter.aPersonsNameGreetsThem')}
               />
@@ -138,7 +138,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
           {costHint && <Hint>{costHint}</Hint>}
           {addressee.finding && (
             <Hint>
-              {tRich(addressee.suggested ? 'letter.named.prefilled' : 'letter.named.noName', {}, {
+              {tRich(namedHint(addressee.suggested, formAddressee(selected, addressee.suggested)), {}, {
                 // The verifier's own sentence: a model wrote it.
                 finding: () => <span lang="en">{shortFinding(addressee.finding ?? '')}</span>,
               })}
@@ -236,6 +236,17 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
   </div>
 );
 
+/** The top form starts where the letter on show was generated (#581): the same greeting, the verifier's name before any letter. */
+function formAddressee(selected: CoverLetterWithResume | null, suggested: string | null): string {
+  return (selected ? letterAddressee(selected) : null) ?? suggested ?? '';
+}
+
+/** What the line under the form says of the verifier's finding: that it filled the field, that it named nobody, or only what it found. */
+function namedHint(suggested: string | null, shown: string): MessageKey {
+  if (!suggested) return 'letter.named.noName';
+  return shown === suggested ? 'letter.named.prefilled' : 'letter.named.found';
+}
+
 function shortFinding(finding: string): string {
   return finding.length > FINDING_SHOWN_CHARS ? `${finding.slice(0, FINDING_SHOWN_CHARS)}…` : finding;
 }
@@ -252,13 +263,20 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
   return (
     <div class="mt-5 space-y-4 border-t border-line pt-4">
       <div class="flex flex-wrap items-center gap-3">
-        <Badge tone={gate.tone}>{t(gate.label)}</Badge>
+        {/* Every verdict is drawn and one shown: cover-letter.mjs shows the one an edit's check returns (#581). */}
+        {Object.entries(GATE_VIEW).map(([verdict, view]) => (
+          <span data-gate={verdict} hidden={view !== gate}>
+            <Badge tone={view.tone}>{t(view.label)}</Badge>
+          </span>
+        ))}
         <span class="text-sm text-ink">
           <span translate="no">{letter.resume.name}</span>{' '}
           <span class="font-mono text-meta text-ink-faint">v{letter.resumeVersion}</span>
         </span>
         <Badge tone="neutral">{toneLabel(letter.tone)}</Badge>
-        {letter.editedText && <Badge tone="info">{t('letter.edited')}</Badge>}
+        <span data-edited hidden={!letter.editedText}>
+          <Badge tone="info">{t('letter.edited')}</Badge>
+        </span>
         <span class="text-meta text-ink-faint">
           <When at={letter.createdAt} /> ·{' '}
           <span class="font-mono" translate="no">
@@ -267,7 +285,7 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
         </span>
         <ActionForm
           action={`/jobs/${jobId}/cover`}
-          hidden={{ resumeId: letter.resumeId, tone: letter.tone, addressee: greetingOf(letter.text) ?? '' }}
+          hidden={{ resumeId: letter.resumeId, tone: letter.tone, addressee: letterAddressee(letter) ?? '' }}
           class="ml-auto"
         >
           <Button

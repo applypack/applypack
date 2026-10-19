@@ -38,7 +38,7 @@ const ABOUT_A_MINUTE: Band = ['lane.band.aboutMinute'];
 /**
  * Wall seconds per call. The CLI caps thinking (v1.59.1), so Sonnet and
  * Opus are quick there; on the API Sonnet 5 and Opus 5 think for a minute
- * and the API's suggestions / review were not measured. "~" is an estimate:
+ * and the API's suggestions / review were not measured. "Roughly" is an estimate:
  * the CLI ratio applied to the API's quick check, and — for scan and
  * structure — the measured scan of v1.65 (35–75 s) split between the two
  * calls it became in v1.66.
@@ -63,6 +63,20 @@ const STEP_FEATURE: Readonly<Record<string, AiFeature>> = {
   match: 'resume-match',
   suggestions: 'resume-suggestions',
   review: 'resume-review',
+};
+
+/**
+ * What a step takes on a lane nobody measured: the reference pair's order of
+ * magnitude, said on the engine and model that will answer — never "on Opus"
+ * for a call a model on this computer makes (#527, #580).
+ */
+const UNMEASURED: Readonly<Record<string, MessageKey>> = {
+  scan: 'target.band.halfToOne',
+  structure: 'target.band.halfToOne',
+  keywords: 'target.band.halfToOne',
+  match: 'target.band.oneAndHalfToTwo',
+  suggestions: 'lane.band.aboutMinute',
+  review: 'lane.band.aboutMinute',
 };
 
 /** Every feature a step's time is read from: what the run page asks the ledger for. */
@@ -110,7 +124,8 @@ export function laneTimes(target: { engine: string; model: string } | null, time
  * How long a step takes, as the run page says it: this install's own calls
  * once `TIMED_FROM` of them answered on the engine and model the step will
  * use — a model on this computer included — else the band measured for the
- * lane, else null and the page's generic words.
+ * lane, else the unmeasured one on that lane; null for a step none of these
+ * times (the posting's brief before its own calls).
  */
 export function stepBand(step: string, lane: LaneTimes): string | null {
   const feature = STEP_FEATURE[step];
@@ -120,6 +135,7 @@ export function stepBand(step: string, lane: LaneTimes): string | null {
     const tail = slowTail(own.answered, own.medianMs, own.p90Ms);
     return tail === null ? t('target.band.recorded', said) : t('target.band.recordedTail', { ...said, tail: formatDuration(tail) });
   }
-  const band = bandFor(step, lane.lane);
+  const unmeasured = UNMEASURED[step];
+  const band = bandFor(step, lane.lane) ?? (unmeasured ? t(unmeasured) : null);
   return band ? t('target.band.measured', { band, lane: lane.name }) : null;
 }

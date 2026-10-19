@@ -3,6 +3,7 @@ import { logger } from '../logger';
 import type { MatchMode } from '../resume/match-mode';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import { onWindowRefusal } from '../window-refusal';
 
 /*
  * In-memory registry for long compare runs (extract → scan → match). The
@@ -79,6 +80,8 @@ export interface TargetRun {
   /** Done with a stored analysis, not a fresh one — the flash warns and offers "Re-run anyway". */
   reused?: boolean;
   error?: string;
+  /** The local engine refused one of the run's prompts as too large for its window: a failed run links to the setting (#523). */
+  windowRefused?: boolean;
   /**
    * What this run is working on — a second POST for the same thing joins it
    * (issue #76). More than one name, because one run can answer requests that
@@ -195,7 +198,7 @@ export const UNEXPECTED_FAILURE = 'target.run.unexpectedFailure' as const satisf
 
 /** Runs the async chain; any uncaught failure flips the run to error. */
 export function startRun(id: string, fn: () => Promise<void>): void {
-  void fn().catch((err) => {
+  void onWindowRefusal(() => updateRun(id, { windowRefused: true }), fn).catch((err) => {
     logger.error({ err, runId: id }, 'web: compare run failed');
     updateRun(id, { stage: 'error', error: t(UNEXPECTED_FAILURE) });
   });

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from './flash';
+import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack, withFlashCookie } from './flash';
 
 /** A flash cookie as a browser sends it back — or as someone who edits cookies would write one. */
 const cookieOf = (payload: unknown): string => `flash=${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
@@ -11,6 +11,12 @@ test('firstIssue names the field and the reason', () => {
   const result = schema.safeParse({ name: '', days: 3 });
   assert.equal(result.success, false);
   if (!result.success) assert.equal(firstIssue(result.error.issues), 'name: a name is required');
+});
+
+test('firstIssue names a field by the label its form shows, when it is given one (#549)', () => {
+  const label = (field: string) => (field === 'minFitScore' ? 'Min fit score (0-100)' : undefined);
+  assert.equal(firstIssue([{ path: ['minFitScore'], message: 'too big' }], label), 'Min fit score (0-100): too big');
+  assert.equal(firstIssue([{ path: ['notes'], message: 'too long' }], label), 'notes: too long');
 });
 
 test('firstIssue joins a nested path and survives a root-level issue', () => {
@@ -37,6 +43,26 @@ test('a flash survives the redirect cookie and nothing else does', () => {
   assert.equal(parseFlashCookie('flash=%7Bnot-json'), null);
   assert.equal(parseFlashCookie(`flash=${Buffer.from('{not-json').toString('base64url')}`), null);
   assert.equal(parseFlashCookie(cookieOf({ kind: 'loud', text: 'x' })), null);
+});
+
+// #556: cookies ignore the port, and a new install on :4993 showed another install's flash.
+test('a flash belongs to the port the page was asked at', () => {
+  const at = (url: string) => withFlashCookie(url, () => flashRedirect('/jobs', 'ok', `saved on ${url}`).headers.get('set-cookie')!.split(';')[0]!);
+  const docker = at('http://127.0.0.1:4747/jobs/new');
+  const local = at('http://127.0.0.1:4848/jobs/new');
+  assert.match(docker, /^flash-4747=/);
+  assert.match(local, /^flash-4848=/);
+  // The browser sends both to either port; each install reads its own.
+  const both = `${docker}; ${local}`;
+  assert.equal(withFlashCookie('http://127.0.0.1:4848/jobs', () => parseFlashCookie(both))?.text, 'saved on http://127.0.0.1:4848/jobs/new');
+  assert.equal(withFlashCookie('http://127.0.0.1:4747/jobs', () => parseFlashCookie(both))?.text, 'saved on http://127.0.0.1:4747/jobs/new');
+  assert.equal(withFlashCookie('http://127.0.0.1:4993/', () => parseFlashCookie(both)), null);
+  // A plain `flash` cookie from before is nobody's now, and the clear names the port's.
+  assert.equal(withFlashCookie('http://127.0.0.1:4848/jobs', () => parseFlashCookie(cookieOf({ kind: 'ok', text: 'old' }))), null);
+  assert.match(withFlashCookie('http://127.0.0.1:4848/jobs', clearFlashCookie), /^flash-4848=; /);
+  // A default port, and no request at all, keep the plain name.
+  assert.match(at('https://jobs.example/jobs'), /^flash=/);
+  assert.match(clearFlashCookie(), /^flash=; /);
 });
 
 test('safeBack keeps a redirect on this site', () => {
@@ -114,6 +140,31 @@ test('the refused field rides the flash with its form, and only names do (TASKS 
   assert.equal(cookie({ form: at, name: '"]; alert(1); ["' })?.field, undefined);
   assert.equal(cookie({ form: '/a"] b', name: 'name' })?.field, undefined);
   assert.equal(cookie('name')?.field, undefined);
+});
+
+test('a refused form\'s values ride the flash back to the form they came from (#534)', () => {
+  const draft = { form: '/companies/new', values: { name: 'Netlify', atsType: 'GREENHOUSE', atsToken: 'https://job-boards.greenhouse.io/netlify', careerUrl: '' } };
+  const res = flashRedirect('/companies', 'err', 'Nothing was added.', { draft });
+  assert.deepEqual(parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]!)?.draft, draft);
+  const cookie = (value: unknown) => parseFlashCookie(cookieOf({ kind: 'err', text: 'x', draft: value }))?.draft;
+  // The cookie is the browser's to edit: a form of ours, field names, strings, and short ones.
+  assert.equal(cookie({ form: 'https://evil.example/x', values: { name: 'a' } }), undefined);
+  assert.equal(cookie({ form: '/companies/new', values: 'name' }), undefined);
+  assert.deepEqual(cookie({ form: '/companies/new', values: { name: 'Acme', '"]x': 'y', n: 3 } }), { form: '/companies/new', values: { name: 'Acme' } });
+  assert.equal(cookie({ form: '/companies/new', values: { name: 'x'.repeat(5_000) } })?.values.name?.length, 300);
+  // A long paste is cut before it is sent, so the cookie still fits what a browser keeps.
+  const long = flashRedirect('/companies', 'err', 'Nothing was added.', { draft: { form: '/companies/new', values: { atsToken: 'я'.repeat(5_000) } } });
+  assert.ok((long.headers.get('set-cookie') ?? '').length < 4096);
+});
+
+test('a refused field can carry back what was typed, so the form keeps it (#546)', () => {
+  const at = '/companies/folder/check';
+  const res = flashRedirect('/companies', 'err', 'Not checked.', { field: { form: at, name: 'path', value: '/Volumes/Backup/jobs' } });
+  assert.deepEqual(parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]!)?.field, { form: at, name: 'path', value: '/Volumes/Backup/jobs' });
+  const cookie = (value: unknown) => parseFlashCookie(cookieOf({ kind: 'err', text: 'x', field: { form: at, name: 'path', value } }))?.field;
+  assert.deepEqual(cookie('a\nb'), { form: at, name: 'path' }, 'a control character drops the value, not the field');
+  assert.deepEqual(cookie('x'.repeat(2000)), { form: at, name: 'path' }, 'nor does a value past the cookie’s room');
+  assert.deepEqual(cookie(42), { form: at, name: 'path' });
 });
 
 // ADR 0061: a browser drops a cookie past 4 096 bytes silently, and the old percent-encoding

@@ -163,3 +163,8 @@ export function importPlan(statements: readonly string[]): { ok: true; plan: Imp
   if (rows.size === 0) return { ok: false, reason: 'this dump holds no rows' };
   return { ok: true, plan: { statements: kept, rows } };
 }
+
+/** What empties the tables before the rows go in; null with no table, where `TRUNCATE` and an empty list is a syntax error (#550). */
+export function truncateStatement(tables: readonly string[]): string | null {
+  return tables.length === 0 ? null : `TRUNCATE ${tables.map((name) => `"public"."${name}"`).join(', ')} RESTART IDENTITY CASCADE`;
+}

@@ -5,7 +5,7 @@ import { MAX_COLUMNS, type Row } from '../../datasets/rows';
 import type { NormalizedJob } from '../../types';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
-import { formatDateShort } from '../format';
+import { formatPostedShort } from '../format';
 import { Disclosure, Field, Hint, Notice, Select } from '../ui';
 
 /*
@@ -133,7 +133,7 @@ export const MappedRowsList: FC<{ jobs: readonly NormalizedJob[] }> = ({ jobs })
       <li class="py-3 first:pt-0 last:pb-0">
         <div class="text-label text-ink" translate="no">{job.title}</div>
         <div class="text-note text-ink-muted">
-          {[job.employer ?? t('import.row.noCompany'), job.location || t('import.row.noLocation'), job.undated ? t('import.row.noDate') : formatDateShort(job.postedAt)].join(' · ')}
+          {[job.employer ?? t('import.row.noCompany'), job.location || t('import.row.noLocation'), job.undated ? t('import.row.noDate') : formatPostedShort(job.postedAt)].join(' · ')}
         </div>
         <div class="break-all text-meta text-ink-faint">{job.url || t('import.row.noLink')}</div>
         <p class="mt-1 text-note text-ink-muted" translate="no">{excerpt(job.description)}</p>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AiProviderId } from './ai-engine';
+import { AI_PROVIDER_LABELS, type AiProviderId } from './ai-engine';
 import { addUsage, count, NO_USAGE, type AiOutcome, type AiSpend, type AiUsage } from './ai-usage';
 import { retryAfterMs } from './http';
 import type { MessageKey } from './i18n/catalog';
@@ -58,8 +58,22 @@ const ClaudeCodeResultSchema = z.object({
   num_turns: z.number().optional(),
   total_cost_usd: z.number().optional(),
   usage: AnthropicUsageSchema.optional(),
-  modelUsage: z.record(z.string(), z.object({ outputTokens: z.number().optional() }).passthrough()).optional(),
+  modelUsage: z
+    .record(
+      z.string(),
+      z
+        .object({
+          inputTokens: z.number().optional(),
+          outputTokens: z.number().optional(),
+          cacheReadInputTokens: z.number().optional(),
+          cacheCreationInputTokens: z.number().optional(),
+          webSearchRequests: z.number().optional(),
+        })
+        .passthrough(),
+    )
+    .optional(),
 });
+type CliModelUsage = NonNullable<z.infer<typeof ClaudeCodeResultSchema>['modelUsage']>[string];
 
 /** What one CLI call spent — logged per call, so a slow call, a throttled call and a thinking call stop looking alike (#168). */
 export interface CliUsage {
@@ -221,6 +235,21 @@ export function cliFailure(
   return { reason: t('engine.fail.noOutput'), log };
 }
 
+/** Node's codes for an address where nothing could be reached at all. */
+const NOTHING_THERE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'UND_ERR_CONNECT_TIMEOUT']);
+
+/**
+ * Why a fetch found nothing at its address (`ECONNREFUSED`, `ENOTFOUND` …),
+ * read off the cause Node keeps under its bare "fetch failed"; null for any
+ * other failure. A local server that is not running is a state, not a fault:
+ * its caller logs it in one line, with no stack (#571).
+ */
+export function unreachableCode(err: unknown): string | null {
+  if (!(err instanceof TypeError)) return null;
+  const code = (err.cause as { code?: unknown } | null | undefined)?.code;
+  return typeof code === 'string' && NOTHING_THERE.has(code) ? code : null;
+}
+
 /** The log's word for a CLI that answered with nothing. */
 export const CLI_NO_TEXT = 'the CLI returned no text';
 
@@ -285,10 +314,12 @@ export function parseClaudeCodeOutput(raw: string): CliOutcome {
     return { text: null, rateLimited: false, error: 'claude-code: unexpected result shape' };
   }
   const r = parsed.data;
+  const { main, helpers } = cliModels(r.usage, r.modelUsage);
   const spend: AiSpend = {
-    usage: anthropicUsage(r.usage),
-    model: mainModel(r.modelUsage),
+    usage: { ...anthropicUsage(r.usage), webSearches: cliSearches(r.usage, r.modelUsage) },
+    model: main,
     reportedUsd: typeof r.total_cost_usd === 'number' ? r.total_cost_usd : null,
+    ...(helpers.length > 0 ? { alongside: helpers.map(([model, m]) => ({ model, usage: helperUsage(m) })) } : {}),
   };
   if (r.is_error || r.subtype !== 'success') {
     const message = r.result ?? r.subtype;
@@ -312,11 +343,42 @@ export function parseClaudeCodeOutput(raw: string): CliOutcome {
   };
 }
 
-/** The model that did the work: the one with the most output, when the CLI ran more than one. */
-function mainModel(models: Record<string, { outputTokens?: number }> | undefined): string | null {
+/**
+ * The model that wrote the answer, and the ones the CLI ran beside it (#583):
+ * its WebSearch tool reads the results with Haiku, which can write more than
+ * the model asked. The top-level `usage` is the conversation's own, so the
+ * model whose tokens are those wrote the answer; failing that, the one that
+ * wrote the most.
+ */
+function cliModels(
+  usage: AnthropicUsage | undefined,
+  models: Record<string, CliModelUsage> | undefined,
+): { main: string | null; helpers: [string, CliModelUsage][] } {
   const entries = Object.entries(models ?? {});
-  if (entries.length === 0) return null;
-  return entries.reduce((best, cur) => ((cur[1].outputTokens ?? 0) > (best[1].outputTokens ?? 0) ? cur : best))[0];
+  if (entries.length === 0) return { main: null, helpers: [] };
+  const own = entries.find(([, m]) => usage !== undefined && m.inputTokens === usage.input_tokens && m.outputTokens === usage.output_tokens);
+  const main = own ?? entries.reduce((best, cur) => ((cur[1].outputTokens ?? 0) > (best[1].outputTokens ?? 0) ? cur : best));
+  return { main: main[0], helpers: entries.filter((entry) => entry !== main) };
+}
+
+/** Every web search of the call: the CLI counts them per model, the searching helper's included; the top level counts the conversation's own. */
+function cliSearches(usage: AnthropicUsage | undefined, models: Record<string, CliModelUsage> | undefined): number | null {
+  const own = usage?.server_tool_use?.web_search_requests;
+  const perModel = Object.values(models ?? {}).flatMap((m) => (m.webSearchRequests === undefined ? [] : [m.webSearchRequests]));
+  if (own === undefined && perModel.length === 0) return null;
+  return Math.max(own ?? 0, perModel.reduce((a, b) => a + b, 0));
+}
+
+/** A helper model's tokens as the ledger reads them; its searches are counted on the call (`cliSearches`), and its writes, unsplit, as five-minute ones. */
+function helperUsage(m: CliModelUsage): AiUsage {
+  return {
+    inputTokens: count(m.inputTokens),
+    cacheWriteTokens: count(m.cacheCreationInputTokens),
+    cacheWrite1hTokens: null,
+    cacheReadTokens: count(m.cacheReadInputTokens),
+    outputTokens: count(m.outputTokens),
+    webSearches: null,
+  };
 }
 
 /**
@@ -808,6 +870,8 @@ export function parseOpenAiChatResponse(raw: string): CliOutcome {
 /** The window a local model gets when the AI tab names none; the AI tab offers these. */
 export const DEFAULT_LOCAL_CONTEXT_TOKENS = 16_384;
 export const LOCAL_CONTEXT_CHOICES = [8_192, 16_384, 32_768, 65_536] as const;
+/** The AI tab names a window in thousands of tokens: "32k". */
+const TOKENS_PER_K = 1024;
 /** The chat template's own tokens around the two messages. */
 const CHAT_TEMPLATE_TOKENS = 64;
 /**
@@ -837,6 +901,22 @@ export function estimateTokens(text: string): number {
 /** What a call needs of the window: the prompt, the answer and the template. */
 export function localBudgetTokens(system: string, user: string, maxTokens: number): number {
   return estimateTokens(system) + estimateTokens(user) + maxTokens + CHAT_TEMPLATE_TOKENS;
+}
+
+/**
+ * Why the local engine refused a prompt, as a failed run says it: what the
+ * call needed, the window it met, and the one on the engine's card that takes
+ * it — or that none on offer does (#523).
+ */
+export function contextTooSmall(need: number, window: number): string {
+  const fit = LOCAL_CONTEXT_CHOICES.find((choice) => choice >= need);
+  return t('engine.fail.contextTooSmall', {
+    need,
+    window,
+    engine: AI_PROVIDER_LABELS.local_api,
+    fits: fit === undefined ? 'no' : 'yes',
+    k: (fit ?? Math.max(...LOCAL_CONTEXT_CHOICES)) / TOKENS_PER_K,
+  });
 }
 
 export function buildOllamaChatBody(req: {

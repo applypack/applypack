@@ -131,6 +131,7 @@ export async function generateCoverLetter(
       resumeId: resume.id,
       resumeVersion: resume.version,
       tone: opts.tone,
+      addressee: opts.addressee ?? null,
       text: letter,
       model: answer.model,
       promptVersion: COVER_PROMPT_VERSION,

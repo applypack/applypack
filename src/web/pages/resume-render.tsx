@@ -5,7 +5,7 @@ import { ActionForm, Badge, Button, Card, Field, Flash, Hint, Input, PageHeader,
 import type { FlashMessage } from '../flash';
 import type { JsonResume } from '../../resume/json-resume';
 import { structureCoverage } from '../../resume/json-resume';
-import { LIMITS, SECTION_KEYS, SECTION_LABELS, type RenderKnobs } from '../../resume/render/knobs';
+import { LIMITS, SECTION_KEYS, sectionName, type RenderKnobs } from '../../resume/render/knobs';
 import { typefaceNote } from '../../resume/render/clean-pdf';
 import type { ParseWarning } from '../../resume/parse-warnings';
 import type { MessageKey } from '../../i18n/catalog';
@@ -37,6 +37,8 @@ export interface RenderPageProps {
   warnings: ParseWarning[];
   reason: string;
   flash?: FlashMessage | null;
+  /** The order as typed, when a name in it was refused: the field gives it back to fix. */
+  typedOrder?: string | null;
 }
 
 const ORIGIN_NOTE = {
@@ -62,6 +64,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
   warnings,
   reason,
   flash,
+  typedOrder,
 }) => {
   const coverage = structureCoverage(structure);
   const action = `/resumes/${resume.id}/render`;
@@ -146,7 +149,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
                 </Select>
               </Field>
               <Field label={t('render.sectionOrder')} hint={t('render.commaSeparatedAnythingLeftOut')}>
-                <Input name="sectionOrder" value={knobs.sectionOrder.join(',')} mono autocomplete="off" />
+                <Input name="sectionOrder" value={typedOrder ?? knobs.sectionOrder.map(sectionName).join(',')} mono autocomplete="off" />
               </Field>
               <div class="flex items-end">
                 <label class="flex min-h-[28px] cursor-pointer items-center gap-2 text-sm text-ink">
@@ -159,7 +162,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
               {/* The names are typed into the field as they stand, so they stay as they are in every language. */}
               {tRich(
                 'render.sectionsYouCanName',
-                { names: SECTION_KEYS.map((k) => SECTION_LABELS[k] || k).join(', ').toLowerCase() },
+                { names: SECTION_KEYS.map(sectionName).join(', ') },
                 { list: (words) => <span translate="no">{words}</span> },
               )}
             </Hint>

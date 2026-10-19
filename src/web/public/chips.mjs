@@ -22,12 +22,29 @@ function enhance(host) {
   var ta = host.querySelector('textarea');
   if (!ta) return;
   var box = document.createElement('div');
-  box.className = 'flex min-h-[38px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 shadow-sm transition-colors duration-150 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15';
+  box.className = 'flex min-h-[38px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 shadow-sm transition-colors duration-150 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 has-[[aria-invalid=true]]:border-danger has-[[aria-invalid=true]]:ring-2 has-[[aria-invalid=true]]:ring-danger/20';
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'min-w-[8rem] flex-1 border-0 bg-transparent p-0.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-0';
   input.placeholder = host.dataset.placeholder || t('browser.chips.placeholder');
   input.setAttribute('aria-label', t('browser.chips.addItem', { label: host.dataset.label || t('browser.chips.defaultLabel') }));
+  // Why a typed value made no chip: a picker may refuse what the save would (`host.refuse`, countries.mjs).
+  var note = document.createElement('p');
+  note.id = 'chips-note-' + Math.random().toString(36).slice(2, 7);
+  note.className = 'mt-1 text-note text-danger';
+  note.setAttribute('aria-live', 'polite');
+  note.hidden = true;
+  input.setAttribute('aria-describedby', note.id);
+
+  /** True when the picker refuses the value; the reason then stands under the field. */
+  function refused(value) {
+    var reason = value && typeof host.refuse === 'function' ? host.refuse(value) : null;
+    note.textContent = reason || '';
+    note.hidden = !reason;
+    if (reason) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+    return Boolean(reason);
+  }
 
   function items() {
     return ta.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -60,8 +77,12 @@ function enhance(host) {
   }
   function commit() {
     var values = chipValues(input.value);
-    input.value = '';
-    if (values.length > 0) sync(withChips(items(), values));
+    var refusedValues = values.filter(function (v) { return typeof host.refuse === 'function' && host.refuse(v); });
+    // What the picker refuses stays in the box with its reason; the rest become chips.
+    refused(refusedValues[0] || '');
+    input.value = refusedValues.join(', ');
+    var kept = values.filter(function (v) { return refusedValues.indexOf(v) === -1; });
+    if (kept.length > 0) sync(withChips(items(), kept));
   }
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
@@ -71,11 +92,18 @@ function enhance(host) {
     }
   });
   input.addEventListener('blur', commit);
+  input.addEventListener('input', function () { if (!note.hidden) refused(''); });
   input.addEventListener('paste', function (e) {
     var data = (e.clipboardData || window.clipboardData).getData('text');
     if (data && data.indexOf('\n') !== -1) {
       e.preventDefault();
-      sync(withChips(items(), chipValues(data)));
+      var first = '';
+      var kept = chipValues(data).filter(function (v) {
+        if (typeof host.refuse === 'function' && host.refuse(v)) { first = first || v; return false; }
+        return true;
+      });
+      sync(withChips(items(), kept));
+      refused(first);
     }
   });
   box.addEventListener('mousedown', function (e) {
@@ -86,6 +114,7 @@ function enhance(host) {
   ta.setAttribute('aria-hidden', 'true');
   ta.tabIndex = -1;
   host.appendChild(box);
+  host.appendChild(note);
   renderChips(items());
 }
 

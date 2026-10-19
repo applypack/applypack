@@ -19,6 +19,7 @@ import {
   getLatestReviewForResume,
   getPreviousReview,
   getResume,
+  getResumeFiles,
   getResumeOriginal,
   latestReviewByResume,
   listFacts,
@@ -41,6 +42,7 @@ import { patchDocx } from '../../resume/docx-patch';
 import { readProps, withProps, type DocxProps } from '../../resume/docx-props';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { cleanDocx } from '../../resume/draft-document';
+import { originalFile } from '../../resume/kept-upload';
 import { knobsFrom } from '../../resume/render/knobs';
 import { resumeStyle } from '../resume-style';
 import { deltaSentence, reviewDelta, type ReviewDelta, type ReviewSnapshot } from '../../resume/review-delta';
@@ -49,7 +51,7 @@ import { coverage, MIN_POSTINGS } from '../../resume/coverage';
 import { loadKeywordMatcher } from '../../resume/keyword-matcher';
 import { readReviewPromptVersion } from '../../resume/review-score';
 import { parseWarnings } from '../../resume/parse-warnings';
-import { listProfilesForResume } from '../../profiles';
+import { listProfiles, listProfilesForResume } from '../../profiles';
 import { createProfileFromResume, newProfileDraft } from '../profile-from-resume';
 import { ResumeDetailPage } from '../pages/resume-detail';
 import { FormatComparePage } from '../pages/format-compare';
@@ -153,11 +155,12 @@ resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), 
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const [resume, matches, review, linkedProfiles, impact, tables, facts] = await Promise.all([
+  const [resume, matches, review, linkedProfiles, profiles, impact, tables, facts] = await Promise.all([
     getResume(id),
     listMatchesForResume(id),
     getLatestReviewForResume(id),
     listProfilesForResume(id),
+    listProfiles(),
     deleteImpact(id),
     listLatestKeywordTables(id),
     listFacts(),
@@ -193,7 +196,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
       // stored (ADR 0015). Only a scanned resume has anything to say.
       search={{
         linkedProfiles,
-        draft: resume.scannedAt && !resume.hidden ? newProfileDraft(resume) : null,
+        draft: resume.scannedAt && !resume.hidden ? newProfileDraft(resume, profiles.map((p) => p.name)) : null,
       }}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -207,14 +210,27 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const row = await getResumeOriginal(id);
   if (!row) return c.text(t('http.notFound'), 404);
-  const filename = row.sourceFilename.replace(/["\r\n]/g, '');
-  return new Response(Buffer.from(row.original), {
+  return fileResponse(row.original, row.sourceFilename, row.mimeType);
+});
+
+/** The file the person uploaded, when a Save as vN has since written the one in place (#590). */
+resumesRoute.get('/resumes/:id/download/original', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const row = await getResumeFiles(id);
+  if (!row) return c.text(t('http.notFound'), 404);
+  const file = originalFile(row);
+  return fileResponse(file.bytes, file.name, file.mime);
+});
+
+function fileResponse(bytes: Uint8Array, filename: string, mime: string): Response {
+  return new Response(Buffer.from(bytes), {
     headers: {
-      'Content-Type': row.mimeType,
-      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Type': mime,
+      'Content-Disposition': `attachment; filename="${filename.replace(/["\r\n]/g, '')}"`,
     },
   });
-});
+}
 
 resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = idParam(c.req.param('id'));
@@ -256,8 +272,10 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     jobId: job?.id,
     heading: { running: t('resume.run.draftRunning'), failed: t('resume.run.draftFailed') },
     subtitle: t('resume.run.saving'),
-    backUrl: `/resumes/${id}`,
-    backLabel: t('resume.backToResume'),
+    // Saved from Tailor resume, the run goes back there and its result lands there (#580).
+    ...(job
+      ? { backUrl: `/jobs/${job.id}/target`, backLabel: t('target.run.backToComparison') }
+      : { backUrl: `/resumes/${id}`, backLabel: t('resume.backToResume') }),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
@@ -368,7 +386,8 @@ async function saveEdited(
     original: Buffer.from(text, 'utf8'),
     text,
   };
-  return { resume: await replaceResumeFile(id, payload), note, document: file !== null };
+  // Written here, so the file the person uploaded stays downloadable beside it (#590).
+  return { resume: await replaceResumeFile(id, payload, true), note, document: file !== null };
 }
 
 /**
@@ -557,8 +576,9 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
  * button stayed enabled, so a second click created a duplicate resume *and*
  * a second AI call. The run registry — already carrying /target and
  * /jobs/:id/match — returns the POST immediately and shows real progress.
+ * The clean version's "Save as a new resume" goes through it too.
  */
-function startScanRun(
+export function startScanRun(
   c: Context,
   resume: ResumeSummary,
   copy: { subtitle: string; onScanned: (scan: ResumeScan) => string; onFailed: string },

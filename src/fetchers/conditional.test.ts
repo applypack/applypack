@@ -9,6 +9,7 @@ import {
   resetConditionalCache,
   tickStoredEverything,
   hydrateConditionalCache,
+  judgeUnder,
   needsHydration,
   readValidator,
 } from './conditional';
@@ -165,6 +166,52 @@ describe('tickStoredEverything — the rule that keeps a posting from vanishing'
     // The AI chain ran dry mid-tick: those postings were dropped, and a
     // committed ETag would hide them until the feed changed.
     assert.equal(tickStoredEverything({ ...clean, classifyFailed: 1 }), false);
+  });
+});
+
+/**
+ * #558, found in the live check of 2026-10-18: a search broadened, Fetch now
+ * a minute later, and Remotive answered 304 — the postings the old filter had
+ * turned away stayed unseen until the feed itself changed.
+ */
+describe('the rules a validator was learned under (#558)', () => {
+  const BEFORE = 'rules-before-the-edit';
+  const AFTER = 'rules-after-the-edit';
+
+  it('is sent while the rules hold, and not once they change', () => {
+    judgeUnder(BEFORE);
+    fullTick(1, URL_A, { etag: 'W/"abc"' }, 40);
+    assert.equal(conditionalHeaders(1, URL_A)['If-None-Match'], 'W/"abc"');
+    judgeUnder(AFTER);
+    assert.deepEqual(conditionalHeaders(1, URL_A), {});
+  });
+
+  it('holds again once the full read under the new rules is stored', () => {
+    judgeUnder(BEFORE);
+    fullTick(1, URL_A, { etag: 'W/"abc"' }, 40);
+    judgeUnder(AFTER);
+    fullTick(1, URL_A, { etag: 'W/"abc"' }, 40);
+    assert.equal(conditionalHeaders(1, URL_A)['If-None-Match'], 'W/"abc"');
+    // And a return to the old rules is a change of its own.
+    judgeUnder(BEFORE);
+    assert.deepEqual(conditionalHeaders(1, URL_A), {});
+  });
+
+  it('rides on the row, so the other process sees the same rule', () => {
+    judgeUnder(BEFORE);
+    rememberResponse(5, URL_B, response({ etag: '"v"' }), 9);
+    const kept = commitConditionalCache().get(5);
+    assert.equal(readValidator({ ...kept })?.rules, BEFORE);
+    resetConditionalCache();
+    judgeUnder(AFTER);
+    hydrateConditionalCache([{ id: 5, validator: { ...kept } }]);
+    assert.deepEqual(conditionalHeaders(5, URL_B), {});
+  });
+
+  it('reads a row kept before the rules were recorded in full, once', () => {
+    judgeUnder(AFTER);
+    hydrateConditionalCache([{ id: 6, validator: { url: URL_B, etag: '"old"', lastModified: null, count: 3 } }]);
+    assert.deepEqual(conditionalHeaders(6, URL_B), {});
   });
 });
 

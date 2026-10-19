@@ -31,10 +31,16 @@ export interface LedgerInput {
   packId?: number;
 }
 
-/** The `ai_call` columns for one attempt. A local call is free and carries no cost at all. */
+/**
+ * The `ai_call` columns for one attempt. A local call is free and carries no
+ * cost at all. The tokens are the answering model's; the cost counts every
+ * model the call ran, and is "not priced" when one of them is.
+ */
 export function ledgerRow(i: LedgerInput) {
   const usage = i.spend?.usage ?? null;
-  const priced = usage && i.billing !== 'local' ? costMicroUsd(i.spend?.model ?? (i.model || null), usage) : null;
+  const parts = usage && i.billing !== 'local' ? [{ model: i.spend?.model ?? (i.model || null), usage }, ...(i.spend?.alongside ?? [])] : [];
+  const costs = parts.map((p) => costMicroUsd(p.model, p.usage));
+  const priced = costs.length > 0 && costs.every((c): c is number => c !== null) ? costs.reduce((a, b) => a + b, 0) : null;
   const reported = i.spend?.reportedUsd;
   return {
     at: i.at,
@@ -256,7 +262,8 @@ function spendNotes(groups: readonly SpendGroup[]): string[] {
     const oneModel = unpriced.length === 1 && unpriced[0]!.model;
     notes.push(t(oneModel ? 'spend.note.unpricedModel' : 'spend.note.unpricedModels', { n: unpricedCalls, models, asOf: PRICES_AS_OF }));
   }
-  const unheard = groups.reduce((n, g) => n + g.noUsage, 0);
+  // A vendor's bill is a hosted engine's: a local call that ended unheard never reached anyone who bills (#563).
+  const unheard = groups.reduce((n, g) => n + (g.billing === 'local' ? 0 : g.noUsage), 0);
   if (unheard > 0) notes.push(t('spend.note.unheard', { n: unheard }));
   return notes;
 }

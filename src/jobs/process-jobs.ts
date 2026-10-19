@@ -391,7 +391,7 @@ export async function processNormalizedJobs(
 
     // Every search judges the posting with its own rules and its own
     // thresholds — the reply is shared, the verdict is not.
-    const { verdicts, boosted } = buildVerdicts(results, profiles, job);
+    const { verdicts, boosted } = buildVerdicts(results, profiles, job, placed.place);
     stats.priorityBoosted += boosted;
     const merged = mergeVerdicts(verdicts);
     if (!merged) {
@@ -620,7 +620,7 @@ function buildClassifyInput(
 }
 
 /** Fingerprints from the dedup window, oldest first. */
-async function loadRecentFingerprints(): Promise<FingerprintedJob[]> {
+export async function loadRecentFingerprints(): Promise<FingerprintedJob[]> {
   const since = new Date(Date.now() - DEDUP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const rows = await prisma.job.findMany({
     where: { fetchedAt: { gte: since }, descriptionSimhash: { not: null } },

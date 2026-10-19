@@ -19,6 +19,7 @@ export const ENGLISH = {
   "browser.chips.defaultLabel": "Tags",
   "browser.chips.addItem": "{label} — add item",
   "browser.chips.remove": "Remove {value}",
+  "browser.countries.unknown": "Not a country ApplyPack knows: {value}. Pick one from the list.",
   "browser.copy.copied": "Copied",
   "browser.copy.failed": "Copy failed",
   "browser.copy.announceCopied": "Copied to clipboard",

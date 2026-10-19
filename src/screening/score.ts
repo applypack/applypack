@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { MessageKey } from '../i18n/catalog';
+import type { MessageParams } from '../i18n/message';
 import { t } from '../i18n/t';
 import { sectorMatches } from '../sectors';
 import { formatResumeDate, monthsSinceLatest, parseRange, parseResumeDate, yearsCovered, type DateRange } from './dates';
@@ -479,30 +480,38 @@ function whenWords(when: string): string {
 
 const optional = (n: string | undefined): string | number => (n === undefined ? 'none' : Number(n));
 
-/** A stored detail in the reader's language; the model's own words inside it stay as written. */
-export function detailWords(detail: string): string {
-  if (Object.hasOwn(DETAIL_WORDS, detail)) return t(DETAIL_WORDS[detail]!);
+/** One piece of a stored detail: our words as a message (its `<en>` tag holds the model's), or the model's own words. */
+export type DetailPart = { key: MessageKey; params: MessageParams } | { model: string };
+
+/**
+ * A stored detail in the reader's language. The model's own words inside it
+ * stay as written and say so, so a page can mark them English (#569): a
+ * French reader's screen reader read "demandez : Are you legally able…" with
+ * French rules.
+ */
+export function detailParts(detail: string): DetailPart[] {
+  const words = (key: MessageKey, params: MessageParams = {}): DetailPart[] => [{ key, params }];
+  if (Object.hasOwn(DETAIL_WORDS, detail)) return words(DETAIL_WORDS[detail]!);
   let m = DETAIL_STALE.exec(detail);
-  if (m) return t('screening.detail.stale', { when: whenWords(m[1]!), window: Number(m[2]) });
-  if ((m = DETAIL_LEVEL.exec(detail))) return t('screening.detail.level', { observed: m[1]!, wanted: m[2]!, tolerance: TOLERANCE[m[3]!] ?? 'exact' });
+  if (m) return words('screening.detail.stale', { when: whenWords(m[1]!), window: Number(m[2]) });
+  if ((m = DETAIL_LEVEL.exec(detail))) return words('screening.detail.level', { observed: m[1]!, wanted: m[2]!, tolerance: TOLERANCE[m[3]!] ?? 'exact' });
   if ((m = DETAIL_YEARS.exec(detail))) {
-    return t('screening.detail.years', { years: Number(m[1]), min: optional(m[2]), max: optional(m[3]), when: whenWords(m[4]!) });
+    return words('screening.detail.years', { years: Number(m[1]), min: optional(m[2]), max: optional(m[3]), when: whenWords(m[4]!) });
   }
-  if ((m = DETAIL_COMPANY.exec(detail))) return t('screening.detail.companyType', { n: Number(m[1]), total: Number(m[2]), items: m[3]! });
-  if ((m = DETAIL_NO_ROLE_AT.exec(detail))) return t('screening.detail.noRoleAt', { items: m[1]! });
-  if ((m = DETAIL_INDUSTRY.exec(detail))) return t('screening.detail.industry', { years: Number(m[1]), items: m[2]!, min: optional(m[3]) });
-  if ((m = DETAIL_NO_ROLE_IN.exec(detail))) return t('screening.detail.noRoleIn', { items: m[1]! });
+  if ((m = DETAIL_COMPANY.exec(detail))) return words('screening.detail.companyType', { n: Number(m[1]), total: Number(m[2]), items: m[3]! });
+  if ((m = DETAIL_NO_ROLE_AT.exec(detail))) return words('screening.detail.noRoleAt', { items: m[1]! });
+  if ((m = DETAIL_INDUSTRY.exec(detail))) return words('screening.detail.industry', { years: Number(m[1]), items: m[2]!, min: optional(m[3]) });
+  if ((m = DETAIL_NO_ROLE_IN.exec(detail))) return words('screening.detail.noRoleIn', { items: m[1]! });
   if ((m = DETAIL_LAST_USED.exec(detail))) {
     // The resume's own words for the date ("heute", "дотепер") are read, then worded for the reader (#565).
     const date = parseResumeDate(m[1]);
-    return date === 'present' ? t('screening.detail.inUseNow') : t('screening.detail.lastUsed', { date: date ? formatResumeDate(date) : m[1]! });
+    return date === 'present' ? words('screening.detail.inUseNow') : words('screening.detail.lastUsed', { date: date ? formatResumeDate(date) : m[1]! });
   }
-  if ((m = DETAIL_ASK.exec(detail))) return t('screening.detail.ask', { question: m[1]! });
-  // The overall read: the model's reasons, its concerns marked by us.
+  if ((m = DETAIL_ASK.exec(detail))) return words('screening.detail.ask', { question: m[1]! });
+  // The overall read, or a status's note: the model's reasons, its concerns marked by us.
   return detail
     .split('; ')
-    .map((part) => (part.startsWith('concern: ') ? t('screening.detail.concern', { text: part.slice('concern: '.length) }) : part))
-    .join('; ');
+    .map((part): DetailPart => (part.startsWith('concern: ') ? { key: 'screening.detail.concern', params: { text: part.slice('concern: '.length) } } : { model: part }));
 }
 
 /** Bucket first, score inside it, confidence on ties, then the applicant number — the table's order. */

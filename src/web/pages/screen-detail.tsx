@@ -35,6 +35,7 @@ import {
   CRITERION_KINDS,
   CRITERION_MODES,
   MAX_WEIGHT,
+  modelWorded,
   PRESET_HINTS,
   PRESET_LABELS,
   PRESETS,
@@ -94,6 +95,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
   const running = run?.running ?? false;
   const rubricEmpty = rubric.criteria.length === 0;
   const gateCriteria = rubric.criteria.filter((c) => c.mode === 'gate');
+  const drafted = new Set(rubric.criteria.filter(modelWorded).map((c) => c.id));
   const scoredAny = groups.scored.length > 0;
   return (
     <Layout title={screening.title} titleIsData active="screen">
@@ -534,7 +536,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                     .map((sep) => (
                       <tr class={Math.abs(sep.gap!) < FLAT_GAP ? 'text-ink-faint' : ''}>
                         <td class="py-1 pr-2">
-                          {sep.label} <Stars n={sep.weight} class="text-ink-faint" />
+                          <span lang={drafted.has(sep.id) ? 'en' : undefined}>{sep.label}</span> <Stars n={sep.weight} class="text-ink-faint" />
                         </td>
                         <td class="py-1 pr-2 text-right tabular-nums">{sep.interviewed}</td>
                         <td class="py-1 pr-2 text-right tabular-nums">{sep.declined}</td>
@@ -581,7 +583,9 @@ const CriterionChip: FC<{ c: Criterion }> = ({ c }) => {
       title={t('screen.detail.chipTitle', { kind: CRITERION_KIND_LABELS[c.kind], mode: t(MODE_WORD[c.mode]), yours: c.source === 'you' ? 'yes' : 'no' })}
     >
       {c.mode === 'gate' && <span class="text-warn">{t('screen.detail.chip.gate')}</span>}
-      <span class="min-w-0 truncate">{words}</span>
+      <span class="min-w-0 truncate" lang={modelWorded(c) ? 'en' : undefined}>
+        {words}
+      </span>
       {c.mode === 'scored' && <Stars n={c.weight} class="shrink-0 text-ink-faint" />}
       {c.mode === 'note' && <span class="text-ink-faint">{t('screen.detail.chip.note')}</span>}
     </span>
@@ -622,7 +626,7 @@ const CriterionRow: FC<{ c: Criterion }> = ({ c }) => {
         {fixed ? (
           <span class="text-note text-ink-muted">{criterionLabel(c)}</span>
         ) : (
-          <Input type="text" name={`text_${c.id}`} value={criterionText(c)} maxlength="200" aria-label={t('screen.detail.criterionLabel', { kind: CRITERION_KIND_LABELS[c.kind] })} title={CRITERION_KIND_HINTS[c.kind]} class="!py-1 text-note" />
+          <Input type="text" name={`text_${c.id}`} value={criterionText(c)} lang={modelWorded(c) ? 'en' : undefined} maxlength="200" aria-label={t('screen.detail.criterionLabel', { kind: CRITERION_KIND_LABELS[c.kind] })} title={CRITERION_KIND_HINTS[c.kind]} class="!py-1 text-note" />
         )}
         {c.kind === 'custom' && (
           <label class="mt-1 inline-flex items-center gap-2 text-meta text-ink-muted">
@@ -796,7 +800,9 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: Criter
               return (
                 <span title={said} class={status === 'pass' ? 'text-ok' : status === 'fail' ? 'text-danger' : 'text-warn'}>
                   <span aria-hidden="true">{GATE_MARK[status]}</span>
-                  <span class="sr-only">{said}</span>
+                  <span class="sr-only">
+                    <span lang={modelWorded(g) ? 'en' : undefined}>{criterionLabel(g)}</span>: {answerBadge(status)}
+                  </span>
                 </span>
               );
             })}
