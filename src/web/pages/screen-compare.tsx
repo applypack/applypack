@@ -145,7 +145,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
               <tr>
                 <th scope="row" class={label}>{t('screen.compare.row.verdict')}</th>
                 {side.columns.map((c) => (
-                  <td class={`${td} text-ink`} lang="en">{c.verdictLine || '—'}</td>
+                  <td class={`${td} text-ink`} lang={c.verdictLine.modelWritten ? 'en' : undefined}>{c.verdictLine.text || '—'}</td>
                 ))}
               </tr>
             </tbody>

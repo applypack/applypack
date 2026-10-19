@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adjustedScore, calibrationRows, exportRows, extendedRetention, groupRows, rowView, scoredBeforePosting } from './screen-view';
+import { adjustedScore, calibrationRows, consistentVerdict, exportRows, extendedRetention, groupRows, rowView, scoredBeforePosting } from './screen-view';
 import type { ApplicantWithVerdict } from '../screening/store';
 import { formatDateShort } from './format';
 import { offeredLocales, withLocale } from '../i18n/locale';
@@ -97,6 +97,22 @@ test('scoredBeforePosting counts verdicts older than the posting edit', () => {
   assert.equal(scoredBeforePosting(rows, null), 0, 'no edit, nothing stale');
   assert.equal(scoredBeforePosting(rows, new Date('2026-09-09T11:00:00Z')), 1);
   assert.equal(scoredBeforePosting(rows, new Date('2026-09-09T13:00:00Z')), 2);
+});
+
+test('the verdict never names another bucket than the gates reached (#566)', () => {
+  const bd = (gateBucket: 'pass' | 'ask' | 'fail', gatesUnknown: string[] = [], gatesFailed: string[] = []) => ({ gateBucket, gatesUnknown, gatesFailed });
+  assert.deepEqual(consistentVerdict('Priority to talk to: strong payments work.', bd('pass')), { text: 'Priority to talk to: strong payments work.', modelWritten: true });
+  assert.deepEqual(consistentVerdict('Priority to talk to.', bd('ask', ['EU work authorisation', 'German B2'])), {
+    text: 'Ask about EU work authorisation and German B2 before scheduling.',
+    modelWritten: false,
+  });
+  assert.deepEqual(consistentVerdict('Ask about the notice period before scheduling.', bd('fail', [], ['5+ years: backend'])), {
+    text: 'Not this position: 5+ years: backend not met.',
+    modelWritten: false,
+  });
+  assert.deepEqual(consistentVerdict('Not this position: no Java.', bd('pass')), { text: 'Priority to talk to: every gate passed.', modelWritten: false });
+  assert.equal(consistentVerdict('Ask about the notice period first.', bd('ask', ['Notice'])).modelWritten, true, 'the same bucket keeps the model\'s words');
+  assert.equal(consistentVerdict('Strong on payments; thin on Kafka.', bd('fail', [], ['x'])).modelWritten, true, 'a verdict that names no bucket stays');
 });
 
 test('Keep 90 more days adds to the date the screening is kept until, not to today (#554)', () => {

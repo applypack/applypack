@@ -55,6 +55,8 @@ const BANDS: Record<MeasuredLane, Record<TimedStep, Band>> = {
 /** The ledger feature whose calls time each step the run page states a band for. */
 const STEP_FEATURE: Readonly<Record<string, AiFeature>> = {
   brief: 'posting-brief',
+  // A screening's criteria are drafted from the same posting brief.
+  rubric: 'posting-brief',
   scan: 'resume-scan',
   structure: 'resume-structure',
   keywords: 'resume-match-fast',
@@ -64,7 +66,7 @@ const STEP_FEATURE: Readonly<Record<string, AiFeature>> = {
 };
 
 /** Every feature a step's time is read from: what the run page asks the ledger for. */
-export const TIMED_FEATURES: readonly AiFeature[] = Object.values(STEP_FEATURE);
+export const TIMED_FEATURES: readonly AiFeature[] = [...new Set(Object.values(STEP_FEATURE))];
 
 function laneOf(provider: string, model: string): Lane {
   const family = /haiku/i.test(model) ? 'haiku' : /sonnet/i.test(model) ? 'sonnet' : /opus/i.test(model) ? 'opus' : null;

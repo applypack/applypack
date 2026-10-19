@@ -416,6 +416,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               {t('common.delete')}
             </Button>
           </div>
+          {/* At 1024 px the menu leaves the card about 720 px: the confidence, the must-have count, the years and the level wait for xl; the scorecard has them (#566). */}
           <Table caption={t('screen.detail.applicants')}
             columns={[
               <input type="checkbox" data-select-all aria-label={t('screen.detail.selectAll')} class="h-4 w-4 accent-accent" />,
@@ -429,7 +430,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               t('screen.detail.col.level'),
               t('screen.detail.col.decision'),
             ]}
-            hideBelow={['', '', '', 'sm', '', 'md', 'lg', 'lg', 'lg', '']}
+            hideBelow={['', '', '', 'sm', '', 'xl', 'xl', 'xl', 'xl', '']}
             thClasses={['w-8', '', '', '', 'text-right', '', 'text-right', 'text-right', '', '']}
           >
             {(['pass', 'ask', 'fail'] as GateBucket[]).map((bucket) => {

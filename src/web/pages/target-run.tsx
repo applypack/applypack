@@ -15,6 +15,7 @@ const STEPS = [
   'fetch',
   'extract',
   'brief',
+  'rubric',
   'scan',
   'structure',
   'keywords',
@@ -40,6 +41,7 @@ const GENERIC_BAND = {
   // No measured band yet: the posting is the shortest prompt of the family,
   // and on the second comparison of the same posting it costs nothing at all.
   brief: 'target.band.briefFirst',
+  rubric: 'target.band.briefFirst',
   scan: 'target.band.halfToOne',
   structure: 'target.band.halfToOne',
   keywords: 'target.band.halfToOne',

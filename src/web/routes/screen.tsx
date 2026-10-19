@@ -197,7 +197,7 @@ async function startRubricDraft(
   preset: Preset = 'standard',
 ): Promise<Response> {
   const { run, joined } = claimRun(`screen-rubric:${screeningId}`, {
-    steps: ['brief'],
+    steps: ['rubric'],
     jobTitle,
     resumeName: '',
     jobId,
@@ -229,7 +229,7 @@ async function startRubricDraft(
     // The first draft keeps version 1; a redraft over an edited rubric is a new yardstick.
     await saveRubric(screeningId, rubric, current.criteria.length > 0 && !rubricEquals(current, rubric));
     updateRun(run.id, {
-      results: { brief: briefed.reused ? t('screenRoute.run.briefReused', { line: briefLine(briefed.brief) }) : briefLine(briefed.brief) },
+      results: { rubric: briefed.reused ? t('screenRoute.run.briefReused', { line: briefLine(briefed.brief) }) : briefLine(briefed.brief) },
       stage: 'done',
       resultUrl: `/screen/${screeningId}`,
       flash: t('screenRoute.run.drafted', { preset, summary: rubricSummary(rubric) }),

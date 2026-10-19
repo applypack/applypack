@@ -28,7 +28,7 @@ import type { ScreenReply } from '../../screening/prompts';
 import { answerBadge, answerWords, capExplanation, detailWords, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
 import { describeRedactions, leakKinds, leakLabel, type Redaction } from '../../screening/redact';
 import { GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
-import { adjustedScore, ANSWER_TONE, confidenceLabel } from '../screen-view';
+import { adjustedScore, ANSWER_TONE, confidenceLabel, consistentVerdict } from '../screen-view';
 import { DECISIONS, type Decision } from '../../screening/store';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
@@ -117,6 +117,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
   const title = `№${applicant.number}${applicant.name ? ` — ${applicant.name}` : ''}`;
   const back = `/screen/${screening.id}`;
   const career = reply ? trajectoryOf(reply.roles, now) : null;
+  const verdict = reply && breakdown ? consistentVerdict(reply.summary.verdict, breakdown) : null;
   return (
     <Layout title={title} titleIsData active="screen">
       <PageHeader
@@ -222,8 +223,8 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   {reply.summary.did || '—'}
                 </dd>
                 <dt class="text-ink-faint">{t('screening.applicant.verdict')}</dt>
-                <dd class="font-medium text-ink" lang="en">
-                  {reply.summary.verdict || '—'}
+                <dd class="font-medium text-ink" lang={verdict?.modelWritten ? 'en' : undefined}>
+                  {verdict?.text || '—'}
                 </dd>
               </dl>
               {reply.injection && (

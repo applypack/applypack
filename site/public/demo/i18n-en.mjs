@@ -90,6 +90,7 @@ export const ENGLISH = {
   "browser.activity.brief4": "Listing what they scan for in their first ten seconds…",
   "browser.activity.brief5": "Grouping the either/or requirements…",
   "browser.activity.brief6": "Writing the keyword frame the comparison will use…",
+  "browser.activity.rubric1": "Drafting the gates and the must-have terms…",
   "browser.activity.letter1": "Reading the posting and the resume…",
   "browser.activity.letter2": "Choosing which true facts serve this role…",
   "browser.activity.letter3": "Drafting the letter — role, evidence, why this company…",
