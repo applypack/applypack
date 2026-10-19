@@ -110,6 +110,7 @@ import {
   isSourceKeyField,
   sourceKeyOrigin,
   sourceUnlocked,
+  typedSourceKeys,
   type KeyedSource,
   type SourceKeyField,
   type SourceKeys,
@@ -154,7 +155,7 @@ import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
 import type { MessageKey } from '../../i18n/catalog';
-import { formatNumber } from '../../i18n/format';
+import { formatList, formatNumber } from '../../i18n/format';
 import { isSelectableLocale, withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { describeDestination } from '../../notify/targets';
@@ -484,8 +485,9 @@ settingsRoute.get('/settings', async (c) => {
     if (editorProfile) props.activeProfile = editorProfile;
   }
   const fill = idParam(c.req.query('fill'));
+  const keys = c.req.query('keys');
   const flash = parseFlashCookie(c.req.header('cookie'));
-  return c.html(<SettingsPage {...props} fillResumeId={Number.isFinite(fill) ? fill : undefined} activeTab={activeTab} flash={flash} />, 200, {
+  return c.html(<SettingsPage {...props} fillResumeId={Number.isFinite(fill) ? fill : undefined} openSourceKeys={isKeyedSource(keys) ? keys : undefined} activeTab={activeTab} flash={flash} />, 200, {
     'Set-Cookie': clearFlashCookie(),
   });
 });
@@ -888,28 +890,34 @@ function fieldLabel(source: KeyedSource, field: string): string {
 }
 
 /**
- * Saves or removes one field of a keyed source's credential (ADR 0034). As
- * with engine keys, the value never comes back to the browser, a log line
- * or a flash message.
+ * Saves a keyed source's credential — every field it takes, with one Save —
+ * or removes one field (ADR 0034). A field left empty keeps what is stored
+ * (#561). As with engine keys, the value never comes back to the browser, a
+ * log line or a flash message.
  */
 settingsRoute.post('/settings/sources/key', async (c) => {
   const form = await c.req.parseBody();
   const source = typeof form.source === 'string' ? form.source : '';
-  const field = typeof form.field === 'string' ? form.field : '';
-  if (!isKeyedSource(source) || !isSourceKeyField(source, field)) {
-    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.unknown'));
+  if (!isKeyedSource(source)) return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.unknown'));
+  // Back to the card, open, so what the save changed can be read on it.
+  const back = `/settings?tab=sources&keys=${source}#source-keys`;
+  const labelOf = (fields: readonly string[]): string =>
+    t('settingsRoute.sourceKey.label', { source: SOURCE_KEY_META[source].label, field: formatList(fields.map((field) => fieldLabel(source, field))) });
+  if (form.clear === '1') {
+    const field = form.field;
+    if (!isSourceKeyField(source, field)) return flashRedirect(back, 'err', t('settingsRoute.sourceKey.unknown'));
+    await setSourceKey(source, field, '');
+    return flashRedirect(back, 'ok', t('settingsRoute.sourceKey.removed', { label: labelOf([field]) }));
   }
-  const label = t('settingsRoute.sourceKey.label', { source: SOURCE_KEY_META[source].label, field: fieldLabel(source, field) });
-  const clearing = form.clear === '1';
-  const key = typeof form.key === 'string' ? form.key.trim() : '';
-  if (!clearing && key.length === 0) {
-    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.pasteFirst', { label }));
+  const typed = typedSourceKeys(source, form);
+  if (typed.length === 0) {
+    return flashRedirect(back, 'err', t('settingsRoute.sourceKey.pasteFirst', { label: labelOf(Object.keys(SOURCE_KEY_FIELDS[source])) }));
   }
-  if (key.length > MAX_SOURCE_KEY_LENGTH) {
-    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.tooLong', { n: key.length }));
-  }
-  await setSourceKey(source, field, clearing ? '' : key);
-  return flashRedirect('/settings?tab=sources', 'ok', t(clearing ? 'settingsRoute.sourceKey.removed' : 'settingsRoute.sourceKey.saved', { label }));
+  const tooLong = typed.find((key) => key.value.length > MAX_SOURCE_KEY_LENGTH);
+  if (tooLong) return flashRedirect(back, 'err', t('settingsRoute.sourceKey.tooLong', { n: tooLong.value.length }));
+  for (const { field, value } of typed) await setSourceKey(source, field, value);
+  const saved = t('settingsRoute.sourceKey.saved', { label: labelOf(typed.map((key) => key.field)) });
+  return flashRedirect(back, 'ok', sourceUnlocked(source, await getSourceKeys()) ? sentences(saved, t('settings.readyAddItOnCompanies')) : saved);
 });
 
 settingsRoute.post('/settings/ai/test', async (c) => {
@@ -1110,8 +1118,8 @@ settingsRoute.post('/settings/dashboard-url', async (c) => {
   }
   const checked = checkDashboardUrl(typed);
   if (!checked.ok) {
-    const field = { form: '/settings/dashboard-url', name: 'url' };
-    return flashRedirect(back, 'err', t('settingsRoute.dashboardUrl.notSaved', { reason: checked.reason }), { field });
+    const dashboard = { url: typed, here: new URL(c.req.url).origin };
+    return settingsAgain(c, { activeTab: 'notifications', dashboard }, t('settingsRoute.dashboardUrl.notSaved', { reason: checked.reason }), 'url');
   }
   await setDashboardUrl(checked.url);
   return flashRedirect(back, 'ok', t('settingsRoute.dashboardUrl.saved', { url: checked.url }));
@@ -1227,14 +1235,23 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
     botToken: form.botToken,
     chatId: form.chatId,
   });
+  // #549: a refusal sends the form back with the name and the chat id kept — never the token, a secret no page echoes.
+  const telegramSent = { name: str(form.name), chatId: str(form.chatId) };
+  const refuse = (text: string, field?: string): Promise<Response> =>
+    settingsAgain(c, { activeTab: 'notifications', telegramSent }, text, field);
   if (!parsed.success) {
-    return flashRedirect(back, 'err', t('settingsRoute.targets.invalidTelegram'));
+    return refuse(t('settingsRoute.targets.invalidTelegram'), refusedField(c.req.path, parsed.error.issues).field?.name);
   }
   const same = await findSameDestination({ kind: 'TELEGRAM', ...parsed.data });
-  if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.telegramExists', { name: same.name }));
+  if (same) return refuse(t('settingsRoute.targets.telegramExists', { name: same.name }), 'chatId');
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
-    return flashRedirect(back, 'err', t('settingsRoute.targets.telegramTestFailed', { reason: test.error ?? noReason() }));
+    // #561: the field Telegram refused, in words — a refused token is never blamed on the chat id.
+    if (test.failed === 'token') return refuse(t('settingsRoute.targets.telegramToken'), 'botToken');
+    if (test.failed === 'chat') {
+      return refuse(t('settingsRoute.targets.telegramChat', { bot: test.botUsername ?? '?', chat: parsed.data.chatId }), 'chatId');
+    }
+    return refuse(t('settingsRoute.targets.telegramTestFailed', { reason: test.error ?? noReason() }));
   }
   const added = await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
   if (!added) {

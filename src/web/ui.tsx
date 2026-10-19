@@ -758,7 +758,7 @@ export const NEEDS_FILE_JS =
  * explanation never becomes the control's accessible name (audit A11Y-4):
  * `more` sits outside it, behind "How this works".
  */
-export const Field: FC<PropsWithChildren<{ label: string; hint?: string; more?: Child; class?: string }>> = ({
+export const Field: FC<PropsWithChildren<{ label: string; hint?: Child; more?: Child; class?: string }>> = ({
   label,
   hint,
   more,

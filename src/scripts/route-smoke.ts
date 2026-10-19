@@ -700,7 +700,7 @@ async function main(): Promise<void> {
   // What a request gets WRONG. Every one of these used to be a 500 or worse,
   // and a 500 anywhere fails the build — so the negative paths need naming
   // as explicitly as the happy ones.
-  const negatives: { name: string; url: string; init: RequestInit; expect: (res: Response) => boolean }[] = [
+  const negatives: { name: string; url: string; init: RequestInit; expect: (res: Response) => boolean | Promise<boolean> }[] = [
     {
       name: 'GET /jobs/:id with a non-numeric id (400, not a crash)',
       url: '/jobs/not-a-number',
@@ -736,10 +736,23 @@ async function main(): Promise<void> {
       },
       expect: (res) => res.status === 413,
     },
+    {
+      // #549: a refused form comes back as it was typed, never emptied by a redirect.
+      name: 'POST /settings/dashboard-url refused (the form again, as typed)',
+      url: '/settings/dashboard-url',
+      init: form({ url: 'ftp://nas.local/applypack' }),
+      expect: async (res) => res.status === 422 && (await res.text()).includes('value="ftp://nas.local/applypack"'),
+    },
+    {
+      name: 'POST /screen/:id/applicants/:aid/adjust with no reason (the number kept)',
+      url: `/screen/${f.screeningId}/applicants/${f.applicantId}/adjust`,
+      init: form({ points: '15', note: '' }),
+      expect: async (res) => res.status === 422 && (await res.text()).includes('value="15"'),
+    },
   ];
   for (const n of negatives) {
     const res = await app.request(n.url, n.init);
-    rows.push({ route: n.name, url: n.url, status: res.status, ok: n.expect(res) });
+    rows.push({ route: n.name, url: n.url, status: res.status, ok: await n.expect(res) });
   }
 
   // The same posting pasted twice at once: the unique key settles it and BOTH

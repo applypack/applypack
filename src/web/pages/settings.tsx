@@ -253,6 +253,10 @@ export interface SettingsProps {
   profileDraft?: ProfileDraftNotice | null;
   /** A refused save, sent back (#549): the countries and score adjustments as they were typed. */
   profileSent?: ProfileSentText | null;
+  /** A refused Telegram connection, sent back open (#549): the name and the chat id as typed, never the token. */
+  telegramSent?: { name: string; chatId: string } | null;
+  /** `?keys=<source>` after its keys were saved: that card stays open, so its state can be read (#561). */
+  openSourceKeys?: string;
 }
 
 /** What a refused save shows as it was typed, where the stored form of the field could not hold it. */
@@ -643,6 +647,8 @@ export const SettingsPage: FC<SettingsProps> = ({
   flash,
   profileDraft,
   profileSent,
+  telegramSent,
+  openSourceKeys,
 }) => (
   <Layout title={t('nav.settings')} active="settings">
     <div class="w-full">
@@ -936,7 +942,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           <Button variant="secondary">{t('settings.saveSources')}</Button>
         </form>
       </Section>
-      <SourceKeysSection rows={sourceKeyRows} />
+      <SourceKeysSection rows={sourceKeyRows} openSourceKeys={openSourceKeys} />
       </>
       )}
 
@@ -1066,17 +1072,28 @@ export const SettingsPage: FC<SettingsProps> = ({
         {/* One way to connect at a time: each opens its own form under the row of buttons
             (the Add sources pattern on Companies), and none stands open by default. */}
         <div class="flex flex-wrap items-start gap-2">
-          <Disclosure variant="button" summary={t('settings.addATelegramTarget')} class="contents">
+          <Disclosure variant="button" summary={t('settings.addATelegramTarget')} open={Boolean(telegramSent)} class="contents">
             <div class="order-last basis-full rounded-md border border-line p-4">
-              <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
+              <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2 sm:items-end">
                 <input type="hidden" name="kind" value="telegram" />
                 <Field label={t('settings.name')}>
-                  <Input type="text" name="name" required placeholder={t('settings.myPhone')} />
+                  <Input type="text" name="name" required placeholder={t('settings.myPhone')} value={telegramSent?.name} />
                 </Field>
-                <Field label={t('settings.chatId')}>
-                  <Input type="text" name="chatId" required placeholder="-100…" mono translate="no" />
+                {/* #561: where each value comes from, one sentence each; the address and the key are Telegram's, never translated. */}
+                <Field
+                  label={t('settings.chatId')}
+                  hint={tRich('settings.chatIdHint', {}, {
+                    url: () => (
+                      <span class="break-all">
+                        <Code>{'https://api.telegram.org/bot<token>/getUpdates'}</Code>
+                      </span>
+                    ),
+                    key: () => <Code>{'"chat":{"id":'}</Code>,
+                  })}
+                >
+                  <Input type="text" name="chatId" required placeholder="-100…" mono translate="no" value={telegramSent?.chatId} />
                 </Field>
-                <Field label={t('settings.botToken')} class="sm:col-span-2">
+                <Field label={t('settings.botToken')} hint={t('settings.botTokenHint')} class="sm:col-span-2">
                   <Input
                     type="password"
                     name="botToken"
@@ -1675,7 +1692,7 @@ export interface SourceKeyRow {
   fields: { field: string; label: string; envVar: string; origin: 'db' | 'env' | 'none'; masked: string }[];
 }
 
-const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
+const SourceKeysSection: FC<{ rows: SourceKeyRow[]; openSourceKeys?: string }> = ({ rows, openSourceKeys }) => (
   <Section
     id="source-keys"
     title={t('settings.extraSourcesAFreeAccount')}
@@ -1709,52 +1726,62 @@ const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
               {r.terms}
             </a>
           </p>
-          {/* The fields open on demand: a source nobody uses shows what it is and how to get it, not four empty inputs. */}
-          <Disclosure summary={r.ready ? t('settings.changeKeys') : t('settings.connectSource', { source: r.label })} class="mt-2">
-            {r.fields.map((f) => (
-              <form method="post" action="/settings/sources/key" class="mt-2.5 flex flex-wrap items-end gap-2">
-                <input type="hidden" name="source" value={r.source} />
-                <input type="hidden" name="field" value={f.field} />
-                <div class="flex min-w-[9rem] flex-col gap-1 text-meta text-ink-muted">
-                  {/* The vendor's own name for the field, as its sign-up page writes it. */}
-                  <span class="font-medium text-ink" translate="no">
-                    {f.label}
-                  </span>
-                  {f.origin === 'db' && (
-                    <span>
-                      <Badge tone="ok">{t('settings.saved')}</Badge>{' '}
-                      <span class="font-mono" translate="no">
-                        {f.masked}
+          {/* The fields open on demand: a source nobody uses shows what it is and how to get it, not four empty inputs.
+              One form takes both values with one Save, and the card stays open after it to say what came of it (#561). */}
+          <Disclosure summary={r.ready ? t('settings.changeKeys') : t('settings.connectSource', { source: r.label })} open={r.source === openSourceKeys} class="mt-2">
+            <form method="post" action="/settings/sources/key" class="mt-2.5 space-y-2.5">
+              <input type="hidden" name="source" value={r.source} />
+              {r.fields.map((f) => (
+                <div class="flex flex-wrap items-end gap-2">
+                  <div class="flex min-w-[9rem] flex-col gap-1 text-meta text-ink-muted">
+                    {/* The vendor's own name for the field, as its sign-up page writes it. */}
+                    <span class="font-medium text-ink" translate="no">
+                      {f.label}
+                    </span>
+                    {f.origin === 'db' && (
+                      <span>
+                        <Badge tone="ok">{t('settings.saved')}</Badge>{' '}
+                        <span class="font-mono" translate="no">
+                          {f.masked}
+                        </span>
                       </span>
-                    </span>
-                  )}
-                  {f.origin === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
-                  {f.origin === 'none' && (
-                    <span class="text-ink-faint" translate="no">
-                      {f.envVar}
-                    </span>
+                    )}
+                    {f.origin === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
+                    {f.origin === 'none' && (
+                      <span class="text-ink-faint" translate="no">
+                        {f.envVar}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    type="password"
+                    name={f.field}
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label={t('settings.sourceKeyField', { source: r.label, field: f.label })}
+                    placeholder={f.origin === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
+                    mono
+                    class="min-w-[14rem] flex-1"
+                  />
+                  {/* Its own form's button (below), so Enter in a field saves instead of removing. */}
+                  {f.origin === 'db' && (
+                    <Button size="sm" variant="danger" form={`source-key-${r.source}-${f.field}`}>
+                      {t('common.remove')}
+                    </Button>
                   )}
                 </div>
-                <Input
-                  type="password"
-                  name="key"
-                  autocomplete="off"
-                  spellcheck="false"
-                  aria-label={t('settings.sourceKeyField', { source: r.label, field: f.label })}
-                  placeholder={f.origin === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
-                  mono
-                  class="min-w-[14rem] flex-1"
-                />
-                <Button variant="secondary">
-                  {t('common.save')}
-                </Button>
-                {f.origin === 'db' && (
-                  <Button size="sm" variant="danger" name="clear" value="1">
-                    {t('common.remove')}
-                  </Button>
-                )}
-              </form>
-            ))}
+              ))}
+              <Button variant="secondary">{t('common.save')}</Button>
+            </form>
+            {r.fields
+              .filter((f) => f.origin === 'db')
+              .map((f) => (
+                <form id={`source-key-${r.source}-${f.field}`} method="post" action="/settings/sources/key" hidden>
+                  <input type="hidden" name="source" value={r.source} />
+                  <input type="hidden" name="field" value={f.field} />
+                  <input type="hidden" name="clear" value="1" />
+                </form>
+              ))}
           </Disclosure>
           <Hint class="mt-2">
             {r.ready
