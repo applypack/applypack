@@ -203,6 +203,18 @@ test('joinWrapped keeps a finished sentence apart and joins a broken one', () =>
   assert.deepEqual(joinWrapped(['A line broken at the page', 'width, like this.']), ['A line broken at the page width, like this.']);
   assert.deepEqual(joinWrapped(['• First bullet', '• Second bullet']), ['• First bullet', '• Second bullet']);
   assert.deepEqual(joinWrapped(['Company,', 'Somewhere']), ['Company, Somewhere']);
+  // A contact line opens lower-case after a title with no full stop: it is not a wrap.
+  assert.deepEqual(joinWrapped(['Senior Full-Stack Developer', 'dana.ruiz@example.com · github.com/dana']), [
+    'Senior Full-Stack Developer',
+    'dana.ruiz@example.com · github.com/dana',
+  ]);
+  assert.deepEqual(joinWrapped(['Data Engineer', 'github.com/dana']), ['Data Engineer', 'github.com/dana']);
+  assert.deepEqual(joinWrapped(['Data Engineer', '+1 512 555 0147']), ['Data Engineer', '+1 512 555 0147']);
+  assert.deepEqual(joinWrapped(['Data Engineer', '512-555-0147 · dana@example.com']), ['Data Engineer', '512-555-0147 · dana@example.com']);
+  // A link that opens a sentence is still the rest of a wrapped bullet.
+  assert.deepEqual(joinWrapped(['• Wrote the docs at', 'github.com/acme/docs and the API reference']), [
+    '• Wrote the docs at github.com/acme/docs and the API reference',
+  ]);
 });
 
 test('a heading in ordinary case is a section when the whole line is one', () => {
@@ -230,6 +242,20 @@ test('a contact line that opens with the title gives the label, and a date takes
   assert.equal(r.basics.location, 'Lisbon, Portugal');
   assert.equal(r.work[0]?.position, 'Senior Developer - Harborline (remote)');
   assert.equal(r.work[0]?.startDate, '2022');
+});
+
+test('a title a PDF put on the contact line is kept as the label, and a field label is not', () => {
+  // Our own clean PDF, read back: the text layer joined the title and the contact line.
+  const r = structureFromText('Dana Ruiz\nSenior Full-Stack Developer dana.ruiz@example.com · github.com/danaruiz-dev\n\nSummary\nFull-stack engineer.');
+  assert.equal(r.basics.label, 'Senior Full-Stack Developer');
+  assert.equal(r.basics.email, 'dana.ruiz@example.com');
+  assert.equal(r.basics.url, 'github.com/danaruiz-dev');
+  assert.deepEqual(r.basics.lines, []);
+  const labelled = structureFromText('Jane Example\nSenior Developer\nEmail: jane@example.com | Phone: +1 512 555 0147').basics;
+  assert.deepEqual([labelled.email, labelled.phone, labelled.lines], ['jane@example.com', '+1 512 555 0147', []]);
+  // Words no field reads stay a header line, and the address is not printed twice.
+  const unread = structureFromText('Jane Example\nSenior Developer\nOn call weekends jane@example.com').basics;
+  assert.deepEqual([unread.email, unread.lines], ['jane@example.com', ['On call weekends']]);
 });
 
 test('a title with a comma opens the contact line before the place (#624)', () => {
