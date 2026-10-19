@@ -148,7 +148,7 @@ async function onSchedule(
 function registerCron(
   expression: string,
   name: string,
-  fn: () => Promise<void>,
+  fn: () => Promise<unknown>,
   /** `quiet`: a beat a minute would otherwise write its start and end 2 880 times a day. */
   { quiet = false }: { quiet?: boolean } = {},
 ): void {

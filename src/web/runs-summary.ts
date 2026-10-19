@@ -178,6 +178,12 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
   return out;
 }
 
+/** A finished run in one line, for the terminal of the once-script that ran it (#571): what /runs says of it. */
+export function runSummaryLine(name: string, stats: CronStats | null): string {
+  const facts = summarizeRun(name, stats ?? {});
+  return `${name}: ${facts.length > 0 ? facts.join(' · ') : t('run.status.ok')}`;
+}
+
 /**
  * A run that finished and scored nothing it tried to (#366): postings reached
  * the classifier, and not one came back with a verdict — neither scored nor

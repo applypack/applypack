@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { failedRunLine, runName, summarizeRun, unscoredRun } from './runs-summary';
+import { failedRunLine, runName, runSummaryLine, summarizeRun, unscoredRun } from './runs-summary';
 import { withLocale } from '../i18n/locale';
 
 describe('summarizeRun', () => {
@@ -185,6 +185,21 @@ describe('summarizeRun', () => {
     assert.deepEqual(summarizeRun('import', { skipped: 1, reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
     // The shared wording stands for every other job.
     assert.equal(summarizeRun('fetch', { fetched: 250 })[0], '250 fetched');
+  });
+});
+
+describe('runSummaryLine (#571)', () => {
+  it('gives a once-script the line /runs shows, its name first', () => {
+    const cleanup = { deleted: 0, dismissalsForgotten: 0, screeningsDeleted: 0, runsDeleted: 2, aiCallsDeleted: 0, durationMs: 5 };
+    assert.equal(runSummaryLine('cleanup', cleanup), 'cleanup: 0 old jobs deleted · 2 old runs deleted');
+    assert.equal(runSummaryLine('digest', { skipped: 1, reason: 'no-targets', durationMs: 7 }), 'digest: No chat to send to');
+    const fetched = { fetched: 40, persisted: 0, bySource: [{ name: 'Remotive', status: 'ok', count: 40, ms: 900 }] };
+    assert.equal(runSummaryLine('fetch-now', fetched), 'fetch-now: 40 fetched · 0 stored');
+  });
+
+  it('says OK for a run that recorded nothing to tell', () => {
+    assert.equal(runSummaryLine('discovery', null), 'discovery: OK');
+    assert.equal(runSummaryLine('pack', { durationMs: 12 }), 'pack: OK');
   });
 });
 

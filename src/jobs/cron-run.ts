@@ -38,12 +38,13 @@ interface RunResult<T> {
  * Wraps a cron task with start/finish bookkeeping in the CronRun table.
  *
  * The wrapped function may either return void (no stats), or return
- * { result, stats } to record structured stats on the row.
+ * { result, stats } to record structured stats on the row. The stats come
+ * back too: a once-script prints them for the terminal that ran it.
  */
 export async function recordCronRun<T>(
   name: RunName,
   fn: () => Promise<T> | Promise<RunResult<T>> | Promise<void>,
-): Promise<void> {
+): Promise<CronStats | null> {
   const run = await prisma.cronRun.create({
     data: { name, status: CronRunStatus.RUNNING },
   });
@@ -59,6 +60,7 @@ export async function recordCronRun<T>(
         stats: stats ?? Prisma.JsonNull,
       },
     });
+    return stats;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, name, runId: run.id }, 'cron-run: task failed');
