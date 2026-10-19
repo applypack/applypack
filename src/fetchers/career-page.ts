@@ -63,11 +63,12 @@ export async function fetchCareerPage(company: CareerPageCompany): Promise<Norma
   const base = { companyId: company.id, companyName: company.name, url };
   if (decision.kind === 'first') {
     // No previous text to differ from: remember it and say nothing.
-    stagePageChange({ ...base, hash: decision.hash, announce: false });
+    stagePageChange({ ...base, kind: 'first', hash: decision.hash });
     logger.info({ company: company.name }, 'career-page: first read, nothing to report');
   } else if (decision.kind === 'changed') {
-    stagePageChange({ ...base, hash: decision.hash, announce: true });
+    stagePageChange({ ...base, kind: 'changed', hash: decision.hash });
   } else if (decision.kind === 'held') {
+    stagePageChange({ ...base, kind: 'held' });
     logger.info({ company: company.name }, 'career-page: changed again inside the daily window; still pending');
     // Nothing is written for this change, so the next check has to read the
     // page in full: a 304 on the validator would hide it until the page

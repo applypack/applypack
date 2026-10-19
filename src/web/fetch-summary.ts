@@ -52,6 +52,25 @@ export function summarizeFetchRun(stats: CronStats, label = t('fetch.fetchNow'),
   };
 }
 
+/**
+ * "Check now" on a change watch (#533). Such a page never yields a job, so
+ * the shared summary's "no jobs — check the network" blamed the network for
+ * a page that was read. This says whether it was read and what it found.
+ * Null when the run did not get as far as the page — the shared summary
+ * speaks for those.
+ */
+export function pageCheckLine(label: string, stats: CronStats): { kind: FlashKind; text: string } | null {
+  const source = Array.isArray(stats.bySource) ? stats.bySource[0] : undefined;
+  if (!source || typeof stats.reason === 'string') return null;
+  if (source.status !== 'empty' && source.status !== 'not_modified') {
+    return { kind: 'err', text: t('fetchSummary.page.notRead', { label, status: source.status }) };
+  }
+  if (num(stats, 'pageChangesFound') > 0) return { kind: 'ok', text: t('fetchSummary.page.changed', { label }) };
+  if (num(stats, 'pageChangesHeld') > 0) return { kind: 'ok', text: t('fetchSummary.page.held', { label }) };
+  if (num(stats, 'pagesFirstRead') > 0) return { kind: 'ok', text: t('fetchSummary.page.first', { label }) };
+  return { kind: 'ok', text: t('fetchSummary.page.unchanged', { label }) };
+}
+
 /** " The filter set aside 500: 480 without a title keyword, 20 outside your places." — its two largest gates (N2). */
 function filteredClause(stats: CronStats): string {
   const why = reasonsText(filteredReasons(funnelCounts(stats)), 2);

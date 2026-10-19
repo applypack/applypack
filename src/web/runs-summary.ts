@@ -110,6 +110,10 @@ const ELSEWHERE = new Set([
   'filterRejected',
   'preFiltered',
   'dismissed',
+  // What a read of a watched careers page found: a Check now's flash says it (#533).
+  'pagesFirstRead',
+  'pageChangesFound',
+  'pageChangesHeld',
   ...Object.values(FILTER_KEY),
   ...Object.values(DISMISS_KEY),
 ]);

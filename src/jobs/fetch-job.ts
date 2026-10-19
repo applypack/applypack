@@ -169,7 +169,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   // Written down straight after the walk, and reported at once if the
   // schedule allows: the message carries no posting and costs no AI, so there
   // is nothing to wait for.
-  await recordPageChanges();
+  const pages = await recordPageChanges();
   const pagesNow = await deliverPageChanges(new Date(), schedule);
   if (pagesNow.alerted > 0) delivery.pagesChanged = pagesWaiting.alerted + pagesNow.alerted;
 
@@ -261,6 +261,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
     candidatesRecorded: candidates,
     ...licence,
     ...delivery,
+    ...pages,
     ...inner,
     durationMs,
     bySource,

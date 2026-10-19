@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizeFetchRun } from './fetch-summary';
+import { pageCheckLine, summarizeFetchRun } from './fetch-summary';
 
 const base = { fetched: 312, sources: 71, sourcesFailed: 0, durationMs: 40_000, persisted: 118 };
 
@@ -82,4 +82,37 @@ test('aborted runs and a blank profile are named honestly', () => {
 test('summarizeFetchRun opens with the label the run was started under', () => {
   const { text } = summarizeFetchRun({ fetched: 0, sources: 1, sourcesUnchanged: 1, durationMs: 400 }, 'Checked Acme');
   assert.match(text, /^Checked Acme: nothing new in /);
+});
+
+/** A Check now on a change watch: one page read, never a job (#533). */
+const pageRun = (status: string, extra: Record<string, number> = {}) => ({
+  fetched: 0,
+  sources: 1,
+  sourcesFailed: status === 'empty' || status === 'not_modified' ? 0 : 1,
+  durationMs: 1_200,
+  bySource: [{ name: 'Datadog', status, count: 0, ms: 1_200 }],
+  ...extra,
+});
+
+test('Check now on a change watch says the page was read, not that the network failed (#533)', () => {
+  for (const status of ['empty', 'not_modified']) {
+    const line = pageCheckLine('Checked Datadog', pageRun(status));
+    assert.equal(line?.kind, 'ok');
+    assert.equal(line?.text, 'Checked Datadog: the page was read — unchanged since the last check.');
+  }
+  // What the shared summary said for the same run.
+  assert.match(summarizeFetchRun(pageRun('empty'), 'Checked Datadog').text, /check the network/);
+});
+
+test('Check now on a change watch says what the page did', () => {
+  assert.match(pageCheckLine('Checked Todoist', pageRun('empty', { pageChangesFound: 1 }))?.text ?? '', /^Checked Todoist: the page changed since the last check\. One message/);
+  assert.match(pageCheckLine('Checked Todoist', pageRun('empty', { pageChangesHeld: 1 }))?.text ?? '', /changed again, less than a day after the last notice/);
+  assert.match(pageCheckLine('Checked Todoist', pageRun('empty', { pagesFirstRead: 1 }))?.text ?? '', /read for the first time/);
+});
+
+test('Check now on a change watch that could not read the page says so, and leaves the rest to the shared summary', () => {
+  const line = pageCheckLine('Checked Todoist', pageRun('slug_gone'));
+  assert.equal(line?.kind, 'err');
+  assert.match(line?.text ?? '', /^Checked Todoist: the page was not read — it is gone\./);
+  assert.equal(pageCheckLine('Checked Todoist', { skipped: 1, reason: 'overlap' }), null);
 });

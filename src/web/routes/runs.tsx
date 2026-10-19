@@ -6,7 +6,7 @@ import { FetchRunPage } from '../pages/fetch-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { FETCH_RUN_STEPS, activeFetchRun, getFetchRun, isSetupSearch } from '../fetch-runs';
 import { beginFetchNow } from '../fetch-now';
-import { summarizeFetchRun } from '../fetch-summary';
+import { pageCheckLine, summarizeFetchRun } from '../fetch-summary';
 import { folderCheckLine } from '../folder-words';
 import { loadFunnel, loadSourceYield } from '../../jobs/funnel-store';
 import { t } from '../../i18n/t';
@@ -73,8 +73,14 @@ runsRoute.get('/runs/fetch-now/:id', (c) => {
   if (run.stage === 'done') {
     const setup = isSetupSearch(run);
     const label = typeof run.scope === 'object' ? t('runs.checked', { name: run.scope.name }) : setup ? t('fetch.testSearch') : undefined;
-    // A folder that brought nothing has its own two sentences: there is no network to check.
-    const own = typeof run.scope === 'object' && run.scope.folder ? folderCheckLine(t('runs.checked', { name: run.scope.name }), run.stats ?? {}) : null;
+    // A folder that brought nothing, and a change watch, have their own sentences: no job was the point.
+    const scope = typeof run.scope === 'object' ? run.scope : null;
+    const checked = scope ? t('runs.checked', { name: scope.name }) : '';
+    const own = scope?.folder
+      ? folderCheckLine(checked, run.stats ?? {})
+      : scope?.changeWatch
+        ? pageCheckLine(checked, run.stats ?? {})
+        : null;
     const { kind, text } = own ?? summarizeFetchRun(run.stats ?? {}, label, setup);
     return flashRedirect(run.backUrl, kind, text);
   }
