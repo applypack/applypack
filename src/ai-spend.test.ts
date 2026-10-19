@@ -11,12 +11,15 @@ import {
   jobSpendText,
   formatUsd,
   ledgerRow,
+  packCostHint,
+  packSpendText,
   periodRange,
   slowTail,
   spendReportLines,
   spendView,
   usageByModel,
   typicalMicro,
+  typicalPackSpend,
   type LedgerInput,
   type SpendGroup,
 } from './ai-spend';
@@ -44,6 +47,8 @@ test('a row carries the usage as reported, priced by the resolved model and date
   assert.equal(row.durationMs, 1_235);
   assert.equal(row.cacheReadTokens, null);
   assert.deepEqual([row.jobId, row.resumeId], [7, 2]);
+  assert.equal(row.packId, null);
+  assert.equal(ledgerRow(attempt({ packId: 31 })).packId, 31);
 });
 
 test('a timeout has no usage and no cost; the vendor\'s own figure is kept beside ours', () => {
@@ -244,3 +249,34 @@ test('"9 in 10 under" needs ten answers and a tail slower than the middle — on
   assert.equal(slowTail(20, null, null), null);
 });
 
+
+test('what packs cost in a period, by kind of money and never one sum (#487)', () => {
+  assert.equal(packSpendText({ packs: 0, calls: 0, spend: {} }), null);
+  assert.equal(
+    packSpendText({ packs: 3, calls: 14, spend: { billed: 400_000, plan: 1_200_000 } }),
+    'Application packs: 3 packs, 14 calls — $0.40 billed · ≈ $1.20 covered by your plan.',
+  );
+  assert.equal(packSpendText({ packs: 1, calls: 1, spend: { local: 0 } }), 'Application packs: 1 pack, 1 call — local calls, free.');
+});
+
+test('the typical pack is the middle one per kind of money, from three packs on', () => {
+  assert.equal(typicalPackSpend([]), null);
+  assert.equal(typicalPackSpend([{ plan: 800_000 }, { plan: 900_000 }]), null);
+  assert.deepEqual(typicalPackSpend([{ plan: 800_000 }, { plan: 900_000 }, { plan: 300_000 }]), { plan: 800_000 });
+  // One billed fallback in four is not what a pack costs; a local step most packs took is said.
+  assert.deepEqual(
+    typicalPackSpend([{ plan: 800_000, local: 0 }, { plan: 900_000, local: 0 }, { plan: 700_000, billed: 50_000, local: 0 }, { plan: 600_000 }]),
+    { plan: 750_000, local: 0 },
+  );
+  // Half the packs on each kind: both are said, each the middle with the other half at nothing.
+  assert.deepEqual(typicalPackSpend([{ billed: 100_000 }, { billed: 300_000 }, { plan: 500_000 }, { plan: 700_000 }]), { billed: 50_000, plan: 250_000 });
+});
+
+test('the line under Prepare the pack quotes the typical pack once three are on record', () => {
+  assert.equal(packCostHint([{ billed: 860_000 }, { billed: 900_000 }]), null);
+  assert.equal(
+    packCostHint([{ billed: 860_000 }, { billed: 900_000 }, { billed: 700_000 }]),
+    'A pack prepared to the end has usually cost: $0.86 billed (the middle of your last 3 packs).',
+  );
+  assert.equal(packCostHint([{ local: 0 }, { local: 0 }, { local: 0 }]), 'A pack prepared to the end has usually cost: local calls, free (the middle of your last 3 packs).');
+});

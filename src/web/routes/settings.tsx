@@ -31,6 +31,7 @@ import {
   setOpenAiBaseUrl,
   setPackSettings,
   setReapplyDays,
+  setDashboardUrl,
   setUpdateCheck,
   setTelegramEnabled,
   testTelegramTarget,
@@ -89,6 +90,7 @@ import { isNewer } from '../../versions';
 import { isReapplyChoice } from '../../employer';
 import { forgetUpdateNotice } from '../update-notice';
 import { billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
+import { checkDashboardUrl } from '../../notify/dashboard-link';
 import { billingNotes } from '../../ai-spend';
 import { engineTroubles } from '../../ai-health';
 import { troubleLine } from '../usage-hints';
@@ -254,7 +256,8 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
   return e.lastResort ? AI_PROVIDER_IDS.length : AI_PROVIDER_IDS.length + 1;
 }
 
-async function loadSettingsProps() {
+/** `here` is the address this page was asked at: the example the dashboard address field offers. */
+async function loadSettingsProps(here: string) {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
@@ -384,6 +387,7 @@ async function loadSettingsProps() {
     })),
     staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
     reapplyDays: settings.reapplyDays,
+    dashboard: { url: settings.dashboardUrl, here },
     pack: parsePackSettings(settings.pack),
     loginItem: loginItemState(),
     updates: {
@@ -452,7 +456,7 @@ async function loadSettingsProps() {
 }
 
 settingsRoute.get('/settings', async (c) => {
-  const props = await loadSettingsProps();
+  const props = await loadSettingsProps(new URL(c.req.url).origin);
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
   // ?profile= points the editor at a specific (possibly inactive) profile.
@@ -1053,6 +1057,24 @@ settingsRoute.post('/settings/pack', async (c) => {
   );
 });
 
+/** #487: the dashboard's address for links in messages; an empty field takes the links out again. */
+settingsRoute.post('/settings/dashboard-url', async (c) => {
+  const form = await c.req.parseBody();
+  const typed = typeof form.url === 'string' ? form.url.trim() : '';
+  const back = '/settings?tab=notifications#links';
+  if (typed === '') {
+    await setDashboardUrl(null);
+    return flashRedirect(back, 'ok', t('settingsRoute.dashboardUrl.cleared'));
+  }
+  const checked = checkDashboardUrl(typed);
+  if (!checked.ok) {
+    const field = { form: '/settings/dashboard-url', name: 'url' };
+    return flashRedirect(back, 'err', t('settingsRoute.dashboardUrl.notSaved', { reason: checked.reason }), { field });
+  }
+  await setDashboardUrl(checked.url);
+  return flashRedirect(back, 'ok', t('settingsRoute.dashboardUrl.saved', { url: checked.url }));
+});
+
 /** ADR 0056: the re-apply window — one of the listed choices, or off. */
 settingsRoute.post('/settings/reapply', async (c) => {
   const body = await c.req.parseBody();
@@ -1524,7 +1546,7 @@ settingsRoute.post(
     );
   }
 
-  const props = await loadSettingsProps();
+  const props = await loadSettingsProps(new URL(c.req.url).origin);
   return c.html(
     <SettingsPage
       {...props}

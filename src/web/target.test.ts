@@ -153,6 +153,21 @@ test('target-page module imports without a DOM and exposes init', async () => {
   assert.equal(typeof page.init, 'function');
 });
 
+test('a pack opens on the Tailor page as its edits, never over the person\'s own draft (#487)', async () => {
+  type Seed = { text: string; edits: { applied: Record<string, unknown>; order: string[] } };
+  type Stored = { draft: string | null; edits: string | null };
+  // @ts-expect-error — plain JS with no declaration file.
+  const { openWithPack } = (await import('./public/target-page.mjs')) as { openWithPack: (seed: Seed | null, stored: Stored) => unknown };
+  const seed = { text: 'tailored', edits: { applied: { card1: { start: 0, removed: 'a', inserted: 'b' } }, order: ['card1'] } };
+  assert.deepEqual(openWithPack(seed, { draft: null, edits: null }), {
+    draft: 'tailored',
+    edits: { applied: seed.edits.applied, skipped: [], order: ['card1'] },
+  });
+  assert.equal(openWithPack(null, { draft: null, edits: null }), null);
+  assert.equal(openWithPack(seed, { draft: 'my own words', edits: null }), null);
+  assert.equal(openWithPack(seed, { draft: null, edits: '{"applied":{},"skipped":["x"]}' }), null);
+});
+
 test('the ring\'s live tone agrees with the server\'s fitTone at every cut-off', async () => {
   // The ring is drawn by the server at the stored score and then repainted by
   // target-page.mjs on every edit. Two implementations of the same four steps:

@@ -3,8 +3,24 @@ import { getSettings, listActiveNotificationTargets, markTargetUsed } from './se
 import { prisma } from './db';
 import type { NotificationTarget } from '@prisma/client';
 import type { AlertJob } from './types';
-import { formatPlaceLine, formatSalary, hasApplyLink, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './notify/lines';
-import { deliverDiscord, escapeDiscord, formatDiscordAlert, formatDiscordDigest, formatDiscordPageChanges } from './notify/discord';
+import {
+  formatPlaceLine,
+  formatSalary,
+  hasApplyLink,
+  jobPageLink,
+  quietSourceList,
+  type MessageLine,
+  type PageChangeNotice,
+  type QuietSourceAlert,
+} from './notify/lines';
+import {
+  deliverDiscord,
+  escapeDiscord,
+  formatDiscordAlert,
+  formatDiscordDigest,
+  formatDiscordPackNotice,
+  formatDiscordPageChanges,
+} from './notify/discord';
 import { tMarkup, type ChannelMarkup } from './notify/markup';
 import { packMessages } from './notify/pack';
 import type { MessageKey } from './i18n/catalog';
@@ -84,7 +100,13 @@ export async function alertChannel(): Promise<AlertChannel> {
  * passing the row invited callers to think the message was per-profile.
  */
 export async function sendAlert(job: AlertJob, targetId?: number | null): Promise<Delivery> {
-  return broadcast({ telegram: [formatJobMessage(job)], discord: [formatDiscordAlert(job)] }, targetId);
+  const address = await dashboardAddress();
+  return broadcast({ telegram: [formatJobMessage(job, address)], discord: [formatDiscordAlert(job, address)] }, targetId);
+}
+
+/** Where the person opens the dashboard, for the links a message carries (#487); null = none. */
+export async function dashboardAddress(): Promise<string | null> {
+  return (await getSettings()).dashboardUrl;
 }
 
 export async function sendDigest(
@@ -98,10 +120,11 @@ export async function sendDigest(
   /** New jobs stored without a score (found while paused): one line, never a match and never in the count. */
   unscored = 0,
 ): Promise<Delivery> {
+  const address = await dashboardAddress();
   return broadcast(
     {
-      telegram: formatTelegramDigest(jobs, quiet, title, more, unscored),
-      discord: formatDiscordDigest(jobs, quiet, title, more, unscored),
+      telegram: formatTelegramDigest(jobs, quiet, title, more, unscored, address),
+      discord: formatDiscordDigest(jobs, quiet, title, more, unscored, address),
     },
     targetId,
   );
@@ -114,6 +137,8 @@ export function formatTelegramDigest(
   title: string,
   more = 0,
   unscored = 0,
+  /** The dashboard's address: each match then links to its page there (#487). */
+  address: string | null = null,
 ): string[] {
   const healthLine = formatSourceHealthLine([...quiet]);
   const waiting = unscored > 0 ? telegramText('digest.unscored', { n: unscored }) : '';
@@ -121,7 +146,7 @@ export function formatTelegramDigest(
     return [[telegramText('digest.empty'), waiting, healthLine].filter((part) => part !== '').join('\n\n')];
   }
   const header = `*${telegramText('digest.header', { title, n: jobs.length + more })}*${healthLine ? `\n${healthLine}` : ''}`;
-  const blocks = jobs.map(formatJobMessage);
+  const blocks = jobs.map((job) => formatJobMessage(job, address));
   // The last line of a delivery that lists only the best of a long wait; the rest are still New on the dashboard.
   if (more > 0) blocks.push(telegramText('digest.more', { n: more }));
   if (waiting) blocks.push(waiting);
@@ -226,7 +251,7 @@ async function deliverTelegram(target: NotificationTarget, text: string): Promis
 
 /** Pure — exported so the MarkdownV2 escaping can be unit-tested; Telegram
  *  rejects a whole message on a single unescaped special character. */
-export function formatJobMessage(job: AlertJob): string {
+export function formatJobMessage(job: AlertJob, address: string | null = null): string {
   const lines: string[] = [];
   // The header names the search that wanted it, so a reader running several
   // knows which hunt fired without opening the link (ADR 0028). A watched
@@ -264,6 +289,11 @@ export function formatJobMessage(job: AlertJob): string {
     lines.push(escapeMarkdownV2(job.attribution));
   }
   if (hasApplyLink(job)) lines.push(`[${telegramText('notify.alert.apply')}](${escapeMarkdownV2Url(job.url)})`);
+  // Written out, not a text link: the address may be 127.0.0.1 or a host on
+  // the person's own network, and a link Telegram will not take must not
+  // cost the message.
+  const page = jobPageLink(job, address);
+  if (page) lines.push(`${telegramText('notify.alert.open')} ${escapeMarkdownV2(page)}`);
   return lines.join('\n');
 }
 
@@ -304,9 +334,19 @@ export async function sendBudgetAlert(text: string): Promise<Delivery> {
   return broadcast({ telegram: [escapeMarkdownV2(text)], discord: [escapeDiscord(text)] }, null);
 }
 
-/** The grouped "packs ready" message (ADR 0063), as plain lines (pack/view.ts:packNoticeLines). */
-export async function sendPackNotice(lines: readonly string[]): Promise<Delivery> {
-  return broadcast({ telegram: [lines.map(escapeMarkdownV2).join('\n')], discord: [lines.map(escapeDiscord).join('\n')] }, null);
+/** The grouped "packs ready" message (ADR 0063), its lines as pack/view.ts:packNoticeLines words them. */
+export async function sendPackNotice(lines: readonly MessageLine[]): Promise<Delivery> {
+  return broadcast({ telegram: formatPackNotice(lines), discord: formatDiscordPackNotice(lines) }, null);
+}
+
+/**
+ * The packs message in MarkdownV2: each line escaped, and under a pack's line
+ * its tab, written out as an alert's is — in as many messages as the limit
+ * needs, since Telegram refuses a longer one whole. Pure.
+ */
+export function formatPackNotice(lines: readonly MessageLine[]): string[] {
+  const blocks = lines.map((l) => escapeMarkdownV2(l.text) + (l.link ? `\n  ${escapeMarkdownV2(l.link)}` : ''));
+  return packMessages('', blocks, '\n', MAX_MESSAGE_LENGTH);
 }
 
 export function escapeMarkdownV2(text: string): string {

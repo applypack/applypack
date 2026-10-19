@@ -434,6 +434,12 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=applications#reapply',
     },
     {
+      // Kept for the pages after it: Notifications then renders a stored address (#487).
+      name: 'POST /settings/dashboard-url',
+      init: form({ url: 'http://127.0.0.1:4747/' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=notifications#links',
+    },
+    {
       // The schedule is three forms on three tabs: each saves its own part and keeps the stored rest.
       name: 'POST /settings/schedule (alert timing, from Notifications)',
       init: form({ part: 'alerts', alertMode: 'digest', alertFrom: '9', alertTo: '18', alertDays: '1', digestAt: '8' }),
@@ -649,6 +655,7 @@ async function main(): Promise<void> {
     '/jobs',
     '/companies/mutes/delete',
     '/settings/reapply',
+    '/settings/dashboard-url',
     '/settings/schedule',
     '/settings/schedule',
     '/settings/schedule',

@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.60.0] — 2026-10-18
+
+### Added
+- Settings → Notifications → "Dashboard address for links in messages": with
+  it, match alerts and the application packs message link to the job in
+  ApplyPack.
+- AI usage shows what application packs cost in the period, and the line
+  under **Prepare the pack** gives the typical cost of one pack once three
+  have been prepared.
+
+### Changed
+- "Go on in the Tailor page" from a pack opens the pack's edits as applied
+  cards, each with its own Undo, and Undo all returns your resume as it was.
+- A long "packs ready" message is sent in parts instead of failing or being
+  cut off.
+
 ## [2.59.4] — 2026-10-18
 
 ### Changed
@@ -6229,6 +6245,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.60.0]: https://github.com/applypack/applypack/compare/v2.59.4...v2.60.0
 [2.59.4]: https://github.com/applypack/applypack/compare/v2.59.3...v2.59.4
 [2.59.3]: https://github.com/applypack/applypack/compare/v2.59.2...v2.59.3
 [2.59.2]: https://github.com/applypack/applypack/compare/v2.59.1...v2.59.2

@@ -468,9 +468,13 @@ model AiCall {
   // history outlives a deleted job or resume.
   jobId              Int?
   resumeId           Int?
+  // The application pack whose preparation made the call (ADR 0063, #487);
+  // NULL for every other call and for the calls made before the column.
+  packId             Int?
 
   @@index([at])
   @@index([jobId])
+  @@index([packId])
   // The estimate under a button reads the last twenty of one feature.
   @@index([feature, at])
   @@map("ai_call")
@@ -593,6 +597,9 @@ model AppSettings {
   // (src/pack/settings.ts). NULL = off, which is every install until its
   // owner switches it on.
   pack                           Json?
+  // #487: the address the person opens the dashboard at, so a message can link
+  // to a job (src/notify/dashboard-link.ts). NULL = messages carry no such link.
+  dashboardUrl                   String?
   updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")

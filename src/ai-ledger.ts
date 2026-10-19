@@ -10,6 +10,7 @@ import {
   typicalMicro,
   type AnswerTimes,
   type LedgerInput,
+  type PackSpend,
   type SpendGroup,
 } from './ai-spend';
 import type { AiBilling, AiFeature, AiOutcome } from './ai-usage';
@@ -21,7 +22,7 @@ import type { RecentAttempt } from './ai-health';
  * src/ai-spend.ts, pure.
  */
 
-/** How many recent calls an estimate is the middle of. */
+/** How many recent calls, or packs, an estimate is the middle of. */
 const TYPICAL_OF = 20;
 
 /**
@@ -240,6 +241,43 @@ export async function typicalCost(feature: AiFeature): Promise<{ micro: number; 
     .filter((c): c is number => c !== null);
   const micro = typicalMicro(costs);
   return micro === null ? null : { micro, billing: latest.billing as AiBilling };
+}
+
+/** What the application packs' own calls came to between two instants (#487); calls made before the mark existed are not among them. */
+export async function loadPackSpend(from: Date, to: Date): Promise<PackSpend> {
+  const [rows, [packs]] = await Promise.all([
+    prisma.$queryRaw<{ billing: AiBilling; calls: number; micro: bigint }[]>`
+      SELECT "billing", count(*)::int AS "calls", COALESCE(sum(COALESCE("costMicroUsd", "reportedMicroUsd")), 0)::bigint AS "micro"
+      FROM "ai_call" WHERE "packId" IS NOT NULL AND "at" >= ${from} AND "at" < ${to} GROUP BY 1`,
+    prisma.$queryRaw<{ n: number }[]>`
+      SELECT count(DISTINCT "packId")::int AS "n" FROM "ai_call" WHERE "packId" IS NOT NULL AND "at" >= ${from} AND "at" < ${to}`,
+  ]);
+  return {
+    packs: packs?.n ?? 0,
+    calls: rows.reduce((n, r) => n + r.calls, 0),
+    spend: Object.fromEntries(rows.map((r) => [r.billing, Number(r.micro)])),
+  };
+}
+
+/**
+ * What each of the last packs prepared to the end spent, by kind of money —
+ * the calls of its latest preparation only: a pack prepared again keeps its
+ * row, and the first attempt's calls are not this one's price.
+ */
+export async function recentPackSpends(): Promise<Partial<Record<AiBilling, number>>[]> {
+  const rows = await prisma.$queryRaw<{ packId: number; billing: AiBilling; micro: bigint }[]>`
+    WITH recent AS (
+      SELECT p."id", p."startedAt" FROM "application_pack" p
+      WHERE p."status" = 'ready' AND EXISTS (SELECT 1 FROM "ai_call" c WHERE c."packId" = p."id" AND c."at" >= p."startedAt")
+      ORDER BY p."finishedAt" DESC
+      LIMIT ${TYPICAL_OF}
+    )
+    SELECT c."packId", c."billing", COALESCE(sum(COALESCE(c."costMicroUsd", c."reportedMicroUsd")), 0)::bigint AS "micro"
+    FROM "ai_call" c JOIN recent r ON r."id" = c."packId" AND c."at" >= r."startedAt"
+    GROUP BY 1, 2`;
+  const byPack = new Map<number, Partial<Record<AiBilling, number>>>();
+  for (const r of rows) byPack.set(r.packId, { ...byPack.get(r.packId), [r.billing]: Number(r.micro) });
+  return [...byPack.values()];
 }
 
 /** What the AI spent on one posting, by kind of money, micro-dollars — null when nothing was recorded for it. */

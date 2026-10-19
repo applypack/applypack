@@ -119,6 +119,7 @@ export async function runChain(
       billing: ctx.billingOf(id),
       jobId: req.subject?.jobId,
       resumeId: req.subject?.resumeId,
+      packId: req.subject?.packId,
     });
     if (row !== null) ledgerIds.push(row);
     if (attempt.text !== null) {

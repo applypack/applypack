@@ -213,6 +213,8 @@ export interface SettingsProps {
   staleApplicationsDigestEnabled: boolean;
   /** ADR 0056: turn postings away at a company applied to in the last N days; null = off. */
   reapplyDays: number | null;
+  /** #487: the address the dashboard is opened at, for links in messages (null = none), and the one this page was asked at. */
+  dashboard: { url: string | null; here: string };
   /** ADR 0063: application packs — off, and these defaults, until the person saves the form. */
   pack: PackSettings;
   /** TASKS N9: the optional weekly look at GitHub's releases, and what it last saw. */
@@ -603,6 +605,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   pipelineStages,
   staleApplicationsDigestEnabled,
   reapplyDays,
+  dashboard,
   pack,
   updates,
   loginItem,
@@ -953,6 +956,26 @@ export const SettingsPage: FC<SettingsProps> = ({
               {t('settings.aDailyNudgeForApplications')}
             </ToggleRow>
           </div>
+          {/* Empty is the default and clears it: one form, one button. */}
+          <form id="links" method="post" action="/settings/dashboard-url" class="border-t border-line pt-5">
+            <div class="flex flex-wrap items-end gap-2">
+              <Field label={t('settings.dashboardUrl')} hint={t('settings.dashboardUrlHint')} class="min-w-[16rem] flex-1">
+                <Input
+                  type="text"
+                  inputmode="url"
+                  name="url"
+                  autocomplete="off"
+                  spellcheck="false"
+                  value={dashboard.url ?? ''}
+                  placeholder={dashboard.here}
+                  mono
+                  translate="no"
+                />
+              </Field>
+              <Button variant="secondary">{t('common.save')}</Button>
+            </div>
+            <More class="mt-1.5">{t('settings.dashboardUrlMore')}</More>
+          </form>
         </div>
       </Section>
       )}
