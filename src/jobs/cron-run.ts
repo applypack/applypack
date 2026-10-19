@@ -2,12 +2,29 @@ import { CronRunStatus, Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 
+/** Every job that writes a run row: /runs and the Overview word each through the catalog (`runs-summary.ts:runName`). */
+export type RunName =
+  | 'fetch'
+  | 'fetch-now'
+  | 'folder-watch'
+  | 'hn-hiring'
+  | 'import'
+  | 'digest'
+  | 'stale-applications'
+  | 'cleanup'
+  | 'discovery'
+  | 'pack'
+  | 'reclassify-all'
+  | 'score-unscored';
+
 /** One source's answer in a fetch tick — which boards took the time and which failed (docs/onboarding-sources.md §1). */
 export type SourceStat = {
   name: string;
   status: string;
   count: number;
   ms: number;
+  /** The source's `atsType`, so a folder's status is said in a folder's words; absent on rows stored before it. */
+  kind?: string;
 };
 
 export type CronStats = Record<string, number | string | boolean | null | SourceStat[]>;
@@ -25,7 +42,7 @@ interface RunResult<T> {
  * back too: a once-script prints them for the terminal that ran it.
  */
 export async function recordCronRun<T>(
-  name: string,
+  name: RunName,
   fn: () => Promise<T> | Promise<RunResult<T>> | Promise<void>,
 ): Promise<CronStats | null> {
   const run = await prisma.cronRun.create({
@@ -72,7 +89,7 @@ export async function recordCronRun<T>(
  * executes, so a caller inside a job reads the run before it — which is what
  * "since the last one" means.
  */
-export async function lastSuccessfulRunAt(name: string): Promise<Date | null> {
+export async function lastSuccessfulRunAt(name: RunName): Promise<Date | null> {
   const row = await prisma.cronRun.findFirst({
     where: { name, status: CronRunStatus.OK },
     orderBy: { startedAt: 'desc' },

@@ -50,8 +50,8 @@ test('the matches of an import: listed in its one message, counted in it, or sto
 test('a paused import stored unscored and spent no AI', () => {
   const { kind, text } = say({ ...base, classify: false });
   assert.equal(kind, 'ok');
-  assert.match(text, /37 new stored unscored — no AI spent while fetching is paused\. Score them later/);
-  assert.doesNotMatch(say({ ...base, persisted: 0, classify: false }).text, /Score them later/);
+  assert.match(text, /37 new stored unscored — no AI spent while fetching is paused\. To score them, press “Score them” on the Overview or on Jobs\.$/);
+  assert.doesNotMatch(say({ ...base, persisted: 0, classify: false }).text, /Score them/);
 });
 
 test('a newer export of the same source says what was there already, and what the filter took', () => {
@@ -70,7 +70,7 @@ test('a pause mid-run and a failing engine both say the file can be imported aga
   assert.match(failed.text, /7 rows could not be scored — the AI engine failed — and were not stored; import the file again to retry\.$/);
 });
 
-// #367: "2,000 rows, 1480 new stored … The filter set aside 2000: 2,000 without a title keyword."
+// #367: "2,000 rows, 1480 new stored … The filter set aside 2000: 2,000 without a title keyword." (#539: and no number twice)
 const LANGUAGES: Locale[] = ['en', 'uk', 'es', 'fr'];
 /** Spanish groups from 10,000, so the counts here are past it: no sentence may then hold five digits in a row. */
 const UNGROUPED = /\d{5}/;
@@ -79,7 +79,7 @@ test('every count of a large import is written in the language\'s grouping, not 
   const large = { fetched: 20_000, persisted: 14_800, duplicate: 3_200, filterRejected: 12_000, rejectedTitle: 12_000 };
   assert.equal(
     say({ fetched: 2_000, persisted: 1_480, classified: 1_480, alerted: 1_012, filterRejected: 2_000, rejectedTitle: 2_000 }).text,
-    'Imported jobs.json into "September export": 2,000 rows, 1,480 new stored, 1,480 scored, 1,012 alerted. The filter set aside 2,000: 2,000 without a title keyword.',
+    'Imported jobs.json into "September export": 2,000 rows, 1,480 new stored, 1,480 scored, 1,012 alerted. The filter set aside 2,000: all without a title keyword.',
   );
   for (const language of LANGUAGES) {
     for (const stats of [{ ...large, classified: 14_800, alerted: 10_120 }, { ...large, classify: false }, { ...large, abortedMidRun: 1 }]) {

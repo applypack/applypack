@@ -73,7 +73,7 @@ export function summarizeScoreRun(stats: Record<string, unknown>): { kind: 'ok' 
     notMatched ? t('welcome.scoreRun.scoredWhy', { scored, matches, why: notMatched }) : t('welcome.scoreRun.scored', { scored, matches }),
   ];
   if (n('filterDismissed') > 0) {
-    const why = reasonsText(filteredReasons(counts));
+    const why = reasonsText(filteredReasons(counts), { total: n('filterDismissed') });
     const set = { n: n('filterDismissed'), why };
     parts.push(why ? t('welcome.scoreRun.setAsideWhy', set) : t('welcome.scoreRun.setAside', set));
   }

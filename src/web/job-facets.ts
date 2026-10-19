@@ -242,6 +242,12 @@ export function jobsHref(filters: JobsFilters, extra: { page?: number; panel?: b
   return qs ? `/jobs?${qs}` : '/jobs';
 }
 
+/** The last page that holds rows when `page` lies past it; null when the page is in range or nothing matches at all. */
+export function pastEndPage(page: number, total: number, pageSize: number): number | null {
+  const last = Math.ceil(total / pageSize);
+  return total > 0 && page > last ? last : null;
+}
+
 /** One active criterion in the row above the table: what it says, and the link that lifts it. */
 export interface ActiveFilter {
   label: string;

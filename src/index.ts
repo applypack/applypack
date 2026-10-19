@@ -10,7 +10,7 @@ import { runStaleApplicationsJob } from './jobs/stale-applications-job';
 import { runHnHiringJob } from './jobs/hn-hiring-job';
 import { runDiscoveryJob } from './jobs/discovery-job';
 import { packWorkWaiting, runPackJob, stopPackJob } from './jobs/pack-job';
-import { recordCronRun, type CronStats } from './jobs/cron-run';
+import { recordCronRun, type CronStats, type RunName } from './jobs/cron-run';
 import { spreadMinute } from './schedule';
 import { getInstanceId, getSchedule } from './settings';
 import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule';
@@ -136,7 +136,7 @@ function startHeartbeat(file: string): void {
  * there for the 90 days `cleanup-job.ts` keeps runs.
  */
 async function onSchedule(
-  name: string,
+  name: RunName,
   due: (now: Date, schedule: Schedule) => boolean,
   fn: () => Promise<{ stats: CronStats }>,
 ): Promise<void> {
