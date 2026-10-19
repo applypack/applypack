@@ -2013,6 +2013,7 @@
   "spend.feature.classifier": "Noter les nouvelles offres",
   "spend.feature.prefilter": "Préfiltre (deux phases)",
   "spend.feature.postingExtract": "Lire une offre collée",
+  "spend.feature.savedPostingExtract": "Lire une offre enregistrée",
   "spend.feature.postingBrief": "Fiche de l'offre",
   "spend.feature.resumeScan": "Lecture du CV",
   "spend.feature.resumeStructure": "Structure du CV",

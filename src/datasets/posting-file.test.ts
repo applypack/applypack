@@ -102,6 +102,20 @@ describe('readPostingFile', () => {
     assert.deepEqual(await readPostingFile('docx', bytes('PK not a zip'), NOW), { ok: false, why: POSTING_NOTES.docx });
   });
 
+  // #543: a page that states the posting in its own block was set aside as a note.
+  it('keeps a short page whose own JobPosting block names the role and the employer and describes it', async () => {
+    const posting = { '@type': 'JobPosting', title: 'QA Engineer', hiringOrganization: { name: 'Acme GmbH' }, jobLocation: { address: { addressLocality: 'Berlin' } }, description: 'Own our Playwright suite end to end; two years of TypeScript.' };
+    const html = (block: Record<string, unknown>): string =>
+      `<html><head><script type="application/ld+json">${JSON.stringify(block)}</script></head><body><main><h1>QA Engineer</h1><p>Acme GmbH, Berlin</p></main></body></html>`;
+    const read = ok(await readPostingFile('html', bytes(html(posting)), NOW));
+    assert.equal(read.text, posting.description);
+    assert.deepEqual([read.facts?.title, read.facts?.company, read.facts?.location], ['QA Engineer', 'Acme GmbH', 'Berlin']);
+    assert.equal(needsModel(read), false);
+    // Without the employer, or without words of its own, it is the note it looks like.
+    assert.deepEqual(await readPostingFile('html', bytes(html({ ...posting, hiringOrganization: undefined })), NOW), { ok: false, why: POSTING_NOTES.tooShort });
+    assert.deepEqual(await readPostingFile('html', bytes(html({ ...posting, description: undefined })), NOW), { ok: false, why: POSTING_NOTES.tooShort });
+  });
+
   // #362: the reader refuses "too little text" as it refuses a scan, and both were reported as a scan.
   it('tells a PDF with too little text from one with none', async () => {
     const note = 'Backend Engineer at Fennel Works. Remote, EU. Node.js and PostgreSQL; you own the payments ledger with one other engineer.';
@@ -132,7 +146,7 @@ describe('savedPostingJob', () => {
   const plain = { ok: true as const, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY, former: null };
 
   it('takes what the page said first, a model’s reading second', () => {
-    const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true, facts: { title: 'Page Title', company: 'Page Co', location: null, workplace: 'REMOTE' as const, postedAt: null } };
+    const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true, facts: { title: 'Page Title', company: 'Page Co', location: null, workplace: 'REMOTE' as const, postedAt: null, described: true } };
     const job = savedPostingJob(file, page, { title: 'Model Title', company: 'Model Co', location: 'Berlin', workplace: 'hybrid', isPosting: true }, 'saved-1');
     assert.deepEqual(
       [job.title, job.employer, job.location, job.locationHints?.workplace, job.url, job.externalId],
@@ -142,6 +156,14 @@ describe('savedPostingJob', () => {
     assert.equal(job.handPicked, true);
     assert.equal(job.companyId, 7);
     assert.equal(job.notAPosting, undefined);
+    assert.equal(job.readCalls, undefined);
+  });
+
+  // #543: the reading's ledger rows travel with the job, to be named on it once it is stored.
+  it('carries the ledger rows of the model call that read it', () => {
+    const job = savedPostingJob(file, plain, { title: 'QA Engineer', company: 'Acme', location: null, workplace: null, isPosting: true }, 'saved-1', NOW, [41, 42]);
+    assert.deepEqual(job.readCalls, [41, 42]);
+    assert.equal('readCalls' in savedPostingJob(file, plain, null, 'saved-1', NOW, []), false);
   });
 
   // #451: a page the model took for no posting is still a job — a wrong "no" must not lose what someone saved.
@@ -176,14 +198,14 @@ describe('savedPostingJob', () => {
   it('is undated when the page states no date, and dated by the page when it does', () => {
     assert.equal(savedPostingJob(file, plain, null, 'saved-1', NOW).undated, true);
     const stated = new Date(Date.UTC(2026, 9, 1));
-    const page = { ...plain, facts: { title: 'T', company: 'C', location: null, workplace: null, postedAt: stated } };
+    const page = { ...plain, facts: { title: 'T', company: 'C', location: null, workplace: null, postedAt: stated, described: true } };
     const job = savedPostingJob(file, page, null, 'saved-1', NOW);
     assert.equal(job.postedAt, stated);
     assert.equal('undated' in job, false);
   });
 
   it('asks a model only when the page did not say both its title and its company', () => {
-    const facts = { title: 'T', company: null, location: null, workplace: null, postedAt: null };
+    const facts = { title: 'T', company: null, location: null, workplace: null, postedAt: null, described: true };
     assert.equal(needsModel(plain), true);
     assert.equal(needsModel({ ...plain, facts }), true);
     assert.equal(needsModel({ ...plain, facts: { ...facts, company: 'C' } }), false);
@@ -193,7 +215,7 @@ describe('savedPostingJob', () => {
 describe('identifyPosting', () => {
   type Read = Extract<PostingRead, { ok: true }>;
   const plain: Read = { ok: true, text: BODY, address: null, addressIsOwn: false, facts: null, pageTitle: null, earlierKey: BODY, former: null };
-  const says = (title: string, location: string | null = null) => ({ title, company: 'Acme', location, workplace: null, postedAt: null });
+  const says = (title: string, location: string | null = null) => ({ title, company: 'Acme', location, workplace: null, postedAt: null, described: true });
   const idOf = (read: Read, relPath = 'a.html'): string => identifyPosting(relPath, read, []).externalId;
   const stored = (externalId: string, more: Partial<StoredPosting> = {}): StoredPosting => ({ externalId, title: 'Backend Engineer', employer: 'Acme', url: '', sourceFile: 'first.html', fingerprint: null, ...more });
   /** The id a version up to 2.55.11 gave: the page's own address as written, else its text. */

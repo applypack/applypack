@@ -711,7 +711,7 @@ async function persistJob(
     }
     throw err;
   }
-  await attributeCalls(ledgerIds, created.id);
+  await attributeCalls([...(job.readCalls ?? []), ...ledgerIds], created.id);
   recentFingerprints.push({
     id: created.id,
     companyId: job.companyId,

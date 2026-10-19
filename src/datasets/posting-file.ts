@@ -100,7 +100,12 @@ export async function readPostingFile(kind: PostingKind, bytes: Uint8Array, now:
   } else {
     read = plain(decodeText(bytes).text.replace(/^\uFEFF/, ''));
   }
-  return read.text.length < MIN_POSTING_CHARS ? { ok: false, why: POSTING_NOTES.tooShort } : read;
+  return read.text.length < MIN_POSTING_CHARS && !statesItself(read.facts) ? { ok: false, why: POSTING_NOTES.tooShort } : read;
+}
+
+/** A page whose own posting block names the role and the employer and describes it is a posting however short — not a note (#543). */
+function statesItself(facts: PageFacts | null): boolean {
+  return facts !== null && facts.title !== null && facts.company !== null && facts.described;
 }
 
 /**
@@ -160,8 +165,16 @@ export interface SavedFile {
  * user chose it, so no base filter and no employer gate turns it away. A page
  * that states no date takes its file's, when that can be one (map.ts:fileDate),
  * and is `undated`: the date says when it was saved, not when it was posted.
+ * `readCalls`: the ledger rows of the model call that read it, named on the job once stored (#543).
  */
-export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok: true }>, model: ModelFacts | null, externalId: string, now: Date = new Date()): NormalizedJob {
+export function savedPostingJob(
+  file: SavedFile,
+  read: Extract<PostingRead, { ok: true }>,
+  model: ModelFacts | null,
+  externalId: string,
+  now: Date = new Date(),
+  readCalls: readonly number[] = [],
+): NormalizedJob {
   const facts = read.facts;
   const title = facts?.title ?? model?.title ?? nameOf(file.relPath);
   const workplace = facts?.workplace ?? (model?.workplace ? WORKPLACE[model.workplace] : null);
@@ -179,6 +192,7 @@ export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok
     sourceFile: file.relPath,
     handPicked: true,
     ...(model?.isPosting === false && { notAPosting: true }),
+    ...(readCalls.length > 0 && { readCalls: [...readCalls] }),
   };
 }
 

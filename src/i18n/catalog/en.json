@@ -2013,6 +2013,7 @@
   "spend.feature.classifier": "Scoring new postings",
   "spend.feature.prefilter": "Prefilter (two-stage)",
   "spend.feature.postingExtract": "Reading a pasted posting",
+  "spend.feature.savedPostingExtract": "Reading a saved posting",
   "spend.feature.postingBrief": "Posting brief",
   "spend.feature.resumeScan": "Resume scan",
   "spend.feature.resumeStructure": "Resume shape",

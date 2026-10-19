@@ -2013,6 +2013,7 @@
   "spend.feature.classifier": "Puntuar ofertas nuevas",
   "spend.feature.prefilter": "Prefiltro (dos fases)",
   "spend.feature.postingExtract": "Leer una oferta pegada",
+  "spend.feature.savedPostingExtract": "Leer una oferta guardada",
   "spend.feature.postingBrief": "Ficha de la oferta",
   "spend.feature.resumeScan": "Análisis del currículum",
   "spend.feature.resumeStructure": "Estructura del currículum",

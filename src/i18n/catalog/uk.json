@@ -2013,6 +2013,7 @@
   "spend.feature.classifier": "Оцінювання нових вакансій",
   "spend.feature.prefilter": "Попередній фільтр (двоетапний)",
   "spend.feature.postingExtract": "Читання вставленої вакансії",
+  "spend.feature.savedPostingExtract": "Читання збереженої вакансії",
   "spend.feature.postingBrief": "Розбір вакансії",
   "spend.feature.resumeScan": "Сканування резюме",
   "spend.feature.resumeStructure": "Структура резюме",
