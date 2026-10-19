@@ -39,6 +39,7 @@ import { screenRoute } from './routes/screen';
 import { ensureEmployerMode } from './employer-mode';
 import { ensureUpdateNotice } from './update-notice';
 import { withDisplayZone } from './display-zone';
+import { withFlashCookie } from './flash';
 import { getDisplaySettings } from '../settings';
 import { withLocale, type Locale } from '../i18n/locale';
 import { t } from '../i18n/t';
@@ -150,7 +151,7 @@ app.use('*', async (c, next) => {
   const started = Date.now();
   await withLocale(language.locale, () =>
     withLanguagePage({ invite: language.invite, back: backFor(c.req.method, c.req.url) }, () =>
-      withDisplayZone(display.timezone, () => next()),
+      withDisplayZone(display.timezone, () => withFlashCookie(c.req.url, () => next())),
     ),
   );
   logger.info(

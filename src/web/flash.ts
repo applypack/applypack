@@ -3,6 +3,7 @@
  * short-lived cookie. Shared by every route that redirects after a write.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { defaultErrorMap, type ZodIssue } from 'zod';
 import { t } from '../i18n/t';
 
@@ -38,6 +39,24 @@ const FLASH_TTL_SECONDS = 5;
 /** A schema's message can echo the value it refused; a flash rides in a cookie, so the echo is cut. */
 const MAX_ISSUE_CHARS = 160;
 
+/*
+ * Cookies ignore the port, so two installs on one machine — Docker on 4747,
+ * `npm start` on 4848 — showed each other's flash (#556). The cookie's name
+ * carries the port the page was asked at (`flash-4848`); app.ts sets it for
+ * the request. Outside a request, and on a default port, it is `flash`.
+ */
+const FLASH_COOKIE = 'flash';
+const cookieName = new AsyncLocalStorage<string>();
+
+export function withFlashCookie<T>(url: string, fn: () => T): T {
+  const port = new URL(url).port;
+  return cookieName.run(port ? `${FLASH_COOKIE}-${port}` : FLASH_COOKIE, fn);
+}
+
+function currentName(): string {
+  return cookieName.getStore() ?? FLASH_COOKIE;
+}
+
 export function flashRedirect(
   location: string,
   kind: FlashMessage['kind'],
@@ -56,7 +75,7 @@ export function flashRedirect(
     status: 303,
     headers: {
       Location: location,
-      'Set-Cookie': `flash=${value}; Path=/; Max-Age=${FLASH_TTL_SECONDS}; HttpOnly; SameSite=Lax`,
+      'Set-Cookie': `${currentName()}=${value}; Path=/; Max-Age=${FLASH_TTL_SECONDS}; HttpOnly; SameSite=Lax`,
     },
   });
 }
@@ -74,7 +93,7 @@ function encodeFlash(message: Record<string, unknown>): string {
 
 export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage | null {
   if (!cookieHeader) return null;
-  const match = /(?:^|;\s*)flash=([^;]+)/.exec(cookieHeader);
+  const match = new RegExp(`(?:^|;\\s*)${currentName()}=([^;]+)`).exec(cookieHeader);
   if (!match || !match[1]) return null;
   try {
     const parsed = JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8'));
@@ -219,5 +238,5 @@ export function safeBack(back: unknown, fallback: string): string {
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
 
 export function clearFlashCookie(): string {
-  return 'flash=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
+  return `${currentName()}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
 }
