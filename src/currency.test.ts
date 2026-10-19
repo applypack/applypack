@@ -63,11 +63,14 @@ describe('formatSalaryRange', () => {
 });
 
 describe('formatUsdPerYear', () => {
-  it('adds a comparable number only when the posting is not already USD a year', () => {
-    assert.equal(formatUsdPerYear(60_000, 80_000, 'EUR', 'year'), '≈ $93k/yr');
-    assert.equal(formatUsdPerYear(20_200, 27_600, 'PLN', 'month'), '≈ $89k/yr');
+  it('adds a comparable range only when the posting is not already USD a year', () => {
+    // #544: the whole range, never its top alone dressed as the figure.
+    assert.equal(formatUsdPerYear(60_000, 80_000, 'EUR', 'year'), '≈ $70k-93k/yr');
+    assert.equal(formatUsdPerYear(20_200, 27_600, 'PLN', 'month'), '≈ $65k-89k/yr');
     assert.equal(formatUsdPerYear(140_000, 180_000, 'USD', 'year'), '');
-    assert.equal(formatUsdPerYear(85, null, 'USD', 'hour'), '≈ $150k/yr');
+    assert.equal(formatUsdPerYear(85, null, 'USD', 'hour'), '≈ $150k+/yr');
+    assert.equal(formatUsdPerYear(null, 80_000, 'EUR', 'year'), '≈ up to $93k/yr');
+    assert.equal(formatUsdPerYear(80_000, 80_000, 'EUR', 'year'), '≈ $93k/yr');
     assert.equal(formatUsdPerYear(null, null, 'EUR', 'year'), '');
   });
 });

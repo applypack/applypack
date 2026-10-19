@@ -263,6 +263,11 @@ export function withEngineFirst(config: AiEngineConfig, id: AiProviderId, env: A
   };
 }
 
+/** Whether `id` is the engine asked first for every task: what it was not given falls to it, nothing standing behind it (#527). */
+export function firstForEveryTask(engine: ResolvedAiEngine, id: AiProviderId): boolean {
+  return AI_TASKS.every((task) => engine.chainFor(task)[0] === id);
+}
+
 /** The tasks an engine can be given at all: one that cannot search the web is never offered the web check. */
 export function offeredTasks(id: AiProviderId): AiTask[] {
   return AI_TASKS.filter((t) => t !== 'verify' || PROVIDER_WEB_TOOLS[id]);
@@ -331,6 +336,12 @@ export function providerUnusable(id: AiProviderId, env: AiEngineEnv): boolean {
     case 'local_api':
       return false; // no key; a server that is not running fails at once and the chain moves on
   }
+}
+
+/** Why Test or a trial cannot call an engine `providerUnusable` turns away, worded as its card words it: a CLI's own sign-in, or a key (#563). */
+export function missingCredentials(id: AiProviderId): string {
+  const how = id === 'gemini_cli' ? 'gemini' : id === 'codex_cli' ? 'codex' : 'key';
+  return t('aiTest.noCredentials', { engine: AI_PROVIDER_LABELS[id], how });
 }
 
 /**

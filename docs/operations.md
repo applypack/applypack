@@ -122,7 +122,8 @@ is `fetch`, `digest`, `stale`, `cleanup`, `discovery` or `hn`. The digest
 and stale scripts run whatever the schedule says. The fetch script is
 "Fetch now" without the dashboard: it asks every source whatever the
 schedule says, stores the jobs unscored while fetching is paused, and shows
-on `/runs` as a `fetch-now` run.
+on `/runs` as a `fetch-now` run. Each script ends with one line saying what
+the run did, as `/runs` says it (`digest: No chat to send to`).
 
 ## Logs and health (Docker)
 

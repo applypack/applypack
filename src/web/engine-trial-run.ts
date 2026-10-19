@@ -1,11 +1,13 @@
 import type { EngineTrial, Prisma, Profile } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { AI_PROVIDER_LABELS, providerUnusable, resolveAiEngine, type AiProviderId } from '../ai-engine';
+import { AI_PROVIDER_LABELS, missingCredentials, providerUnusable, resolveAiEngine, type AiProviderId } from '../ai-engine';
 import { getAiEngineEnv } from '../ai-runtime';
 import type { AiBilling } from '../ai-usage';
 import { classifyOnEngine } from '../classifier';
 import { companyForPrompt } from '../employer';
+import { storedPlace } from '../jobs/classify-existing';
+import { mergeAiLocation } from '../jobs/location-merge';
 import { buildVerdicts } from '../jobs/verdict-merge';
 import { isBlankProfile } from '../profile-guards';
 import { listActiveProfiles } from '../profiles';
@@ -17,6 +19,7 @@ import {
   recordedVerdicts,
   trialGivesUp,
   trialLine,
+  trialModel,
   trialPairs,
   trialReport,
   TRIAL_MIN,
@@ -51,8 +54,8 @@ async function trialProfiles(): Promise<Profile[]> {
 
 /** What an engine card shows about a trial on its classifier model. */
 export interface TrialView {
-  /** The model a press reads with, worded. */
-  model: string;
+  /** The model a press reads with, worded; null when the local engine has none yet. */
+  model: string | null;
   /** False under TRIAL_MIN scored postings: the button waits and `note` says why. */
   ready: boolean;
   /** The cost line, or why there is nothing to try yet. */
@@ -76,13 +79,19 @@ export async function trialViews(
   const views = await Promise.all(
     ids.map(async (id): Promise<[AiProviderId, TrialView]> => {
       const model = modelOf(id);
+      const worded = trialModel(id, model);
       const last = trials.find((row) => row.engine === id && row.model === model);
       return [
         id,
         {
-          model: model || t('ai.cliDefault'),
-          ready,
-          note: ready ? await trialCostHint(id, model, billingOf(id), postings) : t('trial.needsScored', { min: TRIAL_MIN, n: scored }),
+          model: worded,
+          ready: ready && worded !== null,
+          note:
+            worded === null
+              ? t('trial.needsModel')
+              : ready
+                ? await trialCostHint(id, model, billingOf(id), postings)
+                : t('trial.needsScored', { min: TRIAL_MIN, n: scored }),
           last: last ? { at: last.at, text: trialLine(last) } : null,
         },
       ];
@@ -105,8 +114,10 @@ export async function startEngineTrial(provider: AiProviderId): Promise<{ runId:
   const label = AI_PROVIDER_LABELS[provider];
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
-  if (providerUnusable(provider, env)) return { refused: t('aiTest.noCredentials', { engine: label }) };
+  if (providerUnusable(provider, env)) return { refused: missingCredentials(provider) };
   const model = resolveAiEngine(settings.aiEngine, env).modelFor(provider, 'classifier');
+  const worded = trialModel(provider, model);
+  if (worded === null) return { refused: t('trial.needsModel') };
   const profiles = await trialProfiles();
   const candidates =
     profiles.length > 0
@@ -125,7 +136,7 @@ export async function startEngineTrial(provider: AiProviderId): Promise<{ runId:
     jobTitle: '',
     resumeName: '',
     heading: { running: t('trial.run.running', { engine: label }), failed: t('trial.run.failed') },
-    subtitle: t('trial.run.subtitle', { n: sample.length, model: model || t('ai.cliDefault') }),
+    subtitle: t('trial.run.subtitle', { n: sample.length, model: worded }),
     backUrl: SETTINGS_AI,
     backLabel: t('trial.run.back'),
     keepMs: TRIAL_RUN_KEEP_MS,
@@ -169,7 +180,7 @@ async function runTrial(runId: string, provider: AiProviderId, model: string, pr
         ? { kind: 'failed' }
         : !out.parsed
           ? { kind: 'unparsed', ms }
-          : { kind: 'read', ms, pairs: trialPairs(buildVerdicts(out.parsed.results, profiles, job).verdicts, recordedVerdicts(job, job.scores, profiles)) },
+          : { kind: 'read', ms, pairs: trialPairs(buildVerdicts(out.parsed.results, profiles, job, mergeAiLocation(storedPlace(job), out.parsed.location)).verdicts, recordedVerdicts(job, job.scores, profiles)) },
     );
     if (trialGivesUp(readings, GIVE_UP_AFTER)) break;
   }

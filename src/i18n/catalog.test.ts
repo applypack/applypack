@@ -100,3 +100,14 @@ for (const locale of TRANSLATIONS) {
     });
   });
 }
+
+describe('an engine reason', () => {
+  // Set inside a sentence that brings its own mark ("{engine} did not answer: {reason}. Nothing was kept."):
+  // a reason that ended in one read "is Ollama running?. Nothing was kept." (#563).
+  it('ends without a mark of its own, in every language', () => {
+    const reasons = MESSAGE_KEYS.filter((key) => /^engine\.(fail|models)\./.test(key));
+    for (const locale of LANGUAGES) {
+      for (const key of reasons) assert.doesNotMatch(ownMessage(locale, key) ?? '', /[.?!]$/, `${locale}: ${key}`);
+    }
+  });
+});

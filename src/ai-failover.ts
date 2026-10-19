@@ -109,7 +109,8 @@ export async function runChain(
     // Every attempt, the failed ones too: a cut-off reply was billed (ADR 0055).
     const row = await deps.record({
       at: new Date(started),
-      durationMs: deps.now() - started,
+      // The engine's own time: a wait for a local server's one slot is not the model being slow (#564).
+      durationMs: deps.now() - started - (attempt.queuedMs ?? 0),
       engine: id,
       model,
       feature: req.label,
@@ -122,15 +123,18 @@ export async function runChain(
       packId: req.subject?.packId,
     });
     if (row !== null) ledgerIds.push(row);
+    // The engine that failed logged why, and the ledger keeps every fallback
+    // (ADR 0055): the chain's own lines are information, and nothing at all
+    // while the primary rests in its cooldown — one line per call is enough (#571).
     if (attempt.text !== null) {
       deps.cooldowns.success(id);
-      if (viaFallback) logger.warn({ served: id, primary: chain[0], label: req.label }, 'ai: served by fallback engine');
+      if (i > 0) logger.info({ served: id, primary: chain[0], label: req.label }, 'ai: served by fallback engine');
       return { text: attempt.text, providerId: id, model, viaFallback, ledgerIds };
     }
     if (attempt.outcome === 'unauthorized') deps.cooldowns.refused(id, credential(id));
     else deps.cooldowns.failure(id);
     if (i < tryList.length - 1) {
-      logger.warn({ failed: id, next: tryList[i + 1], label: req.label }, 'ai: engine failed, trying next');
+      logger.info({ failed: id, outcome: attempt.outcome, next: tryList[i + 1], label: req.label }, 'ai: engine failed, trying next');
     }
   }
   logger.error({ chain: tryList, label: req.label }, 'ai: every engine in the chain failed');

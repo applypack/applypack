@@ -226,7 +226,7 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
             {counts.stored > 0 && <li>{t('import.preview.stored', { n: counts.stored, source: stash.source.name })}</li>}
             <li>{t('import.preview.passing', { fresh, passing: counts.passing, turnedAway: counts.turnedAway })}</li>
             {stash.mapping.employer === null && counts.passing > 0 && <li>{t('import.noCompanyColumn')}</li>}
-            {counts.passing > 0 && <li>{scoring ? `${t('import.preview.cost', { n: counts.passing })} ${cost}` : t('import.preview.paused')}</li>}
+            {counts.passing > 0 && <li>{scoring ? `${t('import.preview.cost', { n: counts.passing })} ${cost}` : `${t('import.preview.paused')} ${t('fetchSummary.scoreLater')}`}</li>}
             {/* The import holds the one fetch lock while it scores (ADR 0062): said before the press, not found out an hour later (#397). */}
             {scoring && counts.passing > 0 && <li>{t('import.preview.searchWaits')}</li>}
             {mapped.thin > 0 && <li>{t('import.preview.thin', { n: mapped.thin })}</li>}

@@ -489,6 +489,26 @@ async function main(): Promise<void> {
       },
     },
     {
+      // #538: saving the hours used to store the browser's zone the page slipped in, and every date moved.
+      name: 'POST /settings/schedule (when to search, with a zone in the body: the zone stays)',
+      init: form({ part: 'fetch', fetchEvery: '2h', fetchFrom: '6', fetchTo: '22', fetchDays: '2', timezone: 'America/Chicago' }),
+      expect: async (res) => res.status === 303 && ((await getSettings()).schedule as { timezone?: string } | null)?.timezone === 'Europe/Kyiv',
+    },
+    {
+      // The browser's zone, offered beside the hours: back to that tab, stored under its current name (#572).
+      name: 'POST /settings/schedule (the browser\'s zone, from Job search)',
+      init: form({ part: 'zone', from: 'fetch', timezone: 'Asia/Calcutta' }),
+      expect: async (res) =>
+        res.status === 303 &&
+        res.headers.get('location') === '/settings?tab=profile#schedule' &&
+        ((await getSettings()).schedule as { timezone?: string } | null)?.timezone === 'Asia/Kolkata',
+    },
+    {
+      name: 'POST /settings/schedule (a city typed into the zone)',
+      init: form({ part: 'zone', timezone: 'kyiv' }),
+      expect: async (res) => res.status === 303 && ((await getSettings()).schedule as { timezone?: string } | null)?.timezone === 'Europe/Kyiv',
+    },
+    {
       // TASKS S1: the OpenAI-compatible engine's server, set here; one on this machine takes no key.
       name: 'POST /settings/ai/openai-base',
       init: form({ baseUrl: 'http://127.0.0.1:9/v1' }),
@@ -667,6 +687,9 @@ async function main(): Promise<void> {
     '/settings/schedule',
     '/settings/schedule',
     '/settings/schedule',
+    '/settings/schedule',
+    '/settings/schedule',
+    '/settings/schedule',
     '/settings/ai/openai-base',
     '/settings?tab=ai',
     '/welcome/ai/local',
@@ -800,6 +823,7 @@ async function main(): Promise<void> {
   rows.push(...(await engineTroubleChecks()));
   rows.push(await ledgerUpdateCheck(f.jobId));
   rows.push(await recordedBandCheck());
+  rows.push(...(await compressionChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -866,6 +890,48 @@ const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job 
 type Check = { route: string; url: string; status: number; ok: boolean };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * #548: what a browser that asks for gzip gets — a page and a stylesheet
+ * compressed, a font left as it is (woff2 is compressed already), and a
+ * client that does not ask gets the plain bytes.
+ */
+async function compressionChecks(): Promise<Check[]> {
+  const gzip = { headers: { ...ORIGIN, 'accept-encoding': 'gzip' } };
+  const checks: { route: string; url: string; init: RequestInit; expect: (res: Response) => Promise<boolean> }[] = [
+    {
+      route: 'GET /companies asking for gzip (compressed, and whole)',
+      url: '/companies',
+      init: gzip,
+      expect: async (res) =>
+        res.headers.get('content-encoding') === 'gzip' && res.body !== null && (await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text()).includes('</html>'),
+    },
+    {
+      route: 'GET /static/tailwind.css asking for gzip (compressed)',
+      url: '/static/tailwind.css',
+      init: gzip,
+      expect: async (res) => res.headers.get('content-encoding') === 'gzip',
+    },
+    {
+      route: 'GET a bundled font asking for gzip (left as it is)',
+      url: '/static/fonts/inter-latin.woff2',
+      init: gzip,
+      expect: async (res) => !res.headers.has('content-encoding'),
+    },
+    {
+      route: 'GET /companies not asking for gzip (plain)',
+      url: '/companies',
+      init: { headers: ORIGIN },
+      expect: async (res) => !res.headers.has('content-encoding') && (await res.text()).includes('</html>'),
+    },
+  ];
+  const out: Check[] = [];
+  for (const c of checks) {
+    const res = await app.request(c.url, c.init);
+    out.push({ route: c.route, url: c.url, status: res.status, ok: res.status === 200 && (await c.expect(res)) });
+  }
+  return out;
+}
 
 /**
  * #413: an engine whose last calls all failed says so on AI usage and on its

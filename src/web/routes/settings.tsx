@@ -48,8 +48,9 @@ import {
 } from '../../settings';
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
-import { config } from '../../config';
+import { config, setInEnv } from '../../config';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
+import { canonicalZone, readZone, timeZoneChoices } from '../time-zones';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import {
   addStage,
@@ -245,16 +246,6 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 
-/**
- * The zone picker's options: every IANA zone the runtime knows, plus the
- * stored one if this Node build has never heard of it (so a schedule saved
- * on another machine is not silently rewritten by the select).
- */
-function supportedTimezones(current: string): string[] {
-  const zones = Intl.supportedValuesOf('timeZone');
-  return zones.includes(current) ? [...zones] : [current, ...zones];
-}
-
 /** Engine cards: the list in priority order, then the last resort (it serves), then the rest. */
 function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }): number {
   if (e.enabled) return e.position;
@@ -286,10 +277,10 @@ async function loadSettingsProps(here: string) {
   const check = await loadNextCheck(settings.schedule);
   const scheduleView = {
     schedule: check.schedule,
-    zones: supportedTimezones(check.schedule.timezone),
+    zone: canonicalZone(check.schedule.timezone) ?? check.schedule.timezone,
+    zones: timeZoneChoices(),
     nextFetch: check.next,
     held: await loadHeldLine(check.schedule),
-    unsaved: settings.schedule === null,
   };
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
@@ -306,6 +297,7 @@ async function loadSettingsProps(here: string) {
       more: t('settingsRoute.server.openai.more'),
       value: openAiServer,
       stored: openAiBaseUrl !== null,
+      fromEnv: setInEnv('OPENAI_BASE_URL'),
       local: isLocalUrl(openAiServer),
     },
     local_api: {
@@ -315,6 +307,7 @@ async function loadSettingsProps(here: string) {
       hint: t('settingsRoute.server.local.hint'),
       value: localServer,
       stored: settings.localAiUrl !== null,
+      fromEnv: setInEnv('OLLAMA_URL'),
       local: true,
       context: { value: settings.localContextTokens ?? DEFAULT_LOCAL_CONTEXT_TOKENS, choices: LOCAL_CONTEXT_CHOICES },
     },
@@ -324,11 +317,11 @@ async function loadSettingsProps(here: string) {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
-  // A CLI engine with no model set runs whatever its own configuration names.
-  const cliDefault = t('settingsRoute.cliDefault');
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
-    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || cliDefault;
-    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || cliDefault;
+    // A CLI engine with no model set runs whatever its own configuration names; the local engine runs none (#563).
+    const unset = id === 'local_api' ? '' : t('settingsRoute.cliDefault');
+    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || unset;
+    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || unset;
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
     return {
       id,
@@ -350,7 +343,7 @@ async function loadSettingsProps(here: string) {
       classifierDefault,
       resumeDefault,
       // An empty cover slot takes the engine's own letter default, not the resume slot.
-      coverDefault: defaultModelFor(id, 'cover', aiEnv) || cliDefault,
+      coverDefault: defaultModelFor(id, 'cover', aiEnv) || unset,
       // TASKS S3: an OpenAI-compatible server's own models, as its last Test listed them.
       options: id === 'openai_api' ? knownModels(openAiServer) : id === 'local_api' ? knownModels(localServer) : PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api' || id === 'local_api',
@@ -560,8 +553,8 @@ settingsRoute.post('/settings/schedule', async (c) => {
   const part = schedulePart(form.part);
   const takes = (p: SchedulePart): boolean => part === null || part === p;
   const candidate = {
-    // The zone form always sends it; the other two only while no zone was ever saved — the browser's guess (TASKS S28).
-    timezone: str(form.timezone) || current.timezone,
+    // Only the zone's own form moves it: saving the hours never changes how every date reads (#538).
+    timezone: takes('zone') ? readZone(str(form.timezone)) || current.timezone : current.timezone,
     fetch: takes('fetch')
       ? {
           every: str(form.fetchEvery),
@@ -580,13 +573,17 @@ settingsRoute.post('/settings/schedule', async (c) => {
         }
       : current.alerts,
   };
-  const back = SCHEDULE_BACK[part ?? 'fetch'];
+  // The browser's zone, offered beside the hours, lands back where it was pressed.
+  const back = SCHEDULE_BACK[schedulePart(form.from) ?? part ?? 'fetch'];
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
     return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   await setSchedule(parsed.data);
-  if (part === 'zone') return flashRedirect(back, 'ok', t('settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
+  if (part === 'zone') {
+    const moved = canonicalZone(parsed.data.timezone) !== canonicalZone(current.timezone);
+    return flashRedirect(back, 'ok', t(moved ? 'settingsRoute.schedule.zoneChanged' : 'settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
+  }
   const held = await loadHeldLine(parsed.data);
   const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
   return flashRedirect(back, 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
@@ -751,7 +748,7 @@ settingsRoute.post('/settings/ai/tasks', async (c) => {
   }
   const settings = await getSettings();
   const config = parseAiEngineConfig(settings.aiEngine);
-  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode, config.tasks[provider]);
+  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode);
   const next = withEngineTasks(config, provider, picked);
   await setAiEngineConfig(next);
   if (wantsJson) return c.json({ ok: true });

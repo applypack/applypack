@@ -340,8 +340,11 @@ it instead of running on to its timeout on your plan.
    full path works (binary, auth, model id, network).
 3. The "Active now" line at the top shows who serves calls and in which
    order the rest stand by.
-4. Worker side: the terminal running `npm start` (or `docker compose logs -f app`) —
-   on failover you will see `ai: engine failed, trying next` followed by
+4. Worker side: the terminal running `npm start` (or `docker compose logs -f app`)
+   shows one line per call when an engine fails — `ai: no answer from the
+   local server at …` while Ollama is not running — and none while that
+   engine rests after three failures in a row. The logs at `LOG_LEVEL=info`
+   (Docker's) add `ai: engine failed, trying next` and
    `ai: served by fallback engine`.
 
 ## What it costs, and checking it against the vendor

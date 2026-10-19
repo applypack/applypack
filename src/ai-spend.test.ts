@@ -111,6 +111,8 @@ test('the notes say where the money goes, what is not priced and what ended unhe
     group({ calls: 92, micro: 11_000 }),
     group({ feature: 'resume-match', calls: 8, micro: 89_000, failed: 1, noUsage: 1 }),
     group({ feature: 'resume-scan', engine: 'openai_api', model: 'anthropic/claude-sonnet-5', calls: 3, unpriced: 3 }),
+    // A local call that timed out is on nobody's bill (#563).
+    group({ feature: 'classifier', engine: 'local_api', billing: 'local', model: 'gemma4:e4b', calls: 4, failed: 2, noUsage: 2 }),
   ]);
   // A row the table could not price carries the count, so its cell never reads "$0".
   assert.equal(view.rows.find((r) => r.feature === 'Resume scan')?.unpriced, 3);

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { alsoClaims, claimRun, findLiveRun, getRun, startRun, updateRun } from './target-runs';
 import { runFailure } from './run-failure';
+import { windowRefused } from '../window-refusal';
 
 /*
  * Issue #76 — server-side idempotency for the POSTs that start AI runs. Every
@@ -156,4 +157,25 @@ test('a failure line says what failed, why when the engine said, and what to do 
     runFailure('Could not rewrite that suggestion', '', next),
     'Could not rewrite that suggestion. The old wording stays; press Rewrite again. The web log has the detail.',
   );
+});
+
+test('a run hears that the local engine refused one of its own prompts as too large, and only its own (#523)', async () => {
+  const refused = claim(`match:window:${Math.random()}`).run;
+  const other = claim(`match:window:${Math.random()}`).run;
+  const tick = () => new Promise((r) => setImmediate(r));
+  // The refusal is calls deep, after awaits — the brief, then the comparison — while another run works beside it.
+  startRun(refused.id, async () => {
+    await tick();
+    windowRefused();
+    updateRun(refused.id, { stage: 'error', error: 'Comparison failed' });
+  });
+  startRun(other.id, async () => {
+    await tick();
+    updateRun(other.id, { stage: 'error', error: 'Comparison failed' });
+  });
+  windowRefused();
+  await tick();
+  await tick();
+  assert.equal(getRun(refused.id)?.windowRefused, true);
+  assert.equal(getRun(other.id)?.windowRefused, undefined);
 });

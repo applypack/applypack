@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addUsage, billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, count, hasUsage, isLocalUrl, NO_USAGE } from './ai-usage';
+import { t } from './i18n/t';
 
 test('a count is what the vendor reported, or null', () => {
   assert.equal(count(1204), 1204);
@@ -64,4 +65,7 @@ test("the local engine's address is Ollama's root, on this machine or the user's
   assert.deepEqual(checkLocalAiUrl('http://host.docker.internal:11434/api'), { ok: true, url: 'http://host.docker.internal:11434' });
   assert.equal(checkLocalAiUrl('https://ollama.example.com').ok, false);
   assert.equal(checkLocalAiUrl('localhost:11434').ok, false);
+  // The local engine takes no key: an address on the internet is refused as not local, never for a key in the clear (#563).
+  assert.deepEqual(checkLocalAiUrl('http://ollama.example.com:11434'), { ok: false, reason: t('engine.url.notLocal') });
+  assert.deepEqual(checkOpenAiBaseUrl('http://ollama.example.com:11434'), { ok: false, reason: t('engine.url.https') });
 });

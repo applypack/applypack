@@ -4,6 +4,7 @@ import { runSeed } from '../seed';
 import { runFetchJob } from '../jobs/fetch-job';
 import { recordCronRun } from '../jobs/cron-run';
 import { inRunLocale } from '../run-locale';
+import { runSummaryLine } from '../web/runs-summary';
 
 /**
  * One fetch tick from the command line — "Fetch now" without the dashboard,
@@ -16,7 +17,8 @@ async function main(): Promise<void> {
   logger.info('fetch-once: ensuring companies are seeded');
   await runSeed();
   // Its alerts read like the worker's: in the interface's language.
-  await inRunLocale(() => recordCronRun('fetch-now', () => runFetchJob({ manual: true })));
+  const stats = await inRunLocale(() => recordCronRun('fetch-now', () => runFetchJob({ manual: true })));
+  process.stdout.write(`${runSummaryLine('fetch-now', stats)}\n`);
 }
 
 main()

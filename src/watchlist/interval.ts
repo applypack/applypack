@@ -109,6 +109,36 @@ export function nextCheckAfter(row: Pick<Pacing, 'checkEvery'>, now: Date): Date
   return new Date(now.getTime() + INTERVAL_MS[toCheckInterval(row.checkEvery)]);
 }
 
+/** The fetch cron's beat (`index.ts`): once an hour. */
+const HEARTBEAT_MS = HOUR_MS;
+
+/**
+ * The stamp after a read the user asked for: Fetch now, Check now, the
+ * wizard's search, a folder just saved into (#557). Such a read falls between
+ * two heartbeats, and an interval counted from it lands past the next one: a
+ * Fetch now at :57 left every hourly source not due at the :12 tick, which
+ * read nothing, and the next read came 75 minutes after the press. Counted
+ * from one heartbeat earlier, the read stands where the last tick stood: the
+ * next tick reads an hourly source again, and a daily one comes due on the
+ * heartbeat a scheduled read would have set.
+ */
+export function nextCheckAfterManual(row: Pick<Pacing, 'checkEvery'>, readAt: Date): Date {
+  return nextCheckAfter(row, new Date(readAt.getTime() - HEARTBEAT_MS));
+}
+
+/** Why a walk read no source at all (#557) — the run row says it instead of a bare "0 fetched". */
+export type IdleReason = 'no-sources' | 'none-due';
+
+/**
+ * `roster` counts the switched-on sources the walk may read, `due` those due
+ * now, `walked` those it reads. Null when it reads any. A manual walk asks
+ * every row, so only the tick can meet `none-due`.
+ */
+export function idleReason(walk: { roster: number; due: number; walked: number }): IdleReason | null {
+  if (walk.walked > 0) return null;
+  return walk.roster > 0 && walk.due === 0 ? 'none-due' : 'no-sources';
+}
+
 /** What the row asks of the pipeline. */
 export interface WatchRules {
   /** ★ before the company name, on the list and in the alert. */

@@ -2,7 +2,7 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { alertChannel, sendPageChangeAlert, type Delivery } from '../notifier';
 import { checkPostingUrl } from './posting-url';
-import { takePageChanges } from '../watchlist/page-changes';
+import { pageStats, takePageChanges } from '../watchlist/page-changes';
 import { shouldDeliverHeld, type Schedule } from '../user-schedule';
 
 /**
@@ -24,14 +24,21 @@ import { shouldDeliverHeld, type Schedule } from '../user-schedule';
  * New on the dashboard rather than waiting.
  */
 
-/** After the walk: a first read stores its hash and says nothing; a change waits to be sent. */
-export async function recordPageChanges(): Promise<void> {
-  for (const change of takePageChanges()) {
+/**
+ * After the walk: a first read stores its hash and says nothing; a change
+ * waits to be sent; a change held by the once-a-day rule writes nothing.
+ * Returns what the walk found, for the run's stats (#533).
+ */
+export async function recordPageChanges(): Promise<Record<string, number>> {
+  const changes = takePageChanges();
+  for (const change of changes) {
+    if (change.kind === 'held') continue;
     await prisma.company.update({
       where: { id: change.companyId },
-      data: change.announce ? { pendingContentHash: change.hash } : { lastContentHash: change.hash },
+      data: change.kind === 'changed' ? { pendingContentHash: change.hash } : { lastContentHash: change.hash },
     });
   }
+  return pageStats(changes);
 }
 
 /**

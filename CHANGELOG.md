@@ -4,6 +4,141 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.8] — 2026-10-18
+
+### Changed
+- When a model on your computer cannot fit a prompt into its context window,
+  the error now says how much room the call needed and which window size to
+  pick. A failed run links straight to the Context window setting.
+- "Use it" on a model on your computer says plainly that it answers every
+  task when no other engine is set up.
+- The settings page now says "default" for a server address you never set,
+  instead of "from .env".
+
+### Fixed
+- Unticking resume tasks on an engine one at a time no longer leaves
+  applicant screening on that engine.
+- Skip setup now keeps the AI engine that setup found, as Continue already
+  did.
+- A local model's recorded call time no longer includes the time it waited
+  for the calls before it, so AI usage shows its real speed.
+- Pressing Enter in a model field saves in place and shows "Saved", instead
+  of reloading the page.
+- The local engine's settings no longer mention a "CLI default" or a key it
+  does not have. Gemini's Test now says to sign in with `gemini`, and a
+  stray "?." and a missing space are gone.
+- AI usage no longer warns that local calls which timed out may be on a
+  vendor's bill.
+
+## [2.61.7] — 2026-10-18
+
+### Changed
+- Settings: the time zone field takes a city or a zone name and suggests
+  today's names (Kyiv, Kolkata).
+- Settings: when your browser is in another zone, a button offers it beside
+  the schedule. Nothing changes until you press it, and the confirmation
+  says that every date now reads in the new zone.
+- AI usage: token counts are shortened the way your language writes numbers.
+
+### Fixed
+- A posting date given without a time (an imported file, a saved page)
+  showed as the day before west of UTC. It now reads as that day everywhere,
+  for postings already stored too.
+- Saving the search hours or the alert timing switched the dashboard to the
+  browser's time zone without saying so.
+- Two installs on one computer (for example Docker and `npm start`) showed
+  each other's confirmation messages.
+- In employer mode, the interview questions, the reasons and the criteria
+  the AI wrote are marked as English, so a screen reader reads them
+  correctly in any interface language.
+
+## [2.61.6] — 2026-10-18
+
+### Fixed
+- Title keywords match however a title spells them: "back-end", "back end"
+  and "backend" are one word, as are "full-stack" / "full stack" /
+  "fullstack" and "node.js" / "nodejs" / "node js". This applies to the
+  words you want and the words you exclude.
+- A remote job open to all of Europe (or the EU, EMEA and similar regions)
+  is no longer set aside as a location mismatch when your search hunts in a
+  country inside that region.
+- "Score them" and setup's first scoring no longer spend several calls on
+  one job carried by several job boards. The copies wait until every other
+  job is scored.
+- Jobs that "Save & re-classify" scores for the first time now show in the
+  Overview chart and the search funnel.
+
+## [2.61.5] — 2026-10-18
+
+### Changed
+- Add one company takes a board's link as well as its slug, and reads the
+  vendor from the link.
+
+### Fixed
+- The hourly check after a "Fetch now" reads your sources again, instead of
+  skipping an hour.
+- A check that reads no source says why on the Runs page.
+- Editing a search, starting one or unmuting a company makes the next check
+  read every board in full, so postings the old rules set aside are looked
+  at again.
+- A Rippling link with a language in it is read as the right company.
+- A Hacker News comment that starts with a link is no longer stored with the
+  link as its title.
+- Discovery's counts now match: a run counts each new board once, and its
+  row shows what is left for review.
+- "Check now" on a careers page you watch for changes says whether the page
+  changed, instead of blaming the network.
+- "Unwatch" on such a page stops reading it, and says so.
+- A refused "Add one company" keeps what you typed.
+
+## [2.61.4] — 2026-10-18
+
+### Changed
+- Messages about jobs stored without a score (paused Fetch now, file import,
+  folder check) point at **Score them** on the Overview or Jobs, which
+  scores only those jobs.
+- Runs and the Overview name each job in your language ("Hourly search",
+  "Fetch now", "Score everything again" …) instead of its internal code.
+- A run's count of rows written says "stored", and Runs → By source calls
+  its column "Stored".
+- The pause banner says what a pause does and how to resume.
+- The salary hint in dollars converts the whole range ("≈ $62k-69k/yr"), or
+  says "up to" when only the top is known.
+
+### Fixed
+- A filter summary names the rest of its reasons as "and N more", and no
+  longer repeats one number twice.
+- A Jobs link to a page past the end opens the last page instead of saying
+  nothing matches.
+- The "postings from muted companies are hidden" line counts only what your
+  current filters would show.
+- Re-classify always says the score it came back with, including "as
+  before".
+- A board link no longer suggests the board vendor (like "Ashbyhq") as the
+  company's name.
+- Help text no longer mentions source files, decision-record numbers or
+  release numbers; a folder that moved shows its problem in words on Runs.
+
+## [2.61.3] — 2026-10-18
+
+### Changed
+- Pages, styles and scripts of the dashboard are sent compressed: a page is
+  about a fifth of its size, which matters on a server install reached over
+  a network or a phone on Wi-Fi.
+- `npm install` no longer warns about install scripts on npm 11, and no
+  longer reports advisories in the tools that build the stylesheet, which
+  ApplyPack never runs.
+- The cron scripts you run by hand (`cleanup`, `digest` and the rest) end
+  with one line saying what the run did.
+
+### Fixed
+- Starting ApplyPack no longer lets the database tool report to its maker's
+  server: nothing leaves your computer but the calls to the AI you chose and
+  your own chats.
+- While a model server on your computer is not running, the terminal shows
+  one line per call instead of a stack trace and two warnings, and nothing
+  while ApplyPack rests that engine.
+
 ## [2.61.2] — 2026-10-18
 
 ### Fixed
@@ -6283,6 +6418,12 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.8]: https://github.com/applypack/applypack/compare/v2.61.7...v2.61.8
+[2.61.7]: https://github.com/applypack/applypack/compare/v2.61.6...v2.61.7
+[2.61.6]: https://github.com/applypack/applypack/compare/v2.61.5...v2.61.6
+[2.61.5]: https://github.com/applypack/applypack/compare/v2.61.4...v2.61.5
+[2.61.4]: https://github.com/applypack/applypack/compare/v2.61.3...v2.61.4
+[2.61.3]: https://github.com/applypack/applypack/compare/v2.61.2...v2.61.3
 [2.61.2]: https://github.com/applypack/applypack/compare/v2.61.1...v2.61.2
 [2.61.1]: https://github.com/applypack/applypack/compare/v2.61.0...v2.61.1
 [2.61.0]: https://github.com/applypack/applypack/compare/v2.60.0...v2.61.0
