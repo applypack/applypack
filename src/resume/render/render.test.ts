@@ -11,7 +11,7 @@ import { inferFromPdf } from '../style-infer';
 import { readPdfGeometry } from '../pdf-geometry';
 import { renderDocx } from './clean-docx';
 import { renderPdf, typefaceNote } from './clean-pdf';
-import { knobsFrom, readKnobs, readOrder, isMetricTwin, normaliseHex, LIMITS, type RenderKnobs } from './knobs';
+import { knobsFrom, readKnobs, readOrder, isMetricTwin, normaliseHex, LIMITS, SECTION_KEYS, sectionName, unknownSections, type RenderKnobs } from './knobs';
 import { planRender, planToText } from './sections';
 
 const RESUME = JsonResumeSchema.parse({
@@ -105,6 +105,22 @@ test('readOrder keeps every section, whatever the form left out', () => {
   assert.equal(order?.length, 8, 'the sections not named are appended, never dropped');
   assert.equal(readOrder('nonsense'), null);
   assert.equal(readOrder(null), null);
+});
+
+test('the order field takes the names its hint lists, and the keys, and refuses a name it does not know (#575)', () => {
+  const hinted = SECTION_KEYS.map(sectionName);
+  assert.ok(hinted.includes('experience') && !hinted.includes('work'), hinted.join());
+  assert.deepEqual(readOrder(hinted.join(',')), [...SECTION_KEYS], 'every name the hint lists is a section');
+  assert.deepEqual(readOrder('summary,Experience,skills')?.slice(0, 3), ['summary', 'work', 'skills']);
+  assert.deepEqual(readOrder('work, summary')?.slice(0, 2), ['work', 'summary']);
+  assert.equal(readOrder('work,work,skills')?.length, SECTION_KEYS.length, 'a name twice is one section');
+  // One typo refuses the order instead of sending the section it meant to the end.
+  assert.equal(readOrder('summary,experiance,skills'), null);
+  assert.deepEqual(unknownSections('summary, experiance ,skils'), ['experiance', 'skils']);
+  assert.deepEqual(unknownSections('summary,work,Experience,'), []);
+  assert.deepEqual(unknownSections(null), []);
+  const base = knobsFrom();
+  assert.deepEqual(readKnobs({ sectionOrder: 'experience,summary,typo' }, base).sectionOrder, base.sectionOrder);
 });
 
 test('normaliseHex and isMetricTwin', () => {

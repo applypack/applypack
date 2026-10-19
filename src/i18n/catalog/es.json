@@ -834,6 +834,7 @@
   "render.run.failedNext": "La página conserva la lectura integrada; pulsa “Leer la estructura con IA” para volver a intentarlo.",
   "render.flash.saved": "Se guardó “{name}” como currículum propio: un .docx en el que el editor puede escribir. “{original}” no se ha tocado. Leyéndolo ahora; el titular y las habilidades aparecerán en breve.",
   "render.flash.hidden": "Esa es la comprobación puntual que usa la página Adaptar currículum: sube el archivo en Currículums para trabajar con él aquí.",
+  "render.flash.unknownSection": "Orden de las secciones: ninguna sección se llama {names}, así que no se generó nada y el orden sigue como estaba. Nombres que acepta el campo: {known}.",
   "document.notice.pdf": "Tu currículum es un PDF, que no tiene párrafos que editar: esto es el mismo texto recompuesto con el aspecto leído de su página — la tipografía, los colores, la tabla de habilidades y las líneas separadoras. Tu PDF no se toca; Guardar conserva esto como .docx.",
   "document.notice.text": "Tu currículum se subió como texto plano, así que esta es una versión limpia compuesta a partir de él.",
   "document.notice.unsupported": "Casi todo tu .docx está en cuadros de texto, que no se pueden editar en su sitio, así que esta es una versión limpia con tu tipografía. Tu archivo no se toca.",

@@ -9,7 +9,7 @@ import { anchorStructure, structureIsUsable } from '../../resume/structure-ancho
 import { structureGaps, structureIsComplete } from '../../resume/structure-complete';
 import { blankStyle, type InferredStyle } from '../../resume/style-infer';
 import { resumeStyle } from '../resume-style';
-import { knobsFrom, readKnobs, type RenderKnobs } from '../../resume/render/knobs';
+import { knobsFrom, readKnobs, SECTION_KEYS, sectionName, unknownSections, type RenderKnobs } from '../../resume/render/knobs';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { renderDocx } from '../../resume/render/clean-docx';
 import { PDF_MIME, renderPdf } from '../../resume/render/clean-pdf';
@@ -23,7 +23,7 @@ import { hashShortId } from '../../text-utils';
 import { claimRun, startRun, updateRun, type TargetRun } from '../target-runs';
 import { runFailure } from '../run-failure';
 import { ResumeRenderPage } from '../pages/resume-render';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { clearFlashCookie, flashRedirect, parseFlashCookie, type FlashMessage } from '../flash';
 import { t } from '../../i18n/t';
 
 /*
@@ -115,6 +115,17 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
   if ('response' in ctx) return ctx.response;
   const form = await c.req.parseBody();
   const knobs = readKnobs(form as Record<string, unknown>, knobsFrom(ctx.style));
+  // A name no section answers to is refused with the field still holding it, and nothing is drawn (#575).
+  const typedOrder = typeof form.sectionOrder === 'string' ? form.sectionOrder : null;
+  const unknown = unknownSections(typedOrder);
+  if (unknown.length > 0) {
+    const refused: FlashMessage = {
+      kind: 'err',
+      text: t('render.flash.unknownSection', { names: unknown.join(', '), known: SECTION_KEYS.map(sectionName).join(', ') }),
+      field: { form: c.req.path, name: 'sectionOrder' },
+    };
+    return c.html(await page(ctx, knobs, refused, typedOrder));
+  }
   // The button's own value when the browser sent one (no JavaScript), else
   // the hidden field the onclick set. See the form for why there are two.
   const mode =
@@ -213,7 +224,7 @@ function reasonFor(resume: ResumeSummary, bytes: Buffer | null): string {
   return t('render.reason.text');
 }
 
-async function page(ctx: RenderContext, knobs: RenderKnobs, flash: ReturnType<typeof parseFlashCookie>) {
+async function page(ctx: RenderContext, knobs: RenderKnobs, flash: FlashMessage | null, typedOrder: string | null = null) {
   // The preview is the real thing read back, not a description of it: render
   // the .docx and run it through the same reader an upload goes through.
   const preview = docxToText(await renderDocx(ctx.structure, knobs));
@@ -230,6 +241,7 @@ async function page(ctx: RenderContext, knobs: RenderKnobs, flash: ReturnType<ty
       warnings={parseWarnings(preview)}
       reason={ctx.reason}
       flash={flash}
+      typedOrder={typedOrder}
     />
   );
 }
