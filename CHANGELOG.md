@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.6] — 2026-10-18
+
+### Fixed
+- Title keywords match however a title spells them: "back-end", "back end"
+  and "backend" are one word, as are "full-stack" / "full stack" /
+  "fullstack" and "node.js" / "nodejs" / "node js". This applies to the
+  words you want and the words you exclude.
+- A remote job open to all of Europe (or the EU, EMEA and similar regions)
+  is no longer set aside as a location mismatch when your search hunts in a
+  country inside that region.
+- "Score them" and setup's first scoring no longer spend several calls on
+  one job carried by several job boards. The copies wait until every other
+  job is scored.
+- Jobs that "Save & re-classify" scores for the first time now show in the
+  Overview chart and the search funnel.
+
 ## [2.61.5] — 2026-10-18
 
 ### Changed
@@ -6354,6 +6370,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.6]: https://github.com/applypack/applypack/compare/v2.61.5...v2.61.6
 [2.61.5]: https://github.com/applypack/applypack/compare/v2.61.4...v2.61.5
 [2.61.4]: https://github.com/applypack/applypack/compare/v2.61.3...v2.61.4
 [2.61.3]: https://github.com/applypack/applypack/compare/v2.61.2...v2.61.3

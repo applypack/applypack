@@ -1,3 +1,4 @@
+import { JobStatus } from '@prisma/client';
 import { EMPLOYER_GATES, type EmployerGate } from './employer';
 import { FILTER_REASONS, type FilterReason } from './filter';
 import type { DismissReason } from './jobs/verdict-merge';
@@ -69,7 +70,8 @@ export function runCounts(stats: Record<string, unknown>): FunnelCounts {
 
 /**
  * What the first scoring of postings a paused fetch stored unscored adds to
- * the funnel (the setup wizard's pass, `reclassify-job.ts:runScoreUnscored`).
+ * the funnel (the setup wizard's pass, `reclassify-job.ts:runScoreUnscored`,
+ * and the rows "Save & re-classify" scores for the first time).
  * The fetch counted them read, past the filter and new; this counts what the
  * scoring found, and what the search, filled in since, turned away before any
  * AI. It never adds `fetched`, so its day can read "passed" below "read".
@@ -85,6 +87,16 @@ export function scorePassCounts(stats: Record<string, unknown>): FunnelCounts {
     filterRejected: n('filterDismissed'),
     ...Object.fromEntries([...Object.values(FILTER_KEY), ...Object.values(DISMISS_KEY)].map((key) => [key, n(key)])),
   });
+}
+
+/**
+ * Whether a re-score is the posting's first scoring, the one the funnel
+ * counts (#552). A row with a score was counted when it got it, and a
+ * Dismissed row with none was counted when the prefilter or the filter set
+ * it aside: counting either again would put one posting in the day twice.
+ */
+export function isFirstScoring(row: { fitScore: number | null; status: JobStatus }): boolean {
+  return row.fitScore === null && row.status !== JobStatus.DISMISSED;
 }
 
 /** Two sets of counters as one. */

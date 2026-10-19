@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { addCounts, FUNNEL_KEYS, funnelCounts, funnelView, readCounts, reasonsText, runCounts, scorePassCounts, stageCount, sumDays, utcDay } from './funnel';
+import { JobStatus } from '@prisma/client';
+import { addCounts, FUNNEL_KEYS, funnelCounts, funnelView, isFirstScoring, readCounts, reasonsText, runCounts, scorePassCounts, stageCount, sumDays, utcDay } from './funnel';
 
 test('a run gives the funnel its counts and nothing else', () => {
   assert.deepEqual(
@@ -116,4 +117,17 @@ test("the first scoring of stored postings counts what it found and what the fil
   assert.deepEqual(scorePassCounts(stats), { classified: 10, matched: 2, dismissed: 8, filterRejected: 453, rejectedTitle: 453, dismissedLowFit: 8 });
   const day = funnelView(addCounts({ fetched: 617, filterRejected: 105, duplicate: 1 }, scorePassCounts(stats)));
   assert.deepEqual(day.stages.map((s) => s.count), [617, 59, 58, 10, 2, 0]);
+});
+
+test('a re-score counts only the postings it scores for the first time (#552)', () => {
+  // Fetch now while paused stored them unscored: Save & re-classify is their first scoring.
+  assert.equal(isFirstScoring({ fitScore: null, status: JobStatus.NEW }), true);
+  assert.equal(isFirstScoring({ fitScore: null, status: JobStatus.SAVED }), true);
+  // Counted already: when it got its score, or when the prefilter or the filter set it aside.
+  assert.equal(isFirstScoring({ fitScore: 62, status: JobStatus.NEW }), false);
+  assert.equal(isFirstScoring({ fitScore: 15, status: JobStatus.DISMISSED }), false);
+  assert.equal(isFirstScoring({ fitScore: null, status: JobStatus.DISMISSED }), false);
+  // The live check: 5 stored while paused, 3 matches — and the day now says so.
+  const day = funnelView(addCounts({ fetched: 6 }, scorePassCounts({ reclassified: 5, matched: 3, dismissedLowFit: 2 })));
+  assert.deepEqual(day.stages.map((s) => s.count), [6, 6, 6, 5, 3, 0]);
 });
