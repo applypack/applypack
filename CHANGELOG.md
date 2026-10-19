@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.5] — 2026-10-18
+
+### Changed
+- Add one company takes a board's link as well as its slug, and reads the
+  vendor from the link.
+
+### Fixed
+- The hourly check after a "Fetch now" reads your sources again, instead of
+  skipping an hour.
+- A check that reads no source says why on the Runs page.
+- Editing a search, starting one or unmuting a company makes the next check
+  read every board in full, so postings the old rules set aside are looked
+  at again.
+- A Rippling link with a language in it is read as the right company.
+- A Hacker News comment that starts with a link is no longer stored with the
+  link as its title.
+- Discovery's counts now match: a run counts each new board once, and its
+  row shows what is left for review.
+- "Check now" on a careers page you watch for changes says whether the page
+  changed, instead of blaming the network.
+- "Unwatch" on such a page stops reading it, and says so.
+- A refused "Add one company" keeps what you typed.
+
 ## [2.61.4] — 2026-10-18
 
 ### Changed
@@ -6331,6 +6354,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.5]: https://github.com/applypack/applypack/compare/v2.61.4...v2.61.5
 [2.61.4]: https://github.com/applypack/applypack/compare/v2.61.3...v2.61.4
 [2.61.3]: https://github.com/applypack/applypack/compare/v2.61.2...v2.61.3
 [2.61.2]: https://github.com/applypack/applypack/compare/v2.61.1...v2.61.2
