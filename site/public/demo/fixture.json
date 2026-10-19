@@ -1,5 +1,5 @@
 {
- "aiScore": 82,
+ "aiScore": 84,
  "resumeText": "Dana Ruiz\nSenior Full-Stack Developer | dana.ruiz@example.com | github.com/danaruiz-dev\n\nSummary\nFull-stack engineer, six years building TypeScript products end to end. Happiest owning a slice from the Postgres schema up to the React screen, with a preference for boring, observable infrastructure.\n\nExperience\n\nSenior Full-Stack Developer - Harborline (remote), 2022-present\n- Built the dispatch API in Node.js (Fastify) and TypeScript; 1.8M requests/day at p95 under 140 ms\n- Moved billing off a legacy Rails monolith into Node.js services without downtime; retired 32k lines\n- Designed the PostgreSQL schema and Prisma migrations for invoicing; the monthly run dropped from 35 minutes to 5\n- Added GitHub Actions CI with Docker layer caching; build time halved\n\nFull-Stack Developer - Lantern Rail (Lisbon), 2019-2022\n- Shipped the React front end of a crew-scheduling tool used daily by 1,200 staff\n- Built REST and GraphQL APIs in Node.js/Express over PostgreSQL\n- Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes\n\nSkills\nTypeScript, Node.js (Fastify, Express), React, Next.js, PostgreSQL, Prisma, Docker, GitHub Actions, REST, GraphQL, Jest, AWS basics (ECS, RDS, S3)",
  "jobText": "Fernway builds scheduling software for independent veterinary clinics. About 900 practices run their day on it. We are hiring a Senior Full-Stack Engineer to own product areas end to end — from the Postgres schema to the screens clinic staff touch every hour.\r\n\r\nDay to day\r\n- Ship features across our TypeScript stack: Node.js services, React front-end, PostgreSQL\r\n- Take an area from schema sketch to production on AWS (ECS, RDS)\r\n- Keep the CI pipeline fast (GitHub Actions, Docker)\r\n- Review pull requests and mentor two mid-level engineers\r\n\r\nWhat we are looking for\r\n- 5+ years shipping production web applications\r\n- Strong TypeScript and Node.js (Express, Fastify or NestJS)\r\n- React in depth: hooks, state management, performance profiling\r\n- PostgreSQL beyond CRUD: schema design, query optimization, migrations\r\n- Comfortable with Docker and CI/CD\r\n- Writes clearly — the team is async and remote-first\r\n\r\nNice to have\r\n- Prisma or another type-safe ORM\r\n- Redis and a queue (SQS or RabbitMQ)\r\n- Terraform or another infrastructure-as-code tool\r\n- Observability: Grafana, Prometheus\r\n\r\nRemote worldwide · EUR 70-90k · 30 days paid leave · hardware budget",
  "keywords": [
@@ -8,7 +8,7 @@
    "priority": 2,
    "requirement": "must",
    "primary": false,
-   "status": "add",
+   "status": "present",
    "aliases": [
     "senior full-stack developer",
     "senior fullstack engineer"
@@ -193,7 +193,7 @@
    "priority": 3,
    "requirement": "must",
    "primary": false,
-   "status": "add",
+   "status": "present",
    "aliases": [
     "continuous integration",
     "continuous delivery",

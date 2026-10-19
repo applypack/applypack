@@ -553,7 +553,11 @@ preferred 2, nice 1, context 0; a row from before requirement levels falls
 back to its priority, P1 = 3, P2 = 2, P3/P4 = 1), and every weighted term
 earns its weight once the text spells it, whatever status the last analysis
 gave it (ADR 0045). The number under the editor is the live estimate of
-`src/web/public/score.mjs`, the mirror of `src/resume/score.ts`. Both panes'
+`src/web/public/score.mjs`, the mirror of `src/resume/score.ts`. Its
+alignment points and the half credit of a deleted keyword stay as the last
+analysis judged the text it read, so once less than 60 % of that text's
+words are left (`src/web/public/kept-words.mjs`) the ring shows no number,
+and the sticky bar points at **Analyse my resume again**. Both panes'
 highlights come from the match's `keywords`
 (with `aliases`), `actions` and `removals` (with verbatim `quote`s).
 The page has one AI action, **Analyse my resume again**: it posts the edited text

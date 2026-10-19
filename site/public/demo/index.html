@@ -54,6 +54,7 @@
           <span id="score-detail"></span>
           <span id="score-delta"></span>
           <button id="reset" type="button" hidden>Reset the resume</button>
+          <span id="score-parts"></span>
         </div>
       </div>
       <div id="chips"></div>
@@ -71,7 +72,7 @@
         </div>
       </div>
     </div>
-    <p class="demo-hint">Type <code>Redis</code> into the skills line: the number moves on the next keystroke. Type <code>hooks</code>, a must-have, and it moves further. Before you type <code>Terraform</code>, its dashed underline in the posting says nothing in the resume backs it. Typed, it counts all the same: the score reads the text, as an ATS filter does.</p>
+    <p class="demo-hint">Type <code>Redis</code> into the skills line: the number moves on the next keystroke. Type <code>hooks</code>, a must-have, and it moves further. Before you type <code>Terraform</code>, its dashed underline in the posting says nothing in the resume backs it. Typed, it counts all the same: the score reads the text, as an ATS filter does. A word only in a list counts a little less than one in a sentence about the work. Title, summary and latest role keep the AI's grade, so rewrite most of the resume and the page stops showing a number.</p>
   </div>
 
   <div class="after-demo">
@@ -80,7 +81,7 @@
     <a class="btn" href="../">What else it does</a>
   </div>
 
-  <p class="fine">What is AI and what is not: one AI call marked each keyword as present, missing or ask-the-user against the original resume, and graded the alignment. Everything since, coverage, the primary-stack cap and the number, is <a href="https://github.com/applypack/applypack/blob/main/src/web/public/score.mjs">score.mjs</a>, the same file the dashboard ships; a parity test keeps this page's copy byte-identical.</p>
+  <p class="fine">What is AI and what is not: one AI call marked each keyword as present, missing or ask-the-user against the original resume, and graded the alignment. Everything since, coverage, the primary-stack cap and the number, is <a href="https://github.com/applypack/applypack/blob/main/src/web/public/score.mjs">score.mjs</a>, the same file the dashboard ships; a parity test keeps this page's copy byte-identical. The alignment is not re-read as you type, so once most of the original text is gone the page shows no number.</p>
 </main>
 
 <footer>
