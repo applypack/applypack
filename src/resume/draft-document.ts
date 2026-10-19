@@ -26,7 +26,7 @@ import { t } from '../i18n/t';
 export type DocumentKind = 'own' | 'clean';
 
 /** Why the document is what it is — the page words its note from this. */
-export type DocumentBasis = 'own' | 'pdf' | 'text' | 'unsupported' | 'stale' | 'draft' | 'refused';
+export type DocumentBasis = 'own' | 'pdf' | 'text' | 'unsupported' | 'stale' | 'refused';
 
 export interface DraftInput {
   sourceFilename: string;
@@ -61,13 +61,23 @@ export async function draftDocx(input: DraftInput): Promise<DraftDocument> {
   const { original, sourceFilename } = input;
   if (original && isDocx(sourceFilename)) {
     if (docxStructure(original).kind === 'unsupported') return clean(input, 'unsupported');
-    const patched = await patchDocx(original, input.baseText, input.text);
+    const patched = await patchDocx(original, patchBase(original, input), input.text);
     if (patched.ok) return { kind: 'own', basis: 'own', docx: patched.docx, notice: null };
     // `reason` is the patcher's English, which STALE_REASON reads; `shown` is the same sentence in the page's language.
     if (!STALE_REASON.test(patched.reason)) return clean(input, 'refused', patched.shown);
-    return clean(input, input.draft ? 'draft' : 'stale');
+    return clean(input, 'stale');
   }
   return clean(input, isPdf(sourceFilename) ? 'pdf' : 'text');
+}
+
+/**
+ * The text the editor's draft is diffed against to write it into the file: the
+ * comparison's analysed text, or for a comparison of a draft — which analysed
+ * a text the file does not hold — the file's own, so the draft's changes go in
+ * with the edits made since (#608). Read once `docxStructure` took the file.
+ */
+export function patchBase(original: Buffer, input: Pick<DraftInput, 'baseText' | 'draft'>): string {
+  return input.draft ? docxToText(original) : input.baseText;
 }
 
 /** The clean .pdf of the draft; the user's own .docx has no PDF of ours (the route prints or converts it). */
@@ -153,8 +163,6 @@ export function noticeFor(basis: Exclude<DocumentBasis, 'own'>, reason?: string)
       return t('document.notice.unsupported');
     case 'stale':
       return t('document.notice.stale');
-    case 'draft':
-      return t('document.notice.draft');
     case 'refused':
       // The reason is the patcher's own sentence (docx-patch.ts), already in the page's language.
       return t('document.notice.refused', { reason: reason ?? t('document.notice.someLine') });

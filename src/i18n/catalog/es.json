@@ -867,7 +867,6 @@
   "document.notice.text": "Tu currículum se subió como texto plano, así que esta es una versión limpia compuesta a partir de él.",
   "document.notice.unsupported": "Casi todo tu .docx está en cuadros de texto, que no se pueden editar en su sitio, así que esta es una versión limpia con tu tipografía. Tu archivo no se toca.",
   "document.notice.stale": "Esta comparación leyó una versión anterior de tu currículum, así que sus cambios no se pueden escribir en el archivo que tienes ahora. Esta es una versión limpia; vuelve a comparar para editar tu propio archivo.",
-  "document.notice.draft": "Esta comparación leyó un borrador, no el archivo que guardaste, así que sus cambios no se pueden escribir en ese archivo. Esta es una versión limpia; abre la comparación de tu currículum guardado para editar tu propio archivo.",
   "document.notice.refused": "Tu .docx no admite uno de estos cambios ({reason}), así que esta es una versión limpia con tu tipografía. Deshaz ese cambio, o edita esa línea en texto plano, para recuperar tu propio archivo.",
   "document.notice.someLine": "una línea que el archivo no puede contener",
   "document.error.textSize": "El texto está vacío o es más largo que un currículum.",

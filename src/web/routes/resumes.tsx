@@ -39,7 +39,7 @@ import { describeStructure, docxStructure, type DocxStructure } from '../../resu
 import { patchDocx } from '../../resume/docx-patch';
 import { readProps, withProps, type DocxProps } from '../../resume/docx-props';
 import { DOCX_MIME } from '../../resume/docx-write';
-import { cleanDocx } from '../../resume/draft-document';
+import { cleanDocx, patchBase, type DraftInput } from '../../resume/draft-document';
 import { originalFile } from '../../resume/kept-upload';
 import { knobsFrom } from '../../resume/render/knobs';
 import { resumeStyle } from '../resume-style';
@@ -254,8 +254,11 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   }
   // What the edits are relative to — the text the editor started from. Without
   // it a .docx cannot be patched (the diff would be against nothing) and the
-  // save is the clean version (ADR 0059).
-  const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
+  // save is the clean version (ADR 0059). A draft's is read off the file (#608).
+  const base = {
+    baseText: typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '',
+    draft: form.draft === '1',
+  };
   const jobId = idParam(form.jobId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true, atsType: true } } } })
@@ -284,7 +287,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // Scan and match are the slow part after it: two AI calls back to back is
   // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
-    const { resume, note, document } = await saveEdited(id, text, baseText);
+    const { resume, note, document } = await saveEdited(id, text, base);
     // Every sentence below opens the same way: the version it was saved as, and how.
     const saved = { version: resume.version, note };
     // TASKS R25: the saved file — the user's own .docx written into, or the clean one — handed back.
@@ -348,7 +351,7 @@ function isDocx(filename: string): boolean {
 async function saveEdited(
   id: number,
   text: string,
-  baseText: string,
+  base: Pick<DraftInput, 'baseText' | 'draft'>,
 ): Promise<{ resume: ResumeSummary; note: string; document: boolean }> {
   const [current, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!current) throw new Error(`resume ${id} is gone`);
@@ -358,10 +361,10 @@ async function saveEdited(
   let why = row && /\.pdf$/i.test(row.sourceFilename) ? t('resume.save.why.pdf') : t('resume.save.why.text');
   if (row && isDocx(row.sourceFilename)) {
     const original = Buffer.from(row.original);
-    if (!baseText) why = t('resume.save.why.noBase');
+    if (!base.baseText) why = t('resume.save.why.noBase');
     else if (docxStructure(original).kind === 'unsupported') why = t('resume.save.why.unsupported');
     else {
-      const patched = await patchDocx(original, baseText, text);
+      const patched = await patchDocx(original, patchBase(original, base), text);
       if (patched.ok) {
         const r = patched.report;
         file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };

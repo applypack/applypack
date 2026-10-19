@@ -7,7 +7,7 @@ import { pdfToText } from './pdf-text';
 import { knobsFrom } from './render/knobs';
 import { planRender } from './render/sections';
 import { structureFromText } from './structure-from-text';
-import { cleanDocx, contentDisposition, documentFileName, draftDocx, draftPdf, noticeFor, packFileName, type DraftInput } from './draft-document';
+import { cleanDocx, contentDisposition, documentFileName, draftDocx, draftPdf, noticeFor, packFileName, patchBase, type DraftInput } from './draft-document';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name));
 const FLOW = fixture('flow-simple.docx');
@@ -48,11 +48,18 @@ test('a comparison of an older version is named as such, not as a refusal', asyn
   assert.match(doc.notice ?? '', /earlier version/);
 });
 
-test('a comparison of a draft of this version does not claim an earlier one (#582)', async () => {
-  const doc = await draftDocx(input({ baseText: 'Some other resume entirely\n\nwith other lines', text: FLOW_TEXT, draft: true }));
-  assert.equal(doc.basis, 'draft');
-  assert.match(doc.notice ?? '', /read a draft, not the file you saved/);
-  assert.doesNotMatch(doc.notice ?? '', /earlier version/);
+test('a comparison of a draft is written into the user’s own file: the draft’s changes and the edits since (#608)', async () => {
+  // The comparison read a draft — an edit of v1 the file does not hold — and the editor changed another line on top of it.
+  const analysed = FLOW_TEXT.replace('Improved SEO rankings for marketing pages.', 'Cut p95 latency of the search API by 40%.');
+  const edited = analysed.replace('PHP 8, Laravel, Docker, MySQL, Redis', 'PHP 8, Laravel, Docker, MySQL, Redis, Kafka');
+  const doc = await draftDocx(input({ baseText: analysed, text: edited, draft: true }));
+  assert.equal(doc.kind, 'own');
+  assert.equal(doc.notice, null);
+  assert.equal(docxToText(doc.docx), edited);
+  // Read against the comparison's text, the same draft is refused: the file does not hold it.
+  assert.equal((await draftDocx(input({ baseText: analysed, text: edited }))).basis, 'stale');
+  assert.equal(patchBase(FLOW, { baseText: analysed, draft: true }), FLOW_TEXT);
+  assert.equal(patchBase(FLOW, { baseText: analysed }), analysed);
 });
 
 test('a PDF resume is drawn as the clean version of the draft, and its PDF is ours', async () => {
@@ -80,7 +87,7 @@ test('a PDF resume is drawn as the clean version of the draft, and its PDF is ou
 });
 
 test('every clean basis has its own sentence', () => {
-  for (const basis of ['pdf', 'text', 'unsupported', 'stale', 'draft', 'refused'] as const) {
+  for (const basis of ['pdf', 'text', 'unsupported', 'stale', 'refused'] as const) {
     assert.ok(noticeFor(basis).length > 40, basis);
   }
   assert.match(noticeFor('refused', 'a table row cannot be rewritten as one line'), /a table row cannot be rewritten/);

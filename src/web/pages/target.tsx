@@ -148,6 +148,8 @@ export const TargetPage: FC<TargetPageProps> = ({
   // A file judged on its own text may not be the user's: its questions are not theirs to answer (TASKS R1).
   const { asks, unproven } = readMatchEvidence(match.breakdown) === 'text' ? { asks: [], unproven: [] } : confirmable(scored, job.title);
   const highActions = actions.filter((a) => a.priority === 'high').length;
+  // This comparison read a text the saved file does not hold — a draft of this very version, not an earlier one.
+  const documentDraft = match.draft && match.resumeVersion === resume.version;
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
   const breakdown = readBreakdown(match.breakdown);
@@ -184,8 +186,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     // The document pane draws the draft through POST /resumes/:id/document.
     resumeId: resume.id,
     documentName: resume.name,
-    // This comparison read a text the saved file does not hold — a draft of this very version, not an earlier one.
-    documentDraft: match.draft && match.resumeVersion === resume.version,
+    documentDraft,
   };
   return (
     <Layout title={t('target.pageTitle', { title: job.title })} active="jobs">
@@ -477,8 +478,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                   >
                     <input type="hidden" name="text" id="save-text" value="" />
                     <input type="hidden" name="jobId" value={job.id} />
-                    {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
+                    {/* The text the edits started from: the patcher diffs against it (ADR 0038), or for a draft against the file's own (#608). */}
                     <input type="hidden" name="baseText" value={resumeText} />
+                    <input type="hidden" name="draft" value={documentDraft ? '1' : ''} />
                     <Button
                       variant="primary"
                       class="w-full"
