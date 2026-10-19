@@ -2911,7 +2911,7 @@
   "target.dirty.oneOff": "se guardan en esta pestaña del navegador — cópialos antes de salir",
   "target.dirty.saved": "se guardan en esta pestaña del navegador hasta que guardes",
   "target.dirty.discard": "Descartar",
-  "target.dirty.stale": "<b>Sin puntuación:</b> queda muy poco del texto que leyó el último análisis. “Analizar mi currículum de nuevo” puntúa el texto tal como está.",
+  "target.dirty.stale": "<b>Sin puntuación:</b> queda muy poco del texto que leyó el último análisis.",
   "match.delta.fresh.rebuild": "Las palabras clave se reconstruyeron a partir de la oferta para esta ejecución, así que este análisis cuenta un conjunto distinto de términos. Lee la puntuación por sí sola — las anteriores evaluaron otra lista.",
   "match.delta.fresh.postingChanged": "La descripción de la oferta se reemplazó después del análisis anterior, así que sus palabras clave se leyeron de nuevo y este análisis cuenta un conjunto distinto de términos. Lee la puntuación por sí sola — las anteriores evaluaron otra lista.",
   "match.delta.fresh.promptBump": "El prompt del análisis cambió, así que no se reutilizaron las palabras clave anteriores y este análisis cuenta un conjunto distinto de términos. Lee la puntuación por sí sola — las anteriores evaluaron otra lista.",

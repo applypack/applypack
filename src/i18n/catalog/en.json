@@ -2911,7 +2911,7 @@
   "target.dirty.oneOff": "kept in this browser tab — copy them out before you leave",
   "target.dirty.saved": "kept in this browser tab until you save",
   "target.dirty.discard": "Discard",
-  "target.dirty.stale": "<b>No score:</b> too little is left of the text the last analysis read. “Analyse my resume again” scores the text as it stands.",
+  "target.dirty.stale": "<b>No score:</b> too little is left of the text the last analysis read.",
   "match.delta.fresh.rebuild": "Keywords were rebuilt from the posting for this run, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.",
   "match.delta.fresh.postingChanged": "The posting's description was replaced after the earlier analysis, so its keywords were read afresh, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.",
   "match.delta.fresh.promptBump": "The analysis prompt changed, so the earlier keywords were not reused, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.",

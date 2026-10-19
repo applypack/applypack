@@ -199,6 +199,9 @@ export function init(data) {
   const ringNumber = document.getElementById('score-number');
   const scoreLive = document.getElementById('score-live');
   const scoreStale = document.getElementById('score-stale');
+  // A phone keeps the sticky bar short: the no-score note stands in for the line on where edits are kept.
+  const dirtyHint = document.getElementById('dirty-hint');
+  const narrow = window.matchMedia('(max-width: 639px)');
   // "Ready to apply" and the ceiling read the number: with none, they would praise an emptied editor.
   const needsScore = document.querySelectorAll('.needs-score');
   // undefined, not null: null is the "no score" the ring may open on, and that is announced too.
@@ -297,6 +300,7 @@ export function init(data) {
     }
     paintRing(stale ? null : display);
     if (scoreStale) scoreStale.hidden = !stale;
+    if (dirtyHint) dirtyHint.hidden = stale && narrow.matches;
     for (const el of needsScore) el.hidden = stale;
 
     const spans = resumeSpans(data.keywords, data.actions, data.removals, text);

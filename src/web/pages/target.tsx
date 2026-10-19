@@ -824,7 +824,8 @@ export const TargetPage: FC<TargetPageProps> = ({
             <span class="text-sm font-medium text-ink">{t('target.dirty.title')}</span>
             {/* A live region whose text never changed announced nothing; this one is written when the bar appears. */}
             <span id="dirty-live" class="sr-only" aria-live="polite"></span>
-            <span class="ml-2 text-meta text-ink-faint">
+            {/* On a phone the no-score note below takes this line's place (target-page.mjs). */}
+            <span id="dirty-hint" class="ml-2 text-meta text-ink-faint">
               {resume.ephemeral ? t('target.dirty.oneOff') : t('target.dirty.saved')}
             </span>
           </div>

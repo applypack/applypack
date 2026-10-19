@@ -2911,7 +2911,7 @@
   "target.dirty.oneOff": "conservées dans cet onglet du navigateur — copiez-les avant de partir",
   "target.dirty.saved": "conservées dans cet onglet du navigateur jusqu'à l'enregistrement",
   "target.dirty.discard": "Abandonner",
-  "target.dirty.stale": "<b>Pas de score :</b> il reste trop peu du texte lu par la dernière analyse. « Analyser à nouveau mon CV » note le texte tel qu'il est.",
+  "target.dirty.stale": "<b>Pas de score :</b> il reste trop peu du texte lu par la dernière analyse.",
   "match.delta.fresh.rebuild": "Les mots-clés ont été reconstruits à partir de l'offre pour cette exécution : cette analyse compte donc un autre ensemble de termes. Lisez le score pour lui-même — les précédentes jugeaient une autre liste.",
   "match.delta.fresh.postingChanged": "La description de l'offre a été remplacée après l'analyse précédente : ses mots-clés ont donc été relus, et cette analyse compte un autre ensemble de termes. Lisez le score pour lui-même — les précédentes jugeaient une autre liste.",
   "match.delta.fresh.promptBump": "Le prompt d'analyse a changé : les mots-clés précédents n'ont donc pas été réutilisés, et cette analyse compte un autre ensemble de termes. Lisez le score pour lui-même — les précédentes jugeaient une autre liste.",
