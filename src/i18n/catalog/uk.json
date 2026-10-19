@@ -1528,7 +1528,7 @@
   "settings.forgetThisAddress": "Забути цю адресу й використовувати {envVar} з .env",
   "settings.forgetForDefault": "Забути цю адресу й використовувати типову",
   "settings.useEnv": "Узяти з .env",
-  "settings.useDefault": "Типова адреса",
+  "settings.useDefault": "Узяти типову",
   "settings.contextWindow": "Контекстне вікно",
   "settings.roomForThePromptAnd": "Місце для промпту й відповіді. Порівнянню резюме потрібно 16k або більше; кожен наступний крок забирає більше пам'яті комп'ютера.",
   "settings.contextTokens": "{k}k токенів",
