@@ -17,6 +17,7 @@ import {
   gapLabel,
 } from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
+import { wordsOf, shareKept, KEPT_FLOOR } from './kept-words.mjs';
 import { formatEditSheet } from './change-sheet.mjs';
 import { wireCopy, copyFrom, announce } from './copy.mjs';
 import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, inverseEdit, undoEdit, withContext } from './text-edits.mjs';
@@ -197,7 +198,13 @@ export function init(data) {
   const ringArc = document.getElementById('score-arc');
   const ringNumber = document.getElementById('score-number');
   const scoreLive = document.getElementById('score-live');
-  let announcedScore = null;
+  const scoreStale = document.getElementById('score-stale');
+  // "Ready to apply" and the ceiling read the number: with none, they would praise an emptied editor.
+  const needsScore = document.querySelectorAll('.needs-score');
+  // undefined, not null: null is the "no score" the ring may open on, and that is announced too.
+  let announcedScore;
+  // The comparison's own snapshot — a draft or a one-off file included — not the resume's upload.
+  const analysedWords = wordsOf(data.resumeText);
   // 2πr, straight off the element the server drew, so the two cannot drift.
   const ringLength = Number(ringArc.getAttribute('stroke-dasharray'));
   const panes = document.getElementById('panes');
@@ -251,18 +258,19 @@ export function init(data) {
     } catch {}
   }
 
-  /** The ring: the number, the arc and the label a screen reader reads. */
+  /** The ring: the number, the arc and the label a screen reader reads. Null is no number: an empty ring and a dash. */
   function paintRing(score) {
-    ringNumber.textContent = String(score);
-    ringArc.style.strokeDashoffset = String(ringLength - (ringLength * score) / 100);
+    const none = score === null;
+    ringNumber.textContent = none ? '—' : String(score);
+    ringArc.style.strokeDashoffset = String(ringLength - (ringLength * (score ?? 0)) / 100);
     ringArc.setAttribute(
       'class',
-      'transition-[stroke-dashoffset] duration-300 ' + RING_TONE[ringTone(score)],
+      'transition-[stroke-dashoffset] duration-300 ' + RING_TONE[none ? 'neutral' : ringTone(score)],
     );
-    ringButton.setAttribute('aria-label', t('browser.score.aria', { score }));
+    ringButton.setAttribute('aria-label', none ? t('browser.score.noneAria') : t('browser.score.aria', { score }));
     // Announced only when the number moves — every keystroke repaints, few change it.
     if (scoreLive && announcedScore !== score) {
-      scoreLive.textContent = t('browser.score.live', { score });
+      scoreLive.textContent = none ? t('browser.score.noneLive') : t('browser.score.live', { score });
       announcedScore = score;
     }
   }
@@ -279,12 +287,17 @@ export function init(data) {
     //
     // The same arithmetic the server runs (score.mjs mirrors score.ts), so
     // this is the score, not a second opinion about it: only the parts a word
-    // search cannot read wait for the next analysis.
+    // search cannot read wait for the next analysis. Once too little is left of
+    // the text that analysis read, those parts judge a resume that is gone, so
+    // the ring shows no number and the sticky bar points at the next analysis.
+    const stale = shareKept(analysedWords, text) < KEPT_FLOOR;
     let display = scored.score;
     if (data.scoring) {
       display = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount, data.scoring.penalty ?? null).score;
     }
-    paintRing(display);
+    paintRing(stale ? null : display);
+    if (scoreStale) scoreStale.hidden = !stale;
+    for (const el of needsScore) el.hidden = stale;
 
     const spans = resumeSpans(data.keywords, data.actions, data.removals, text);
     if (located) {
@@ -366,8 +379,8 @@ export function init(data) {
       chips.appendChild(none);
     }
 
-    // Nothing marks the ring as stale: the sticky bar says it in full while
-    // the text is dirty — the estimate, the delta and the button to re-run.
+    // The sticky bar says the rest while the text is dirty: what is unsaved,
+    // and the button to re-run — beside the reason when the ring has no number.
     const dirty = text !== data.resumeText;
     dirtyBar.hidden = !dirty;
     if (dirtyLive) {
