@@ -829,6 +829,7 @@
   "render.reason.structural": "Your .docx keeps some of its text in tables or text boxes, which a save cannot rewrite line by line. A clean version puts the same words in plain paragraphs.",
   "render.reason.unsupported": "This .docx is one the editor cannot write into at all. A clean version puts the same words in a file it can.",
   "render.reason.text": "This resume is stored as text, so there is no layout to keep. A clean version gives it one, plus a .docx the editor can write into.",
+  "render.typeface.bundled": "The PDF is set in {family}, the face your file uses — the lines break in the same places. The .docx asks for {family} too.",
   "render.typeface.same": "The PDF is set in {bundled}, which has the same letter widths as {family} — the lines break in the same places. The .docx asks for {family} itself.",
   "render.typeface.close": "The PDF is set in {bundled}; {family} is not a font this app can embed, so the lines may break differently. The .docx asks for {family} itself.",
   "render.whatItFoundInYour": "What it found in your resume",

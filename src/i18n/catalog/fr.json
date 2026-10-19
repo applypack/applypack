@@ -829,6 +829,7 @@
   "render.reason.structural": "Votre .docx place une partie de son texte dans des tableaux ou des zones de texte, qu'un enregistrement ne peut pas réécrire ligne par ligne. Une version épurée met les mêmes mots dans des paragraphes simples.",
   "render.reason.unsupported": "L'éditeur ne peut pas du tout écrire dans ce .docx. Une version épurée met les mêmes mots dans un fichier où il le peut.",
   "render.reason.text": "Ce CV est enregistré sous forme de texte : il n'y a donc pas de mise en page à conserver. Une version épurée lui en donne une, avec un .docx dans lequel l'éditeur peut écrire.",
+  "render.typeface.bundled": "Le PDF est composé en {family}, la police de votre fichier — les lignes se coupent aux mêmes endroits. Le .docx demande aussi {family}.",
   "render.typeface.same": "Le PDF est composé en {bundled}, qui a les mêmes largeurs de caractères que {family} — les lignes se coupent aux mêmes endroits. Le .docx demande {family} elle-même.",
   "render.typeface.close": "Le PDF est composé en {bundled} ; {family} n'est pas une police que cette application peut intégrer, les lignes peuvent donc se couper différemment. Le .docx demande {family} elle-même.",
   "render.whatItFoundInYour": "Ce qui a été trouvé dans votre CV",

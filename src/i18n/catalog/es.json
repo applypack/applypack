@@ -829,6 +829,7 @@
   "render.reason.structural": "Tu .docx guarda parte del texto en tablas o cuadros de texto, que un guardado no puede reescribir línea a línea. Una versión limpia pone las mismas palabras en párrafos normales.",
   "render.reason.unsupported": "En este .docx el editor no puede escribir en absoluto. Una versión limpia pone las mismas palabras en un archivo en el que sí puede.",
   "render.reason.text": "Este currículum está guardado como texto, así que no hay maquetación que conservar. Una versión limpia le da una, además de un .docx en el que el editor puede escribir.",
+  "render.typeface.bundled": "El PDF usa {family}, la misma fuente que tu archivo: las líneas se cortan en los mismos puntos. El .docx también pide {family}.",
   "render.typeface.same": "El PDF usa {bundled}, que tiene los mismos anchos de letra que {family}: las líneas se cortan en los mismos puntos. El .docx pide la propia {family}.",
   "render.typeface.close": "El PDF usa {bundled}; {family} no es una tipografía que esta aplicación pueda incrustar, así que las líneas pueden cortarse de otra forma. El .docx pide la propia {family}.",
   "render.whatItFoundInYour": "Lo que encontró en tu currículum",

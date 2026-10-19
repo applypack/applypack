@@ -274,7 +274,9 @@ export async function drawPdf(plan: RenderPlan, knobs: RenderKnobs): Promise<Buf
  * The sentence the page shows about the typeface: the PDF cannot embed the
  * user's Arial (we do not have it and could not redistribute it), so it says
  * what it did instead — and whether that is the same width or merely close.
+ * A file already set in the bundled face is told so, not compared with itself.
  */
 export function typefaceNote(family: string): string {
+  if (family.trim().toLowerCase() === BUNDLED_FAMILY.toLowerCase()) return t('render.typeface.bundled', { family: BUNDLED_FAMILY });
   return t(isMetricTwin(family) ? 'render.typeface.same' : 'render.typeface.close', { bundled: BUNDLED_FAMILY, family });
 }
