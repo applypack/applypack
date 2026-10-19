@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer, type AddressInfo } from 'node:net';
 import {
   cliFailure,
   ANTHROPIC_THINKING_HEADROOM_TOKENS,
@@ -27,6 +28,7 @@ import {
   parseOllamaStream,
   refusedReason,
   retryWait,
+  unreachableCode,
   webToolsDirectOnly,
   parseCodexCliOutput,
   parseGeminiCliOutput,
@@ -520,6 +522,29 @@ test('cliFailure names the reason without the command line — which is the prom
   for (const f of [timeout, exited]) {
     assert.doesNotMatch(JSON.stringify(f), /RESUME TEXT|posting text/);
   }
+});
+
+test('unreachableCode reads why nothing answered at the address, and nothing else (#571)', () => {
+  const fetchFailed = (cause: unknown) => new TypeError('fetch failed', { cause });
+  const refused = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), { code: 'ECONNREFUSED' });
+  assert.equal(unreachableCode(fetchFailed(refused)), 'ECONNREFUSED');
+  // `localhost` is tried as ::1 and as 127.0.0.1; Node keeps the code on the AggregateError.
+  assert.equal(unreachableCode(fetchFailed(Object.assign(new AggregateError([refused, refused], ''), { code: 'ECONNREFUSED' }))), 'ECONNREFUSED');
+  assert.equal(unreachableCode(fetchFailed(Object.assign(new Error('getaddrinfo ENOTFOUND gpu-box'), { code: 'ENOTFOUND' }))), 'ENOTFOUND');
+  // A server that answered and then failed, our own timeout, anything else: an error with its stack, as before.
+  assert.equal(unreachableCode(fetchFailed(Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }))), null);
+  assert.equal(unreachableCode(new DOMException('This operation was aborted', 'AbortError')), null);
+  assert.equal(unreachableCode(fetchFailed(new Error('bad port'))), null);
+  assert.equal(unreachableCode(new Error('fetch failed')), null);
+});
+
+test('unreachableCode reads what fetch really throws at a port nobody listens on', async () => {
+  const server = createServer();
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address() as AddressInfo;
+  await new Promise((done) => server.close(done));
+  const err = await fetch(`http://127.0.0.1:${port}/api/chat`).catch((e: unknown) => e);
+  assert.equal(unreachableCode(err), 'ECONNREFUSED');
 });
 
 test('parseOpenAiChatResponse reads finish_reason and refuses an empty completion', () => {
