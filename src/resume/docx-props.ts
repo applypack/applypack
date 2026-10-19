@@ -13,6 +13,7 @@
 
 import JSZip from 'jszip';
 import { readZipEntry } from './zip';
+import { structureFromText } from './structure-from-text';
 
 const CORE_PART = 'docProps/core.xml';
 const APP_PART = 'docProps/app.xml';
@@ -37,6 +38,15 @@ const element = (xml: string, name: string): string | null => {
   const m = new RegExp(`<${name}(?:\\s[^>]*)?>([^<]*)</${name}>`).exec(xml);
   return m ? decode(m[1] ?? '') : null;
 };
+
+/**
+ * Whose name the fixed properties carry: the one the resume's header reads,
+ * else `fallback`. Not the text's first line — a Word title reads as `# Name`
+ * since the reader marks it (#608).
+ */
+export function propsCandidate(text: string, fallback: string): string {
+  return structureFromText(text).basics.name?.trim() || fallback;
+}
 
 export function readProps(bytes: Buffer): DocxProps {
   const core = readZipEntry(bytes, CORE_PART)?.toString('utf8') ?? '';

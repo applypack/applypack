@@ -19,20 +19,37 @@ export function hideHeaderClass(hideBelow: HideBelow | undefined, i: number): st
 
 const ORDER: readonly (Breakpoint | '')[] = ['', 'sm', 'md', 'lg', 'xl'];
 
+/** A CSS pixel per rem: Tailwind's `w-[5rem]` at the browser's default font size. */
+const REM_PX = 16;
+
 /**
  * A fixed-layout table's columns at a screen width from `at` up to the next
- * breakpoint, as fractions of the table: the percentage width of each column
- * shown, scaled over the shown ones, as the browser gives a hidden column's
- * share to the rest. Null for a hidden column. What a test holds a column to
- * when a control in it has a width of its own (#537).
+ * breakpoint, in px for a table `box` wide; null for a hidden column. As the
+ * browser lays out `table-layout: fixed`: a `w-[Nrem]` column is that wide, a
+ * `w-[N%]` one takes its share of the table, and a column given no width ('')
+ * takes what the others leave (#612). With no such column, the percentages
+ * share what the rem columns leave, as a hidden column's share goes to the
+ * rest (#537). What a test holds a column to when a control in it has a width
+ * of its own.
  */
-export function shownShares(widths: readonly string[], hideBelow: HideBelow | undefined, at: Breakpoint | ''): (number | null)[] {
-  const shown = widths.map((w, i) => {
-    const bp = hideBelow?.[i] ?? '';
-    return ORDER.indexOf(at) >= ORDER.indexOf(bp) ? Number(/^w-\[(\d+(?:\.\d+)?)%\]$/.exec(w)?.[1] ?? NaN) : null;
+export function columnWidths(widths: readonly string[], hideBelow: HideBelow | undefined, at: Breakpoint | '', box: number): (number | null)[] {
+  const cols = widths.map((w, i) => {
+    if (ORDER.indexOf(at) < ORDER.indexOf(hideBelow?.[i] ?? '')) return null;
+    if (w === '') return { kind: 'auto' as const, n: 0 };
+    const m = /^w-\[(\d+(?:\.\d+)?)(rem|%)\]$/.exec(w);
+    if (!m) throw new Error(`a column width table-hide.ts cannot read: ${w}`);
+    return m[2] === 'rem' ? { kind: 'rem' as const, n: Number(m[1]) * REM_PX } : { kind: 'pct' as const, n: Number(m[1]) };
   });
-  const total = shown.reduce<number>((sum, w) => sum + (w ?? 0), 0);
-  return shown.map((w) => (w === null ? null : w / total));
+  const shown = cols.filter((c) => c !== null);
+  const total = (kind: 'rem' | 'pct') => shown.reduce((s, c) => s + (c.kind === kind ? c.n : 0), 0);
+  const autos = shown.filter((c) => c.kind === 'auto').length;
+  const left = box - total('rem');
+  return cols.map((c) => {
+    if (c === null) return null;
+    if (c.kind === 'rem') return c.n;
+    if (autos === 0) return (c.n / total('pct')) * left;
+    return c.kind === 'pct' ? (c.n / 100) * box : (left - (total('pct') / 100) * box) / autos;
+  });
 }
 
 /** The classes on the table element that hide the same columns' body cells. */

@@ -25,16 +25,3 @@ export async function scanResume(
   );
   return scan;
 }
-
-/**
- * The scan with nobody waiting on it. Until it lands, the row's headline /
- * skills / primary stack still describe the previous version (scannedAt:
- * null already marks that) — read by /resumes and by other resumes'
- * "elsewhere" hints, never by the match that runs next to it
- * (docs/target-plan.md §3.1 item 2). A failure is logged, never surfaced.
- */
-export function scanInBackground(resume: { id: number; text: string }): void {
-  void scanResume(resume).catch((err) => {
-    logger.error({ err, id: resume.id }, 'resume: background scan failed');
-  });
-}

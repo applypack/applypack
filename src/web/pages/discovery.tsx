@@ -23,6 +23,7 @@ import {
 import type { FlashMessage } from '../flash';
 import { wordedSource } from '../source-groups';
 import { sourceLabel } from '../source-names';
+import type { HideBelow } from '../table-hide';
 import { t } from '../../i18n/t';
 
 export interface DiscoveryProps {
@@ -121,81 +122,92 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
   </Layout>
 );
 
+/**
+ * The candidates table's columns (#612): the board takes what the others
+ * leave and truncates; a phone keeps it and the actions, which stack when the
+ * column is narrower than the three buttons. The jobs seen join from `sm`, the
+ * date from `md`, the vendor and where it was found from `xl`. The last column
+ * is the actions, on the tables that have them — table-hide.test.ts holds the
+ * widest button to its column.
+ */
+export const CANDIDATE_WIDTHS = ['', 'w-[9rem]', 'w-[12%]', 'w-[5.5rem]', 'w-[7rem]', 'w-[12rem]'];
+export const CANDIDATE_HIDE: HideBelow = ['', 'xl', 'xl', 'sm', 'md', ''];
+
 const CandidateTable: FC<{ rows: CompanyCandidate[]; actions?: boolean }> = ({
   rows,
   actions,
 }) => (
   <Card flush>
-    <div class="overflow-x-auto">
-      <div class="min-w-[52rem]">
-        <Table caption={t('discovery.discoveredBoards')}
-          columns={[
-            t('discovery.col.nameToken'),
-            t('companies.ats'),
-            t('discovery.col.source'),
-            <span class="block text-right">{t('discovery.jobs')}</span>,
-            <span class="block text-right">{t('discovery.discovered')}</span>,
-            ...(actions ? [<span class="block text-right">{t('common.actions')}</span>] : []),
-          ]}
-        >
-          {rows.map((c) => (
-            <Tr>
-              <Td class="max-w-[20rem]">
-                {/* The board as found: its name, its token and the words around the link in the comment. */}
-                <div translate="no">
-                  <div class="truncate font-medium text-ink">{c.name ?? c.atsToken}</div>
-                  <div class="truncate font-mono text-meta text-ink-faint">{c.atsToken}</div>
-                  {c.signal && (
-                    <div class="mt-0.5 truncate text-meta italic text-ink-faint" title={c.signal}>
-                      {c.signal}
-                    </div>
-                  )}
+    <Table caption={t('discovery.discoveredBoards')}
+      widths={actions ? CANDIDATE_WIDTHS : CANDIDATE_WIDTHS.slice(0, -1)}
+      hideBelow={CANDIDATE_HIDE}
+      columns={[
+        t('discovery.col.nameToken'),
+        t('companies.ats'),
+        t('discovery.col.source'),
+        <span class="block text-right">{t('discovery.jobs')}</span>,
+        <span class="block text-right">{t('discovery.discovered')}</span>,
+        ...(actions ? [<span class="block text-right">{t('common.actions')}</span>] : []),
+      ]}
+    >
+      {rows.map((c) => (
+        <Tr>
+          <Td>
+            {/* The board as found: its name, its token and the words around the link in the comment. */}
+            <div translate="no">
+              <div class="truncate font-medium text-ink">{c.name ?? c.atsToken}</div>
+              <div class="truncate font-mono text-meta text-ink-faint">{c.atsToken}</div>
+              {c.signal && (
+                <div class="mt-0.5 truncate text-meta italic text-ink-faint" title={c.signal}>
+                  {c.signal}
                 </div>
-              </Td>
-              <Td>
-                <span translate={wordedSource(c.atsType) ? undefined : 'no'}>
-                  <Tag>{sourceLabel(c.atsType)}</Tag>
-                </span>
-              </Td>
-              <Td class="text-note text-ink-muted">
-                {c.sourceUrl ? (
-                  <a
-                    href={c.sourceUrl}
-                    target="_blank"
-                    rel="noopener"
-                    translate="no"
-                    class="transition-colors duration-150 hover:text-accent-strong"
-                    title={c.source}
-                  >
-                    {c.source}
-                  </a>
-                ) : (
-                  <span translate="no">{c.source}</span>
-                )}
-              </Td>
-              <Td class="text-right tabular-nums text-ink-muted">{c.jobsSeen}</Td>
-              <Td class="whitespace-nowrap text-right text-note text-ink-faint">
-                <When at={c.discoveredAt} />
-              </Td>
-              {actions && (
-                <Td>
-                  <div class="flex justify-end gap-2">
-                    <ActionForm action={`/discovery/${c.id}/promote`}>
-                      <Button size="sm">{t('discovery.promote')}</Button>
-                    </ActionForm>
-                    <ActionForm action={`/discovery/${c.id}/ignore`}>
-                      <Button size="sm" variant="secondary">
-                        {t('discovery.ignore')}
-                      </Button>
-                    </ActionForm>
-                    <ConfirmAction action={`/discovery/${c.id}/delete`} label={t('common.delete')} confirm={t('discovery.deleteThisCandidatePermanently')} />
-                  </div>
-                </Td>
               )}
-            </Tr>
-          ))}
-        </Table>
-      </div>
-    </div>
+            </div>
+          </Td>
+          <Td>
+            <span translate={wordedSource(c.atsType) ? undefined : 'no'}>
+              <Tag wrap>{sourceLabel(c.atsType)}</Tag>
+            </span>
+          </Td>
+          <Td class="truncate text-note text-ink-muted">
+            {c.sourceUrl ? (
+              <a
+                href={c.sourceUrl}
+                target="_blank"
+                rel="noopener"
+                translate="no"
+                class="transition-colors duration-150 hover:text-accent-strong"
+                title={c.source}
+              >
+                {c.source}
+              </a>
+            ) : (
+              <span translate="no" title={c.source}>
+                {c.source}
+              </span>
+            )}
+          </Td>
+          <Td class="text-right tabular-nums text-ink-muted">{c.jobsSeen}</Td>
+          <Td class="text-right text-note text-ink-faint">
+            <When at={c.discoveredAt} />
+          </Td>
+          {actions && (
+            <Td>
+              <div class="flex flex-wrap justify-end gap-2">
+                <ActionForm action={`/discovery/${c.id}/promote`}>
+                  <Button size="sm">{t('discovery.promote')}</Button>
+                </ActionForm>
+                <ActionForm action={`/discovery/${c.id}/ignore`}>
+                  <Button size="sm" variant="secondary">
+                    {t('discovery.ignore')}
+                  </Button>
+                </ActionForm>
+                <ConfirmAction action={`/discovery/${c.id}/delete`} label={t('common.delete')} confirm={t('discovery.deleteThisCandidatePermanently')} />
+              </div>
+            </Td>
+          )}
+        </Tr>
+      ))}
+    </Table>
   </Card>
 );
