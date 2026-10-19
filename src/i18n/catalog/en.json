@@ -4059,6 +4059,7 @@
   "screenRoute.deleted": "\"{title}\" deleted with {n, plural, one {# applicant file} other {# applicant files}} and every verdict.",
   "review.cap.impact": "Capped at {cap}: the experience reads as duties rather than outcomes, and no amount of polish elsewhere makes a resume read senior without them.",
   "review.cap.weak": "Capped at {cap}: {weak} of {total, plural, one {# dimension} other {# dimensions}} came back weak — those are the ones to fix first.",
+  "review.cap.advised": "Capped at {cap}: the review still lists changes to make, so the resume is not finished yet.",
   "appliedWith.deleted": "a deleted resume",
   "companies.aFolderOnThisComputer": "A folder on this computer",
   "engine.fail.noReplyText": "no reply text",

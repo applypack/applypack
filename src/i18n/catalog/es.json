@@ -4059,6 +4059,7 @@
   "screenRoute.deleted": "“{title}” eliminada junto con {n, plural, one {# archivo de candidato} many {# de archivos de candidatos} other {# archivos de candidatos}} y todos los veredictos.",
   "review.cap.impact": "Tope de {cap}: la experiencia se lee como una lista de funciones y no de resultados, y por mucho que pulas el resto, un currículum no transmite nivel sénior sin ellos.",
   "review.cap.weak": "Tope de {cap}: {weak} de {total, plural, one {# dimensión} many {# de dimensiones} other {# dimensiones}} con nota débil — son las que hay que corregir primero.",
+  "review.cap.advised": "Tope de {cap}: la revisión todavía propone cambios, así que el currículum aún no está terminado.",
   "appliedWith.deleted": "un currículum eliminado",
   "companies.aFolderOnThisComputer": "Una carpeta en este equipo",
   "engine.fail.noReplyText": "sin texto de respuesta",

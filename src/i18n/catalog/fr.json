@@ -4059,6 +4059,7 @@
   "screenRoute.deleted": "« {title} » supprimée avec {n, plural, one {# fichier de candidat} many {# de fichiers de candidats} other {# fichiers de candidats}} et tous les verdicts.",
   "review.cap.impact": "Plafonné à {cap} : l'expérience se lit comme une liste de tâches plutôt que de résultats, et aucun peaufinage ailleurs ne donne à un CV un niveau senior sans eux.",
   "review.cap.weak": "Plafonné à {cap} : {weak} sur {total, plural, one {# dimension} many {# de dimensions} other {# dimensions}} notées faibles — ce sont celles à corriger en premier.",
+  "review.cap.advised": "Plafonné à {cap} : la revue propose encore des changements, le CV n'est donc pas encore terminé.",
   "appliedWith.deleted": "un CV supprimé",
   "companies.aFolderOnThisComputer": "Un dossier sur cet ordinateur",
   "engine.fail.noReplyText": "aucun texte de réponse",

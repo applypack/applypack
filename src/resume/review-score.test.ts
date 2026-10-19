@@ -74,6 +74,17 @@ test('an empty reply scores zero rather than dividing by nothing', () => {
   assert.equal(bd.missing.length, REVIEW_DIMENSIONS.length);
 });
 
+test('a review that still lists changes is not a 100 (#584)', () => {
+  const bd = scoreReview(grades('strong'), 2);
+  assert.equal(bd.score, 95);
+  assert.equal(bd.capReason, 'advised');
+  assert.match(capExplanation(bd) ?? '', /still lists changes/);
+  // Where it does not bite it is not named, and the harder caps still win.
+  assert.equal(scoreReview(grades('ok'), 3).capReason, null);
+  assert.equal(scoreReview(grades('strong', { impact: 'weak' }), 1).capReason, 'impact');
+  assert.equal(scoreReview(grades('strong'), 0).score, 100);
+});
+
 test('the first grade for a dimension wins, so a repeated row cannot double-count', () => {
   const bd = scoreReview([
     { dimension: 'impact', grade: 'strong' },

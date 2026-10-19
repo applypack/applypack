@@ -130,6 +130,19 @@ const tagList = z
   .default([])
   .transform((arr) => [...new Set(arr.map((s) => s.trim().toLowerCase()).filter(Boolean))]);
 
+/** "None detected — no embedded instructions found": an issue that reports there is none. */
+const NONE_FOUND = /^\s*(?:none|nothing|no (?:issues?|problems?|concerns?))(?:\s+(?:detected|found|noted))?\s*(?:[—–:;,.(-]|$)/i;
+/** "No action needed": a fix that asks for nothing. */
+const NO_ACTION = /^\s*(?:no (?:action|change|fix)(?:es|s)? (?:is |are )?(?:needed|required|necessary)|none(?: needed)?|n\/a)\s*[.!]?\s*$/i;
+
+/**
+ * An item the scan lists under "Issues to fix" that says nothing is wrong
+ * (#584): the model checks every line of its list and reports the clean ones too.
+ */
+function isNonIssue(item: { issue: string; fix: string }): boolean {
+  return NONE_FOUND.test(item.issue) || NO_ACTION.test(item.fix);
+}
+
 const ScanSchema = z.object({
   title: nullableText,
   seniority: nullableText,
@@ -143,7 +156,9 @@ const ScanSchema = z.object({
   issues: z
     .array(z.object({ section: z.string(), issue: z.string(), fix: z.string() }))
     .max(40)
-    .default([]),
+    .default([])
+    // Read off stored rows too, so a scan from before the rule shows the same way.
+    .transform((arr) => arr.filter((i) => !isNonIssue(i))),
   /*
    * The resume as a shape rather than a wall of text (ADR 0039), so it can be
    * re-rendered for a file that cannot be patched. OPTIONAL on purpose: a

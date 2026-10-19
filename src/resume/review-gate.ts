@@ -24,13 +24,36 @@ function questionFor(claim: FactClaim): string {
   }
 }
 
+/** "GraphQL is never in a bullet", "React is never mentioned in any experience bullet": the term before it is the claim. */
+const NEVER_IN_A_BULLET =
+  /([\w.+#-]+)\s+(?:is|are)\s+never\s+(?:once\s+)?(?:\w+\s+)?in\s+(?:a|any|one)\s+(?:\w+\s+)?bullets?\b/gi;
+const BULLET_LINE = /^\s*[-•*·‣▪]\s+/;
+
+/**
+ * A term the advice says no bullet carries, while a bullet of the text does
+ * (#584: "GraphQL is never in a bullet", above the bullet that names it). Only
+ * this one shape of claim is checked — it can be read off the text exactly;
+ * "three roles back" cannot, and is left as the model wrote it.
+ */
+function falseAbsence(advice: Pick<ReviewAdvice, 'issue' | 'why'>, resumeText: string): string | null {
+  const bullets = resumeText.split('\n').filter((l) => BULLET_LINE.test(l));
+  for (const [, term] of `${advice.issue}\n${advice.why}`.matchAll(NEVER_IN_A_BULLET)) {
+    const word = new RegExp(`(?<![\\w])${term!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w])`, 'i');
+    if (bullets.some((b) => word.test(b))) return term!;
+  }
+  return null;
+}
+
 export function gateReviewAdvice(
   advice: readonly ReviewAdvice[],
-  /** The resume's text, and the figures the candidate supplied in earlier answers. */
+  /** The resume's text first, then the figures the candidate supplied in earlier answers. */
   sources: string[],
-): { advice: ReviewAdvice[]; blocked: number } {
+): { advice: ReviewAdvice[]; blocked: number; untrue: number } {
   let blocked = 0;
-  const gated = advice.map((a) => {
+  // Advice resting on a claim the text contradicts asks for what the resume already does: not shown.
+  const [resumeText = ''] = sources;
+  const trueAdvice = advice.filter((a) => falseAbsence(a, resumeText) === null);
+  const gated = trueAdvice.map((a) => {
     if (!a.example) return a;
     const check = factCheck({ text: a.example, sources });
     if (check.verdict !== 'block') return a;
@@ -38,5 +61,5 @@ export function gateReviewAdvice(
     const claim = check.claims.find((c) => c.status === 'unsupported');
     return { ...a, example: null, ask: a.ask ?? (claim ? questionFor(claim) : null) };
   });
-  return { advice: gated, blocked };
+  return { advice: gated, blocked, untrue: advice.length - trueAdvice.length };
 }
