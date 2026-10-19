@@ -274,11 +274,15 @@ function basicsFrom(header: string[]): JsonResume['basics'] {
     // printed the title twice (reported 2026-09-30).
     if (i === labelAt) continue;
     const unread: string[] = [];
-    for (const [j, part] of line.split(SEPARATORS).map((p) => p.trim()).filter(Boolean).entries()) {
-      if (readContactPart(basics, part)) continue;
+    const parts = line.split(SEPARATORS).map((p) => p.trim()).filter(Boolean);
+    for (const [j, part] of parts.entries()) {
       // "Senior Developer | dana@example.com | Lisbon": with no line of its own,
-      // the title is what opens the contact line.
-      if (j === 0 && basics.label === null) basics.label = part;
+      // the title is what opens the contact line — one with a comma too, when
+      // a place follows it ("Software Engineer, Backend · Austin, TX", #624).
+      const opensWithTitle = j === 0 && basics.label === null;
+      if (opensWithTitle && looksLikePlace(part) && parts.slice(1).some(looksLikePlace)) basics.label = part;
+      else if (readContactPart(basics, part)) continue;
+      else if (opensWithTitle) basics.label = part;
       else unread.push(part);
     }
     if (unread.length === 0) continue;
