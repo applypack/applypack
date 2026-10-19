@@ -350,8 +350,9 @@ class OpenAiApiProvider implements AiProvider {
         return failed(out.outcome ?? failureOutcome(kind), out.spend ?? null);
       } catch (err) {
         // A server that is not running (LM Studio closed) is a state, not a fault: one line, no stack (#571).
+        // Its origin only: an address from .env is not checked for a key in its query.
         const unreachable = unreachableCode(err);
-        if (unreachable) logger.warn(`ai: no answer from the server at ${baseUrl} (${unreachable})`);
+        if (unreachable) logger.warn(`ai: no answer from the server at ${new URL(baseUrl).origin} (${unreachable})`);
         else logger.error({ err, label: req.label, model }, 'ai: openai request failed');
         req.onError?.(describeAiFailure(errorReason(err)));
         // The request threw before any status came back: nothing answered at that address.
@@ -442,7 +443,7 @@ class LocalApiProvider implements AiProvider {
       const timedOut = ctrl.signal.aborted;
       // Ollama not running is a state, not a fault: one line, no stack (#571).
       const unreachable = unreachableCode(err);
-      if (unreachable) logger.warn(`ai: no answer from the local server at ${root} (${unreachable})`);
+      if (unreachable) logger.warn(`ai: no answer from the local server at ${new URL(root).origin} (${unreachable})`);
       else logger.error({ err, label: req.label, model }, 'ai: local request failed');
       req.onError?.(timedOut ? t('engine.fail.noReplyWithin', { seconds: Math.round(remainingMs / 1000) }) : t('engine.fail.ollamaDown', { root }));
       return failed(timedOut ? 'timeout' : 'unreachable');
