@@ -6,6 +6,18 @@
  */
 import { t } from './i18n.mjs';
 
+/** What was typed or pasted, as the items the save stores: commas and new lines both separate (text-utils.ts:parseTagList). */
+export function chipValues(text) {
+  return text.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+/** The list with the new items after it, each once. */
+export function withChips(list, values) {
+  const out = [...list];
+  for (const v of values) if (!out.includes(v)) out.push(v);
+  return out;
+}
+
 function enhance(host) {
   var ta = host.querySelector('textarea');
   if (!ta) return;
@@ -64,12 +76,13 @@ function enhance(host) {
     });
   }
   function commit() {
-    var v = input.value.trim();
-    if (!v || refused(v)) return;
-    var list = items();
-    if (list.indexOf(v) === -1) list.push(v);
-    input.value = '';
-    sync(list);
+    var values = chipValues(input.value);
+    var refusedValues = values.filter(function (v) { return typeof host.refuse === 'function' && host.refuse(v); });
+    // What the picker refuses stays in the box with its reason; the rest become chips.
+    refused(refusedValues[0] || '');
+    input.value = refusedValues.join(', ');
+    var kept = values.filter(function (v) { return refusedValues.indexOf(v) === -1; });
+    if (kept.length > 0) sync(withChips(items(), kept));
   }
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
@@ -84,15 +97,12 @@ function enhance(host) {
     var data = (e.clipboardData || window.clipboardData).getData('text');
     if (data && data.indexOf('\n') !== -1) {
       e.preventDefault();
-      var list = items();
       var first = '';
-      data.split('\n').forEach(function (s) {
-        var v = s.trim();
-        if (!v || list.indexOf(v) !== -1) return;
-        if (typeof host.refuse === 'function' && host.refuse(v)) first = first || v;
-        else list.push(v);
+      var kept = chipValues(data).filter(function (v) {
+        if (typeof host.refuse === 'function' && host.refuse(v)) { first = first || v; return false; }
+        return true;
       });
-      sync(list);
+      sync(withChips(items(), kept));
       refused(first);
     }
   });

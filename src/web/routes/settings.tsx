@@ -14,6 +14,7 @@ import {
   getPackSettings,
   getSchedule,
   getSettings,
+  listActiveNotificationTargets,
   listNotificationTargets,
   maskToken,
   setAiBudgetCents,
@@ -52,6 +53,7 @@ import { config, setInEnv } from '../../config';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
 import { canonicalZone, readZone, timeZoneChoices } from '../time-zones';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
+import { alertsSwitchedLine } from '../held-line';
 import {
   addStage,
   allStages,
@@ -628,9 +630,9 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   const enabled = !settings.telegramEnabled;
   await setTelegramEnabled(enabled);
   // Every channel, Discord included (ADR 0041) — the column is just old.
-  if (!enabled) return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.alerts.disabled'));
-  const held = await loadHeldLine(await getSchedule());
-  return flashRedirect('/settings?tab=notifications', 'ok', sentences(t('settingsRoute.alerts.enabled'), held ? `${held.text}.` : ''));
+  const targets = (await listActiveNotificationTargets()).length;
+  const held = enabled ? await loadHeldLine(await getSchedule()) : null;
+  return flashRedirect('/settings?tab=notifications', 'ok', alertsSwitchedLine(enabled, targets, held));
 });
 
 /** The list the engine cards show (`aiEngineOrder`), the stored config, and the .env engine that seeds it. */

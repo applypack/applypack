@@ -115,11 +115,23 @@ export function monthsSinceLatest(ranges: DateRange[], now: Date): number | null
   return Math.max(0, index({ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }) - latest);
 }
 
-/** "Mar 2019 – present" / "2020" — the range as the scorecard prints it, the month in the reader's language. */
-export function formatRange(r: DateRange, now: Date): string {
+/** "Mar 2019" / "2018" — a resume's date in the reader's language, no more precise than the resume wrote it. */
+export function formatResumeDate(d: ParsedDate): string {
+  return d.month ? formatDateTime(new Date(Date.UTC(d.year, d.month - 1, 1)), MONTH_YEAR) : String(d.year);
+}
+
+/**
+ * "Mar 2019 – present" / "2012 – 2018" — a role's dates as the scorecard
+ * prints them, each side read on its own so a bare year stays a year (#565);
+ * null when the two do not make a range.
+ */
+export function formatRange(start: string | null, end: string | null, now: Date): string | null {
+  const range = parseRange(start, end, now);
+  const from = parseResumeDate(start);
+  const to = parseResumeDate(end);
+  if (!range || !from || from === 'present' || !to) return null;
   const nowIdx = index({ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 });
-  const fmt = (d: ParsedDate) => (d.month ? formatDateTime(new Date(Date.UTC(d.year, d.month - 1, 1)), MONTH_YEAR) : String(d.year));
-  return `${fmt(r.from)} – ${index(r.to) >= nowIdx ? t('screening.date.present') : fmt(r.to)}`;
+  return `${formatResumeDate(from)} – ${to === 'present' || index(range.to) >= nowIdx ? t('screening.date.present') : formatResumeDate(to)}`;
 }
 
 const MONTH_YEAR: Intl.DateTimeFormatOptions = { month: 'short', year: 'numeric', timeZone: 'UTC' };

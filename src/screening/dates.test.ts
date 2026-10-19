@@ -53,6 +53,9 @@ test('monthsSinceLatest and formatRange', () => {
   const r = parseRange('2020', 'Mar 2025', NOW)!;
   assert.equal(monthsSinceLatest([r], NOW), 18);
   assert.equal(monthsSinceLatest([], NOW), null);
-  assert.equal(formatRange(r, NOW), 'Jan 2020 – Mar 2025', 'a bare start year is January of it');
-  assert.equal(formatRange(parseRange('Feb 2024', 'now', NOW)!, NOW), 'Feb 2024 – present');
+  assert.equal(formatRange('2020', 'Mar 2025', NOW), '2020 – Mar 2025', 'a bare year stays a year (#565)');
+  assert.equal(formatRange('2012', '2018', NOW), '2012 – 2018');
+  assert.equal(formatRange('Feb 2024', 'now', NOW), 'Feb 2024 – present');
+  assert.equal(formatRange('03.2021', 'heute', NOW), 'Mar 2021 – present', 'the resume\'s own word for now is read, not printed');
+  assert.equal(formatRange('Present', '2020', NOW), null);
 });

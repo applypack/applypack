@@ -15,6 +15,7 @@ const STEPS = [
   'fetch',
   'extract',
   'brief',
+  'rubric',
   'scan',
   'structure',
   'keywords',
@@ -36,7 +37,7 @@ export interface RunLanes {
 }
 
 /** The steps the page states a time for (lane.ts:stepBand). */
-const TIMED: readonly RunStep[] = ['brief', 'scan', 'structure', 'keywords', 'match', 'suggestions', 'review'];
+const TIMED: readonly RunStep[] = ['brief', 'rubric', 'scan', 'structure', 'keywords', 'match', 'suggestions', 'review'];
 
 /** The step copy with this install's band appended — "about 20 s on Sonnet 5 through the Claude CLI" (#184), or its own calls' (#483). */
 function stepView(lanes: RunLanes): Record<string, StepView> {

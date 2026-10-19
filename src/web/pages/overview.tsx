@@ -34,7 +34,7 @@ import type { ReadyPack } from '../../pack/store';
 import { KPI_STATUSES, overviewHref, type KpiStatus } from '../overview-numbers';
 import type { OverviewStats } from '../overview-stats';
 import { placeLine } from '../place-line';
-import { techLabel } from '../tech-label';
+import { techLabel, techLabels } from '../tech-label';
 import type { WorkplaceCode } from '../../location';
 import { FetchNowButton } from './fetch-run';
 import { MatchesChart } from './matches-chart';
@@ -416,6 +416,7 @@ const RecentMatches: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places 
           // Who hires, and — only when the row names nobody — the source it came through (#444).
           const { name, via } = companyOnPage(j.employer, j.company);
           const who = name ?? t('job.companyNotNamed');
+          const tech = techLabels(j.techMatch);
           return (
             <li>
               <a
@@ -434,19 +435,19 @@ const RecentMatches: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places 
                     <span translate={place.asPosted ? 'no' : undefined}>{place.text}</span>
                   </div>
                 </div>
-                {j.techMatch.length > 0 && (
+                {tech.length > 0 && (
                   // Two technologies where the column is narrow, three from 2xl; the rest is a count either way.
-                  <div class="hidden shrink-0 items-center gap-1.5 lg:flex" translate="no" title={j.techMatch.map(techLabel).join(', ')}>
-                    {j.techMatch.slice(0, ROW_TAGS).map((tech, i) => (
+                  <div class="hidden shrink-0 items-center gap-1.5 lg:flex" translate="no" title={tech.join(', ')}>
+                    {tech.slice(0, ROW_TAGS).map((label, i) => (
                       <span class={i === ROW_TAGS - 1 ? 'hidden 2xl:inline-flex' : 'inline-flex'}>
-                        <Tag>{techLabel(tech)}</Tag>
+                        <Tag>{label}</Tag>
                       </span>
                     ))}
-                    {j.techMatch.length >= ROW_TAGS && (
-                      <span class="text-meta tabular-nums text-ink-faint 2xl:hidden">+{j.techMatch.length - (ROW_TAGS - 1)}</span>
+                    {tech.length >= ROW_TAGS && (
+                      <span class="text-meta tabular-nums text-ink-faint 2xl:hidden">+{tech.length - (ROW_TAGS - 1)}</span>
                     )}
-                    {j.techMatch.length > ROW_TAGS && (
-                      <span class="hidden text-meta tabular-nums text-ink-faint 2xl:inline">+{j.techMatch.length - ROW_TAGS}</span>
+                    {tech.length > ROW_TAGS && (
+                      <span class="hidden text-meta tabular-nums text-ink-faint 2xl:inline">+{tech.length - ROW_TAGS}</span>
                     )}
                   </div>
                 )}

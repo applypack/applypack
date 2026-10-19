@@ -2,10 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { capExplanation, detailParts, levelCredit, orderVerdicts, readScreenBreakdown, scoreScreening } from './score';
 import { withLocale } from '../i18n/locale';
-import { tParts } from '../i18n/t';
+import { t, tParts } from '../i18n/t';
 import { sectorMatches } from '../sectors';
 import { parseCriterionText, RubricSchema, specOf, type Criterion, type Rubric } from './rubric';
 import { ScreenReplySchema, type ScreenReply } from './prompts';
+
+/** A detail as the page reads it: our words worded, the model's as written. */
+const detailText = (detail: string): string =>
+  detailParts(detail).map((part) => ('model' in part ? part.model : t(part.key, part.params))).join(' ');
 
 const NOW = new Date('2026-09-09T00:00:00Z');
 
@@ -100,6 +104,20 @@ test('a window typed into the criterion halves older use; without one, a skill\'
   assert.equal(recent.credit, 0.8);
   assert.equal(recent.detail, 'last used Present');
   assert.equal(rowFor('Kubernetes', '2019').credit, 0.8, 'no window typed: 2019 still earns the whole rung');
+});
+
+test('"last used" is worded for the reader and never dates an absent term (#565)', () => {
+  const rubric = RubricSchema.parse({ criteria: [c('s-rest', 'skill', 'REST APIs', 'scored', 1, { terms: [{ term: 'REST APIs', aliases: [] }] })] });
+  const absent = scoreScreening({ rubric, reply: reply({}, { 's-rest': { rung: 'absent', last_used: 'дотепер' } }), textChars: 3000, now: NOW }).rows[0]!;
+  assert.equal(absent.detail, '', 'nothing to date on a term the resume does not show');
+  const stored = { ...scoreScreening({ rubric, reply: reply({}, {}), textChars: 3000, now: NOW }), v: 2 };
+  stored.rows[0] = { ...stored.rows[0]!, answer: 'absent', detail: 'last used по теперішній час' };
+  assert.equal(readScreenBreakdown(stored)!.rows[0]!.detail, '', 'a verdict stored before the fix reads without it');
+  assert.equal(detailText('last used heute'), 'in use now');
+  assert.equal(detailText('last used по теперішній час'), 'in use now');
+  assert.equal(detailText('last used 2018'), 'last used 2018', 'a year stays a year');
+  assert.equal(detailText('last used 03/2019'), 'last used Mar 2019');
+  assert.equal(detailText('last used the Acme years'), 'last used the Acme years', 'what is no date stays as written');
 });
 
 test('no core skill anywhere caps at 30', () => {

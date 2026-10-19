@@ -20,7 +20,7 @@ import {
 } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
-import { formatRange, parseRange } from '../../screening/dates';
+import { formatRange } from '../../screening/dates';
 import { trajectoryLine, trajectoryOf } from '../../screening/trajectory';
 import { STANDOUT_SINCE } from '../../screening/prompts';
 import { criterionLabel, CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, modelWorded, type Rubric } from '../../screening/rubric';
@@ -28,7 +28,7 @@ import type { ScreenReply } from '../../screening/prompts';
 import { answerBadge, answerWords, capExplanation, detailParts, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
 import { describeRedactions, leakKinds, leakLabel, type Redaction } from '../../screening/redact';
 import { GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
-import { adjustedScore, ANSWER_TONE, confidenceLabel } from '../screen-view';
+import { adjustedScore, ANSWER_TONE, confidenceLabel, consistentVerdict } from '../screen-view';
 import { DECISIONS, type Decision } from '../../screening/store';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
@@ -133,6 +133,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
   const back = `/screen/${screening.id}`;
   const career = reply ? trajectoryOf(reply.roles, now) : null;
   const drafted = new Set(rubric.criteria.filter(modelWorded).map((c) => c.id));
+  const verdict = reply && breakdown ? consistentVerdict(reply.summary.verdict, breakdown) : null;
   return (
     <Layout title={title} titleIsData active="screen">
       <PageHeader
@@ -238,8 +239,8 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   {reply.summary.did || '—'}
                 </dd>
                 <dt class="text-ink-faint">{t('screening.applicant.verdict')}</dt>
-                <dd class="font-medium text-ink" lang="en">
-                  {reply.summary.verdict || '—'}
+                <dd class="font-medium text-ink" lang={verdict?.modelWritten ? 'en' : undefined}>
+                  {verdict?.text || '—'}
                 </dd>
               </dl>
               {reply.injection && (
@@ -296,13 +297,13 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               ) : (
                 <ul class="mt-2 space-y-1.5 text-sm">
                   {reply.roles.map((r) => {
-                    const range = parseRange(r.start, r.end, now);
+                    const range = formatRange(r.start, r.end, now);
                     return (
                       <li class={`flex flex-wrap gap-x-2 ${r.relevant ? 'text-ink' : 'text-ink-faint'}`}>
                         <span class="font-medium">{r.position}</span>
                         {r.employer && <span>· {r.employer}</span>}
                         <span class="tabular-nums text-ink-faint">
-                          {range ? formatRange(range, now) : [r.start, r.end].filter(Boolean).join(' – ') || t('screening.applicant.noDates')}
+                          {range ?? ([r.start, r.end].filter(Boolean).join(' – ') || t('screening.applicant.noDates'))}
                         </span>
                         {(r.sector || r.companyType) && (
                           <span class="text-ink-faint">

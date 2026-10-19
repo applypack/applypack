@@ -93,6 +93,11 @@ export function techLabel(tag: string): string {
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
+/** A posting's tags as a row shows them: "go" and "golang" are one Go, never "Go · Go" (#572). */
+export function techLabels(tags: readonly string[]): string[] {
+  return [...new Set(tags.filter((tag) => tag.trim().length > 0).map(techLabel))];
+}
+
 /**
  * The one key a technology is counted and filtered by: "node", "nodejs" and
  * "node.js" are the same bar on the Overview, not three with the count split.

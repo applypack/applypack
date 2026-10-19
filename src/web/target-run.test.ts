@@ -26,6 +26,15 @@ test('activityFor advances with stage time and holds on the last line', async ()
   assert.equal(activityFor('nope', 0), '', 'unknown step yields nothing');
 });
 
+test('a screening\'s rubric step narrates in the employer\'s voice (#566)', async () => {
+  const { activityFor } = await page;
+  for (let ms = 0; ms <= 60_000; ms += 9_000) {
+    const line = activityFor('rubric', ms);
+    assert.notEqual(line, '');
+    assert.doesNotMatch(line, /resume/i, 'no resume of theirs is being read');
+  }
+});
+
 test('formatElapsed switches to minutes past 60 s', async () => {
   const { formatElapsed } = await page;
   assert.equal(formatElapsed(4_000), '4s');

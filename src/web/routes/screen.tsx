@@ -66,7 +66,8 @@ import { ScreenDetailPage } from '../pages/screen-detail';
 import { ScreenApplicantPage } from '../pages/screen-applicant';
 import { ScreenComparePage } from '../pages/screen-compare';
 import { sideBySide } from '../screen-compare';
-import { applicantStatus, calibrationRows, exportRows, rowView, scoredBeforePosting } from '../screen-view';
+import { applicantStatus, calibrationRows, exportRows, extendedRetention, rowView, scoredBeforePosting } from '../screen-view';
+import { formatDateShort } from '../format';
 import { calibrate } from '../../screening/calibration';
 import { toPickOption } from '../job-pick';
 import { claimRun, startRun, updateRun } from '../target-runs';
@@ -196,7 +197,7 @@ async function startRubricDraft(
   preset: Preset = 'standard',
 ): Promise<Response> {
   const { run, joined } = claimRun(`screen-rubric:${screeningId}`, {
-    steps: ['brief'],
+    steps: ['rubric'],
     jobTitle,
     resumeName: '',
     jobId,
@@ -228,7 +229,7 @@ async function startRubricDraft(
     // The first draft keeps version 1; a redraft over an edited rubric is a new yardstick.
     await saveRubric(screeningId, rubric, current.criteria.length > 0 && !rubricEquals(current, rubric));
     updateRun(run.id, {
-      results: { brief: briefed.reused ? t('screenRoute.run.briefReused', { line: briefLine(briefed.brief) }) : briefLine(briefed.brief) },
+      results: { rubric: briefed.reused ? t('screenRoute.run.briefReused', { line: briefLine(briefed.brief) }) : briefLine(briefed.brief) },
       stage: 'done',
       resultUrl: `/screen/${screeningId}`,
       flash: t('screenRoute.run.drafted', { preset, summary: rubricSummary(rubric) }),
@@ -865,9 +866,9 @@ screenRoute.post('/screen/:id/retain', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const settings = await getSettings();
-  const until = new Date(Date.now() + settings.screeningRetentionDays * DAY_MS);
+  const until = extendedRetention(screening.retainUntil, settings.screeningRetentionDays);
   await extendRetention(screening.id, until);
-  return flashRedirect(`/screen/${screening.id}`, 'ok', t('screenRoute.kept', { date: until.toISOString().slice(0, 10) }));
+  return flashRedirect(`/screen/${screening.id}`, 'ok', t('screenRoute.kept', { date: formatDateShort(until) }));
 });
 
 screenRoute.post('/screen/:id/delete', async (c) => {

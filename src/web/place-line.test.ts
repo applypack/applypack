@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { placeLine, preferredPlaces } from './place-line';
-import { techLabel } from './tech-label';
+import { techLabel, techLabels } from './tech-label';
 
 describe('preferredPlaces', () => {
   it('is where the running searches hunt and where the user lives, each once', () => {
@@ -56,5 +56,10 @@ describe('techLabel', () => {
     assert.equal(techLabel('full-stack'), 'Full-stack');
     assert.equal(techLabel('HTMX'), 'HTMX');
     assert.equal(techLabel(' react '), 'React');
+  });
+
+  it('lists a posting\'s tags once each after labelling them (#572)', () => {
+    assert.deepEqual(techLabels(['go', 'golang', 'docker', 'Go']), ['Go', 'Docker']);
+    assert.deepEqual(techLabels(['node', 'nodejs', 'node.js', '']), ['Node.js']);
   });
 });

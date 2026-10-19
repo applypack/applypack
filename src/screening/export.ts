@@ -67,6 +67,7 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
     'Bucket',
     'Score',
     'Your adjustment',
+    'Adjustment reason',
     'Adjusted score',
     'Confidence',
     ...screening.gates.map((g) => `Gate: ${g}`),
@@ -87,7 +88,9 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
     r.status,
     r.bucket ? GATE_BUCKET_LABELS[r.bucket] : '',
     r.score ?? '',
-    r.adjustment === 0 ? '' : `${r.adjustment > 0 ? '+' : ''}${r.adjustment}${r.adjustmentNote ? ` (${r.adjustmentNote})` : ''}`,
+    // The number alone, so a spreadsheet reads it as one; the reason in a column of its own (#572).
+    r.adjustment === 0 ? '' : `${r.adjustment > 0 ? '+' : ''}${r.adjustment}`,
+    r.adjustment === 0 ? '' : (r.adjustmentNote ?? ''),
     r.adjusted ?? '',
     r.confidence ?? '',
     ...screening.gates.map((g) => {

@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { AI_PROVIDER_LABELS, missingCredentials, providerUnusable, resolveAiEngine, type AiProviderId } from '../ai-engine';
 import { getAiEngineEnv } from '../ai-runtime';
-import type { AiBilling } from '../ai-usage';
+import type { AiBilling, AiFeature } from '../ai-usage';
 import { classifyOnEngine } from '../classifier';
 import { companyForPrompt } from '../employer';
 import { storedPlace } from '../jobs/classify-existing';
@@ -16,6 +16,7 @@ import { t } from '../i18n/t';
 import { trialCostHint } from './cost-hint';
 import {
   pickTrialSample,
+  recordAuthors,
   recordedVerdicts,
   trialGivesUp,
   trialLine,
@@ -154,6 +155,13 @@ async function runTrial(runId: string, provider: AiProviderId, model: string, pr
     include: { company: { select: { name: true, atsType: true } }, scores: { where: { profileId: { in: profiles.map((p) => p.id) } } } },
   });
   const jobs = ids.flatMap((id) => rows.filter((row) => row.id === id));
+  const authors = recordAuthors(
+    await prisma.aiCall.findMany({
+      where: { jobId: { in: ids }, feature: 'classifier' satisfies AiFeature, outcome: 'ok' },
+      orderBy: { at: 'desc' },
+      select: { jobId: true, engine: true, model: true },
+    }),
+  );
   const readings: TrialReading[] = [];
   let reason = '';
   for (const job of jobs) {
@@ -175,12 +183,14 @@ async function runTrial(runId: string, provider: AiProviderId, model: string, pr
       },
     );
     const ms = Date.now() - started;
+    const author = authors.get(job.id);
+    const sameModel = author?.engine === provider && author.model === model;
     readings.push(
       !out
         ? { kind: 'failed' }
         : !out.parsed
           ? { kind: 'unparsed', ms }
-          : { kind: 'read', ms, pairs: trialPairs(buildVerdicts(out.parsed.results, profiles, job, mergeAiLocation(storedPlace(job), out.parsed.location)).verdicts, recordedVerdicts(job, job.scores, profiles)) },
+          : { kind: 'read', ms, pairs: trialPairs(buildVerdicts(out.parsed.results, profiles, job, mergeAiLocation(storedPlace(job), out.parsed.location)).verdicts, recordedVerdicts(job, job.scores, profiles, sameModel)) },
     );
     if (trialGivesUp(readings, GIVE_UP_AFTER)) break;
   }

@@ -64,6 +64,7 @@ test('every step that states a time names the feature its calls are recorded und
   // The posting's brief has no measured lane band, so only its own calls give it one.
   assert.equal(stepBand('brief', lane('claude_code', 'claude-sonnet-5')), null);
   assert.match(stepBand('brief', lane('claude_code', 'claude-sonnet-5', [timed('posting-brief', 'claude_code', 'claude-sonnet-5', 10, 25_000)])) ?? '', /^about 25\.0s/);
+  assert.match(stepBand('rubric', lane('claude_code', 'claude-sonnet-5', [timed('posting-brief', 'claude_code', 'claude-sonnet-5', 10, 25_000)])) ?? '', /^about 25\.0s/, 'a screening\'s criteria come from the same brief');
 });
 
 test('#580: no band says "about ~": every lane, every step', () => {

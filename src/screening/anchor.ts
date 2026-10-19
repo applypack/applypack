@@ -251,7 +251,7 @@ function anchorAnswer(
         rung = 'role';
         report.rungsLowered++;
       }
-      return { ...a, rung, quote: q, last_used: inText(hay, a.last_used) ? a.last_used : null, status: null };
+      return { ...a, rung, quote: q, last_used: rung !== 'absent' && inText(hay, a.last_used) ? a.last_used : null, status: null };
     }
     case 'status': {
       const status = a.status ?? 'unknown';

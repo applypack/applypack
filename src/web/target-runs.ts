@@ -18,6 +18,7 @@ export type RunStep =
   | 'fetch'
   | 'extract'
   | 'brief'
+  | 'rubric'
   | 'scan'
   | 'structure'
   | 'keywords'

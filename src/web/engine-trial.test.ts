@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   pickTrialSample,
+  recordAuthors,
   recordedVerdicts,
   trialGivesUp,
   trialLine,
@@ -41,7 +42,7 @@ const score = (fitScore: number, over: Partial<{ locationMatch: boolean; scoredA
 });
 
 test('the record is judged by the search threshold as it stands now', () => {
-  assert.deepEqual(recordedVerdicts(job, [score(82)], [profile]), [{ profileId: 1, fit: 82, kept: true, stale: false }]);
+  assert.deepEqual(recordedVerdicts(job, [score(82)], [profile]), [{ profileId: 1, fit: 82, kept: true, stale: false, sameModel: false }]);
   assert.equal(recordedVerdicts(job, [score(69)], [profile])[0]?.kept, false);
   assert.equal(recordedVerdicts(job, [score(90, { locationMatch: false })], [profile])[0]?.kept, false);
   // Under the search's salary floor: turned away, as the tick would.
@@ -59,7 +60,21 @@ const verdict = (profileId: number, fit: number, kept: boolean) => ({
   classification: { fit_score: fit, location_match: true, salary_min: null, salary_max: null, tech_match: [], red_flags: [], summary: '' },
   dismissReason: kept ? null : ('low-fit' as const),
 });
-const record = (profileId: number, fit: number, kept: boolean, stale = false): RecordedVerdict => ({ profileId, fit, kept, stale });
+const record = (profileId: number, fit: number, kept: boolean, stale = false, sameModel = false): RecordedVerdict => ({ profileId, fit, kept, stale, sameModel });
+
+test('a record is the latest scoring call\'s for its posting (#572)', () => {
+  const authors = recordAuthors([
+    { jobId: 7, engine: 'local_api', model: 'qwen3:8b' },
+    { jobId: null, engine: 'claude_code', model: '' },
+    { jobId: 7, engine: 'claude_code', model: 'claude-haiku-4-5' },
+    { jobId: 8, engine: 'claude_code', model: '' },
+  ]);
+  assert.deepEqual([...authors], [
+    [7, { engine: 'local_api', model: 'qwen3:8b' }],
+    [8, { engine: 'claude_code', model: '' }],
+  ]);
+  assert.equal(recordedVerdicts(job, [score(82)], [profile], true)[0]?.sameModel, true);
+});
 
 test('pairs are the searches both sides judged', () => {
   const pairs = trialPairs([verdict(1, 80, true), verdict(2, 20, false)], [record(1, 40, false), record(3, 90, true)]);
@@ -70,7 +85,7 @@ test('the report counts agreement, false matches, misses, distance and the middl
   const readings: TrialReading[] = [
     { kind: 'read', ms: 4_000, pairs: [{ fit: 80, kept: true, record: record(1, 40, false) }] },
     { kind: 'read', ms: 2_000, pairs: [{ fit: 30, kept: false, record: record(1, 75, true, true) }] },
-    { kind: 'read', ms: 3_000, pairs: [{ fit: 20, kept: false, record: record(1, 25, false) }] },
+    { kind: 'read', ms: 3_000, pairs: [{ fit: 20, kept: false, record: record(1, 25, false, false, true) }] },
     { kind: 'unparsed', ms: 9_000 },
     { kind: 'failed' },
   ];
@@ -85,6 +100,7 @@ test('the report counts agreement, false matches, misses, distance and the middl
     unparsed: 1,
     failed: 1,
     stale: 1,
+    sameModel: 1,
   });
 });
 
@@ -96,7 +112,7 @@ test('nothing compared, nothing timed: the report says so instead of inventing a
 });
 
 test('the line reads the numbers, and the stale scores are named as a cause', () => {
-  const line = trialLine({ postings: 20, compared: 20, agreed: 12, falseMatches: 8, missed: 0, meanDistance: 35.25, msPerPosting: 10_340, unparsed: 0, failed: 0, stale: 3 });
+  const line = trialLine({ postings: 20, compared: 20, agreed: 12, falseMatches: 8, missed: 0, meanDistance: 35.25, msPerPosting: 10_340, unparsed: 0, failed: 0, stale: 3, sameModel: 0 });
   assert.equal(
     line,
     'Agreed with the scores on record on 12 of 20: 8 false matches, 0 missed, 35.3 points apart on average. 10.3 s a posting. 3 scores on record are older than the last change to the search: a changed search changes the score.',
@@ -107,6 +123,16 @@ test('a trial reads with the model in the slot, a CLI default, and on the local 
   assert.equal(trialModel('local_api', 'gemma4:e4b'), 'gemma4:e4b');
   assert.equal(trialModel('local_api', ''), null);
   assert.equal(trialModel('codex_cli', ''), 'CLI default');
+});
+
+test('the line says when the scores on record came from the model on trial (#572)', () => {
+  const report = { postings: 5, compared: 5, agreed: 5, falseMatches: 0, missed: 0, meanDistance: 7.4, msPerPosting: null, unparsed: 0, failed: 0, stale: 0 };
+  assert.equal(
+    trialLine({ ...report, sameModel: 5 }),
+    'Agreed with the scores on record on 5 of 5: 0 false matches, 0 missed, 7.4 points apart on average. Every score on record came from this same model, so this shows how steady its scores are, not how they compare with another model\'s.',
+  );
+  assert.match(trialLine({ ...report, sameModel: 2 }), /\. 2 scores on record came from this same model: there it shows how steady it is\.$/);
+  assert.doesNotMatch(trialLine({ ...report, sameModel: 0 }), /same model/);
 });
 
 test('a run gives up once its first calls all went unanswered, never after one answered', () => {

@@ -15,10 +15,24 @@ import {
   renameStage,
   slugifyLabel,
   strandedStages,
+  TERMINAL_KEYS,
   UNFILED_STAGE,
 } from './stage-config';
+import { offeredLocales, withLocale } from '../i18n/locale';
+import { t } from '../i18n/t';
 
 const W = (...keys: string[]) => keys.map((k) => ({ key: k, label: k.toUpperCase() }));
+
+test('the Board columns hint names the fixed columns as the board names them, in every language (#572)', () => {
+  for (const locale of offeredLocales()) {
+    withLocale(locale, () => {
+      const hint = t('settings.appliedAndTheTwoClosed');
+      for (const stage of allStages([]).filter((s) => s.key === 'applied' || TERMINAL_KEYS.includes(s.key))) {
+        assert.ok(hint.includes(stage.label), `${locale}: "${hint}" names ${stage.label}`);
+      }
+    });
+  }
+});
 
 test('parse falls back to defaults on null, garbage and empty lists', () => {
   assert.deepEqual(parseStageConfig(null), DEFAULT_WORK_STAGES);

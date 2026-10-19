@@ -53,6 +53,8 @@ const ACTIVITIES = {
     'browser.activity.brief5',
     'browser.activity.brief6',
   ],
+  // The same reading of the posting in an employer's words: no resume of theirs is involved.
+  rubric: ['browser.activity.brief1', 'browser.activity.brief2', 'browser.activity.brief5', 'browser.activity.rubric1'],
   letter: ['browser.activity.letter1', 'browser.activity.letter2', 'browser.activity.letter3', 'browser.activity.letter4'],
   review: [
     'browser.activity.review1',
