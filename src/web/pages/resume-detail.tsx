@@ -67,6 +67,8 @@ export interface ResumeDetailProps {
   deleteImpact: DeleteImpact;
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
+  /** The scan of this text in flight (a save's, behind its comparison): the card says so instead of offering another (#608). */
+  scanRunId: string | null;
   /** Searches already linked to this resume, and the one a click would create. */
   search: {
     linkedProfiles: { id: number; name: string }[];
@@ -86,6 +88,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   reviewDelta,
   deleteImpact,
   warnings,
+  scanRunId,
   search,
   flash,
 }) => {
@@ -187,6 +190,18 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
               <TagRow label={t('resume.roles')} items={resume.roleTypes} tone="info" />
               <TagRow label={t('resume.skills')} items={resume.skills} tone="ok" />
             </div>
+          ) : scanRunId ? (
+            <Empty
+              bare
+              title={t('resume.scanRunningTitle')}
+              action={
+                <Button variant="secondary" size="sm" href={`/target/runs/${scanRunId}`}>
+                  {t('resume.scanRunningWatch')}
+                </Button>
+              }
+            >
+              {t('resume.scanRunningBody')}
+            </Empty>
           ) : (
             <Empty bare title={t('resume.notScannedYet')}>
               {t('resume.aScanReadsTheHeadline')}

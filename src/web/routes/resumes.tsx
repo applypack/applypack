@@ -6,8 +6,7 @@ import { onceGuard } from '../once-guard';
 import { logger } from '../../logger';
 import type { ResumeReview } from '@prisma/client';
 import { reviewResume } from '../../resume/review';
-import { scanInBackground, scanResume } from '../../resume/scan';
-import type { ResumeScan } from '../../resume/prompts';
+import { scanResume } from '../../resume/scan';
 import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
 import { postingForPrompt } from '../../employer';
@@ -31,7 +30,6 @@ import {
   replaceResumeFile,
   type ResumeSummary,
   saveReviewAnswer,
-  saveResumeTextVersion,
   setDefaultResume,
   replaceResumeBytes,
   versionFileName,
@@ -60,6 +58,7 @@ import { loadLineDiff } from '../../resume/line-diff';
 import { ResumesPage } from '../pages/resumes';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, startRun, updateRun } from '../target-runs';
+import { beginScan, liveScanRun, type ScanCopy } from '../scan-run';
 import { runFailure } from '../run-failure';
 import { hashShortId } from '../../text-utils';
 import {
@@ -190,6 +189,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
       reviewDelta={deltaFor(review, previous)}
       deleteImpact={impact}
       warnings={parseWarnings(resume.text)}
+      scanRunId={liveScanRun(resume)?.id ?? null}
       structure={structure}
       props={props}
       // The draft the "Create a search" button would save — rendered, not
@@ -305,9 +305,14 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       return;
     }
     // The match reads the text, never the scan (target-plan §3.1 item 2), so
-    // the scan runs behind it as the re-upload route's does — it was 63 % of
-    // a six-minute wait on a CLI engine (#168).
-    scanInBackground(resume);
+    // the scan runs beside it — it was 63 % of a six-minute wait on a CLI
+    // engine (#168). As a scan run of its own: the resume page says it is
+    // running, and its Scan button joins it instead of paying twice (#608).
+    beginScan(resume, {
+      subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
+      onScanned: (scan) => t('resume.flash.scanned', { skills: scan.skills.length, issues: scan.issues.length }),
+      onFailed: t('resume.flash.scanFailed'),
+    }, scanResume);
     const match = await matchResumeToJob(resume, postingForPrompt(job), { onError: noteReason });
     updateRun(run.id, match
       ? {
@@ -578,29 +583,8 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
  * /jobs/:id/match — returns the POST immediately and shows real progress.
  * The clean version's "Save as a new resume" goes through it too.
  */
-export function startScanRun(
-  c: Context,
-  resume: ResumeSummary,
-  copy: { subtitle: string; onScanned: (scan: ResumeScan) => string; onFailed: string },
-): Response {
-  const { id, name, text } = resume;
-  const { run, joined } = claimRun(`scan:${id}:${hashShortId(text)}`, {
-    steps: ['scan'],
-    jobTitle: '',
-    resumeName: name,
-    heading: { running: t('resume.run.scanRunning'), failed: t('resume.run.scanFailed') },
-    subtitle: copy.subtitle,
-    // The row exists either way, so the error state has somewhere real to go.
-    backUrl: `/resumes/${id}`,
-    backLabel: t('resume.backToResume'),
-  });
-  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
-  startRun(run.id, async () => {
-    const scan = await scanResume({ id, text });
-    updateRun(run.id, scan
-      ? { stage: 'done', resultUrl: `/resumes/${id}`, flash: copy.onScanned(scan) }
-      : { stage: 'error', error: copy.onFailed });
-  });
+export function startScanRun(c: Context, resume: ResumeSummary, copy: ScanCopy): Response {
+  const { run } = beginScan(resume, copy, scanResume);
   return c.redirect(`/target/runs/${run.id}`, 303);
 }
 

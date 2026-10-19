@@ -61,9 +61,9 @@ TypeScript (only three of the nine scripts are generic).
 
 - "synchronously inside the request": each AI action now starts a run in
   the web process and answers with a progress page that polls it
-  (`src/web/target-runs.ts`). After an upload the scan runs in the
-  background (`src/resume/scan.ts:scanInBackground`). Nothing moved to the
-  worker.
+  (`src/web/target-runs.ts`). Every scan is such a run, which a second
+  request for the same text joins (`src/web/scan-run.ts:beginScan`).
+  Nothing moved to the worker.
 - "A comparison is one call": a posting's first comparison also reads the
   posting on its own
   ([0044](./0044-the-posting-is-read-once-on-its-own.md)), and a full report
