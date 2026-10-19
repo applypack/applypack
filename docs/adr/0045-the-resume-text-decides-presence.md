@@ -67,6 +67,17 @@ rule with no AI call.
   was never contradicted, so its note ("Candidate confirmed: …") is shown
   as it is. Rows flipped before this version carry no record and read as
   they did.
+- *Amended 2026-10-18 (#204).* A `cannot_claim` the text spells only through
+  an alias ("PHP" for "PHP 8") turns `present` with a real grade, and a red
+  flag naming it stopped being exempt in `red-flags.ts:countableFlags`: ten
+  points for what the row's "as PHP" badge already says (match 80 lost them on
+  the backfill). A flag naming an alias-only term is exempt now, like one
+  naming a missing or listed-only term, and `store.ts:rescoreMatchKeywords`
+  reads the alias-only mark off the comparison's text before the flags, as
+  `match.ts` does, so a backfill or a keyword edit charges what an analysis
+  would. The ring holds the stored penalty, so it agrees with no change of its
+  own. `SCORING.version` stays 6: which flags reach the formula is decided
+  before it, as for the skills-line exemption.
 
 ✅ The number reads the resume; live and stored agree on the same text; no
 page asks for a "yes" about a word already on it; the primary cap lifts the

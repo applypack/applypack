@@ -311,7 +311,16 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   const empty = companies.length === 0;
   return (
   <Layout title={t('nav.companies')} active="companies">
-    <PageHeader title={t('nav.companies')} meta={t('companies.sourcesCount', { n: companies.length })}>
+    <PageHeader
+      title={t('nav.companies')}
+      meta={t('companies.sourcesCount', { n: companies.length })}
+      // The ways to add are below the whole list: with a few dozen sources, two screens down.
+      actions={
+        <Button href="#add-sources" variant="secondary">
+          {t('companies.addSources')}
+        </Button>
+      }
+    >
       {t('companies.theBoardsAndFeedsThe')}
     </PageHeader>
     <Flash flash={flash} />
@@ -421,7 +430,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
 
     {/* The list is what the page is about; the four ways to add to it open on demand,
         and stand open while there is nothing in the list yet. */}
-    <div class="mt-8">
+    <div id="add-sources" class="mt-8 scroll-mt-4">
       <SectionTitle level="section">{t('companies.addSources')}</SectionTitle>
       <div class="flex flex-wrap items-start gap-2">
         <Disclosure variant="button" summary={t('companies.watchSpecificCompanies')} open={empty || watchlistRun !== null} class="contents">

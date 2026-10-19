@@ -19,8 +19,11 @@ export const UNKNOWN_PLACE = 'unknown';
 /** How many place chips show before "More…". */
 export const TOP_PLACES = 8;
 
-/** `posted=` values → days back. */
+/** `posted=` values → days back. A window reads only the rows whose date their source gave. */
 const POSTED_WINDOWS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30 };
+
+/** The `posted=` value for rows whose source gave no date (#458): first seen is all that is known. */
+const UNKNOWN_DATE = 'unknown';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -64,7 +67,7 @@ export function parseWorkplaces(raw: string | undefined): WorkplaceCode[] {
 }
 
 export function parsePosted(raw: string | undefined): string {
-  return raw && Object.hasOwn(POSTED_WINDOWS, raw) ? raw : '';
+  return raw && (raw === UNKNOWN_DATE || Object.hasOwn(POSTED_WINDOWS, raw)) ? raw : '';
 }
 
 /** Where-clause for the place facet: OR across the selection; null when nothing is selected. */
@@ -80,17 +83,20 @@ export function placeWhere(places: string[]): Prisma.JobWhereInput | null {
   return or.length > 0 ? { OR: or } : null;
 }
 
-export function postedSince(posted: string, now: Date): Date | null {
+/** Where-clause for the posted facet: a window over the dated rows, or the undated ones; null when nothing is selected. */
+export function postedWhere(posted: string, now: Date): Prisma.JobWhereInput | null {
+  if (posted === UNKNOWN_DATE) return { postedAtKnown: false };
   const days = Object.hasOwn(POSTED_WINDOWS, posted) ? POSTED_WINDOWS[posted] : undefined;
-  return days ? new Date(now.getTime() - days * DAY_MS) : null;
+  return days ? { postedAtKnown: true, postedAt: { gte: new Date(now.getTime() - days * DAY_MS) } } : null;
 }
 
-/** The four columns the tally reads. */
+/** The five columns the tally reads. */
 export interface FacetRow {
   countries: string[];
   regions: string[];
   workplace: WorkplaceCode;
   postedAt: Date;
+  postedAtKnown: boolean;
 }
 
 export interface FacetChips {
@@ -107,7 +113,8 @@ export interface FacetChips {
 export function tallyFacets(rows: FacetRow[], selected: FacetSelection, now: Date): FacetChips {
   const inPlaces = (r: FacetRow) => selected.places.length === 0 || rowPlaces(r).some((p) => selected.places.includes(p));
   const inWorkplaces = (r: FacetRow) => selected.workplaces.length === 0 || selected.workplaces.includes(r.workplace);
-  const inWindow = (r: FacetRow, key: string) => now.getTime() - r.postedAt.getTime() <= (POSTED_WINDOWS[key] ?? Infinity) * DAY_MS;
+  const inWindow = (r: FacetRow, key: string) =>
+    key === UNKNOWN_DATE ? !r.postedAtKnown : r.postedAtKnown && now.getTime() - r.postedAt.getTime() <= (POSTED_WINDOWS[key] ?? Infinity) * DAY_MS;
   const inPosted = (r: FacetRow) => selected.posted === '' || inWindow(r, selected.posted);
 
   const placeCounts = new Map<string, number>();
@@ -117,7 +124,7 @@ export function tallyFacets(rows: FacetRow[], selected: FacetSelection, now: Dat
     if (inWorkplaces(row) && inPosted(row)) for (const p of rowPlaces(row)) bump(placeCounts, p);
     if (inPlaces(row) && inPosted(row)) bump(workplaceCounts, row.workplace);
     if (inPlaces(row) && inWorkplaces(row)) {
-      for (const key of Object.keys(POSTED_WINDOWS)) {
+      for (const key of POSTED_KEYS) {
         if (inWindow(row, key)) bump(postedCounts, key);
       }
     }
@@ -133,7 +140,7 @@ export function tallyFacets(rows: FacetRow[], selected: FacetSelection, now: Dat
     count: workplaceCounts.get(code) ?? 0,
     selected: selected.workplaces.includes(code),
   }));
-  const posted = Object.keys(POSTED_WINDOWS).map((key) => ({
+  const posted = POSTED_KEYS.map((key) => ({
     value: key,
     label: worded(POSTED_LABEL, key),
     flag: '',
@@ -143,12 +150,21 @@ export function tallyFacets(rows: FacetRow[], selected: FacetSelection, now: Dat
   return { places, workplaces, posted };
 }
 
-/** What each `posted=` window is called on its chip, and in the row of filters in force — catalog keys. */
-const POSTED_LABEL: Record<string, MessageKey> = { '24h': 'jobs.posted.day', '7d': 'jobs.posted.week', '30d': 'jobs.posted.month' };
+/** The posted chips in order: the windows, then the rows nobody dated — as Where and Work end on "Unknown". */
+const POSTED_KEYS = [...Object.keys(POSTED_WINDOWS), UNKNOWN_DATE];
+
+/** What each `posted=` value is called on its chip, and in the row of filters in force — catalog keys. */
+const POSTED_LABEL: Record<string, MessageKey> = {
+  '24h': 'jobs.posted.day',
+  '7d': 'jobs.posted.week',
+  '30d': 'jobs.posted.month',
+  [UNKNOWN_DATE]: 'jobs.posted.unknown',
+};
 const POSTED_ACTIVE: Record<string, MessageKey> = {
   '24h': 'jobs.active.postedDay',
   '7d': 'jobs.active.postedWeek',
   '30d': 'jobs.active.postedMonth',
+  [UNKNOWN_DATE]: 'jobs.posted.unknown',
 };
 
 /** The words for `value`, read when asked; a value the table does not know stays as it is. */

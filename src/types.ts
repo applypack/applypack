@@ -36,10 +36,18 @@ export interface NormalizedJob {
    * The source gave no date this posting was published on, so `postedAt` is
    * the clock's or a file's (#379). It still orders and shows the posting; it
    * is no evidence that the posting is recent, and nothing is prepared on its
-   * own for it (pack/trigger.ts). Set by the row mapper, and for every other
-   * source by `fetchers/dates.ts:markClockDated` where its read ends.
+   * own for it (pack/trigger.ts) unless something else shows its age. Set by
+   * the row mapper, and for every other source by
+   * `fetchers/dates.ts:markClockDated` where its read ends.
    */
   undated?: boolean;
+  /**
+   * When the source was last read successfully before the read that brought
+   * this posting (`Company.lastOkAt` before the walk moves it); absent on a
+   * first read and where nothing was read before (#459). On a company's own
+   * board it bounds an undated posting's age (pack/trigger.ts:ageCountsFrom).
+   */
+  previousRead?: Date;
 }
 
 export interface ClaudeClassification {

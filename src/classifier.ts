@@ -4,7 +4,7 @@ import { currencyOf, isCurrencyCode, isSalaryPeriod } from './currency';
 import { RELOCATION_PROMPT, isRelocation } from './eligibility';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
-import { getAiRuntime } from './ai-runtime';
+import { getAiRuntime, type AiRuntime } from './ai-runtime';
 import { preClassify, prefilterMayJudge } from './classifier-prefilter';
 import { capFitForMissingStack } from './profile-guards';
 import { isCountryCode, isRegionCode } from './countries';
@@ -95,9 +95,31 @@ export interface ClassifyOutcome extends Classifications {
   preFiltered: boolean;
   /** The prefilter's own one-line reason, when it rejected. */
   prefilterReason?: string;
+  /** The ledger rows the scoring wrote: a posting the tick stores afterwards is named on them (#483). */
+  ledgerIds: number[];
 }
 
-const EMPTY: ClassifyOutcome = { results: new Map(), location: null, preFiltered: false };
+const EMPTY: ClassifyOutcome = { results: new Map(), location: null, preFiltered: false, ledgerIds: [] };
+
+/**
+ * One posting's scoring as the ledger sees it: the runtime both stages ask,
+ * the stored row the calls are for when there is one, and the rows the calls
+ * wrote, gathered as they answer.
+ */
+export interface ScoringCall {
+  ai: Pick<AiRuntime, 'complete' | 'unparsed'>;
+  subject?: { jobId: number };
+  ledgerIds: number[];
+}
+
+interface ClassifyOptions {
+  /** The posting's row, when it is stored before it is scored (a re-classify): the ledger names it at once. */
+  jobId?: number;
+  /** The last engine's one-line reason when no engine answered. */
+  onError?: (reason: string) => void;
+  /** A test hands its own runtime; everyone else asks the one the settings make. */
+  ai?: Pick<AiRuntime, 'complete' | 'unparsed'>;
+}
 
 /**
  * Score one posting against every active search in a single call (ADR 0028).
@@ -111,10 +133,10 @@ export async function classifyJob(
   input: ClassifyInput,
   profiles: Profile[],
   mode: ClassifierMode,
-  onError?: (reason: string) => void,
+  opts: ClassifyOptions = {},
 ): Promise<ClassifyOutcome> {
   try {
-    return await runStages(input, profiles, mode, onError);
+    return await runStages(input, profiles, mode, opts);
   } catch (err) {
     // Callers queue several classifications and await them in order, so a
     // rejection here would become an unhandled rejection in the meantime.
@@ -127,17 +149,22 @@ async function runStages(
   input: ClassifyInput,
   profiles: Profile[],
   mode: ClassifierMode,
-  onError?: (reason: string) => void,
+  opts: ClassifyOptions,
 ): Promise<ClassifyOutcome> {
   if (profiles.length === 0) return EMPTY;
+  const call: ScoringCall = {
+    ai: opts.ai ?? (await getAiRuntime()),
+    subject: opts.jobId === undefined ? undefined : { jobId: opts.jobId },
+    ledgerIds: [],
+  };
   if (mode === 'two_stage' && prefilterMayJudge(input, profiles)) {
-    const pre = await preClassify(input, profiles);
+    const pre = await preClassify(input, profiles, call);
     if (pre && pre.relevant === false) {
       logger.debug(
         { title: input.title, reason: pre.reason },
         'classifier: stage1 not-relevant, skipping stage2',
       );
-      return { results: new Map(), location: null, preFiltered: true, prefilterReason: pre.reason };
+      return { results: new Map(), location: null, preFiltered: true, prefilterReason: pre.reason, ledgerIds: call.ledgerIds };
     }
     if (pre === null) {
       logger.warn(
@@ -146,7 +173,7 @@ async function runStages(
       );
     }
   }
-  return { ...(await classifyWithClaude(input, profiles, onError)), preFiltered: false };
+  return { ...(await classifyWithClaude(input, profiles, call, opts.onError)), preFiltered: false, ledgerIds: call.ledgerIds };
 }
 
 function unique(list: string[]): string[] {
@@ -244,23 +271,25 @@ export function parseClassifications(
 async function classifyWithClaude(
   input: ClassifyInput,
   profiles: Profile[],
+  call: ScoringCall,
   onError?: (reason: string) => void,
 ): Promise<Classifications> {
   const { system: systemPrompt, user: userText } = buildClassifyPrompt(input, profiles);
 
-  const ai = await getAiRuntime();
   // One retry on a malformed reply: small models occasionally wrap or truncate JSON.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const out = await ai.complete({
+    const out = await call.ai.complete({
       json: true,
       system: systemPrompt,
       user: userText,
       maxTokens: BASE_MAX_TOKENS + MAX_TOKENS_PER_PROFILE * profiles.length,
       label: 'classifier',
       role: 'classifier',
+      subject: call.subject,
       onError,
     });
     if (out === null) return { results: new Map(), location: null };
+    call.ledgerIds.push(...out.ledgerIds);
 
     const parsed = parseClassifications(out.text, profiles);
     if (parsed) {
@@ -272,6 +301,7 @@ async function classifyWithClaude(
       }
       return parsed;
     }
+    await call.ai.unparsed(out);
     logger.warn(
       {
         raw: out.text.slice(0, 500),

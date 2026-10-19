@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Profile } from '@prisma/client';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
-import { getAiRuntime } from './ai-runtime';
+import type { ScoringCall } from './classifier';
 import { titleHasKeyword } from './filter';
 import type { ClassifyInput } from './types';
 import { UNTRUSTED_DIRECTIVE_SHORT, fence } from './prompt-fence';
@@ -23,22 +23,25 @@ export type PrefilterResult = z.infer<typeof PrefilterSchema>;
 export async function preClassify(
   input: ClassifyInput,
   profiles: Profile[],
+  call: ScoringCall,
 ): Promise<PrefilterResult | null> {
   const { system: systemPrompt, user: userText } = buildPrefilterPrompt(input, profiles);
 
-  const ai = await getAiRuntime();
-  const out = await ai.complete({
+  const out = await call.ai.complete({
     json: true,
     system: systemPrompt,
     user: userText,
     maxTokens: MAX_TOKENS,
     label: 'prefilter',
     role: 'classifier',
+    subject: call.subject,
   });
   if (out === null) return null;
+  call.ledgerIds.push(...out.ledgerIds);
 
   const parsed = parsePrefilterResponse(out.text);
   if (parsed) return parsed;
+  await call.ai.unparsed(out);
   logger.warn({ raw: out.text.slice(0, 300), title: input.title }, 'prefilter: response did not match schema');
   return null;
 }

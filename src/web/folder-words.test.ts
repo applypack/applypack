@@ -1,15 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { explainFolderFault, fileLine, folderCheckLine, folderLine, folderTrouble, untitledLine } from './folder-words';
+import { explainFolderFault, fileLine, folderCheckLine, folderLine, folderTrouble, setAsideLine, untitledLine } from './folder-words';
 
 const at = new Date('2026-10-05T12:00:00Z');
 
 test('folderLine: what a folder holds and what the last check found', () => {
   assert.equal(folderLine(undefined), 'Not checked yet.');
-  assert.equal(folderLine({ lastLookAt: at, files: 214, fresh: 3, waiting: 0, failed: 0, partial: 0 }), '214 files · 3 new at the last check');
-  assert.equal(folderLine({ lastLookAt: at, files: 1, fresh: 0, waiting: 1, failed: 2, partial: 0 }), '1 file · 0 new at the last check · 1 waiting · 2 not read');
+  assert.equal(folderLine({ lastLookAt: at, files: 214, fresh: 3, waiting: 0, failed: 0, partial: 0, skipped: 0 }), '214 files · 3 new at the last check');
+  assert.equal(folderLine({ lastLookAt: at, files: 1, fresh: 0, waiting: 1, failed: 2, partial: 0, skipped: 0 }), '1 file · 0 new at the last check · 1 waiting · 2 not read');
   // #394: a file that lost a part is said on the folder's own line, where somebody looks.
-  assert.equal(folderLine({ lastLookAt: at, files: 3, fresh: 3, waiting: 0, failed: 0, partial: 1 }), '3 files · 3 new at the last check · 1 read in part');
+  assert.equal(folderLine({ lastLookAt: at, files: 3, fresh: 3, waiting: 0, failed: 0, partial: 1, skipped: 0 }), '3 files · 3 new at the last check · 1 read in part');
+});
+
+test('setAsideLine: the files the last check left unread, counted apart for the card to link (#478)', () => {
+  const summary = { lastLookAt: at, files: 4, fresh: 1, waiting: 0, failed: 0, partial: 0, skipped: 0 };
+  assert.equal(setAsideLine(undefined), null);
+  assert.equal(setAsideLine(summary), null);
+  assert.equal(setAsideLine({ ...summary, skipped: 1 }), '1 set aside');
+  assert.equal(setAsideLine({ ...summary, skipped: 3 }), '3 set aside');
+  assert.equal(setAsideLine({ ...summary, lastLookAt: null, skipped: 3 }), null);
 });
 
 test('fileLine: a file of rows that lost a part says how many rows it gave and what was lost', () => {

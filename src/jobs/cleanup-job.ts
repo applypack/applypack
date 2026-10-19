@@ -1,9 +1,11 @@
-import { CronRunStatus, JobStatus } from '@prisma/client';
+import { CronRunStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import type { CronStats } from './cron-run';
+import { deleteDismissed, forgetOldDismissals } from './dismissed-store';
 import { checkForUpdate } from '../update-check';
 
+/** A Dismissed posting's text, counted from the day it was found; its key stays longer (dismissed-store.ts, #474). */
 const RETENTION_DAYS = 30;
 /** The AI ledger (ADR 0055): long enough for "this year" and last year's same month. */
 const AI_CALL_RETENTION_DAYS = 400;
@@ -24,15 +26,11 @@ export async function runCleanupJob(): Promise<{ stats: CronStats }> {
   const cutoff = new Date(Date.now() - RETENTION_DAYS * DAY_MS);
   logger.info({ cutoff: cutoff.toISOString() }, 'cleanup-job: start');
 
-  // pipelineStage: null — an application's funnel history (and its F5
-  // ledger, which cascades with the job) is never garbage-collected.
-  const result = await prisma.job.deleteMany({
-    where: {
-      status: JobStatus.DISMISSED,
-      pipelineStage: null,
-      fetchedAt: { lt: cutoff },
-    },
-  });
+  // An application's funnel history (and its F5 ledger, which cascades with
+  // the job) is never garbage-collected. What goes leaves its key behind, so
+  // a source that still lists it does not bring it back to be scored (#474).
+  const deleted = await deleteDismissed(cutoff);
+  const dismissalsForgotten = await forgetOldDismissals(new Date());
 
   // The optional weekly look for a newer release (TASKS N9); off unless turned on.
   await checkForUpdate();
@@ -54,7 +52,8 @@ export async function runCleanupJob(): Promise<{ stats: CronStats }> {
 
   const durationMs = Date.now() - started;
   const stats = {
-    deleted: result.count,
+    deleted,
+    dismissalsForgotten,
     screeningsDeleted: screenings.count,
     runsDeleted: runs.count,
     aiCallsDeleted: aiCalls.count,
