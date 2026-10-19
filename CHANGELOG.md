@@ -4,6 +4,96 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.7] — 2026-10-18
+
+### Changed
+- The Runs page describes every count in your language: what a discovery run
+  checked, held matches sent, careers-page changes reported and the France
+  Travail re-check.
+- The ATS list under Add one company shows the vendors' names instead of
+  codes.
+- With no model chosen, Settings, AI usage and the run page name the model
+  an OpenAI-compatible engine actually uses, not "CLI default".
+- The starter pack preview names each board's vendor instead of a code.
+- Check now's progress page talks about the one source you checked, and its
+  button after a failure goes back to where you started.
+- Opening a Settings tab other than Job search no longer counts your jobs
+  for the re-score question.
+
+### Fixed
+- A salary whose two ends round to the same figure reads "$92k", not
+  "$92k-92k".
+- "Cities you would commute to" keeps "Austin, TX" as one city, and that
+  city also matches postings that write "Austin, Texas".
+- A refused Discord webhook keeps the name you typed.
+- Testing a saved Telegram chat now says whether Telegram refused the bot
+  token or the chat.
+- An OpenAI-compatible engine on this computer (LM Studio, Ollama) with no
+  model chosen now uses, on every call, the model its Test used: the first
+  chat model the server offers. Before, the Test passed but every call asked
+  for gpt-5-mini, which a local server does not have. On a server on the
+  internet, the Test now tries the same model the calls use.
+
+## [2.63.6] — 2026-10-18
+
+### Changed
+- Tailor resume reuses a posting the dashboard already has when you paste
+  it, instead of storing a second copy and reading it twice. On both Tailor
+  resume and Cover letter, this also works when you paste only the posting's
+  body without its title.
+- On a job page, when the posting is remote across a region that includes
+  where your search looks, a short line under the classifier's summary says
+  so, even when the summary claims otherwise.
+
+### Fixed
+- Two different roles from the same agency are no longer marked as copies of
+  each other because they share the agency's standard text. Copies marked
+  that way before are unmarked when ApplyPack starts.
+- A saved job page that states its title, company and description in its
+  page data is kept even when the page is short.
+- The AI call that reads a saved posting is now counted in that job's "AI
+  spent", and AI usage shows it as "Reading a saved posting".
+- The AI call that reads a posting pasted into Tailor resume or Cover letter
+  is now counted in that job's "AI spent".
+
+## [2.63.5] — 2026-10-18
+
+### Fixed
+- The Jobs, Runs, Discovery and AI usage tables fit the page on tablets and
+  laptops (768 to 1279 px) instead of scrolling sideways; the title, the fit
+  and the status stay in view.
+- On a phone, Runs shows each run's status under its name, and Discovery no
+  longer scrolls sideways.
+- A long word in a narrow column header is hyphenated instead of running
+  into the next header.
+
+## [2.63.4] — 2026-10-18
+
+### Changed
+- While a saved version's scan is still running, the resume page says so and
+  links to its progress, instead of saying "Not scanned yet".
+
+### Fixed
+- Saving a version from the Tailor page with a posting no longer leads to
+  paying for a second scan: pressing Scan while the first one runs joins it.
+- Saving a version, or downloading the Document view, from a comparison of
+  an edited draft now writes your changes into your own .docx instead of
+  switching to the clean version.
+- Fix document properties no longer writes "# " before your name when your
+  .docx sets the name in Word's Title style.
+
+## [2.63.3] — 2026-10-18
+
+### Fixed
+- The Test button on an AI engine now says how long the model took to
+  answer, without the time it spent waiting behind another call to the same
+  model on your computer. The number now matches the AI usage page.
+- On Node 25 and newer, the scripts you run by hand, and ApplyPack started
+  without `npm start`, no longer print a "localStorage is not available"
+  warning.
+- The last step of `npm install`, which prepares the database client, no
+  longer reports to the database tool's maker.
+
 ## [2.63.2] — 2026-10-18
 
 ### Changed
@@ -6597,6 +6687,11 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.7]: https://github.com/applypack/applypack/compare/v2.63.6...v2.63.7
+[2.63.6]: https://github.com/applypack/applypack/compare/v2.63.5...v2.63.6
+[2.63.5]: https://github.com/applypack/applypack/compare/v2.63.4...v2.63.5
+[2.63.4]: https://github.com/applypack/applypack/compare/v2.63.3...v2.63.4
+[2.63.3]: https://github.com/applypack/applypack/compare/v2.63.2...v2.63.3
 [2.63.2]: https://github.com/applypack/applypack/compare/v2.63.1...v2.63.2
 [2.63.1]: https://github.com/applypack/applypack/compare/v2.63.0...v2.63.1
 [2.63.0]: https://github.com/applypack/applypack/compare/v2.62.0...v2.63.0
