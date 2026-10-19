@@ -59,6 +59,7 @@ const TASK_OF: Record<AiFeature, AiTask | null> = {
   classifier: 'scoring',
   prefilter: 'scoring',
   'posting-extract': 'scoring',
+  'saved-posting-extract': 'scoring',
   'posting-brief': 'analysis',
   'resume-scan': 'resume-read',
   'resume-structure': 'resume-read',

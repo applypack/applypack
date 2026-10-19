@@ -142,26 +142,32 @@ async function lookAtRows(
  * What the model read off a file, by the file's hash: a look whose jobs were
  * not all stored is dropped and the file read again, and asking again about
  * the same bytes would be the same answer, paid twice. Kept for the
- * process's life, the oldest forgotten past the cap.
+ * process's life, the oldest forgotten past the cap, with the ledger rows of
+ * the call that read it: they are named on the job once it is stored (#543).
  */
-const readByModel = new Map<string, ModelFacts>();
+const readByModel = new Map<string, ModelRead>();
 const READ_BY_MODEL_CAP = 500;
 
-/** A model's reading of a posting's head and the page's own title, or null when no engine answered: the file's name then stands in for the title. */
-async function readWithModel(sha256: string, text: string, pageTitle: string | null): Promise<ModelFacts | null> {
+interface ModelRead {
+  facts: ModelFacts | null;
+  calls: number[];
+}
+
+/** A model's reading of a posting's head and the page's own title, its facts null when no engine answered: the file's name then stands in for the title. */
+async function readWithModel(sha256: string, text: string, pageTitle: string | null): Promise<ModelRead> {
   const known = readByModel.get(sha256);
   if (known) return known;
-  let facts: ModelFacts | null = null;
+  const read: ModelRead = { facts: null, calls: [] };
   try {
-    facts = await extractPostingFacts(text, pageTitle);
+    read.facts = await extractPostingFacts(text, { pageTitle, saved: true, calls: read.calls });
   } catch (err) {
     logger.warn({ err }, 'folder: a saved posting was not read by the model; its file name stands in');
   }
-  if (facts) {
+  if (read.facts) {
     if (readByModel.size >= READ_BY_MODEL_CAP) readByModel.delete(readByModel.keys().next().value!);
-    readByModel.set(sha256, facts);
+    readByModel.set(sha256, read);
   }
-  return facts;
+  return read;
 }
 
 async function lookAtPostings(
@@ -215,7 +221,7 @@ async function lookAtPostings(
       if (itself) readAs.set(got.sha256, file.relPath);
       continue;
     }
-    let model: ModelFacts | null = null;
+    let model: ModelRead = { facts: null, calls: [] };
     if (needsModel(read)) {
       // Paused, or no search can score: nothing is sent to a model, and the file is read again once it may be.
       if (!scoring) {
@@ -224,7 +230,7 @@ async function lookAtPostings(
       }
       model = await readWithModel(got.sha256, read.text, read.pageTitle);
     }
-    const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model, externalId, now);
+    const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model.facts, externalId, now, model.calls);
     changes.push({ ...measured, status: 'done', detail: savedPostingNote(job), jobCount: 1 });
     readAs.set(got.sha256, file.relPath);
     jobs.push(job);

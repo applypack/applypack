@@ -26,7 +26,7 @@ import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob, type Rescored } from '../../jobs/classify-existing';
 import { rescoreFlash } from '../rescore-flash';
-import { locationMismatchReason } from '../../jobs/location-reason';
+import { locationMismatchReason, openThroughLine } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
@@ -487,6 +487,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
                 countries: true,
                 regions: true,
                 workplace: true,
+                residence: true,
+                relocation: true,
               },
             },
           },
@@ -577,6 +579,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         locationMatch: sc.locationMatch,
         // Built from the columns, no AI call (ADR 0032); null when they cannot say.
         locationReason: sc.locationMatch ? null : locationMismatchReason(job, sc.profile),
+        openThrough: sc.locationMatch ? openThroughLine({ ...job, source: job.locationSource }, sc.profile) : null,
         summary: sc.summary,
       }))}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}

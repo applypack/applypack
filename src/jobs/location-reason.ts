@@ -3,6 +3,7 @@ import { placesOverlap } from '../filter';
 import type { WorkplaceCode } from '../location';
 import { placeName, workplaceName } from '../i18n/places';
 import { t } from '../i18n/t';
+import { openingGroup } from './verdict-merge';
 
 /*
  * One line on the job page saying WHY a search's verdict is "location
@@ -69,6 +70,20 @@ function livingReason(where: 'open' | 'office', places: string, job: ReasonJob, 
     places,
     residence: placeName(residence),
   });
+}
+
+/**
+ * "Remote across Europe, which includes Poland, Germany": why a remote
+ * posting is open to the search, read off the stored place. The code
+ * overrules a model that called it closed (verdict-merge.ts:openThroughGroup,
+ * #530), and the model's summary may still say so; this line goes beside it
+ * (#605). Null when the place does not prove it.
+ */
+export function openThroughLine(place: Parameters<typeof openingGroup>[0], profile: Parameters<typeof openingGroup>[1]): string | null {
+  const open = openingGroup(place, profile);
+  if (open === null) return null;
+  const places = open.places.filter((code) => code !== open.group);
+  return t('location.reason.openThrough', { group: placeName(open.group), places: names(places), named: places.length > 0 ? 'yes' : 'no' });
 }
 
 function names(codes: string[]): string {
