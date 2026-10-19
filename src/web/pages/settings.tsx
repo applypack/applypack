@@ -261,6 +261,8 @@ export interface SettingsProps {
   profileSent?: ProfileSentText | null;
   /** A refused Telegram connection, sent back open (#549): the name and the chat id as typed, never the token. */
   telegramSent?: { name: string; chatId: string } | null;
+  /** A refused Discord webhook, sent back open (#607): the name as typed, never the URL. */
+  discordSent?: { name: string } | null;
   /** `?keys=<source>` after its keys were saved: that card stays open, so its state can be read (#561). */
   openSourceKeys?: string;
 }
@@ -671,6 +673,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   profileDraft,
   profileSent,
   telegramSent,
+  discordSent,
   openSourceKeys,
 }) => (
   <Layout title={t('nav.settings')} active="settings">
@@ -1130,12 +1133,12 @@ export const SettingsPage: FC<SettingsProps> = ({
               <Hint class="mt-3">{t('settings.applypackSendsATestMessage')}</Hint>
             </div>
           </Disclosure>
-          <Disclosure variant="button" summary={t('settings.addADiscordWebhook')} class="contents">
+          <Disclosure variant="button" summary={t('settings.addADiscordWebhook')} open={Boolean(discordSent)} class="contents">
             <div class="order-last basis-full rounded-md border border-line p-4">
               <form method="post" action="/settings/targets" class="grid gap-3">
                 <input type="hidden" name="kind" value="discord" />
                 <Field label={t('settings.name')}>
-                  <Input type="text" name="name" required placeholder="#job-alerts" translate="no" />
+                  <Input type="text" name="name" required placeholder="#job-alerts" translate="no" value={discordSent?.name} />
                 </Field>
                 <Field
                   label={t('settings.webhookUrl')}

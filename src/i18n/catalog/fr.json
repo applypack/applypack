@@ -1089,6 +1089,8 @@
   "settingsRoute.sources.allEnabled": "Toutes les sources activées.",
   "settingsRoute.sources.disabled": "Désactivées : {list}.",
   "settingsRoute.targets.testFailed": "Le message de test à « {name} » n'est pas passé ({reason}). La destination est inchangée ; vérifiez son token ou son URL, ou supprimez-la et ajoutez-la à nouveau.",
+  "settingsRoute.targets.testToken": "Telegram n'accepte plus le token du bot de « {name} » : le test n'est donc pas passé. La destination est inchangée ; supprimez-la et ajoutez-la à nouveau avec le token de @BotFather.",
+  "settingsRoute.targets.testChat": "Telegram a accepté le token de « {name} », mais le bot @{bot} ne peut pas écrire dans le chat {chat} : le test n'est donc pas passé. La destination est inchangée ; envoyez d'abord un message au bot, puis testez à nouveau.",
   "settingsRoute.targets.invalidDiscord": "Saisie invalide : un nom et une URL de webhook Discord (https://discord.com/api/webhooks/…) sont requis.",
   "settingsRoute.targets.webhookExists": "Ce webhook est déjà ajouté sous le nom « {name} ».",
   "settingsRoute.targets.discordTestFailed": "Le message de test n'a pas atteint Discord ({reason}), donc le webhook n'a pas été enregistré. Vérifiez l'URL et ajoutez-le à nouveau.",

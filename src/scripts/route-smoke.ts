@@ -774,6 +774,16 @@ async function main(): Promise<void> {
       expect: async (res) => res.status === 422 && (await res.text()).includes('value="ftp://nas.local/applypack"'),
     },
     {
+      // #607: a refused Discord webhook keeps its name — and never echoes the URL, a secret. Refused before any request.
+      name: 'POST /settings/targets with a URL that is no Discord webhook (the form again, the name kept)',
+      url: '/settings/targets',
+      init: form({ kind: 'discord', name: 'Smoke channel', webhookUrl: 'https://example.com/not-a-discord-webhook' }),
+      expect: async (res) => {
+        const html = await res.text();
+        return res.status === 422 && html.includes('value="Smoke channel"') && !html.includes('not-a-discord-webhook');
+      },
+    },
+    {
       // The fixture applicant is unscored, so its scorecard has no adjustment form to fill: the page and its flash are the check.
       name: 'POST /screen/:id/applicants/:aid/adjust with no reason (the scorecard again)',
       url: `/screen/${f.screeningId}/applicants/${f.applicantId}/adjust`,

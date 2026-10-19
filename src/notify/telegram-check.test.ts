@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { telegramFailure, telegramReason } from './telegram-check';
+import { savedChatRefusal, telegramFailure, telegramReason } from './telegram-check';
 
 test('a refused token, a chat the bot cannot write to, and Telegram trouble are told apart (#561)', () => {
   assert.equal(telegramFailure('getMe', 401), 'token');
@@ -16,4 +16,13 @@ test("Telegram's reason is its description, never the JSON it came in", () => {
   assert.equal(telegramReason(401, '{"ok":false,"error_code":401,"description":"Unauthorized"}'), '401 Unauthorized');
   assert.equal(telegramReason(502, '<html>Bad Gateway</html>'), 'HTTP 502');
   assert.equal(telegramReason(500, '{"ok":false}'), 'HTTP 500');
+});
+
+test('a saved chat whose Test fails names the field Telegram refused, as the add form does (#607)', () => {
+  const chat = { name: 'Phone', chatId: '-1001234', bot: 'applypack_bot' };
+  assert.match(savedChatRefusal('token', chat) ?? '', /^Telegram no longer accepts the bot token of "Phone"/);
+  assert.match(savedChatRefusal('chat', chat) ?? '', /bot @applypack_bot cannot write to chat -1001234/);
+  // Telegram's own trouble keeps the generic sentence, with its reason.
+  assert.equal(savedChatRefusal('telegram', chat), null);
+  assert.equal(savedChatRefusal(undefined, chat), null);
 });

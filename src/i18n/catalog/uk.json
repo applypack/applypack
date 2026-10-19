@@ -1089,6 +1089,8 @@
   "settingsRoute.sources.allEnabled": "Усі джерела увімкнено.",
   "settingsRoute.sources.disabled": "Вимкнено: {list}.",
   "settingsRoute.targets.testFailed": "Тестове повідомлення для «{name}» не дійшло ({reason}). Отримувача не змінено; перевірте його токен або URL чи видаліть його й додайте знову.",
+  "settingsRoute.targets.testToken": "Telegram більше не приймає токен бота для «{name}», тож тест не дійшов. Отримувача не змінено: видаліть його й додайте знову з токеном від @BotFather.",
+  "settingsRoute.targets.testChat": "Telegram прийняв токен для «{name}», але бот @{bot} не може писати в чат {chat}, тож тест не дійшов. Отримувача не змінено: спершу напишіть ботові, тоді перевірте ще раз.",
   "settingsRoute.targets.invalidDiscord": "Некоректні дані — потрібні назва та URL вебхука Discord (https://discord.com/api/webhooks/…).",
   "settingsRoute.targets.webhookExists": "Цей вебхук уже додано під назвою «{name}».",
   "settingsRoute.targets.discordTestFailed": "Тестове повідомлення не дійшло до Discord ({reason}), тож вебхук не збережено. Перевірте URL і додайте його знову.",

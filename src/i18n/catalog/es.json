@@ -1089,6 +1089,8 @@
   "settingsRoute.sources.allEnabled": "Todas las fuentes activadas.",
   "settingsRoute.sources.disabled": "Desactivadas: {list}.",
   "settingsRoute.targets.testFailed": "El mensaje de prueba a “{name}” no llegó ({reason}). El destino no cambia; revisa su token o su URL, o elimínalo y añádelo de nuevo.",
+  "settingsRoute.targets.testToken": "Telegram ya no acepta el token del bot de “{name}”, así que la prueba no llegó. El destino no cambia: elimínalo y añádelo de nuevo con el token de @BotFather.",
+  "settingsRoute.targets.testChat": "Telegram aceptó el token de “{name}”, pero el bot @{bot} no puede escribir en el chat {chat}, así que la prueba no llegó. El destino no cambia: envía primero un mensaje al bot y vuelve a probar.",
   "settingsRoute.targets.invalidDiscord": "Datos no válidos: se necesitan un nombre y una URL de webhook de Discord (https://discord.com/api/webhooks/…).",
   "settingsRoute.targets.webhookExists": "Ese webhook ya está añadido como “{name}”.",
   "settingsRoute.targets.discordTestFailed": "El mensaje de prueba no llegó a Discord ({reason}), así que el webhook no se guardó. Revisa la URL y añádelo de nuevo.",

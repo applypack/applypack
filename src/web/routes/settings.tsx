@@ -165,6 +165,7 @@ import { isSelectableLocale, withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { describeDestination } from '../../notify/targets';
 import { isDiscordWebhookUrl, testDiscordWebhook } from '../../notify/discord';
+import { savedChatRefusal } from '../../notify/telegram-check';
 import { missingLinkMessage } from '../profile-links';
 import { getResume, listResumes, upsertScratchResume, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
@@ -1230,16 +1231,21 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   const back = '/settings?tab=notifications';
   const first = (await listNotificationTargets()).length === 0;
   if (form.kind === 'discord') {
+    // #607: a refusal sends the form back open with the name kept — never the webhook URL, a secret no page echoes.
+    const refuse = (text: string, field?: string): Promise<Response> =>
+      settingsAgain(c, { activeTab: 'notifications', discordSent: { name: str(form.name) } }, text, field);
     const parsed = DiscordTargetSchema.safeParse({ name: form.name, webhookUrl: form.webhookUrl });
     if (!parsed.success) {
-      return flashRedirect(back, 'err', t('settingsRoute.targets.invalidDiscord'));
+      // Only the URL is marked: both forms post here, and a marked `name` would be the Telegram form's.
+      const refused = refusedField(c.req.path, parsed.error.issues).field?.name;
+      return refuse(t('settingsRoute.targets.invalidDiscord'), refused === 'webhookUrl' ? refused : undefined);
     }
     // Before the test message, so a repeat does not post twice to the channel.
     const same = await findSameDestination({ kind: 'DISCORD', ...parsed.data });
-    if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.webhookExists', { name: same.name }));
+    if (same) return refuse(t('settingsRoute.targets.webhookExists', { name: same.name }), 'webhookUrl');
     const test = await testDiscordWebhook(parsed.data.webhookUrl);
     if (!test.ok) {
-      return flashRedirect(back, 'err', t('settingsRoute.targets.discordTestFailed', { reason: test.error ?? noReason() }));
+      return refuse(t('settingsRoute.targets.discordTestFailed', { reason: test.error ?? noReason() }), 'webhookUrl');
     }
     const added = await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
     if (!added) {
@@ -1320,7 +1326,8 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
       t('settingsRoute.targets.testSentBot', { name: target.name, bot: result.botUsername ?? '?' }),
     );
   }
-  return flashRedirect('/settings?tab=notifications', 'err', testFailed(target.name, result.error));
+  const refused = savedChatRefusal(result.failed, { name: target.name, chatId: target.chatId ?? '', bot: result.botUsername });
+  return flashRedirect('/settings?tab=notifications', 'err', refused ?? testFailed(target.name, result.error));
 });
 
 // --- Profiles ---------------------------------------------------------------
