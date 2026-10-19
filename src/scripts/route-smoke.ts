@@ -538,6 +538,12 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 200 && res.headers.get('content-type') === 'application/pdf',
     },
     {
+      // #575: a section name the field does not know is refused with a sentence, and no file is drawn.
+      name: 'POST /resumes/:id/render with an unknown section name (refused)',
+      init: form({ mode: 'pdf', sectionOrder: 'summary,experiance' }),
+      expect: async (res) => res.status === 200 && (await res.text()).includes('no section is called experiance'),
+    },
+    {
       // The Tailor page's document pane: the draft drawn as a file, nothing stored.
       name: 'POST /resumes/:id/document (the draft as a document)',
       init: form({ text: `${RESUME}\n- Shipped a notification service.`, baseText: RESUME }),
@@ -675,6 +681,7 @@ async function main(): Promise<void> {
     '/settings/ai/local',
     '/settings/ai/local',
     '/settings/ai/openai-base',
+    `/resumes/${f.resumeId}/render`,
     `/resumes/${f.resumeId}/render`,
     `/resumes/${f.resumeId}/document`,
     `/resumes/${f.resumeId}/document`,
