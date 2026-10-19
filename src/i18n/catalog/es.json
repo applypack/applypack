@@ -2086,6 +2086,7 @@
   "location.reason.elsewhere": "{where, select, open {abierta a {places}} other {oficina en {places}}}; esta búsqueda se centra en {hunts}",
   "location.reason.residence": "{where, select, open {abierta a {places}} other {oficina en {places}}}; vives en {residence}",
   "location.reason.residenceNoRelocation": "{where, select, open {abierta a {places}} other {oficina en {places}}}; vives en {residence} y esta búsqueda no contempla mudarse",
+  "location.reason.openThrough": "{named, select, yes {En remoto en la región {group}, que incluye {places}} other {En remoto en la región {group}, donde se centra esta búsqueda}}",
   "description.refreshTheDescription": "Actualizar la descripción",
   "description.reads": "El anuncio de la propia empresa, <url/>, tiene {summary}",
   "description.summary.same": "El anuncio de la empresa dice lo mismo que la descripción guardada ({chars, plural, one {# carácter} many {# de caracteres} other {# caracteres}}) — nada que reemplazar.",
