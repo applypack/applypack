@@ -127,6 +127,8 @@ export const ENGLISH = {
   "browser.edit.couldNotAdd": "Could not add it",
   "browser.score.aria": "Match score {score} of 100 — what this number is",
   "browser.score.live": "Match score {score} of 100",
+  "browser.score.noneAria": "No match score: too little is left of the analysed text — what this means",
+  "browser.score.noneLive": "No match score: too little is left of the analysed text. Analyse it again to score it.",
   "browser.chips.saidNo": "you said you do not have it",
   "browser.chips.saidUnsure": "you said you are not sure",
   "browser.chips.typeOrConfirm": "type it in where it is true, or click to say you have it",

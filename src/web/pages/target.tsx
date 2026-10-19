@@ -337,7 +337,8 @@ export const TargetPage: FC<TargetPageProps> = ({
               {match.summary}
             </p>
             <MainAdviceLine advice={advice} />
-            {breakdown && <ScoreCeilingLine bd={breakdown} />}
+            {/* needs-score: hidden by target-page.mjs while the ring has no number — both lines read it. */}
+            {breakdown && <ScoreCeilingLine bd={breakdown} class="needs-score" />}
             {packScore !== null && <Hint class="!mt-1.5">{t('target.packScore', { pack: packScore })}</Hint>}
             {/* The number alone used to decide this, so "stop polishing" sat
                 above three suggested edits, five removals and an unconfirmed
@@ -352,7 +353,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 threshold: READY_TO_APPLY,
                 edits: actions.length + removals.length,
               }) && (
-                <p class="text-note font-medium text-ok">{t('target.readyToApply')}</p>
+                <p class="needs-score text-note font-medium text-ok">{t('target.readyToApply')}</p>
               )}
             {(fast || actions.length > 0 || removals.length > 0) && (
               <button
@@ -845,6 +846,10 @@ export const TargetPage: FC<TargetPageProps> = ({
               </Button>
             )}
           </div>
+          {/* Shown by target-page.mjs while the ring has no number: too little is left of the analysed text (kept-words.mjs). */}
+          <p id="score-stale" hidden class="basis-full text-note leading-5 text-ink-muted">
+            {tRich('target.dirty.stale', {}, { b: (words) => <span class="font-medium text-warn">{words}</span> })}
+          </p>
         </div>
       </div>
       </div>
