@@ -25,16 +25,23 @@ export interface FilterProfile {
 }
 
 /**
- * Whether two versions of a search admit different postings before any
- * model is asked: one of the fields the base filter reads differs. The order
+ * What a search's base filter reads, as one string: two searches with the
+ * same key turn the same postings away before any model is asked. The order
  * and the case of a list do not matter to the filter, so they do not here.
- * A saved search that changed only its notes, its thresholds or its resume
- * turns the same postings away as it did (#448).
+ */
+export function filterKey(profile: FilterProfile): string {
+  const list = (values: readonly string[]): string[] => [...new Set(values.map((v) => v.trim().toLowerCase()))].sort();
+  const fields = ['stackRequired', 'roleTypes', 'stackExclude', 'countries', 'regions', 'workplace', 'onsiteCities'] as const satisfies readonly (keyof FilterProfile)[];
+  return JSON.stringify(fields.map((field) => list(profile[field])));
+}
+
+/**
+ * Whether two versions of a search admit different postings before any
+ * model is asked. A saved search that changed only its notes, its thresholds
+ * or its resume turns the same postings away as it did (#448).
  */
 export function filterChanged(before: FilterProfile, after: FilterProfile): boolean {
-  const key = (list: readonly string[]): string => [...new Set(list.map((v) => v.trim().toLowerCase()))].sort().join('\n');
-  const fields = ['stackRequired', 'roleTypes', 'stackExclude', 'countries', 'regions', 'workplace', 'onsiteCities'] as const satisfies readonly (keyof FilterProfile)[];
-  return fields.some((field) => key(before[field]) !== key(after[field]));
+  return filterKey(before) !== filterKey(after);
 }
 
 /**

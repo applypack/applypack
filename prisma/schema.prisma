@@ -169,8 +169,9 @@ model Company {
   // which column is the title, the link, the text (datasets/map.ts) and, for
   // a folder, which file names count. Parsed with zod on every read; NULL on
   // every other kind of source.
-  sourceConfig Json?
-  sourceFiles  SourceFile[]
+  sourceConfig      Json?
+  sourceFiles       SourceFile[]
+  dismissedPostings DismissedPosting[]
 
   @@unique([atsType, atsToken])
   @@index([active, nextCheckAt])
@@ -210,9 +211,38 @@ model SourceFile {
   // The last look that listed it, and the last one that read it.
   seenAt    DateTime
   readAt    DateTime?
+  // The first look that did not list it (#478); NULL while it is in the
+  // folder. A row whose file brought no job is deleted a while after.
+  goneAt    DateTime?
+
+  // #448: rows of it a search's filter or a mute turned away, and those the
+  // re-apply window did, with when the soonest such window closes. NULL
+  // turnedAway = read before these were counted. `rulesKey` is the rules they
+  // were judged under (folder-scan.ts:rulesKey): a `done` file with rows
+  // turned away is read again when it differs, or once that window closed.
+  turnedAway       Int?
+  windowTurnedAway Int       @default(0)
+  windowEndsAt     DateTime?
+  rulesKey         String?
 
   @@unique([companyId, relPath])
   @@map("source_file")
+}
+
+// #474 — what is kept of a Dismissed posting once the weekly cleanup deletes
+// it: its source, its id and when it was first seen (the job's `fetchedAt`),
+// no text. The tick reads the key as already stored, so a source that still
+// lists the posting does not bring it back to be scored and dismissed again.
+// Deleted 180 days after `seenAt` (jobs/dismissed-store.ts), and with its
+// source.
+model DismissedPosting {
+  companyId  Int
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  externalId String
+  seenAt     DateTime
+
+  @@id([companyId, externalId])
+  @@map("dismissed_posting")
 }
 
 model Job {
@@ -242,6 +272,11 @@ model Job {
   descriptionOriginal    String?   @db.Text
   descriptionRefreshedAt DateTime?
   postedAt               DateTime
+  // #458: false when the source gave no date (`NormalizedJob.undated`, a
+  // paste), so `postedAt` is when the posting was first seen — the job page
+  // says so and the Posted filter files it under "Date unknown". Rows stored
+  // before the column say true: nothing recorded where their date came from.
+  postedAtKnown          Boolean   @default(true)
   fetchedAt              DateTime  @default(now())
 
   // ADR 0031: the structured reading of `location`, which itself is never
@@ -433,12 +468,39 @@ model AiCall {
   // history outlives a deleted job or resume.
   jobId              Int?
   resumeId           Int?
+  // The application pack whose preparation made the call (ADR 0063, #487);
+  // NULL for every other call and for the calls made before the column.
+  packId             Int?
 
   @@index([at])
   @@index([jobId])
+  @@index([packId])
   // The estimate under a button reads the last twenty of one feature.
   @@index([feature, at])
   @@map("ai_call")
+}
+
+// #412: the last engine trial per engine and model — scored postings read
+// again on that one engine, beside the scores on record. Only the counts are
+// kept (web/engine-trial.ts:TrialReport); nothing about a posting is.
+model EngineTrial {
+  engine       String
+  // As the classifier slot named it ('' = the CLI's default).
+  model        String
+  at           DateTime @default(now())
+  postings     Int
+  compared     Int
+  agreed       Int
+  falseMatches Int
+  missed       Int
+  meanDistance Float?
+  msPerPosting Int?
+  unparsed     Int
+  failed       Int
+  stale        Int
+
+  @@id([engine, model])
+  @@map("engine_trial")
 }
 
 // Singleton table — always one row with id=1.
@@ -558,6 +620,9 @@ model AppSettings {
   // (src/pack/settings.ts). NULL = off, which is every install until its
   // owner switches it on.
   pack                           Json?
+  // #487: the address the person opens the dashboard at, so a message can link
+  // to a job (src/notify/dashboard-link.ts). NULL = messages carry no such link.
+  dashboardUrl                   String?
   updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")

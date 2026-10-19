@@ -4,6 +4,274 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.0] — 2026-10-18
+
+### Added
+- **Try it on my postings** on each engine's card in Settings → AI & costs:
+  scores up to 20 of your scored postings again on that engine alone and
+  shows how often it agrees with the scores on record, the false and missed
+  matches, how far apart the scores are and how long each takes. Free on a
+  local model. The last result stays on the card.
+- An engine card says when a task you gave it did not fit its context window
+  in the last 30 days, and whether the engine behind it answered instead or
+  the call failed.
+
+### Changed
+- The AI usage hints quote an engine's last try on your postings instead of
+  saying its quality is not measured, and point to **Try it on my postings**
+  when there is none yet.
+
+## [2.60.0] — 2026-10-18
+
+### Added
+- Settings → Notifications → "Dashboard address for links in messages": with
+  it, match alerts and the application packs message link to the job in
+  ApplyPack.
+- AI usage shows what application packs cost in the period, and the line
+  under **Prepare the pack** gives the typical cost of one pack once three
+  have been prepared.
+
+### Changed
+- "Go on in the Tailor page" from a pack opens the pack's edits as applied
+  cards, each with its own Undo, and Undo all returns your resume as it was.
+- A long "packs ready" message is sent in parts instead of failing or being
+  cut off.
+
+## [2.59.4] — 2026-10-18
+
+### Changed
+- A skill your resume names, even only on its skills line, counts as in your
+  resume in a comparison; how thinly it is shown goes in the keyword's note
+  ("listed only, no role shows it") instead of a contradictory "can't
+  claim". Each posting's next comparison is analysed afresh once after this
+  update.
+
+### Fixed
+- When a new comparison of the same posting moves the score by no more than
+  re-running the same text would (up to 10 points), the comparison and the
+  Tailor page say so, so a small drop after applying the suggestions no
+  longer looks like your mistake.
+
+## [2.59.3] — 2026-10-18
+
+### Fixed
+- A job posted as just "Remote" no longer passes or fails your search's
+  location at random: it counts as open to your search unless the
+  description limits where you may live.
+- With two-stage ("lower AI cost") scoring on, a job that names your stack
+  is no longer turned away by the quick first check before the full check
+  reads it.
+
+## [2.59.2] — 2026-10-18
+
+### Changed
+- Screening: a skill counts as used "in production" only when the quoted
+  line carries a number (a percentage, money, a scale); without one it
+  counts as "used in a role". The same bullet no longer scores differently
+  from one run to the next. Existing screenings pick this up when you score
+  them again.
+
+### Fixed
+- A list of technologies after the job title in a resume's headline ("Senior
+  QA Engineer — Playwright, TypeScript") counts as a skills list, not as
+  work done: a reworded copy of a resume no longer outscores the original by
+  ten points, in screenings and in resume comparisons.
+
+## [2.59.1] — 2026-10-18
+
+### Fixed
+- Marking a job Applied no longer counts as an alert sent on the Overview,
+  and no longer overwrites the time a real alert went out.
+
+## [2.59.0] — 2026-10-18
+
+### Added
+- A folder you moved or renamed can be pointed at its new place from its
+  Files page; the source keeps its jobs and its list of files, and nothing
+  is read twice.
+- The folder's card says how many files the last check set aside, with a
+  link to why.
+
+### Changed
+- When you edit a search, unmute a company, or a company you applied to
+  stops being skipped, the next check reads again the folder files where
+  rows were turned away, and stores what your searches now admit — no need
+  to press "Read every file again".
+- Files that left a folder are marked gone and forgotten a month later,
+  unless a job came from them.
+
+### Fixed
+- The Files page of a folder whose file brought thousands of jobs opens at
+  once instead of taking about a second.
+- A chat message about a quiet folder says "folder not found" instead of
+  "slug not found".
+
+## [2.58.0] — 2026-10-18
+
+### Added
+- Jobs → Filters → Posted has a **Date unknown** choice: the jobs whose
+  source gave no date (pasted, saved without a date, imported without a date
+  column, or from a board that publishes none).
+
+### Changed
+- A job whose source gave no date shows **First seen** instead of Posted,
+  and the Last 24h / 7 days / 30 days filters and "Recently posted" sorting
+  no longer treat that date as a publishing date.
+- Application packs: a new role on a company's own job board that publishes
+  no dates (BambooHR, Pinpoint, often Rippling) can now be prepared on its
+  own. It counts from the board's previous check.
+- A dismissed job's text is still deleted after 30 days, but ApplyPack now
+  remembers for 180 days that it saw it.
+
+### Fixed
+- A dismissed posting no longer comes back as new, and is no longer scored
+  again, a month later while its board, file or folder still lists it.
+- An imported file of old postings with no date column no longer shows up as
+  "posted in the last 24 hours".
+
+## [2.57.3] — 2026-10-18
+
+### Changed
+- Companies has an **Add sources** button at the top that takes you to the
+  ways of adding a company, a starter pack or a folder, which sit under the
+  list.
+
+## [2.57.2] — 2026-10-18
+
+### Fixed
+- Connecting your first Telegram chat or Discord channel turns alerts on:
+  before, the test message arrived and then no match was ever sent until you
+  also found the Alerts switch.
+
+## [2.57.1] — 2026-10-18
+
+### Fixed
+- `npm start` on Node 25 or newer no longer prints a "localStorage is not
+  available" warning.
+
+### Changed
+- `npm start` keeps its terminal to what you need: one line while the
+  database is created instead of one per migration, and warnings and errors
+  only while you use the dashboard (set `LOG_LEVEL=info` in `.env` for the
+  full log).
+
+## [2.57.0] — 2026-10-18
+
+### Added
+- The progress page of a comparison states how long each step takes on your
+  own engine and model once ten calls have answered there, including a model
+  on this computer.
+
+### Changed
+- AI usage and the engine card say "try another model" when an engine's
+  replies keep coming back unreadable, and note that Test will not show it.
+
+### Fixed
+- A reply that could not be read was recorded as a success, so a model that
+  never wrote usable JSON never showed as failing.
+- A job's **AI spent** left out what scoring it cost, at intake and on
+  re-classify.
+
+## [2.56.2] — 2026-10-18
+
+### Changed
+- **Rebuild keywords** now reads the posting again before it compares, so a
+  keyword list written by a weaker model is replaced, not reused. It takes
+  about one call longer.
+
+### Fixed
+- A red flag about a skill your resume names in another spelling ("PHP" for
+  "PHP 8") no longer costs ten points: the keyword row already asks you to
+  use the posting's spelling.
+- The "another sector" note on the Tailor page no longer appears when your
+  resume names the posting's sector another way (healthcare and healthtech,
+  banking and fintech, retail and e-commerce). A posting whose brief gives
+  its sector only in the product description is now read too.
+
+## [2.56.1] — 2026-10-18
+
+### Fixed
+- On a window narrower than 1280 px, a job's Resume match, Cover letter, Is
+  it real? and Application pack tabs open on their content instead of a
+  screen of status buttons and tracking fields; the Posting tab still leads
+  with them.
+- Place chips put a space between the flag and the country.
+- A run's progress page highlights the menu entry it returns to (Jobs for a
+  comparison started on a job), not Tailor resume.
+
+## [2.56.0] — 2026-10-18
+
+### Changed
+- Jobs opens on **Active**: every posting but the dismissed ones, which keep
+  their own tab.
+- The Overview's list is **Recent matches**: what your searches kept,
+  alerted or not, instead of every new row.
+
+### Added
+- When jobs are stored without a score (while fetching was paused, by
+  setup's test search, or when the AI did not answer), Jobs and the Overview
+  say how many and offer **Score them**: up to 50 a press, the closest to
+  your searches first, the off-topic ones set aside for free.
+
+### Fixed
+- Pipeline health no longer says the fetch never ran right after a Fetch
+  now.
+
+## [2.55.66] — 2026-10-18
+
+### Changed
+- "Use it" on a model found on this computer now gives it Scoring postings
+  only; resume analysis, letters and screening stay with the engines behind
+  it. Tick them on the model's card in Settings → AI & costs to hand them
+  over too.
+
+### Fixed
+- A local model that can think (such as gemma4) no longer thinks before
+  every answer: scoring a posting takes about 1.5 s instead of 8 s, and a
+  long think can no longer use up the reply and leave a posting unscored.
+
+## [2.55.65] — 2026-10-18
+
+### Changed
+- Setup's test search shows which arrangements your search keeps (Remote,
+  Hybrid, On-site), Remote ticked, and saves your choice. Its progress page
+  and result no longer talk about a paused pipeline or send you to Settings
+  to score: setup scores the best of them at its last step.
+- A scoring run on Runs says what it found ("10 scored · 3 matches · 7 moved
+  to Dismissed …") instead of its internal counters.
+
+### Fixed
+- After setup, the Overview's chart and the search funnel no longer say 0
+  matches while the matches are listed below: the first scoring of the jobs
+  setup stored is counted.
+
+## [2.55.64] — 2026-10-18
+
+### Fixed
+- We Work Remotely postings no longer show their company twice ("Vercel:
+  Software Engineer, Backend" at Vercel): the title is the role, and the
+  postings already stored are tidied the same way on upgrade.
+
+## [2.55.63] — 2026-10-18
+
+### Fixed
+- Calls through the Claude Code CLI no longer carry the MCP servers you set
+  up for your own Claude Code: a scoring call read about 100,000 tokens of
+  their tool lists before and reads about 3,000 now, so it is faster and
+  uses far less of your plan.
+
+## [2.55.62] — 2026-10-18
+
+### Fixed
+- After switching the language — or following any link to a section of a
+  page, such as Settings → General → Updates — the whole window no longer
+  slides up, hiding the top of the menu and leaving an empty band at the
+  bottom. Only the page's content scrolls to the section.
+
+### Changed
+- Dependencies moved to their latest minor and patch releases: the Anthropic
+  SDK, Hono and its Node server, docx, dotenv, pino and pino-pretty (#500).
+
 ## [2.55.61] — 2026-10-12
 
 ### Changed
@@ -5994,6 +6262,26 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.0]: https://github.com/applypack/applypack/compare/v2.60.0...v2.61.0
+[2.60.0]: https://github.com/applypack/applypack/compare/v2.59.4...v2.60.0
+[2.59.4]: https://github.com/applypack/applypack/compare/v2.59.3...v2.59.4
+[2.59.3]: https://github.com/applypack/applypack/compare/v2.59.2...v2.59.3
+[2.59.2]: https://github.com/applypack/applypack/compare/v2.59.1...v2.59.2
+[2.59.1]: https://github.com/applypack/applypack/compare/v2.59.0...v2.59.1
+[2.59.0]: https://github.com/applypack/applypack/compare/v2.58.0...v2.59.0
+[2.58.0]: https://github.com/applypack/applypack/compare/v2.57.3...v2.58.0
+[2.57.3]: https://github.com/applypack/applypack/compare/v2.57.2...v2.57.3
+[2.57.2]: https://github.com/applypack/applypack/compare/v2.57.1...v2.57.2
+[2.57.1]: https://github.com/applypack/applypack/compare/v2.57.0...v2.57.1
+[2.57.0]: https://github.com/applypack/applypack/compare/v2.56.2...v2.57.0
+[2.56.2]: https://github.com/applypack/applypack/compare/v2.56.1...v2.56.2
+[2.56.1]: https://github.com/applypack/applypack/compare/v2.56.0...v2.56.1
+[2.56.0]: https://github.com/applypack/applypack/compare/v2.55.66...v2.56.0
+[2.55.66]: https://github.com/applypack/applypack/compare/v2.55.65...v2.55.66
+[2.55.65]: https://github.com/applypack/applypack/compare/v2.55.64...v2.55.65
+[2.55.64]: https://github.com/applypack/applypack/compare/v2.55.63...v2.55.64
+[2.55.63]: https://github.com/applypack/applypack/compare/v2.55.62...v2.55.63
+[2.55.62]: https://github.com/applypack/applypack/compare/v2.55.61...v2.55.62
 [2.55.61]: https://github.com/applypack/applypack/compare/v2.55.60...v2.55.61
 [2.55.60]: https://github.com/applypack/applypack/compare/v2.55.59...v2.55.60
 [2.55.59]: https://github.com/applypack/applypack/compare/v2.55.58...v2.55.59

@@ -41,12 +41,21 @@ export function healthLabel(status: string | null, atsType?: string): string {
 }
 
 /**
+ * A status as the branch a message's select names it by: a folder's own
+ * (`folder_slug_gone`) where it has words of its own, `other` for none yet or
+ * one the build does not know.
+ */
+export function statusBranch(status: string | null, atsType: string | undefined): string {
+  if (status === null) return 'other';
+  if (atsType === 'FOLDER' && Object.hasOwn(FOLDER_HEALTH_LABEL, status)) return `folder_${status}`;
+  return Object.hasOwn(HEALTH_LABEL, status) ? status : 'other';
+}
+
+/**
  * The label inside a sentence, with the failure streak: "slug not found — 3
  * ticks in a row". One message per status — a language declines the words
  * there, so the label is never lowercased into the sentence.
  */
 export function healthStreak(status: string | null, atsType: string | undefined, n: number): string {
-  const folder = atsType === 'FOLDER' && status !== null && Object.hasOwn(FOLDER_HEALTH_LABEL, status);
-  const known = status !== null && Object.hasOwn(HEALTH_LABEL, status);
-  return t('sources.health.streakSentence', { status: folder ? `folder_${status}` : known ? status : 'other', n });
+  return t('sources.health.streakSentence', { status: statusBranch(status, atsType), n });
 }

@@ -94,10 +94,28 @@ more (or less) than two stars.
 The industry criterion read the model's free words for a role's sector, and
 the same resume read three times gave three careers. The worst case was a
 "payments technology / fintech" criterion that swung between 6.3 years and
-none. `src/screening/sectors.ts` holds one vocabulary: groups of names for
+none. `src/sectors.ts` (in `src/screening/` until #207) holds one vocabulary: groups of names for
 one sector, where payments and banking are fintech but never a neighbour.
 The criterion matches a known item by meaning and an unknown one by a
 shared word, generic words ("services", "software") aside. The career line
 names known sectors by the vocabulary's label, and prompt v5 asks the model
 for the closest label. `rescore-screenings.js --write` re-reads stored
 verdicts with it, without a call.
+
+## Addendum (2026-10-18): "production" needs a number (issue #218)
+
+"Role" and "production" on the same work bullet were the model's coin flip:
+"Maintained the Jenkins pipelines for nightly runs" was role in one run and
+production in the next. `src/screening/anchor.ts` now keeps "production" only
+on a quote that carries a number (`resume/evidence.ts:isMeasured`, the line
+between "described" and "measured" on the candidate side), and lowers it to
+"role" otherwise. Measured on the gold set with the Claude Code CLI (Sonnet 5),
+two batches of three runs, each batch's replies anchored with and without the
+rule: rungs that differed between runs 4 → 0, all of them role ↔ production on
+the two Jenkins bullets; mean score movement between runs 1.23 → 0.83 and
+1.8 → 1.4; Kendall τ between runs 0.93 → 0.93 and 0.87 → 0.93; τ against the
+set's ranking 0.68 → 0.68 and 0.62 → 0.65. Only the bullets that flipped were
+lowered. The cost is an ownership bullet with no number ("Owned the payments
+ledger"), which now reads as role. The prompt is unchanged, and
+`rescore-screenings.js --write` applies the rule to stored verdicts without a
+call. The set's ranking is still its author's, not a recruiter's.

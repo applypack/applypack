@@ -39,6 +39,11 @@ const SEPARATORS = [',', ' · ', ' | ', ';', ' • '];
 const METRIC =
   /\d+\s*%|[$€£]\s?\d|\b\d[\d,.]*\s*(?:k|m|bn|b|x|ms|s|gb|tb|qps|rps|hrs?|hours?|days?|weeks?|months?|users?|customers?|requests?|events?|services?|engineers?|people|clients?|sites?|websites?)\b/i;
 
+/** Does this sentence carry a number that means something — what tells "measured" from "described". */
+export function isMeasured(sentence: string): boolean {
+  return METRIC.test(sentence);
+}
+
 /** The line a span sits on, and where on it. */
 export function lineAt(text: string, index: number): { line: string; column: number } {
   const start = text.lastIndexOf('\n', index - 1) + 1;
@@ -46,11 +51,20 @@ export function lineAt(text: string, index: number): { line: string; column: num
   return { line: text.slice(start, end === -1 ? text.length : end), column: index - start };
 }
 
+/** The dash between a title and what follows it on one line. */
+const TITLE_DASH = / [—–] /;
+
 /**
  * The part of a line around one position. A .docx skills table comes out of
  * the reader as ONE line — the label cell, " | ", the values cell — and a
  * whole row read as a sentence made every term on it look like work done.
  * Judged cell by cell, the values cell is the list of terms it is.
+ *
+ * A headline that names a stack after the title ("Senior QA Engineer —
+ * Playwright, TypeScript, payments") is the same case: a term in the tail is
+ * judged by the tail, a list. Only when the tail is a list and the line is no
+ * bullet, so a role line ("QA Engineer, SoftServe — 2021 – now") and a work
+ * bullet keep their whole line (#313).
  */
 export function segmentAt(line: string, column: number): string {
   let start = 0;
@@ -61,7 +75,13 @@ export function segmentAt(line: string, column: number): string {
     if (left !== -1) start = Math.max(start, left + sep.length);
     if (right !== -1) end = Math.min(end, right);
   }
-  return line.slice(start, end);
+  const cell = line.slice(start, end);
+  const dash = TITLE_DASH.exec(cell);
+  if (dash !== null && column >= start + dash.index + dash[0].length && !/^\s*[-•*]/.test(cell)) {
+    const tail = cell.slice(dash.index + dash[0].length);
+    if (isTermList(tail)) return tail;
+  }
+  return cell;
 }
 
 /** Words a list of terms has no use for: a sentence has grammar, a skills line has none. */
@@ -103,7 +123,7 @@ export function evidenceFor(
   for (const span of spans) {
     const at = lineAt(resumeText, span.start);
     const line = segmentAt(at.line, at.column);
-    const level: EvidenceLevel = isTermList(line) ? 'listed' : METRIC.test(line) ? 'measured' : 'described';
+    const level: EvidenceLevel = isTermList(line) ? 'listed' : isMeasured(line) ? 'measured' : 'described';
     if (EVIDENCE_LEVELS.indexOf(level) > EVIDENCE_LEVELS.indexOf(best)) best = level;
   }
   return best;

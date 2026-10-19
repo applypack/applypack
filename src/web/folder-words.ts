@@ -24,6 +24,16 @@ export function folderLine(summary: FolderSummary | undefined): string {
 }
 
 /**
+ * "1 set aside": the files the last check left unread — a copy, one too
+ * large, JSON cut short, a quote never closed — apart from the line above,
+ * so the card can link them to the per-file list, which says why (#478).
+ * Null when there are none.
+ */
+export function setAsideLine(summary: FolderSummary | undefined): string | null {
+  return summary && summary.lastLookAt !== null && summary.skipped > 0 ? t('folders.line.setAside', { n: summary.skipped }) : null;
+}
+
+/**
  * A folder whose last check failed, in the folder's words, for its card: the
  * line above is built from the ledger and says only what earlier checks read,
  * so a folder renamed away looked healthy there (#405). Null while the source

@@ -2,6 +2,7 @@ import { FolderError, listFolder, readFolderFile, realFolder } from '../datasets
 import { folderAllowed, type FolderRules } from '../datasets/folder-path';
 import {
   MAX_ROWS_PER_LOOK,
+  UNJUDGED,
   includeMatcher,
   judgeFile,
   kindsFor,
@@ -48,6 +49,8 @@ export interface FolderLookOptions {
   scoring?: boolean;
   /** The jobs a folder of saved postings holds already, the newest first; asked only when a file is read. */
   stored?: () => Promise<StoredPosting[]>;
+  /** The rules the tick judges rows under (folder-scan.ts:rulesKey): a file whose rows other rules turned away is read again (#448). */
+  rulesKey?: string;
 }
 
 const MAP_AGAIN = 'Map it again under Add sources → A folder on this computer.';
@@ -68,8 +71,14 @@ export async function fetchFolder(company: FolderCompany, ledger: readonly Ledge
   const kindOf = kindsFor(config.holds);
   const { jobs, changes, misfit } = await (config.holds === 'postings'
     ? lookAtPostings(company.id, root, listing, ledger, include, now, opts.scoring !== false, opts.stored)
-    : lookAtRows(company.id, root, listing, ledger, include, now, config.mapping));
-  stageFolderLook({ companyId: company.id, at: now, seen: listing.filter((f) => kindOf(f.relPath) !== null && include(f.relPath)).map((f) => f.relPath), changes });
+    : lookAtRows(company.id, root, listing, ledger, include, now, config.mapping, opts.rulesKey));
+  stageFolderLook({
+    companyId: company.id,
+    at: now,
+    seen: listing.filter((f) => kindOf(f.relPath) !== null && include(f.relPath)).map((f) => f.relPath),
+    changes,
+    rulesKey: opts.rulesKey ?? null,
+  });
   if (misfit) throw new FolderError('unmapped', `The files in this folder no longer fit its column mapping. ${MAP_AGAIN}`);
   return jobs;
 }
@@ -93,8 +102,9 @@ async function lookAtRows(
   include: (relPath: string) => boolean,
   now: Date,
   mapping: Mapping,
+  rulesKey: string | undefined,
 ): Promise<Look> {
-  const plan = planScan(listing, ledger, now.getTime(), include);
+  const plan = planScan(listing, ledger, now.getTime(), include, 'rows', rulesKey);
   const changes: FileChange[] = [...plan.waiting.map((f) => unreadChange(f, 'fresh')), ...plan.tooLarge.map((f) => unreadChange(f, 'tooLarge'))];
   const readAs = readHashes(ledger);
   const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
@@ -109,7 +119,9 @@ async function lookAtRows(
       unreached.unshift(...plan.read.slice(at));
       break;
     }
-    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), mapping, companyId, readAs, known.get(file.relPath), left, now.getTime());
+    // A file read again because the rules changed is judged from its first row, as a new one is.
+    const before = plan.rejudged.has(file.relPath) ? undefined : known.get(file.relPath);
+    const verdict = judgeFile(file, await readFolderFile(root, file.relPath), mapping, companyId, readAs, before, left, now.getTime());
     if (verdict.change) changes.push(verdict.change);
     left -= verdict.taken;
     if (verdict.rows === 'none') continue;
@@ -180,7 +192,7 @@ async function lookAtPostings(
       if (change) changes.push(change);
       continue;
     }
-    const measured = { ...file, kind, size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256, jobCount: 0, rowsRead: 0 };
+    const measured = { ...file, kind, size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256, jobCount: 0, rowsRead: 0, ...UNJUDGED };
     const twin = readAs.get(got.sha256);
     if (twin !== undefined && twin !== file.relPath) {
       changes.push({ ...measured, status: 'skipped', detail: t('datasets.file.sameContent', { file: twin }) });

@@ -250,6 +250,8 @@ src/
   priority-rules.ts            ← pure: parsePriorityRules, the score floors a search sets
   eligibility.ts               ← pure: where the candidate lives, the relocation choices, residenceCovered (ADR 0033)
   currency.ts                  ← pure: salary in the posting's own money, toUsdPerYear over a dated rate table
+  sectors.ts                   ← pure: one name per sector (payments and banking are fintech) — the screening's industry
+                                 criterion and career line (TASKS E6), the resume's domain verdict (resume/domain.ts, #207)
   filter.ts                    ← pure: passesAnyBaseFilter over passesBaseFilter, titleHasKeyword, placesOverlap;
                                  baseFilterReason / anyBaseFilterReason name the gate that turned a posting away
   funnel.ts                    ← pure: the search funnel — the tick counters it keeps, the stages, the reasons in words
@@ -388,7 +390,7 @@ src/
     duplicate.ts               ← pure: the same resume uploaded twice, told by its text, not its bytes (TASKS R16)
     brief-depth.ts             ← pure: postingDepth, how much the posting said
     posting-orientation.ts     ← pure: the posting's sector, product and first reader, off the stored brief
-    domain.ts                  ← pure: domainMismatch, the posting's sector against the resume's (ADR 0046)
+    domain.ts                  ← pure: domainMismatch, the posting's sector against the resume's, over src/sectors.ts (ADR 0046)
     verification-hint.ts       ← pure: the "Is this job real?" line on a comparison
     addressee.ts               ← pure: who the letter greets, read out of the verifier's finding
     answers.ts                 ← pure: the strength review's questions and the candidate's answers (ADR 0030)
@@ -432,7 +434,6 @@ src/
     anchor.ts                  ← pure: every quote checked against the redacted text; unproven rungs lowered
     score.ts                   ← pure: the employer score, its caps, the bucket, the confidence (ADR 0050)
     trajectory.ts              ← pure: the career read off the dated roles (years, employers, average stay, sectors) — a fact, never points
-    sectors.ts                 ← pure: one name per sector (payments and banking are fintech) for the industry criterion and the career line (TASKS E6)
     comparison.ts              ← pure: a shortlist's two readings — stored shape, the anchor, where they differ, the Markdown (ADR 0051)
     compare.ts                 ← Compare with AI: two calls at once (the second reversed), both stored as one ScreeningComparison
     calibration.ts             ← pure: the person's decisions against the table's order — pairs, top k, surprises, per-criterion gaps (ADR 0052)
@@ -506,6 +507,7 @@ src/
     stale-applications-format.ts ← pure formatStaleMessage
     applied-with.ts             ← pure "Senior Backend v3" label for the applied resume
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
+    dismissed-store.ts          ← the keys of deleted dismissals (dismissed_posting, #474): deleteDismissed, forgetOldDismissals, dismissedKeys, knownIds
     hn-hiring-job.ts            ← runHnHiringJob (the 1st of the month, 06:mm)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:mm, validation probe)
     pack-job.ts                 ← runPackJob: the queued application packs, one at a time, then one message (every minute; ADR 0063)
@@ -732,9 +734,9 @@ src/
       health.ts                 ← JSON liveness for external monitoring
 
 prisma/
-  schema.prisma                 ← 25 models: Company, SourceFile, Job, JobScore, CronRun, FunnelDay, AiCall, CompanyMute, AppSettings,
-                                  CompanyCandidate, NotificationTarget, Profile, Resume, ResumeReview, ResumeMatch, CandidateFact,
-                                  CoverLetter, JobStageEvent, PostingBrief, JobVerification, Screening, Applicant,
+  schema.prisma                 ← 27 models: Company, SourceFile, DismissedPosting, Job, JobScore, CronRun, FunnelDay, AiCall, CompanyMute,
+                                  AppSettings, CompanyCandidate, NotificationTarget, Profile, Resume, ResumeReview, ResumeMatch, CandidateFact,
+                                  CoverLetter, ApplicationPack, JobStageEvent, PostingBrief, JobVerification, Screening, Applicant,
                                   ApplicantLetter, ScreeningComparison, ScreeningVerdict; 6 enums: AtsType, JobStatus, Workplace,
                                   CronRunStatus, CandidateStatus, NotificationKind
   migrations/                   ← real Prisma migrations from phase-3.0 baseline
@@ -805,6 +807,7 @@ erDiagram
   Job ||--o{ JobScore : "jobId (Cascade)"
   Company ||--o{ Job : "companyId (Cascade)"
   Company ||--o{ SourceFile : "companyId (Cascade)"
+  Company ||--o{ DismissedPosting : "companyId (Cascade), #474"
   Job |o--o{ Job : "crossListedOfJobId (SetNull)"
   Resume |o--o{ Job : "appliedResumeId (SetNull)"
   CompanyCandidate |o..o| Company : "the same atsType + atsToken, no foreign key"
@@ -942,6 +945,12 @@ erDiagram
     DateTime readAt
   }
 
+  DismissedPosting {
+    Int companyId PK "with externalId"
+    String externalId PK
+    DateTime seenAt "the deleted job's fetchedAt; forgotten 180 days on"
+  }
+
   Job {
     Int id PK
     Int companyId FK
@@ -955,6 +964,7 @@ erDiagram
     String descriptionOriginal "kept when a refresh replaced it (ADR 0043)"
     DateTime descriptionRefreshedAt
     DateTime postedAt
+    Boolean postedAtKnown "false: the source gave no date, postedAt is first seen (#458)"
     DateTime fetchedAt
     Workplace workplace "REMOTE, HYBRID, ONSITE or UNKNOWN (ADR 0031)"
     String[] countries "ISO-2: where to live (remote) or the office"

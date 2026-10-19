@@ -9,7 +9,7 @@ import { loadLineDiff } from '../../resume/line-diff';
 import { readKeywords } from '../../resume/prompts';
 import { PDF_MIME } from '../../resume/render/clean-pdf';
 import { getPackSettings } from '../../settings';
-import { kindHint } from '../cost-hint';
+import { packSpendHint } from '../cost-hint';
 import { flashRedirect } from '../flash';
 import { jobHref } from '../job-tabs';
 import type { ApplicationPackProps } from '../pages/application-pack-card';
@@ -113,7 +113,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
     letter: pack?.coverLetterId !== null && pack?.coverLetterId !== undefined,
     automatic: settings.enabled,
     sameRoleJobId: pack ? null : await packOfSameRole(jobId),
-    // No figure: a pack's calls are several features' calls (web/cost-hint.ts:kindHint).
-    cost: `${t('settings.pack.cost')} ${await kindHint('resume-match')}`.trim(),
+    // Said only before there is a pack: the empty tab is where Prepare stands.
+    cost: pack ? '' : `${t('settings.pack.cost')} ${await packSpendHint()}`.trim(),
   };
 }

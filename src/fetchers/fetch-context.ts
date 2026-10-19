@@ -21,6 +21,8 @@ export interface FetchContext {
   now?: Date;
   /** False while fetching is paused: a source that needs a model to read a row leaves it for later (ADR 0062). Absent = true. */
   scoring?: boolean;
+  /** The rules a folder's rows are judged under (datasets/folder-scan.ts:rulesKey, #448). */
+  rulesKey?: string;
 }
 
 export const EMPTY_CONTEXT: FetchContext = { countries: [], regions: [] };

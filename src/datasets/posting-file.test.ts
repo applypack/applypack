@@ -172,6 +172,16 @@ describe('savedPostingJob', () => {
     assert.match(savedPostingNote(job), /company not named; the file gives no address/);
   });
 
+  // #458: the file's time is when it was saved, which the job page calls "First seen".
+  it('is undated when the page states no date, and dated by the page when it does', () => {
+    assert.equal(savedPostingJob(file, plain, null, 'saved-1', NOW).undated, true);
+    const stated = new Date(Date.UTC(2026, 9, 1));
+    const page = { ...plain, facts: { title: 'T', company: 'C', location: null, workplace: null, postedAt: stated } };
+    const job = savedPostingJob(file, page, null, 'saved-1', NOW);
+    assert.equal(job.postedAt, stated);
+    assert.equal('undated' in job, false);
+  });
+
   it('asks a model only when the page did not say both its title and its company', () => {
     const facts = { title: 'T', company: null, location: null, workplace: null, postedAt: null };
     assert.equal(needsModel(plain), true);

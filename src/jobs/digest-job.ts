@@ -36,6 +36,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     // The fields the message carries — not the description, the original or
     // the source payload the row also holds (DATA-5).
     select: {
+      id: true,
       title: true,
       employer: true,
       location: true,
@@ -72,6 +73,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   const unscored = loud.length - jobs.length;
 
   const alerts: AlertJob[] = jobs.map((j) => ({
+    jobId: j.id,
     title: j.title,
     companyName: companyForMessage(j.employer, j.company),
     location: j.location,

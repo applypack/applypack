@@ -95,3 +95,49 @@ measurement (ADR 0057, stage C), and the tab makes no recommendation.
 When a task needs a model of its own inside one engine (a slot per task), or
 when measured results exist that would justify a default list for a kind of
 engine.
+
+## Addendum (2026-10-18): "Use it" gives a local model scoring alone
+
+The wizard's **Use it** on a model found on this computer
+(`ai-engine.ts:withEngineFirst`) put it first with its model in every slot
+and lifted any list it had, so it answered every task: the analysis, the
+letters, screening and the packs prepared with nobody watching. Measured on
+`gemma4:e4b` (#411), scoring is the task it suits: the resume scan kept 53
+skills of Claude's 73, the shape kept 2 roles of 6, the brief came back with
+six keywords and no groups, a full comparison did not fit a 16k window, and
+the letter was generic.
+
+**Use it** now stores `tasks: ['scoring']` for that engine
+(`LOCAL_MODEL_TASKS`; reading a pasted posting is part of scoring), and the
+flash says the other tasks are a tick away on its card. They go to the
+engines behind it, which bills them where an API key stands there: a
+decision about spend, taken for quality as the default. An install where the
+local model stands alone, or where nothing behind it can run, is answered as
+before, since a task no usable engine takes goes to the whole chain; the AI
+tab names those tasks. Marking on the card a task whose prompt cannot fit the
+window is a separate change.
+
+## Addendum (2026-10-18): an engine is tried on the user's own postings
+
+The third ❌ above now has a measurement behind it, for scoring (#412).
+**Try it on my postings**, under an engine's tasks, scores up to 20 stored,
+scored postings again on that engine and its classifier model and sets the
+result beside the scores on record: agreement on each search's threshold as
+it stands now, false and missed matches, the mean fit distance, the seconds
+per posting, replies that were no score, and how many scores on record
+predate the search's last edit.
+
+- **One engine, no fallback.** `AiCallRequest.engine` sends the call to that
+  engine alone, whatever the chain and the task lists say: an engine behind
+  it that answered would measure the wrong model. Every call is in the
+  ledger as `engine-trial`, which belongs to no task, as `engine-test` does;
+  the hints leave both out of the usage they read.
+- **The record is the reference, not the truth.** The trial compares; it
+  never says a model is good enough, and it changes no task list. The AI
+  usage hints quote the last trial where they offer a local model the
+  scoring, instead of "not measured".
+- **The last result per engine and model** is a row in `engine_trial`,
+  counts only — no posting, no reply.
+- **Scoring only.** Reading a pasted posting, the issue's last bullet, would
+  compare the extracted title and company with the stored row; it is not
+  built. The other tasks have no answer on record to compare with.

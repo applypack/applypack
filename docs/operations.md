@@ -98,7 +98,7 @@ schedule saved, the search runs every hour and both summaries go out at
 | `mm * * * *` † | fetch | Every beat: re-check stored France Travail offers, and send what is waiting — matches held outside your alert hours, while Alerts were off or after a failed send, and careers-page changes not reported yet. Then, if fetching is on and the schedule says this hour searches: pull all sources → filter → classify → alert |
 | `0 * * * *` | digest | At each of your digest times: a recap of the new and alerted jobs since the last recap, to your alert targets |
 | `0 * * * *` | stale-applications | At your first digest time of the day: a nudge for applications quiet for 14+ days |
-| `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days that you do not track, AI-call ledger rows older than 400 days, expired screenings and runs older than 90 days; check for a newer release when that is switched on |
+| `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days that you do not track (their source and id stay 180 days, so a board still listing one does not bring it back to be scored), AI-call ledger rows older than 400 days, expired screenings and runs older than 90 days; check for a newer release when that is switched on |
 | `mm 4 * * 0` † | discovery | Re-probe pending company candidates |
 | `mm 6 1 * *` † | hn-hiring | Pull the monthly HN "Who is hiring" thread |
 | `* * * * *` | pack | Prepare the application packs waiting in the queue, one at a time, and tell you about the finished ones in one message. Does nothing, and leaves no row on `/runs`, while none is queued — which is always, until you switch packs on or ask for one |

@@ -7,6 +7,7 @@ import {
   formatDiscordAlert,
   formatDiscordDigest,
   formatDiscordHealthLine,
+  formatDiscordPackNotice,
   formatDiscordPageChanges,
   isDiscordWebhookUrl,
   maskWebhook,
@@ -58,6 +59,26 @@ describe('the Discord channel', () => {
       assert.equal(text.split('\n').at(-1), 'From your folder: Saved postings / role.md', url);
       assert.doesNotMatch(formatDiscordDigest([saved], [], 'Daily recap').join('\n'), /Apply|<>/, url);
     }
+  });
+
+  it('links the posting on the dashboard beside Apply, only when the address is set (#487)', () => {
+    const address = 'http://192.168.1.20:4747';
+    assert.equal(formatDiscordAlert({ ...job, jobId: 9 }).split('\n').at(-1), 'Apply → <https://example.com/jobs/12345?utm=test&q=1>');
+    assert.deepEqual(formatDiscordAlert({ ...job, jobId: 9 }, address).split('\n').slice(-2), [
+      'Apply → <https://example.com/jobs/12345?utm=test&q=1>',
+      'Open in ApplyPack → <http://192.168.1.20:4747/jobs/9>',
+    ]);
+    assert.match(formatDiscordDigest([{ ...job, jobId: 9 }], [], 'Daily recap', 0, 0, address).join('\n'), /Open in ApplyPack → <http:\/\/192\.168\.1\.20:4747\/jobs\/9>/);
+    assert.deepEqual(
+      formatDiscordPackNotice([
+        { text: 'Ready:', link: null },
+        { text: '• Engineer — *Acme*', link: `${address}/jobs/9?tab=pack` },
+      ]),
+      ['Ready:\n• Engineer — \\*Acme\\*\n  <http://192.168.1.20:4747/jobs/9?tab=pack>'],
+    );
+    // Discord cut a long message at 2000 characters; now it goes out in parts.
+    const many = formatDiscordPackNotice(Array.from({ length: 24 }, () => ({ text: `• ${'x'.repeat(90)}`, link: `${address}/jobs/9?tab=pack` })));
+    assert.ok(many.length > 1 && many.every((m) => m.length <= DISCORD_MAX_LENGTH));
   });
 
   it('escapes what would format, and nothing else', () => {

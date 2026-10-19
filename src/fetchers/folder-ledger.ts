@@ -25,6 +25,51 @@ export interface FolderLook {
   /** Every file of the folder's kind the look listed: what "N files" counts. */
   seen: string[];
   changes: FileChange[];
+  /** The rules the tick judged this look's rows under (folder-scan.ts:rulesKey); null when nobody said. */
+  rulesKey: string | null;
+}
+
+/** What the pipeline turned away of each folder file's rows in one tick, before any model read them (#448). */
+export type TurnedAwayTally = Map<string, { rules: number; window: number; windowEndsAt: number | null }>;
+
+const tallyKey = (companyId: number, relPath: string): string => `${companyId}/${relPath}`;
+
+/**
+ * One row of a folder's file turned away: by a search's filter or a mute,
+ * or — with when it closes — by the re-apply window. The soonest window is
+ * kept: the file is read again when it closes, and a later one is noted then.
+ */
+export function countTurnedAway(tally: TurnedAwayTally, companyId: number, relPath: string, windowEndsAt?: Date): void {
+  const key = tallyKey(companyId, relPath);
+  const counted = tally.get(key) ?? { rules: 0, window: 0, windowEndsAt: null };
+  if (windowEndsAt === undefined) counted.rules++;
+  else {
+    counted.window++;
+    counted.windowEndsAt = Math.min(counted.windowEndsAt ?? Number.POSITIVE_INFINITY, windowEndsAt.getTime());
+  }
+  tally.set(key, counted);
+}
+
+/**
+ * The looks with what the pipeline turned away of each file added to what
+ * the file carried from earlier looks: the ledger keeps it, and a look reads
+ * the file again when the rules that turned rows away change (#448). A file
+ * read before rows were counted stays uncounted until it is read whole.
+ */
+export function withTurnedAway(looks: readonly FolderLook[], tally: TurnedAwayTally): FolderLook[] {
+  return looks.map((look) => ({
+    ...look,
+    changes: look.changes.map((change) => {
+      const away = tally.get(tallyKey(look.companyId, change.relPath));
+      if (!away) return change;
+      return {
+        ...change,
+        turnedAway: change.turnedAway === null ? null : change.turnedAway + away.rules,
+        windowTurnedAway: change.windowTurnedAway + away.window,
+        windowEndsAt: away.windowEndsAt === null ? change.windowEndsAt : Math.min(change.windowEndsAt ?? Number.POSITIVE_INFINITY, away.windowEndsAt),
+      };
+    }),
+  }));
 }
 
 /**
