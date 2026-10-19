@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { beginFolderTick, looksToKeep, stageFolderLook, takeFolderLooks, type FolderLook } from './folder-ledger';
+import { UNJUDGED, type FileChange } from '../datasets/folder-scan';
+import { beginFolderTick, countTurnedAway, looksToKeep, stageFolderLook, takeFolderLooks, withTurnedAway, type FolderLook, type TurnedAwayTally } from './folder-ledger';
 
 const at = new Date('2026-10-11T12:00:00Z');
-const look = (companyId: number): FolderLook => ({ companyId, at, seen: ['a.json'], changes: [] });
+const NOW = at.getTime();
+const look = (companyId: number): FolderLook => ({ companyId, at, seen: ['a.json'], changes: [], rulesKey: 'k' });
 const ran = { abortedMidRun: 0, skippedBlankProfile: 0 };
 const ids = (looks: readonly FolderLook[]): number[] => looks.map((l) => l.companyId);
 
@@ -34,4 +36,44 @@ test('a look is staged per folder, handed over once, and dropped by the next tic
   stageFolderLook(look(3));
   beginFolderTick();
   assert.deepEqual(takeFolderLooks(), []);
+});
+
+// #448: what the filter and the employer gate turned away of a file is how the next look knows to read it again.
+test('withTurnedAway: adds the tick’s turned-away rows to the files they came from, by folder', () => {
+  const change = (relPath: string, judged: Partial<FileChange> = {}): FileChange => ({
+    relPath,
+    size: 10,
+    mtimeMs: 0,
+    kind: 'json',
+    sha256: 'h',
+    status: 'done',
+    detail: null,
+    jobCount: 4,
+    rowsRead: 4,
+    ...UNJUDGED,
+    ...judged,
+  });
+  const tally: TurnedAwayTally = new Map();
+  countTurnedAway(tally, 1, 'a.json');
+  countTurnedAway(tally, 1, 'a.json');
+  countTurnedAway(tally, 1, 'a.json', new Date(NOW + 5));
+  countTurnedAway(tally, 1, 'a.json', new Date(NOW + 9));
+  countTurnedAway(tally, 2, 'a.json');
+  const looks = [
+    { ...look(1), changes: [change('a.json', { turnedAway: 1, windowTurnedAway: 1, windowEndsAt: NOW + 20 }), change('b.json')] },
+    { ...look(2), changes: [change('a.json', { turnedAway: null })] },
+  ];
+  const [one, two] = withTurnedAway(looks, tally);
+  assert.deepEqual(
+    one!.changes.map((c) => [c.relPath, c.turnedAway, c.windowTurnedAway, c.windowEndsAt]),
+    [
+      ['a.json', 3, 3, NOW + 5],
+      ['b.json', 0, 0, null],
+    ],
+  );
+  // A file read before rows were counted stays uncounted until it is read whole.
+  assert.equal(two!.changes[0]!.turnedAway, null);
+  // The soonest window to close is the one that counts: the file is read again then, and the later one noted.
+  assert.equal(withTurnedAway([{ ...look(1), changes: [change('a.json')] }], tally)[0]!.changes[0]!.windowEndsAt, NOW + 5);
+  assert.equal(withTurnedAway([{ ...look(1), changes: [change('a.json', { windowEndsAt: NOW + 1 })] }], tally)[0]!.changes[0]!.windowEndsAt, NOW + 1);
 });

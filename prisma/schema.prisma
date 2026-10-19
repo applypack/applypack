@@ -211,6 +211,19 @@ model SourceFile {
   // The last look that listed it, and the last one that read it.
   seenAt    DateTime
   readAt    DateTime?
+  // The first look that did not list it (#478); NULL while it is in the
+  // folder. A row whose file brought no job is deleted a while after.
+  goneAt    DateTime?
+
+  // #448: rows of it a search's filter or a mute turned away, and those the
+  // re-apply window did, with when the soonest such window closes. NULL
+  // turnedAway = read before these were counted. `rulesKey` is the rules they
+  // were judged under (folder-scan.ts:rulesKey): a `done` file with rows
+  // turned away is read again when it differs, or once that window closed.
+  turnedAway       Int?
+  windowTurnedAway Int       @default(0)
+  windowEndsAt     DateTime?
+  rulesKey         String?
 
   @@unique([companyId, relPath])
   @@map("source_file")
