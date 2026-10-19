@@ -25,6 +25,10 @@
  *    warns — the rule as written blocked a good rewrite of a bullet whose one
  *    "SQL" was the phrase "SQL injection".
  *
+ *  - a rewrite of the contact line keeps every email, phone and profile link
+ *    as written, as a removal may not touch them (gotcha 11): a title action
+ *    once quoted the whole line, and a replacement that loses one is refused.
+ *
  *  - wording that is a note to the writer and not resume text is refused
  *    (`instructionIn`): the prompt sends "ask the candidate for the real
  *    number" to `why`, and the model still writes it, or a slot to fill in,
@@ -56,7 +60,7 @@ import { factCheck } from './fact-check';
 import type { FactLike } from './facts';
 import { effectiveRequirement } from './keyword-overrides';
 import type { KeywordMatcher } from './keyword-matcher';
-import { hasContactDetail } from './parse-warnings';
+import { contactDetails, hasContactDetail } from './parse-warnings';
 import { toPlainPunctuation, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 export interface GateSources {
@@ -179,6 +183,11 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
     // First on purpose: of the reasons a card can show, this one says the wording was never a line.
     const instruction = instructionIn(text, quote);
     if (instruction) blocks.push(`"${instruction}" is a note to the writer, not resume text`);
+    // PROTECTED, as for a removal (gotcha 11): a rewrite of the contact line
+    // carries every email, phone and profile link over as written. Only the
+    // separators between them may change.
+    const lost = contactDetails(quote).find((detail) => !text.includes(detail));
+    if (lost) blocks.push(`it changes or drops "${lost}" — keep the contact details exactly as they are`);
 
     if (check.verdict === 'block') blocks.push(...check.reasons);
     else if (check.verdict === 'warn') warns.push(...check.reasons);

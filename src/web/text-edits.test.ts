@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { contactDetails as server } from '../resume/parse-warnings';
 
 // The edit operations ship to the browser as a static ES module; node loads it the same way.
 type Edit = { text: string; span: { start: number; end: number } } | { error: string };
 // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
 const edits = import('./public/text-edits.mjs') as Promise<{
   applyReplacement: (text: string, quote: string, replacement: string) => Edit;
+  contactDetails: (text: string) => string[];
   removeSpan: (text: string, quote: string) => Edit;
   insertIntoSkills: (text: string, term: string, where?: string) => Edit;
   insertAfterLine: (text: string, anchor: string, wording: string) => Edit;
@@ -361,4 +363,36 @@ test('cutting the first item after a label takes the separator after it', async 
   assert.equal(ok(removeSpan('Skills: Go, PHP, JavaScript', 'Go')).text, 'Skills: PHP, JavaScript');
   assert.equal(ok(removeSpan('Tools — Docker, Git', 'Docker')).text, 'Tools — Git');
   assert.equal(ok(removeSpan('Skills: Go', 'Go')).text, 'Skills:');
+});
+
+test('applyReplacement never drops an email, a phone or a profile link the span carried', async () => {
+  const { applyReplacement } = await edits;
+  const line = 'Senior Full-Stack Engineer · Austin, Texas · boyko.nazar@gmail.com · +1 (612) 267-5544 · github.com/nazar';
+  const text = `Nazar Boyko\n${line}\n\nEXPERIENCE`;
+  // A stored comparison from before the gate, or a wording typed over the card: refused.
+  assert.equal(err(applyReplacement(text, line, 'Backend Engineer · Austin, Texas · +1 (612) 267-5544 · github.com/nazar')), 'protected');
+  assert.equal(err(applyReplacement(text, line, 'Backend Engineer · Austin, Texas · boyko.nazar@gmail.com · github.com/nazar')), 'protected');
+  // The separators may change; the details may not.
+  const kept = ok(applyReplacement(text, line, 'Backend Engineer - Austin, Texas - boyko.nazar@gmail.com - +1 (612) 267-5544 - github.com/nazar'));
+  assert.equal(kept.text.split('\n')[1], 'Backend Engineer - Austin, Texas - boyko.nazar@gmail.com - +1 (612) 267-5544 - github.com/nazar');
+  // Only the title words quoted: the contact details are outside the span.
+  assert.equal(ok(applyReplacement(text, 'Senior Full-Stack Engineer', 'Backend Engineer')).text.split('\n')[1], line.replace('Senior Full-Stack Engineer', 'Backend Engineer'));
+});
+
+test('the editor reads contact details exactly as parse-warnings.ts does', async () => {
+  const { contactDetails } = await edits;
+  for (const sample of [
+    'Senior Backend Engineer · Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera',
+    'Nazar Boyko | +1 (612) 267-5544 | linkedin.com/in/nazar-boyko | https://nazar.dev/work.',
+    'Shipped the CLI (github.com/alex/tool) to 2k users',
+    'Worked there 2020-2024; cut costs 40%',
+  ]) {
+    assert.deepEqual(contactDetails(sample), server(sample), sample);
+  }
+  assert.deepEqual(server('Shipped the CLI (github.com/alex/tool) to 2k users'), []);
+  assert.deepEqual(server('Nazar Boyko | +1 (612) 267-5544 | linkedin.com/in/nazar-boyko | https://nazar.dev/work.'), [
+    '+1 (612) 267-5544',
+    'linkedin.com/in/nazar-boyko',
+    'https://nazar.dev/work',
+  ]);
 });

@@ -149,11 +149,16 @@ test('the checks catch what no plan asked for', async () => {
 
 test('a contact detail inside a rewritten span is caught even when the plan quoted it', async () => {
   const editor = await loadEditor();
-  const plan: EditPlan = {
-    ops: [{ key: 'contact', kind: 'change', quote: 'jane@example.com | +1 512 555 0100 | Austin, TX', wording: 'Austin, TX' }],
+  const plan = (wording: string): EditPlan => ({
+    ops: [{ key: 'contact', kind: 'change', quote: 'jane@example.com | +1 512 555 0100 | Austin, TX', wording }],
     terms: [],
     held: [],
-  };
-  const outcome = tailor(RESUME, plan, editor);
-  assert.deepEqual(tailorChecks({ before: RESUME, plan, outcome, score: { before: 60, after: 60 } }, editor), ['contact-changed']);
+  });
+  // A wording that drops the email and phone is never made: the editor refuses it.
+  const dropped = tailor(RESUME, plan('Austin, TX'), editor);
+  assert.deepEqual(dropped.failed.map((f) => f.error), ['protected']);
+  assert.equal(dropped.text, RESUME);
+  // One that keeps them is made, and a pack still keeps its hands off the contact line.
+  const kept = tailor(RESUME, plan('jane@example.com | +1 512 555 0100 | Remote'), editor);
+  assert.deepEqual(tailorChecks({ before: RESUME, plan: plan('jane@example.com | +1 512 555 0100 | Remote'), outcome: kept, score: { before: 60, after: 60 } }, editor), ['contact-changed']);
 });

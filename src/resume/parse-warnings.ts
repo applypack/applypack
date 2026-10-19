@@ -57,6 +57,22 @@ export function hasContactDetail(text: string): boolean {
   return EMAIL_RE.test(text) || hasPhone(text);
 }
 
+/** A link as a contact line writes one: "github.com/alex", "https://…", "www.…". */
+const LINK_RE = /(?:https?:\/\/|www\.)[^\s|·•,;]+|\b[\w-]+\.(?:com|dev|io|net|org|me|co)\/[^\s|·•,;]+/gi;
+
+/**
+ * Every email address and phone number in a span, as written, and its links
+ * when it has either — on the contact line a link is a profile, in a bullet it
+ * is a project's page. What an edit of the span must carry over verbatim
+ * (replacement-gate.ts); text-edits.mjs keeps a copy for the editor.
+ */
+export function contactDetails(text: string): string[] {
+  const emails = text.match(new RegExp(EMAIL_RE.source, 'gi')) ?? [];
+  const phones = (text.match(PHONE_RUN_RE) ?? []).filter((run) => (run.match(/\d/g) ?? []).length >= PHONE_MIN_DIGITS);
+  const links = emails.length + phones.length === 0 ? [] : (text.match(LINK_RE) ?? []).map((l) => l.replace(/[.)]+$/, ''));
+  return [...new Set([...emails, ...phones, ...links])];
+}
+
 export function parseWarnings(text: string): ParseWarning[] {
   const warnings: ParseWarning[] = [];
   const len = text.length;

@@ -520,3 +520,30 @@ test('a why the candidate reads is in plain words, not the prompt\'s field names
   ]);
   assert.equal(out.removals[0]!.why, 'unsupported term, not yet written context keyword');
 });
+
+// The stored title action of the scratch comparison: the whole contact line quoted, "·" written as "-".
+const CONTACT = 'Senior Backend Engineer · Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera';
+
+test('a rewrite of the contact line keeps every email, phone and profile link as written (gotcha 11)', async () => {
+  const src = await sources({ resumeText: `# Alex Rivera\n${CONTACT}` });
+  const title = (replacement: string) => action({ section: 'title', quote: CONTACT, replacement });
+  const [separators, noEmail, newPhone, noLink] = gateActions(
+    [
+      title('Software Engineer, Backend (Node.js/TypeScript) - Austin, TX - alex.rivera@example.com - (512) 555-0147 - github.com/alexrivera'),
+      title('Software Engineer, Backend · Austin, TX · (512) 555-0147 · github.com/alexrivera'),
+      title('Software Engineer, Backend · Austin, TX · alex.rivera@example.com · 512-555-0147 · github.com/alexrivera'),
+      title('Software Engineer, Backend · Austin, TX · alex.rivera@example.com · (512) 555-0147'),
+    ],
+    src,
+  ).actions;
+  // Only the separators changed: the details stand as written.
+  assert.match(separators!.replacement ?? '', /alex\.rivera@example\.com - \(512\) 555-0147 - github\.com\/alexrivera$/);
+  for (const refused of [noEmail, newPhone, noLink]) {
+    assert.equal(refused!.replacement, null);
+    assert.match(splitRefusal(refused!).refusal ?? '', /keep the contact details exactly as they are/);
+  }
+  assert.match(splitRefusal(noEmail!).refusal ?? '', /"alex\.rivera@example\.com"/);
+  // A link in a bullet is a project's page, not a contact detail.
+  const bullet = action({ quote: 'Shipped the CLI (github.com/alex/tool) to 2k users', replacement: 'Shipped a CLI used by 2k engineers' });
+  assert.equal(gateActions([bullet], await sources({ resumeText: bullet.quote! })).blocked, 0);
+});

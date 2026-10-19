@@ -24,9 +24,9 @@ import { locateQuote, findTerm } from './target.mjs';
 /*
  * The contact line is protected: gotcha 11 is that removal quotes leak into it,
  * and 7 of the 237 quoted spans in the live corpus sit on the line carrying the
- * email and phone. These two patterns are copied from
+ * email and phone. These patterns, and LINK_RE below, are copied from
  * src/resume/parse-warnings.ts — a browser module cannot import TypeScript, so
- * they are kept in step by hand.
+ * they are kept in step by hand (text-edits.test.ts compares the two).
  */
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 const PHONE_RUN_RE = /\+?\d[\d\s().\/-]{6,}\d/g;
@@ -36,6 +36,19 @@ const PHONE_MIN_DIGITS = 9;
 function isContactLine(line) {
   if (EMAIL_RE.test(line)) return true;
   return (line.match(PHONE_RUN_RE) ?? []).some((run) => (run.match(/\d/g) ?? []).length >= PHONE_MIN_DIGITS);
+}
+
+const LINK_RE = /(?:https?:\/\/|www\.)[^\s|·•,;]+|\b[\w-]+\.(?:com|dev|io|net|org|me|co)\/[^\s|·•,;]+/gi;
+
+/**
+ * Every email, phone and — beside one of those — link in a span, as written.
+ * A copy of parse-warnings.ts:contactDetails, held equal by text-edits.test.ts.
+ */
+export function contactDetails(text) {
+  const emails = text.match(new RegExp(EMAIL_RE.source, 'gi')) ?? [];
+  const phones = (text.match(PHONE_RUN_RE) ?? []).filter((run) => (run.match(/\d/g) ?? []).length >= PHONE_MIN_DIGITS);
+  const links = emails.length + phones.length === 0 ? [] : (text.match(LINK_RE) ?? []).map((l) => l.replace(/[.)]+$/, ''));
+  return [...new Set([...emails, ...phones, ...links])];
 }
 
 /** Start of the line containing `index`. */
@@ -66,6 +79,8 @@ function unmarked(wording) {
  * Replace the quoted span with `replacement`. The span is found the same way
  * the editor highlights it, so what gets replaced is what was outlined.
  * A leading bullet marker survives: the model quotes the sentence, not the "• ".
+ * Refuses a wording that loses an email, a phone or a profile link the span
+ * carried (gotcha 11); the separators between them may change.
  */
 export function applyReplacement(text, quote, replacement) {
   const loc = locateQuote(text, quote);
@@ -80,6 +95,9 @@ export function applyReplacement(text, quote, replacement) {
   const onBullet = keep !== '' || (marker !== null && loc.start >= start + marker[1].length);
   const body = keep + (onBullet ? unmarked(replacement) : replacement.trim());
   const from = keep ? start : loc.start;
+  // The gate refuses such a wording (replacement-gate.ts); a comparison stored
+  // before it did, or a wording typed over the card, must not drop them either.
+  if (contactDetails(text.slice(from, loc.end)).some((detail) => !body.includes(detail))) return { error: 'protected' };
   return {
     text: text.slice(0, from) + body + text.slice(loc.end),
     span: { start: from, end: from + body.length },
