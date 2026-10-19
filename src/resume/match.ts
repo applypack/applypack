@@ -38,6 +38,7 @@ import { scoreMatch } from './score';
 import {
   createMatch,
   getLatestMatchForJob,
+  getLatestReportForJob,
   getLatestVerificationContext,
   getPostingRefreshedAt,
   getResumeIndustries,
@@ -93,10 +94,12 @@ export async function matchResumeToJob(
   // is not fatal — without it the call derives the frame itself, as before.
   const briefed =
     opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError, rebuild: opts.rebuild });
-  const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt, industries] = await Promise.all([
+  const [facts, otherSkills, previousMatch, lastReport, matcher, verification, refreshedAt, industries] = await Promise.all([
     judgedOn === 'own' ? listFacts() : [],
     judgedOn === 'own' ? listOtherResumeSkills(resume.id) : [],
     getLatestMatchForJob(job.id),
+    // The report the candidate took edits from: the full analysis reads it (applied.ts).
+    mode === 'full' ? getLatestReportForJob(job.id, resume.id) : null,
     loadKeywordMatcher(),
     // The full analysis reads what the verifier learned about the company as
     // context; the quick check never does (ADR 0042).
@@ -125,10 +128,7 @@ export async function matchResumeToJob(
   // What the candidate took from the last report is done (applied.ts): the
   // full analysis is told so, and how many of its actions reword those lines
   // anyway is the churn metric logged below.
-  const applied =
-    mode === 'full' && previousMatch
-      ? appliedWording(readActions(previousMatch.actions), resume.text, matcher.locateQuote)
-      : [];
+  const applied = lastReport ? appliedWording(readActions(lastReport.actions), resume.text, matcher.locateQuote) : [];
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),

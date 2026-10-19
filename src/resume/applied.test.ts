@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appliedWording, freshActions, rewritesOfApplied, type Locate } from './applied';
 import { readActions, type MatchAction } from './prompts';
+import { titleOverHeadline } from './replacement-gate';
+import { structureFromText } from './structure-from-text';
 
 // The real locator: exact, then whitespace- and punctuation-insensitive.
 // @ts-expect-error — plain JS with no declaration file.
@@ -86,4 +88,28 @@ test('freshActions drops a rework of applied wording unless it names a keyword t
   assert.deepEqual(fresh.dropped.map((a) => a.what), ['open the role with WordPress instead of burying it']);
   // Nothing applied yet: nothing is a rework, and the list is untouched.
   assert.equal(freshActions(actions, [], keywords, RESUME, m).kept.length, 3);
+});
+
+test('the headline taken from the last report is a rework when the next one retitles again (#588)', async () => {
+  const m = await matcher;
+  // v2 as Save as vN stores it: the headline the last report proposed now opens the contact line.
+  const v2 = [
+    '# Alex Rivera',
+    'Software Engineer, Backend - Node.js & TypeScript · Austin, TX · alex.rivera@example.com',
+    '',
+    '## Summary',
+    'Backend engineer with 8 years building Node.js and TypeScript services on AWS.',
+  ].join('\n');
+  const applied = appliedWording(
+    [action({ section: 'title', what: 'retitle', quote: 'Senior Backend Engineer', replacement: 'Software Engineer, Backend - Node.js & TypeScript' })],
+    v2,
+    m.locateQuote,
+  );
+  assert.equal(applied.length, 1);
+  // The next report adds a headline after the name: no quote, so it was never seen as a rework, and the title changed twice.
+  const retitle = action({ section: 'title', what: 'add a headline', why: 'the posting title', insert_after: '# Alex Rivera', replacement: 'Backend Software Engineer (Node.js)' });
+  const next = titleOverHeadline([retitle], v2, structureFromText(v2).basics.label);
+  const keywords = [{ term: 'Node.js', aliases: [], status: 'present' as const }];
+  assert.equal(rewritesOfApplied(applied, next, v2, m.locateQuote).length, 1);
+  assert.deepEqual(freshActions(next, applied, keywords, v2, m).kept, []);
 });

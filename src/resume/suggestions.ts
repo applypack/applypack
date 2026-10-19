@@ -22,7 +22,7 @@ import { structureFromText } from './structure-from-text';
 import { rewriteRefusedLeads } from './rewrite';
 import { appliedWording, freshActions, rewritesOfApplied } from './applied';
 import { domainMismatch } from './domain';
-import { getLatestMatchForJob, getLatestVerificationContext, getResumeIndustries, listFacts, updateMatchSuggestions } from './store';
+import { getLatestReportForJob, getLatestVerificationContext, getResumeIndustries, listFacts, updateMatchSuggestions } from './store';
 
 
 /**
@@ -47,7 +47,7 @@ export async function suggestForMatch(
     // stored read: who this employer is and what its first reader scans for.
     briefForPosting(job),
     // The report before this row: what it proposed and the text took is done (applied.ts).
-    getLatestMatchForJob(job.id, match.id),
+    getLatestReportForJob(job.id, match.resumeId, match.id),
     loadKeywordMatcher(),
     getResumeIndustries(match.resumeId),
   ]);
