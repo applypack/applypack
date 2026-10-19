@@ -45,6 +45,24 @@ the list in order, and the tab says which tasks are in that state. Nothing
 here says which model is good enough for which task; a small local model
 can read a posting and still write a poor letter (ADR 0060).
 
+### Trying an engine on your postings
+
+Before you give an engine the scoring, press **Try it on my postings** under
+its tasks. Up to 20 of your scored postings, spread across the fit range, are
+scored again on that engine and the model its classifier slot names — on
+that engine alone, so a failure is not quietly answered by the one behind
+it. Nothing about the postings changes. The result says how often it kept
+or turned away a posting as the scores on record did, the false matches (it
+would keep, the record did not), the missed ones, how far apart the scores
+are on average, the seconds per posting and the replies that were no score
+at all. The scores on record are the reference, not the truth: try the engine
+that wrote them to see how much it disagrees with itself, and a search you
+edited after they were written moves them too (the result counts those). The
+last result per engine and model stays on the card, and AI usage quotes it.
+On a local model the try is free; elsewhere the line under the button says
+what twenty scoring calls usually cost here. It needs at least five scored
+postings, and only Scoring postings can be tried this way.
+
 Every engine card has a **Test** button — it sends one tiny live request
 through that engine and reports success or the exact failure. Use it after
 every setup step below.
@@ -219,10 +237,10 @@ llama.cpp's server or vLLM, three things are by hand:
   of the speed each and time out together.
 - **The model.** A small model scores postings less reliably than a hosted
   one, and a resume comparison or a letter asks more of it than scoring
-  does. Which local models clear the bar is not measured here yet, and a
-  reply that does not parse is asked again of the same engine, once.
-  **Use it** in step 1 of `/welcome` gives it **Scoring postings** only, as
-  for Ollama below.
+  does. Whether yours clears the bar for scoring, **Try it on my postings**
+  on its card measures (above); a reply that does not parse is asked again
+  of the same engine, once. **Use it** in step 1 of `/welcome` gives it
+  **Scoring postings** only, as for Ollama below.
 
 **Docker:** the containers reach your machine as `host.docker.internal`,
 so LM Studio's address is `http://host.docker.internal:1234/v1`. Docker
@@ -259,7 +277,10 @@ network — ADR 0057. No key, no bill, and the text never leaves.
   whose prompt would not fit is refused before it is sent, with the size it
   needed, and the engine behind this one in the list takes it. A resume
   comparison wants 16k or more; each step up takes more memory on the
-  machine running Ollama.
+  machine running Ollama. When a task ticked on the card did not fit in the
+  last 30 days, the card says so under **Used for**: how many times, and
+  whether the engine behind it answered or the call failed — untick that
+  task or choose a larger window.
 - **JSON mode** holds the model to valid JSON on every call that parses one.
 - **One call at a time:** the rest wait their turn, so `AI_CONCURRENCY`
   keeps meaning hosted calls. Its calls get three times the usual time.

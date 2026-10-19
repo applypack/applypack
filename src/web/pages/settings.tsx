@@ -42,6 +42,8 @@ import { REAPPLY_CHOICES } from '../../employer';
 import { COVER_LETTER_MODES, PACK_LIMITS, POLICY_SECTIONS, type CoverLetterMode, type PackSettings } from '../../pack/settings';
 import type { FlashMessage } from '../flash';
 import type { LoginItemState } from '../login-item-io';
+import type { TrialView } from '../engine-trial-run';
+import { TRIAL_SIZE } from '../engine-trial';
 import { describeCount, wordedSource, type SourceGroup } from '../source-groups';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
@@ -143,6 +145,10 @@ export interface AiEngineRow {
   keySource: 'db' | 'env' | 'none';
   /** Last four characters of the stored key — never the key itself. */
   maskedKey: string;
+  /** The engine trial under its tasks (#412); null on an engine that is not in the list. */
+  trial: TrialView | null;
+  /** One sentence per ticked task whose prompt did not fit this engine's window lately (#411). */
+  misfits: string[];
 }
 
 export interface EngineServer {
@@ -2021,6 +2027,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
 
 /** The tasks an engine takes (ADR 0060): every box ticked until the user narrows it. */
 const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
+  <>
   <form method="post" action="/settings/ai/tasks" data-model-form class="mt-4">
     <input type="hidden" name="provider" value={e.id} />
     <fieldset>
@@ -2050,6 +2057,9 @@ const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       {t('settings.tasksHint')}
       {e.tasks.some((task) => !task.offered) && <> {t('settings.tasksNoWebCheck')}</>}
     </Hint>
+    {e.misfits.map((line) => (
+      <Hint class="mt-1.5 text-warn">{line}</Hint>
+    ))}
     <div class="mt-3 flex items-center gap-3">
       <Button size="sm" variant="secondary" data-save-button>
         {t('settings.saveTasks')}
@@ -2057,6 +2067,38 @@ const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       <span class="text-meta text-ink-faint" data-save-status role="status" aria-live="polite"></span>
     </div>
   </form>
+  {e.trial && <EngineTrial id={e.id} trial={e.trial} />}
+  </>
+);
+
+/**
+ * How well this engine scores the user's own postings (#412): a sample read
+ * again on its classifier model, beside the scores on record, and the last
+ * result. Scoring alone — the one task whose answers are on record to compare.
+ */
+const EngineTrial: FC<{ id: string; trial: TrialView }> = ({ id, trial }) => (
+  <div class="mt-4 border-t border-line pt-4">
+    <h4 class="text-label text-ink">{t('trial.title')}</h4>
+    <Hint class="mt-1">
+      {t('trial.what', { max: TRIAL_SIZE, model: trial.model })}
+    </Hint>
+    <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <ActionForm action="/settings/ai/trial" hidden={{ provider: id }} once>
+        <Button size="sm" variant="secondary" disabled={!trial.ready}>
+          {t('trial.button')}
+        </Button>
+      </ActionForm>
+      <span data-ui="hint" class="text-meta text-ink-faint">
+        {trial.note}
+      </span>
+    </div>
+    {trial.last && (
+      <p class="mt-2.5 text-note text-ink-muted">
+        <span class="text-ink">{t('trial.last')}</span> <When at={trial.last.at} />: {trial.last.text}
+      </p>
+    )}
+    <More class="mt-1">{t('trial.more')}</More>
+  </div>
 );
 
 /** Closed families get a select (no wrong-family ids possible); base-URL

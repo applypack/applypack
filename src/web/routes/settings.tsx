@@ -94,7 +94,7 @@ import { checkDashboardUrl } from '../../notify/dashboard-link';
 import { billingNotes } from '../../ai-spend';
 import { engineTroubles } from '../../ai-health';
 import { troubleLine } from '../usage-hints';
-import { billedThisMonth, loadRecentAttempts } from '../../ai-ledger';
+import { billedThisMonth, loadRecentAttempts, loadWindowRefusals } from '../../ai-ledger';
 import {
   AI_KEY_ENV_VARS,
   aiKeySource,
@@ -117,6 +117,8 @@ import {
 import { groupSources, type SourceCount, fetchedSource } from '../source-groups';
 import { profileLine } from '../profile-line';
 import { testAiEngine } from '../ai-test';
+import { startEngineTrial, trialViews } from '../engine-trial-run';
+import { misfitLine, misfitSince, windowMisfits } from '../window-misfits';
 import {
   blankProfileInput,
   createProfile,
@@ -358,6 +360,19 @@ async function loadSettingsProps(here: string) {
       maskedKey: storedKey ? maskToken(storedKey) : '',
     };
   }).sort((a, b) => cardRank(a) - cardRank(b));
+  // A trial sits under an engine's tasks, which only an engine in the list shows.
+  const trials = await trialViews(
+    aiEngines.filter((e) => e.enabled).map((e) => e.id),
+    (id) => engine.modelFor(id, 'classifier'),
+    billingFor,
+  );
+  // #411: a ticked task whose prompt the engine refused as too large for its window lately.
+  const windowLog = await loadWindowRefusals(misfitSince(new Date()));
+  const localWindow = settings.localContextTokens ?? DEFAULT_LOCAL_CONTEXT_TOKENS;
+  const misfitsOf = (e: (typeof aiEngines)[number]): string[] =>
+    windowMisfits(e.id, windowLog.refusals, windowLog.fallbacks)
+      .filter((m) => e.tasks.some((task) => task.id === m.task && task.taken))
+      .map((m) => misfitLine(m, e.id === 'local_api' ? localWindow : null));
   // What actually runs on this install, per family (#147): the enum is the
   // menu, the Company rows are the order.
   const sourceCounts: Record<string, SourceCount> = {};
@@ -407,7 +422,7 @@ async function loadSettingsProps(here: string) {
     sourceKeyRows: sourceKeyRows(keys),
     fetchingEnabled: settings.fetchingEnabled,
     schedule: scheduleView,
-    aiEngines,
+    aiEngines: aiEngines.map((e) => ({ ...e, trial: trials.get(e.id) ?? null, misfits: e.enabled ? misfitsOf(e) : [] })),
     aiStatus,
     aiBudget,
     targets: targets.map((target) => ({
@@ -886,6 +901,16 @@ settingsRoute.post('/settings/ai/test', async (c) => {
   if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
   const result = await testAiEngine(provider);
   return flashRedirect('/settings?tab=ai', result.ok ? 'ok' : 'err', result.text);
+});
+
+/** #412: scored postings read again on one engine, beside the scores on record — a run on the progress page. */
+settingsRoute.post('/settings/ai/trial', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
+  const started = await startEngineTrial(provider);
+  if ('refused' in started) return flashRedirect('/settings?tab=ai', 'err', started.refused);
+  return c.redirect(`/target/runs/${started.runId}`, 303);
 });
 
 function cleanModelId(value: unknown): string | null {

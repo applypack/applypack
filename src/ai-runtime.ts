@@ -73,6 +73,8 @@ export interface AiCallRequest {
   webTools?: boolean;
   /** The caller parses the reply as JSON; the local engine holds the model to it (ADR 0057). */
   json?: boolean;
+  /** This engine alone answers, whatever the chain says, and nothing stands in for it: the engine trial (#412). */
+  engine?: AiProviderId;
   /** The last engine's one-line reason when no engine answers (#97) — same contract as AiRequest.onError. */
   onError?: (reason: string) => void;
 }

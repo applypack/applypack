@@ -6,13 +6,16 @@ import { taskLabel, taskOf, type AiTask } from '../ai-tasks';
 import type { AiBilling, AiFeature } from '../ai-usage';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import type { TrialReport } from './engine-trial';
 
 /*
  * What the ledger suggests changing (the AI usage page). Pure, and every
  * sentence is arithmetic on recorded calls, the engines this install has and
  * the published prices: where the money went, what failed, what stands idle.
- * None of it says a model is good enough for a task — that was never
- * measured, and a hint that guessed it would be the one people act on.
+ * None of it says a model is good enough for a task. Where a hint offers a
+ * model on this computer the scoring, it quotes that model's last engine trial
+ * on the user's own postings (#412), or says there is none yet — a hint that
+ * guessed would be the one people act on.
  */
 
 export interface UsageHint {
@@ -36,6 +39,8 @@ export interface HintFacts {
   engines: readonly { id: AiProviderId; billing: AiBilling; ready: boolean; position: number; takes: readonly AiTask[] }[];
   /** The engine that answers each task first today (ai-engine.ts:taskPlans). */
   first: Partial<Record<AiTask, AiProviderId>>;
+  /** Each engine's last trial on the model its scoring slot names today (#412). Absent = none. */
+  trials?: Partial<Record<AiProviderId, Pick<TrialReport, 'postings' | 'compared' | 'agreed' | 'falseMatches' | 'missed'>>>;
   /** The monthly ceiling on billed money, what the month has billed so far, and today. */
   budgetCents: number | null;
   billedMonthMicro: number;
@@ -86,6 +91,14 @@ const FAILED_ADVICE: Record<string, MessageKey> = {
   unparsed: 'usage.failed.unparsed',
 };
 const percent = (part: number, whole: number): number => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+/** Calls sent to one engine by hand — a Test, a trial — are not usage. */
+const BY_HAND = new Set(['engine-test', 'engine-trial']);
+
+/** How well an engine scores the user's postings: its last trial, else that nothing measured it yet. */
+function scoringQuality(facts: HintFacts, id: AiProviderId, unmeasured: MessageKey = 'usage.unmeasured'): string {
+  const trial = facts.trials?.[id];
+  return trial && trial.compared > 0 ? t('usage.trial', { ...trial, engine: label(id) }) : t(unmeasured);
+}
 const taskOfGroup = (g: SpendGroup): AiTask | null => taskOf(g.feature as AiFeature) ?? null;
 
 const TROUBLE_WORDS = {
@@ -115,7 +128,7 @@ function troubled(facts: HintFacts): UsageHint[] {
 export function usageHints(facts: HintFacts): UsageHint[] {
   // Said first and whatever the period holds: a week of answers must not bury an engine that fails every call today (#413).
   const failing = troubled(facts);
-  const groups = facts.groups.filter((g) => g.feature !== 'engine-test');
+  const groups = facts.groups.filter((g) => !BY_HAND.has(g.feature));
   if (groups.length === 0) return failing;
   const hints = [...failing, budgetPace(facts, groups), billedTask(facts, groups), billedFallback(facts, groups), failures(facts, groups), priceyScoring(facts, groups), volumeOnPlan(facts, groups)].filter(
     (h): h is UsageHint => h !== null,
@@ -187,7 +200,7 @@ function billedTask(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint 
     t(spent === total ? 'usage.billedTask.all' : 'usage.billedTask.part', share),
     t(free.billing === 'plan' ? 'usage.billedTask.plan' : 'usage.billedTask.local', { engine: label(free.id) }),
     t(steps, { task: name, first: label(first.id) }),
-    ...(free.billing === 'plan' ? [] : [t('usage.unmeasured.compare')]),
+    ...(free.billing === 'plan' ? [] : [scoringQuality(facts, free.id, 'usage.unmeasured.compare')]),
   ];
   return { tone: 'warn', text: sentences.join(' '), action: enginesLink() };
 }
@@ -263,7 +276,7 @@ function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | 
   const advice = !limited
     ? t(FAILED_ADVICE[ending ?? ''] ?? 'usage.failed.tryModel')
     : local && task && facts.first[task] !== local.id
-      ? `${t('usage.failed.giveLocal', { local: label(local.id), task: taskLabel(task) })} ${t('usage.unmeasured')}`
+      ? `${t('usage.failed.giveLocal', { local: label(local.id), task: taskLabel(task) })} ${scoringQuality(facts, local.id)}`
       : t('usage.failed.secondEngine');
   // A reply that could not be read was an answer: counted apart from the calls that got none (#463).
   const unanswered = worst.failed - worst.unparsed;
@@ -334,6 +347,6 @@ function volumeOnPlan(facts: HintFacts, groups: readonly SpendGroup[]): UsageHin
     engines: joinNames([...new Set(volume.map((g) => label(g.engine)))]),
     local: label(local.id),
   };
-  const sentences = [t('usage.volume', share), ...(steps ? [t(steps, { task: share.task, first: label(first.id) })] : []), t('usage.unmeasured')];
+  const sentences = [t('usage.volume', share), ...(steps ? [t(steps, { task: share.task, first: label(first.id) })] : []), scoringQuality(facts, local.id)];
   return { tone: 'neutral', text: sentences.join(' '), action: enginesLink() };
 }
