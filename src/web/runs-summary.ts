@@ -40,6 +40,8 @@ const REASON: Record<string, MessageKey> = {
   'paused-mid-run': 'runs.reason.pausedMidRun',
   'outside-schedule': 'runs.reason.outsideSchedule',
   'no-active-profile': 'runs.reason.noActiveProfile',
+  'no-sources': 'runs.reason.noSources',
+  'none-due': 'runs.reason.noneDue',
   'discovery-disabled': 'runs.reason.discoveryDisabled',
   'parser-disabled': 'runs.reason.parserDisabled',
   'source-disabled': 'runs.reason.sourceDisabled',
@@ -104,6 +106,8 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'aiCallsDeleted', words: 'runs.fact.aiCallsDeleted' },
   { key: 'candidates', words: 'runs.fact.candidates', always: true },
   { key: 'candidatesRecorded', words: 'runs.fact.candidatesRecorded' },
+  // What a discovery run leaves for review: the number /discovery shows beside "Pending review" (#542).
+  { key: 'pending', job: 'discovery', words: 'runs.fact.discoveryPending', always: true },
 ];
 
 /**
@@ -127,6 +131,10 @@ const ELSEWHERE = new Set([
   'filterRejected',
   'preFiltered',
   'dismissed',
+  // What a read of a watched careers page found: a Check now's flash says it (#533).
+  'pagesFirstRead',
+  'pageChangesFound',
+  'pageChangesHeld',
   ...Object.values(FILTER_KEY),
   ...Object.values(DISMISS_KEY),
 ]);

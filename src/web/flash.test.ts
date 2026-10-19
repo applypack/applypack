@@ -116,6 +116,21 @@ test('the refused field rides the flash with its form, and only names do (TASKS 
   assert.equal(cookie('name')?.field, undefined);
 });
 
+test('a refused form\'s values ride the flash back to the form they came from (#534)', () => {
+  const draft = { form: '/companies/new', values: { name: 'Netlify', atsType: 'GREENHOUSE', atsToken: 'https://job-boards.greenhouse.io/netlify', careerUrl: '' } };
+  const res = flashRedirect('/companies', 'err', 'Nothing was added.', { draft });
+  assert.deepEqual(parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]!)?.draft, draft);
+  const cookie = (value: unknown) => parseFlashCookie(cookieOf({ kind: 'err', text: 'x', draft: value }))?.draft;
+  // The cookie is the browser's to edit: a form of ours, field names, strings, and short ones.
+  assert.equal(cookie({ form: 'https://evil.example/x', values: { name: 'a' } }), undefined);
+  assert.equal(cookie({ form: '/companies/new', values: 'name' }), undefined);
+  assert.deepEqual(cookie({ form: '/companies/new', values: { name: 'Acme', '"]x': 'y', n: 3 } }), { form: '/companies/new', values: { name: 'Acme' } });
+  assert.equal(cookie({ form: '/companies/new', values: { name: 'x'.repeat(5_000) } })?.values.name?.length, 300);
+  // A long paste is cut before it is sent, so the cookie still fits what a browser keeps.
+  const long = flashRedirect('/companies', 'err', 'Nothing was added.', { draft: { form: '/companies/new', values: { atsToken: 'я'.repeat(5_000) } } });
+  assert.ok((long.headers.get('set-cookie') ?? '').length < 4096);
+});
+
 // ADR 0061: a browser drops a cookie past 4 096 bytes silently, and the old percent-encoding
 // spent six characters on a Cyrillic letter and nine on a Devanagari one.
 test('a long message in Ukrainian or Hindi still fits the cookie, and comes back whole', () => {

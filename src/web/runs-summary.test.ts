@@ -59,6 +59,24 @@ describe('summarizeRun', () => {
     assert.deepEqual(summarizeRun('fetch', { skipped: 1, reason: 'fetching-paused' }), ['Fetching is paused']);
     assert.deepEqual(summarizeRun('hn-hiring', { aborted: 1, reason: 'no-active-profile' }), ['No running search']);
     assert.deepEqual(summarizeRun('x', { reason: 'something-new' }), ['Skipped: something new']);
+    // #557: a tick that read no source says why, before its zeros.
+    assert.deepEqual(summarizeRun('fetch', { reason: 'none-due', fetched: 0, persisted: 0, sources: 0 }), [
+      'No source was due yet: each waits for its own check interval',
+      '0 fetched',
+      '0 stored',
+    ]);
+    assert.match(summarizeRun('fetch-now', { reason: 'no-sources', fetched: 0 })[0] ?? '', /^No source to read/);
+  });
+
+  it('a discovery run leads with what is left for review, the count /discovery shows (#542)', () => {
+    assert.deepEqual(summarizeRun('discovery', { pending: 31, probed: 28, alive: 27, dead: 1, jobsCountUpdated: 0, durationMs: 40_000 }), [
+      '31 pending review',
+      '28 probed',
+      '27 alive',
+      '1 dead',
+    ]);
+    // Another job's "pending" is not a review list.
+    assert.deepEqual(summarizeRun('x', { pending: 2 }), ['2 pending']);
   });
 
   it('keeps the facts after a mid-run pause', () => {
