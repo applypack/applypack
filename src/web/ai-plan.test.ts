@@ -29,6 +29,12 @@ test('each task names the engine that answers it, the model in the slot it reads
   assert.ok(rows.every((r) => !r.unclaimed));
 });
 
+test('an empty slot is a CLI default, and on the local engine no model at all (#563)', () => {
+  const engine = resolveAiEngine({ order: ['local_api', 'codex_cli'] }, { ...ENV, localModel: '', codexUsable: true });
+  const models = aiPlanRows(engine, () => 'plan', false)[0]?.engines.map((e) => e.model);
+  assert.deepEqual(models, ['no model chosen', 'CLI default']);
+});
+
 test('Screening is a row only while employer mode is on', () => {
   const engine = resolveAiEngine(null, ENV);
   assert.equal(aiPlanRows(engine, () => 'plan', true).at(-1)?.label, 'Screening applicants');

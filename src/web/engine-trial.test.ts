@@ -5,6 +5,7 @@ import {
   recordedVerdicts,
   trialGivesUp,
   trialLine,
+  trialModel,
   trialPairs,
   trialReport,
   TRIAL_SIZE,
@@ -100,6 +101,12 @@ test('the line reads the numbers, and the stale scores are named as a cause', ()
     line,
     'Agreed with the scores on record on 12 of 20: 8 false matches, 0 missed, 35.3 points apart on average. 10.3 s a posting. 3 scores on record are older than the last change to the search: a changed search changes the score.',
   );
+});
+
+test('a trial reads with the model in the slot, a CLI default, and on the local engine nothing until one is chosen (#563)', () => {
+  assert.equal(trialModel('local_api', 'gemma4:e4b'), 'gemma4:e4b');
+  assert.equal(trialModel('local_api', ''), null);
+  assert.equal(trialModel('codex_cli', ''), 'CLI default');
 });
 
 test('a run gives up once its first calls all went unanswered, never after one answered', () => {

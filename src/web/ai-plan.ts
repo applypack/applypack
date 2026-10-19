@@ -60,7 +60,8 @@ export function aiPlanRows(engine: ResolvedAiEngine, billingFor: (id: AiProvider
       engines: p.engines.map((id) => ({
         id,
         label: AI_PROVIDER_LABELS[id],
-        model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || t('ai.cliDefault'),
+        // An empty slot runs a CLI's own default; the local engine runs nothing (#563).
+        model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || t(id === 'local_api' ? 'ai.noModel' : 'ai.cliDefault'),
         billing: billingFor(id),
       })),
     }));

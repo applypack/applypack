@@ -338,6 +338,12 @@ export function providerUnusable(id: AiProviderId, env: AiEngineEnv): boolean {
   }
 }
 
+/** Why Test or a trial cannot call an engine `providerUnusable` turns away, worded as its card words it: a CLI's own sign-in, or a key (#563). */
+export function missingCredentials(id: AiProviderId): string {
+  const how = id === 'gemini_cli' ? 'gemini' : id === 'codex_cli' ? 'codex' : 'key';
+  return t('aiTest.noCredentials', { engine: AI_PROVIDER_LABELS[id], how });
+}
+
 /**
  * Default model per backend per role when the slot is empty. '' means "let
  * the CLI use its own configured default" (the arg builders omit --model).

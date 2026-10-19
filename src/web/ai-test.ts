@@ -1,6 +1,7 @@
 import { getAiProviderById } from '../ai-provider';
 import {
   AI_PROVIDER_LABELS,
+  missingCredentials,
   providerUnusable,
   resolveAiEngine,
   type AiProviderId,
@@ -41,7 +42,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
   if (providerUnusable(provider, env)) {
-    return { ok: false, text: t('aiTest.noCredentials', { engine: label }) };
+    return { ok: false, text: missingCredentials(provider) };
   }
   const engine = resolveAiEngine(settings.aiEngine, env);
   let model = engine.modelFor(provider, 'classifier');

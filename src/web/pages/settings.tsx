@@ -161,6 +161,8 @@ export interface EngineServer {
   more?: string;
   value: string;
   stored: boolean;
+  /** `.env` names the address; otherwise an address not stored here is the built-in default. */
+  fromEnv: boolean;
   local: boolean;
   /** The local engine's context window: the stored choice and the ones offered. */
   context?: { value: number; choices: readonly number[] };
@@ -1587,7 +1589,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                   {words}
                 </span>
               ),
-            })}
+            })}{' '}
             {screening.engineSubscription ? (
               <Badge tone="warn" class="ml-2">
                 {t('settings.personalSubscription')}
@@ -1830,12 +1832,16 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
   <Card variant="subtle" class="mt-3">
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-label text-ink">{server.label}</span>
-      <Badge tone="neutral">{server.stored ? t('settings.saved') : t('settings.fromEnv')}</Badge>
+      <Badge tone="neutral">{server.stored ? t('settings.saved') : server.fromEnv ? t('settings.fromEnv') : t('settings.builtInAddress')}</Badge>
       {server.local && <Badge tone="ok">{t('settings.onThisMachineNoKey')}</Badge>}
       {server.stored && (
         <ActionForm action={server.action} hidden={{ clear: '1' }} class="ml-auto">
-          <Button size="sm" variant="secondary" title={t('settings.forgetThisAddress', { envVar: server.envVar })}>
-            {t('settings.useEnv')}
+          <Button
+            size="sm"
+            variant="secondary"
+            title={server.fromEnv ? t('settings.forgetThisAddress', { envVar: server.envVar }) : t('settings.forgetForDefault')}
+          >
+            {server.fromEnv ? t('settings.useEnv') : t('settings.useDefault')}
           </Button>
         </ActionForm>
       )}
@@ -2080,7 +2086,7 @@ const EngineTrial: FC<{ id: string; trial: TrialView }> = ({ id, trial }) => (
   <div class="mt-4 border-t border-line pt-4">
     <h4 class="text-label text-ink">{t('trial.title')}</h4>
     <Hint class="mt-1">
-      {t('trial.what', { max: TRIAL_SIZE, model: trial.model })}
+      {trial.model === null ? t('trial.whatNoModel', { max: TRIAL_SIZE }) : t('trial.what', { max: TRIAL_SIZE, model: trial.model })}
     </Hint>
     <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
       <ActionForm action="/settings/ai/trial" hidden={{ provider: id }} once>

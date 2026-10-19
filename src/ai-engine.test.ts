@@ -15,6 +15,7 @@ import {
   toggleAiEngine,
   withEngineFirst,
   firstForEveryTask,
+  missingCredentials,
   adoptFoundEngine,
   withEngineTasks,
   type AiEngineEnv,
@@ -437,6 +438,14 @@ describe('tasks per engine', () => {
     const keyless = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: ['anthropic_api'] }), 'local_api', env, 'gemma4:e4b'), env);
     assert.equal(firstForEveryTask(keyless, 'local_api'), true);
     assert.equal(firstForEveryTask(keyless, 'anthropic_api'), false);
+  });
+});
+
+describe('missingCredentials', () => {
+  it('names what an engine that cannot run is missing, as its card does (#563)', () => {
+    assert.equal(missingCredentials('gemini_cli'), 'Gemini CLI has no credentials yet — paste an API key, or log in once with `gemini`.');
+    assert.equal(missingCredentials('codex_cli'), 'Codex CLI has no credentials yet — run `codex login` once.');
+    assert.equal(missingCredentials('anthropic_api'), 'Anthropic API has no credentials yet — paste a key, or set it in .env.');
   });
 });
 
