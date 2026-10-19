@@ -3,12 +3,17 @@
  * each step costs there, measured 2026-09-05 on the reference pair, a
  * 6 000-character resume against a 7 700-character posting
  * (docs/target-plan.md §2.3). The run page states the band for the lane
- * this install is on instead of one "half a minute to a minute" for all.
- * Pure — tested in lane.test.ts.
+ * this install is on instead of one "half a minute to a minute" for all;
+ * once this install's own calls on that engine and model are enough, it
+ * states theirs (#483). Pure — tested in lane.test.ts.
  */
 
+import { AI_PROVIDER_LABELS, isAiProviderId } from '../ai-engine';
+import { slowTail, TIMED_FROM, type AnswerTimes } from '../ai-spend';
+import type { AiFeature } from '../ai-usage';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import { formatDuration } from './format';
 
 export type Lane = 'cli-haiku' | 'cli-sonnet' | 'cli-opus' | 'api-haiku' | 'api-sonnet' | 'api-opus' | 'other';
 type MeasuredLane = Exclude<Lane, 'other'>;
@@ -47,7 +52,21 @@ const BANDS: Record<MeasuredLane, Record<TimedStep, Band>> = {
   'api-opus': { scan: roughly(35), structure: ABOUT_A_MINUTE, keywords: exactly(40), match: exactly(110), suggestions: ABOUT_A_MINUTE, review: ABOUT_A_MINUTE },
 };
 
-export function laneOf(provider: string, model: string): Lane {
+/** The ledger feature whose calls time each step the run page states a band for. */
+const STEP_FEATURE: Readonly<Record<string, AiFeature>> = {
+  brief: 'posting-brief',
+  scan: 'resume-scan',
+  structure: 'resume-structure',
+  keywords: 'resume-match-fast',
+  match: 'resume-match',
+  suggestions: 'resume-suggestions',
+  review: 'resume-review',
+};
+
+/** Every feature a step's time is read from: what the run page asks the ledger for. */
+export const TIMED_FEATURES: readonly AiFeature[] = Object.values(STEP_FEATURE);
+
+function laneOf(provider: string, model: string): Lane {
   const family = /haiku/i.test(model) ? 'haiku' : /sonnet/i.test(model) ? 'sonnet' : /opus/i.test(model) ? 'opus' : null;
   if (!family) return 'other';
   if (provider === 'claude_code') return `cli-${family}`;
@@ -55,18 +74,50 @@ export function laneOf(provider: string, model: string): Lane {
   return 'other';
 }
 
-export function laneLabel(lane: Lane): string {
-  if (lane === 'other') return t('lane.other');
-  const [route, model] = LABEL[lane];
-  return t(route, { model });
-}
-
 /** The measured band for a step on a lane, or null when either is not one we measured. */
-export function bandFor(step: string, lane: Lane): string | null {
+function bandFor(step: string, lane: Lane): string | null {
   if (lane === 'other') return null;
   const bands: Record<string, Band> = BANDS[lane];
   const band = bands[step];
   if (!band) return null;
   const [key, seconds] = band;
   return t(key, seconds === undefined ? {} : { n: seconds });
+}
+
+/** A lane as the run page states it: the lane we measured, and this install's own answered calls on its engine and model. */
+export interface LaneTimes {
+  lane: Lane;
+  /** The engine and the model, as a sentence names them. */
+  name: string;
+  recorded: readonly AnswerTimes[];
+}
+
+/** The engine and model a task's next call goes to — null when no engine takes it — with the ledger's times for that pair. */
+export function laneTimes(target: { engine: string; model: string } | null, times: readonly AnswerTimes[]): LaneTimes {
+  if (!target) return { lane: 'other', name: t('lane.other'), recorded: [] };
+  const lane = laneOf(target.engine, target.model);
+  const engine = isAiProviderId(target.engine) ? AI_PROVIDER_LABELS[target.engine] : target.engine;
+  return {
+    lane,
+    name: lane === 'other' ? `${engine} · ${target.model || t('ai.cliDefault')}` : t(LABEL[lane][0], { model: LABEL[lane][1] }),
+    recorded: times.filter((r) => r.engine === target.engine && r.model === target.model),
+  };
+}
+
+/**
+ * How long a step takes, as the run page says it: this install's own calls
+ * once `TIMED_FROM` of them answered on the engine and model the step will
+ * use — a model on this computer included — else the band measured for the
+ * lane, else null and the page's generic words.
+ */
+export function stepBand(step: string, lane: LaneTimes): string | null {
+  const feature = STEP_FEATURE[step];
+  const own = lane.recorded.find((r) => r.feature === feature);
+  if (own && own.answered >= TIMED_FROM) {
+    const said = { time: formatDuration(own.medianMs), lane: lane.name, n: own.answered };
+    const tail = slowTail(own.answered, own.medianMs, own.p90Ms);
+    return tail === null ? t('target.band.recorded', said) : t('target.band.recordedTail', { ...said, tail: formatDuration(tail) });
+  }
+  const band = bandFor(step, lane.lane);
+  return band ? t('target.band.measured', { band, lane: lane.name }) : null;
 }

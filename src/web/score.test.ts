@@ -7,8 +7,9 @@ import {
   type MatchAlignment,
   type ScoreEntry,
 } from '../resume/score';
-import { anchorStatuses } from '../resume/keyword-anchor';
+import { annotateAliasOnly, anchorStatuses } from '../resume/keyword-anchor';
 import { annotateEvidence } from '../resume/evidence';
+import { countableFlags } from '../resume/red-flags';
 import type { KeywordMatcher } from '../resume/keyword-matcher';
 import { readKeywords, type MatchKeyword } from '../resume/prompts';
 
@@ -222,6 +223,35 @@ test('the live number is the server score of the same text, edit by edit', async
     assert.equal(live.score, expected, label);
     assert.equal(live.cap, cap, label);
   }
+});
+
+/*
+ * Which flags count is decided on the server (red-flags.ts) and the ring holds
+ * that penalty fixed, so a rule about flags reaches it through the stored
+ * breakdown. The case of #204: "PHP 8" found only as "PHP", a flag about the
+ * version, and one flag no keyword answers.
+ */
+test('a flag about a term found only through its alias costs nothing, on the ring as in the store (#204)', async () => {
+  const { entriesFromLive, computeScore } = await browser;
+  // @ts-expect-error — plain JS with no declaration file.
+  const matcher = (await import('./public/target.mjs')) as KeywordMatcher & {
+    scoreKeywords: (keywords: MatchKeyword[], text: string) => { rows: Record<string, unknown>[] };
+  };
+  const text = 'Backend Developer\nBuilt order flows in PHP for 200 shops, cutting checkout time by 30%.\nSkills: MySQL, Redis';
+  const keywords = readKeywords([
+    { term: 'PHP 8', priority: 1, requirement: 'must', primary: true, status: 'cannot_claim', aliases: ['php'] },
+    { term: 'MySQL', priority: 1, requirement: 'preferred', primary: false, status: 'present', aliases: [] },
+  ]);
+  const flags = ['Only PHP is named; nothing says PHP 8', 'The posting requires on-site work in Berlin'];
+  const alignment: MatchAlignment = { title: 'strong', summary: 'partial', recent_role: 'strong' };
+  // match.ts's order: presence off the text, the alias-only mark, the grade, then the flags.
+  const anchored = anchorStatuses(keywords, text, matcher).keywords;
+  const stored = annotateEvidence(annotateAliasOnly(anchored, text, matcher), text, matcher).keywords;
+  const server = computeScoreTs(entriesFromKeywords(stored), alignment, countableFlags(flags, stored, matcher).counted.length);
+  assert.equal(server.penalty, 10, 'the on-site flag costs its ten points, the PHP 8 one none');
+  // The target page hands the ring the raw flag count and the stored penalty; the penalty is what counts.
+  const live = computeScore(entriesFromLive(matcher.scoreKeywords(stored, text).rows), alignment, flags.length, server.penalty);
+  assert.deepEqual([live.score, live.ceiling, live.penalty], [server.score, server.ceiling, server.penalty]);
 });
 
 test('an either/or group is one requirement, not three (ADR 0044)', () => {

@@ -52,6 +52,8 @@ import { fetchCareerPage } from './career-page';
 import { fetchFolder } from './folder';
 import { alertsOff } from '../datasets/map';
 import { currentFolderRules } from '../datasets/folder-io';
+import { rulesKey } from '../datasets/folder-scan';
+import { mutedKeys } from '../jobs/employer-store';
 import { loadLedger, loadStoredPostings } from '../jobs/source-file-store';
 import { config } from '../config';
 import { localInstall } from '../local/install';
@@ -156,7 +158,8 @@ export async function runAllFetchers(
   // Where the running searches hunt (stage 3a): sources with a geo filter
   // ask for these places instead of the whole world. Blank searches are
   // left out here as they are in process-jobs — they gate on nothing.
-  const usable = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  const active = await listActiveProfiles();
+  const usable = active.filter((p) => !isBlankProfile(p));
   const places = opts.places ?? searchPlaces(usable);
   if (places.countries.length > 0 || places.regions.length > 0) {
     logger.info(places, 'fetchers: geo-filtered sources follow the searches');
@@ -165,7 +168,10 @@ export async function runAllFetchers(
   const scoring = settings.fetchingEnabled && usable.length > 0;
   // The keyed sources' credentials ride in the context (ADR 0034); the
   // context is never logged whole from here on.
-  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now, scoring };
+  // What a folder's rows are judged under, as process-jobs judges them: the filter of the searches it scores with, or of
+  // every running one while it stores unscored, the mutes and the re-apply window (#448).
+  const rules = rulesKey(settings.fetchingEnabled ? usable : active, await mutedKeys(), settings.reapplyDays);
+  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now, scoring, rulesKey: rules };
   // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
   // beyond that are refused, not silently fetched (ADR 0034). The ids come
   // from their own query over the FULL active list, not from this tick's due
@@ -198,6 +204,8 @@ export async function runAllFetchers(
       const jobs = await fetchOne(company, context);
       // A date written while this answer was mapped is the clock's, not the posting's (#379).
       markClockDated(jobs, startedAt);
+      // The read before this one, as the row still holds it: the health write below moves it (#459).
+      if (company.lastOkAt) for (const job of jobs) job.previousRead = company.lastOkAt;
       count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
       // that matches nothing is not a broken board (ADR 0019).
@@ -433,6 +441,7 @@ export async function fetchOne(
         now: new Date(),
         scoring: context.scoring !== false,
         stored: () => loadStoredPostings(company.id),
+        rulesKey: context.rulesKey,
       });
   }
 }
