@@ -4,8 +4,8 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { classifyJob } from '../classifier';
-import { anyBaseFilterReason, passesAnyBaseFilter } from '../filter';
-import { DISMISS_KEY, FILTER_KEY, scorePassCounts } from '../funnel';
+import { anyBaseFilterReason } from '../filter';
+import { DISMISS_KEY, FILTER_KEY, isFirstScoring, scorePassCounts } from '../funnel';
 import { addCountsToDay } from './funnel-store';
 import { getActiveProfile, listActiveProfiles } from '../profiles';
 import { getSettings } from '../settings';
@@ -38,7 +38,11 @@ export interface ReclassifyOptions {
  * pasted or saved as a file (rescore-status.ts).
  */
 export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
-  return reclassify({});
+  const started = new Date();
+  const { stats, firstScoring } = await reclassify({});
+  // Postings a paused fetch stored unscored, scored here for the first time: the Overview's chart and /runs's funnel count them (#552).
+  await addCountsToDay(started, scorePassCounts(firstScoring));
+  return { stats };
 }
 
 /**
@@ -109,7 +113,7 @@ export async function runScoreUnscored(
   return { stats: out };
 }
 
-async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }> {
+async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats; firstScoring: Record<string, number> }> {
   const started = Date.now();
   // Issue #50: re-scoring against a blank search would overwrite real scores
   // with vibes-based ones and demote most of the inbox, so blank rows are
@@ -117,7 +121,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
   if (profiles.length === 0) {
     logger.warn('reclassify-all: no usable active search');
-    return { stats: { aborted: 1, reason: 'no-active-profile' } };
+    return { stats: { aborted: 1, reason: 'no-active-profile' }, firstScoring: {} };
   }
 
   const { classifierMode } = await getSettings();
@@ -154,6 +158,12 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   // Why the last failed call failed — "no API key", "HTTP 401 …" — so the
   // flash and /runs can say it instead of leaving it to the container logs (#97).
   let lastError: string | null = null;
+  // The same counts for the rows scored here for the first time, under the names scorePassCounts reads.
+  const firstScoring: Record<string, number> = {};
+  const countFirst = (j: { fitScore: number | null; status: JobStatus }, ...keys: string[]): void => {
+    if (!isFirstScoring(j)) return;
+    for (const key of keys) firstScoring[key] = (firstScoring[key] ?? 0) + 1;
+  };
 
   const limit = createLimiter(config.AI_CONCURRENCY);
   let lastId = 0;
@@ -176,11 +186,12 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     // says, as it was when it came in (ADR 0062).
     const pending = batch.map((j) => {
       const chosen = handPickedSource(j.company);
-      const scored = chosen || passesAnyBaseFilter(j, profiles);
+      const rejected = chosen ? null : anyBaseFilterReason(j, profiles);
       return {
         job: j,
         chosen,
-        outcome: scored
+        rejected,
+        outcome: rejected === null
           ? limit(() =>
               classifyJob(
                 {
@@ -222,19 +233,21 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
         demoted++;
       }
     };
-    for (const { job: j, chosen, outcome } of pending) {
+    for (const { job: j, chosen, rejected, outcome } of pending) {
       scanned++;
       opts.onProgress?.(scanned, total);
 
       if (outcome === null) {
         turnDown(j, chosen);
         filterRejected++;
+        if (rejected !== null) countFirst(j, 'filterDismissed', FILTER_KEY[rejected]);
         continue;
       }
 
       const { results, location, preFiltered: wasPreFiltered } = await outcome;
       if (wasPreFiltered) {
         preFiltered++;
+        countFirst(j, 'preFiltered');
         // Reclassify treats pre-filtered jobs the same as base-filter rejects:
         // they leave the inbox.
         turnDown(j, chosen);
@@ -242,6 +255,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
       }
       if (results.size === 0) {
         failed++;
+        countFirst(j, 'failed');
         continue;
       }
 
@@ -250,13 +264,21 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
       const merged = mergeVerdicts(verdicts);
       if (!merged) {
         failed++;
+        countFirst(j, 'failed');
         continue;
       }
       reclassified++;
-      if (merged.kept) matched++;
+      countFirst(j, 'reclassified');
+      if (merged.kept) {
+        matched++;
+        countFirst(j, 'matched');
+      }
       priorityBoosted += boosted;
 
-      if (!merged.kept && merged.winner.dismissReason) dismissedBy[DISMISS_KEY[merged.winner.dismissReason]]++;
+      if (!merged.kept && merged.winner.dismissReason) {
+        dismissedBy[DISMISS_KEY[merged.winner.dismissReason]]++;
+        countFirst(j, DISMISS_KEY[merged.winner.dismissReason]);
+      }
       const targetStatus = statusAfterRescore(j.status, merged.kept, chosen);
 
       await saveJobScores(j, merged, verdicts, targetStatus, place);
@@ -295,5 +317,5 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     durationMs,
   };
   logger.info(stats, 'reclassify-all: done');
-  return { stats };
+  return { stats, firstScoring };
 }
