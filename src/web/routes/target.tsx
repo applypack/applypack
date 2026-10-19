@@ -139,9 +139,12 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   const resume = await resolveResumeSource(form, f);
   if ('error' in resume) return flashRedirect('/target', 'err', resume.error);
 
-  // A posting the dashboard stores already is that job (#609, as Cover letter
-  // does since #579): its link, else its text. No second copy, no second reading.
-  const storedId = (f.url ? (await findJobByUrl(f.url))?.id : undefined) ?? (await findJobByText(f.description, f.title));
+  // A posting the dashboard stores already is that job (#609): no second copy,
+  // no second reading. Its text decides, as on Cover letter (#579), and a
+  // stored job's link names the role when no title was typed. The link alone
+  // could hand back a stored teaser in place of the whole posting pasted here.
+  const linked = f.url ? await findJobByUrl(f.url) : null;
+  const storedId = await findJobByText(f.description, f.title || linked?.title);
   const stored = storedId === null ? null : await storedJob(storedId);
   if (stored) return compareStored(c, stored, resume, f.mode, '/target');
 
