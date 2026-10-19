@@ -14,6 +14,7 @@ import {
   taskPlans,
   toggleAiEngine,
   withEngineFirst,
+  firstForEveryTask,
   adoptFoundEngine,
   withEngineTasks,
   type AiEngineEnv,
@@ -428,6 +429,14 @@ describe('tasks per engine', () => {
     // The same when the engines behind it cannot run here (no key).
     const keyless = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: ['anthropic_api'] }), 'local_api', env, 'gemma4:e4b'), env);
     assert.deepEqual(keyless.chainFor('letters'), ['local_api']);
+  });
+
+  it('says whether the engine "Use it" put first answers every task (#527)', () => {
+    const behind = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: ['claude_code'] }), 'local_api', env, 'gemma4:e4b'), env);
+    assert.equal(firstForEveryTask(behind, 'local_api'), false);
+    const keyless = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: ['anthropic_api'] }), 'local_api', env, 'gemma4:e4b'), env);
+    assert.equal(firstForEveryTask(keyless, 'local_api'), true);
+    assert.equal(firstForEveryTask(keyless, 'anthropic_api'), false);
   });
 });
 

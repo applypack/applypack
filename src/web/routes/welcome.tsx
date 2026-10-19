@@ -31,6 +31,7 @@ import {
   AI_PROVIDER_LABELS,
   adoptFoundEngine,
   aiEngineOrder,
+  firstForEveryTask,
   isAiProviderId,
   parseAiEngineConfig,
   resolveAiEngine,
@@ -222,9 +223,12 @@ welcomeRoute.post('/welcome/ai/local', async (c) => {
   }
   await (engine === 'local_api' ? setLocalAiUrl(checked.url) : setOpenAiBaseUrl(checked.url));
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
-  await setAiEngineConfig(withEngineFirst(parseAiEngineConfig(settings.aiEngine), engine, getAiEngineEnv(keys, settings.openAiBaseUrl), model));
+  const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
+  const next = withEngineFirst(parseAiEngineConfig(settings.aiEngine), engine, env, model);
+  await setAiEngineConfig(next);
   forgetAiProbe();
-  return flashRedirect(AI_STEP, 'ok', t('welcome.flash.localFirst', { model }));
+  const alone = firstForEveryTask(resolveAiEngine(next, env), engine);
+  return flashRedirect(AI_STEP, 'ok', t(alone ? 'welcome.flash.localAlone' : 'welcome.flash.localFirst', { model }));
 });
 
 /**

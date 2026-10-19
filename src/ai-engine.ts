@@ -263,6 +263,11 @@ export function withEngineFirst(config: AiEngineConfig, id: AiProviderId, env: A
   };
 }
 
+/** Whether `id` is the engine asked first for every task: what it was not given falls to it, nothing standing behind it (#527). */
+export function firstForEveryTask(engine: ResolvedAiEngine, id: AiProviderId): boolean {
+  return AI_TASKS.every((task) => engine.chainFor(task)[0] === id);
+}
+
 /** The tasks an engine can be given at all: one that cannot search the web is never offered the web check. */
 export function offeredTasks(id: AiProviderId): AiTask[] {
   return AI_TASKS.filter((t) => t !== 'verify' || PROVIDER_WEB_TOOLS[id]);
