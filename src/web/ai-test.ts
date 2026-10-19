@@ -89,7 +89,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
   // A test is a real call on the user's money: it goes in the ledger like any other (ADR 0055).
   await recordAiCall({
     at: new Date(started),
-    durationMs: Date.now() - started,
+    durationMs: Date.now() - started - (attempt.queuedMs ?? 0),
     engine: provider,
     model,
     feature: 'engine-test',

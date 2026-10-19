@@ -233,3 +233,19 @@ test('a call that names its engine goes to that engine alone, in the list or not
     ['local_api', 'ok', false],
   ]);
 });
+
+test('the ledger times the engine, not the wait for its one slot on a local server (#564)', async () => {
+  let clock = 0;
+  const engine = resolveAiEngine({ order: ['local_api'], models: { local_api: { classifier: 'gemma4:e4b' } } }, ENV);
+  const h = harness({}, { now: () => clock });
+  h.deps.providerFor = (id) => ({
+    name: id,
+    complete: async () => {
+      // Behind two scoring calls for 4.5 s, then 1.2 s of its own.
+      clock += 4_500 + 1_200;
+      return { ...answer('{"ok":true}'), queuedMs: 4_500 };
+    },
+  });
+  await runChain(engine, REQ, h.ctx, h.deps);
+  assert.deepEqual(h.rows.map((r) => [r.engine, r.outcome, r.durationMs]), [['local_api', 'ok', 1_200]]);
+});
