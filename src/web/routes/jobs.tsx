@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import { jobSpend, typicalCost } from '../../ai-ledger';
 import { costHintText, jobSpendText } from '../../ai-spend';
+import { spendHint } from '../cost-hint';
 import { displayZone } from '../display-zone';
 import { idParam, intQuery } from '../params';
 import { JobStatus, type Prisma } from '@prisma/client';
@@ -564,6 +565,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         job: { title: job.title, companyName: companyForPage(job.employer, job.company) },
         verification: verifications[0] ?? null,
         costHint: costHintText(matchCost),
+        rebuildCost: await spendHint('resume-match'),
       }}
       applicationPack={applicationPack}
       coverLetters={{
@@ -874,7 +876,9 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     resultUrl: (matchId) => (toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`),
     label: draft ? t('jobRoute.match.draft') : `"${resume.name}"`,
     draft,
-  });
+  }, toTarget
+    ? { url: `/jobs/${id}/target${base ? `?match=${base.id}` : ''}`, label: t('target.run.backToComparison') }
+    : { url: jobHref(id, 'match'), label: t('job.backToTheJob') });
 });
 
 
@@ -1158,6 +1162,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
       seed={pack?.matchId === match.id ? tailorSeed(pack) : null}
+      rebuildCost={await spendHint('resume-match')}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -1206,7 +1211,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     force: false,
     resultUrl: (matchId) => `/jobs/${id}/target?match=${matchId}`,
     label: `"${upload.sourceFilename}"`,
-  });
+  }, { url: `/jobs/${id}/target${base ? `?match=${base.id}` : ''}`, label: t('target.run.backToComparison') });
 });
 
 /** The person the verifier found, as the letter's prefilled greeting, with the finding beside it (#162 stage 4). */

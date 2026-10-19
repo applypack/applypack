@@ -131,7 +131,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       force: false,
       resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
       label: `"${resume.name}"`,
-    });
+    }, { url: back, label: t('target.run.backToTarget') });
   }
 
   if (f.description.length < MIN_DESCRIPTION_CHARS) {

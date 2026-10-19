@@ -895,9 +895,21 @@ export const ConfirmAction: FC<{
   /** For a label that needs more than its words ("Delete" on a row). */
   ariaLabel?: string;
   disabled?: boolean;
-}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled }) => {
+  /**
+   * The real button submits this form of the page instead of one of its own —
+   * a form that carries what the page holds, such as the editor's text; its
+   * `onclick` runs first. `action` and `hidden` then only name the question.
+   */
+  submits?: { form: string; onclick?: string };
+}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled, submits }) => {
   // The same action with the same fields is the same question, so one id per question on a page.
   const id = `confirm-${hashShortId(`${action}\n${label}\n${JSON.stringify(hidden ?? {})}`)}`;
+  const yesVariant = variant === 'ghost' ? 'danger' : variant;
+  const cancel = (
+    <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
+      {t('ui.cancel')}
+    </Button>
+  );
   const parts = disabled ? (
     <button type="button" class={buttonClass(variant, size)} disabled>
       {label}
@@ -915,15 +927,22 @@ export const ConfirmAction: FC<{
         class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
         <p>{confirm}</p>
-        <form method="post" action={action} class="mt-3 flex justify-end gap-2">
-          {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
-          <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
-            {t('ui.cancel')}
-          </Button>
-          <Button variant={variant === 'ghost' ? 'danger' : variant} size="sm">
-            {yes ?? label}
-          </Button>
-        </form>
+        {submits ? (
+          <div class="mt-3 flex justify-end gap-2">
+            {cancel}
+            <Button variant={yesVariant} size="sm" form={submits.form} onclick={submits.onclick}>
+              {yes ?? label}
+            </Button>
+          </div>
+        ) : (
+          <form method="post" action={action} class="mt-3 flex justify-end gap-2">
+            {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
+            {cancel}
+            <Button variant={yesVariant} size="sm">
+              {yes ?? label}
+            </Button>
+          </form>
+        )}
       </div>
     </>
   );

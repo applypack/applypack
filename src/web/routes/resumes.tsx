@@ -256,8 +256,10 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     jobId: job?.id,
     heading: { running: t('resume.run.draftRunning'), failed: t('resume.run.draftFailed') },
     subtitle: t('resume.run.saving'),
-    backUrl: `/resumes/${id}`,
-    backLabel: t('resume.backToResume'),
+    // Saved from Tailor resume, the run goes back there and its result lands there (#580).
+    ...(job
+      ? { backUrl: `/jobs/${job.id}/target`, backLabel: t('target.run.backToComparison') }
+      : { backUrl: `/resumes/${id}`, backLabel: t('resume.backToResume') }),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
