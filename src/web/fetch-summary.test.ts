@@ -20,8 +20,8 @@ test('a paused-pipeline run reports unscored storage and no AI spend', () => {
 test("the setup wizard's test search leaves the scoring to its last step, and never says paused", () => {
   const { kind, text } = summarizeFetchRun({ ...base, classify: false, filterRejected: 55, rejectedWorkplace: 55 }, 'Test search', true);
   assert.equal(kind, 'ok');
-  assert.match(text, /^Test search: 312 jobs from 71 sources in 40\.0s — 118 new stored\. The filter set aside 55: 55 .*\. Setup scores the best of them at its last step/);
-  assert.doesNotMatch(text, /paused|Save & re-classify/);
+  assert.match(text, /^Test search: 312 jobs from 71 sources in 40\.0s — 118 new stored\. The filter set aside 55: all in an arrangement you did not pick\. Setup scores the best of them at its last step/);
+  assert.doesNotMatch(text, /paused|Score them/);
 });
 
 test('a running-pipeline run reports scored and alerted counts', () => {
@@ -31,10 +31,12 @@ test('a running-pipeline run reports scored and alerted counts', () => {
   assert.match(text, /118 new stored, 100 scored, 5 alerted\./);
 });
 
-test('a run the filter thinned says which gates took the most (N2)', () => {
+test('a run the filter thinned says which gates took the most, and what the rest add up to (N2, #539)', () => {
   const stats = { ...base, persisted: 0, classified: 0, filterRejected: 300, rejectedTitle: 270, rejectedPlace: 25, rejectedExcluded: 5 };
-  assert.match(summarizeFetchRun(stats).text, /0 alerted\. The filter set aside 300: 270 without a title keyword, 25 outside your places\.$/);
-  assert.match(summarizeFetchRun({ ...stats, classify: false }).text, /paused\. The filter set aside 300: .* Score them later/);
+  assert.match(summarizeFetchRun(stats).text, /0 alerted\. The filter set aside 300: 270 without a title keyword, 25 outside your places and 5 more\.$/);
+  assert.match(summarizeFetchRun({ ...stats, rejectedExcluded: 0, filterRejected: 295 }).text, /The filter set aside 295: 270 without a title keyword, 25 outside your places\.$/);
+  // #536: what a paused run stored is scored by Score them, which scores only those — not Save & re-classify, which scores everything.
+  assert.match(summarizeFetchRun({ ...stats, classify: false }).text, /paused\. The filter set aside 300: .* To score them, press “Score them” on the Overview or on Jobs\.$/);
   // A run from before the counters, or one the filter left alone, says nothing about it.
   assert.doesNotMatch(summarizeFetchRun({ ...base, filterRejected: 300 }).text, /filter/);
 });

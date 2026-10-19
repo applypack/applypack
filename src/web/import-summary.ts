@@ -1,6 +1,6 @@
 import type { ImportBlock } from '../datasets/preview';
 import type { CronStats } from '../jobs/cron-run';
-import { filteredReasons, funnelCounts, reasonsText } from '../funnel';
+import { FLASH_REASONS, filteredReasons, funnelCounts, reasonsText } from '../funnel';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
 import type { FlashKind } from './flash';
@@ -36,10 +36,11 @@ export function summarizeImport(stats: CronStats, fileName: string, source: stri
   if (stats.skippedBlankProfile === 1) return { kind: 'warn', text: t('import.summary.blank', { file: fileName }) };
   const stored = num(stats, 'persisted');
   const known = num(stats, 'duplicate');
-  const why = reasonsText(filteredReasons(funnelCounts(stats)), 2);
+  const filtered = num(stats, 'filterRejected');
+  const why = reasonsText(filteredReasons(funnelCounts(stats)), { max: FLASH_REASONS, total: filtered });
   const tail = [
     known > 0 ? t('import.summary.known', { n: known }) : null,
-    why ? t('import.summary.filtered', { n: num(stats, 'filterRejected'), why }) : null,
+    why ? t('import.summary.filtered', { n: filtered, why }) : null,
   ];
   const head = { file: fileName, source, rows: num(stats, 'fetched'), stored };
   if (stats.classify === false) {

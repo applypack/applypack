@@ -323,7 +323,7 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
               <ul class="space-y-1 text-sm text-ink">
                 <li>{t('folders.rows.usable', { usable: counts.usable, stored: counts.stored })}</li>
                 <li>{t('import.preview.passing', { fresh, passing: counts.passing, turnedAway: counts.turnedAway })}</li>
-                {counts.passing > 0 && <li>{scoring ? `${t('folders.rows.cost', { n: counts.passing })} ${cost}` : t('folders.rows.paused')}</li>}
+                {counts.passing > 0 && <li>{scoring ? `${t('folders.rows.cost', { n: counts.passing })} ${cost}` : `${t('folders.rows.paused')} ${t('fetchSummary.scoreLater')}`}</li>}
                 {misfits > 0 && <li>{t('folders.rows.misfits', { n: misfits })}</li>}
                 {mapping.employer === null && counts.passing > 0 && <li>{t('import.noCompanyColumn')}</li>}
               </ul>
@@ -459,7 +459,7 @@ const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, ex
             <SectionTitle>{t('folders.nextCheck')}</SectionTitle>
             <ul class="space-y-1 text-sm text-ink">
               <li>{t('folders.postings.oneJob')}</li>
-              <li>{scoring ? `${t('folders.postings.cost', { newest: newest.length, asking })} ${cost}` : t('folders.postings.paused')}</li>
+              <li>{scoring ? `${t('folders.postings.cost', { newest: newest.length, asking })} ${cost}` : `${t('folders.postings.paused')} ${t('fetchSummary.scoreLater')}`}</li>
               <li>{t('folders.postings.readOnce', { textMb: maxBytesOf('html') / (1024 * 1024), docMb: maxBytesOf('pdf') / (1024 * 1024) })}</li>
               <li>{t('folders.postings.privacy')}</li>
             </ul>
