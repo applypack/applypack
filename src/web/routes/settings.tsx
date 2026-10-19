@@ -153,7 +153,7 @@ import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SourceKeyRow } from '../pages/settings';
+import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SettingsTab, type SourceKeyRow } from '../pages/settings';
 import { profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
@@ -257,7 +257,7 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 }
 
 /** `here` is the address this page was asked at: the example the dashboard address field offers. */
-async function loadSettingsProps(here: string) {
+async function loadSettingsProps(here: string, tab: SettingsTab) {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
@@ -384,7 +384,12 @@ async function loadSettingsProps(here: string) {
   }
   const keys = await getSourceKeys();
   const screeningCount = await prisma.screening.count();
-  const [reclassifyJobs, scoringCost] = await Promise.all([countReclassifyAll(), spendHint('classifier')]);
+  // "Save & re-classify" is on the Job search tab alone: the jobs are counted and the cost read for it only (#607).
+  let reclassifyAsk = '';
+  if (tab === 'profile') {
+    const [jobs, cost] = await Promise.all([countReclassifyAll(), spendHint('classifier')]);
+    reclassifyAsk = reclassifyQuestion(jobs, cost);
+  }
   const screeningEngine = engine.chainFor('screening')[0]!;
   const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const aiStatus = {
@@ -445,7 +450,7 @@ async function loadSettingsProps(here: string) {
       line: profileLine(p),
     })),
     activeProfile: active,
-    reclassifyQuestion: reclassifyQuestion(reclassifyJobs, scoringCost),
+    reclassifyQuestion: reclassifyAsk,
     availableTargets: targets.map((target) => ({
       id: target.id,
       name: target.name,
@@ -474,9 +479,9 @@ async function loadSettingsProps(here: string) {
 }
 
 settingsRoute.get('/settings', async (c) => {
-  const props = await loadSettingsProps(new URL(c.req.url).origin);
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
+  const props = await loadSettingsProps(new URL(c.req.url).origin, activeTab);
   // ?profile= points the editor at a specific (possibly inactive) profile.
   // "+ New profile" lands here: new profiles are born inactive (issue #50)
   // and must be editable before activation.
@@ -517,7 +522,7 @@ async function settingsAgain(
   text: string,
   field?: string,
 ): Promise<Response> {
-  const props = await loadSettingsProps(new URL(c.req.url).origin);
+  const props = await loadSettingsProps(new URL(c.req.url).origin, page.activeTab);
   const flash = { kind: 'err' as const, text, ...(field ? { field: { form: c.req.path, name: field } } : {}) };
   return c.html(<SettingsPage {...props} {...page} flash={flash} />, 422);
 }
