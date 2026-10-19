@@ -141,3 +141,12 @@ predate the search's last edit.
 - **Scoring only.** Reading a pasted posting, the issue's last bullet, would
   compare the extracted title and company with the stored row; it is not
   built. The other tasks have no answer on record to compare with.
+
+## Addendum (2026-10-19): screening follows Resume analysis on every save
+
+"An engine that already has a list keeps its choice" did not hold up (#551):
+unticking Reading a resume, then Resume analysis, then Cover letters, one
+save each, left Screening ticked on the local model — the first save, made
+while Resume analysis was still ticked, put it there, and every later save
+kept it. While employer mode is off, every save now sends Screening where
+Resume analysis goes. With employer mode on, its own box decides, as before.

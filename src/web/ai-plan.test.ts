@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { aiPlanRows, pickedTasks, planSummary, taskShown, tasksSaved } from './ai-plan';
-import { resolveAiEngine, type AiEngineEnv } from '../ai-engine';
+import { resolveAiEngine, withEngineTasks, type AiEngineConfig, type AiEngineEnv } from '../ai-engine';
 
 const ENV: AiEngineEnv = {
   provider: 'claude_code',
@@ -45,17 +45,24 @@ test('a save answers in the tasks the page shows, never one it hides', () => {
   assert.equal(tasksSaved('Claude Code CLI', [], true), 'Claude Code CLI takes no task now. It answers only one that no other engine takes.');
 });
 
-test('while the page hides Screening, a first list sends it where Resume analysis goes, and a later one keeps it', () => {
+test('while the page hides Screening, every save sends it where Resume analysis goes', () => {
   // A local model narrowed to scoring is not handed applicants by a box nobody saw.
-  assert.deepEqual(pickedTasks(['scoring'], false, undefined), ['scoring']);
-  assert.deepEqual(pickedTasks(['scoring', 'screening'], false, undefined), ['scoring']);
-  assert.deepEqual(pickedTasks(['resume-read', 'analysis', 'letters'], false, undefined), ['resume-read', 'analysis', 'letters', 'screening']);
-  // A choice made with the box in sight survives a save made without it, either way.
-  assert.deepEqual(pickedTasks(['scoring', 'analysis'], false, ['scoring', 'analysis']), ['scoring', 'analysis']);
-  assert.deepEqual(pickedTasks(['scoring'], false, ['screening']), ['scoring', 'screening']);
+  assert.deepEqual(pickedTasks(['scoring'], false), ['scoring']);
+  assert.deepEqual(pickedTasks(['scoring', 'screening'], false), ['scoring']);
+  assert.deepEqual(pickedTasks(['resume-read', 'analysis', 'letters'], false), ['resume-read', 'analysis', 'letters', 'screening']);
   // With its own box on the page, the box decides.
-  assert.deepEqual(pickedTasks(['analysis'], true, ['screening']), ['analysis']);
-  assert.deepEqual(pickedTasks(['scoring', 'screening'], true, undefined), ['scoring', 'screening']);
+  assert.deepEqual(pickedTasks(['analysis'], true), ['analysis']);
+  assert.deepEqual(pickedTasks(['scoring', 'screening'], true), ['scoring', 'screening']);
+});
+
+test('unticking the resume tasks one save at a time takes screening away with Resume analysis (#551)', () => {
+  let config: AiEngineConfig = { order: ['claude_code', 'local_api'], models: {}, tasks: {} };
+  const stored: (readonly string[] | undefined)[] = [];
+  for (const sent of [['scoring', 'analysis', 'letters'], ['scoring', 'letters'], ['scoring']] as const) {
+    config = withEngineTasks(config, 'local_api', pickedTasks([...sent], false));
+    stored.push(config.tasks.local_api);
+  }
+  assert.deepEqual(stored, [['scoring', 'analysis', 'letters', 'screening'], ['scoring', 'letters'], ['scoring']]);
 });
 
 test('the plan in a sentence: one engine for everything, and who stands behind it', () => {

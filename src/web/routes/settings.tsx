@@ -716,7 +716,7 @@ settingsRoute.post('/settings/ai/tasks', async (c) => {
   }
   const settings = await getSettings();
   const config = parseAiEngineConfig(settings.aiEngine);
-  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode, config.tasks[provider]);
+  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode);
   const next = withEngineTasks(config, provider, picked);
   await setAiEngineConfig(next);
   if (wantsJson) return c.json({ ok: true });

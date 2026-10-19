@@ -25,17 +25,15 @@ export function taskShown(task: AiTask, employerMode: boolean): boolean {
 
 /**
  * The boxes a save sent, as the tasks they stand for. While the page hides
- * Screening, an engine that already has a list keeps the choice in it — it
- * may have been made on purpose, with the box in sight. An engine with no
- * list yet gets Screening where Resume analysis goes, the same kind of
- * reading on the same model slot: one narrowed to scoring is never handed
- * other people's resumes by a box nobody could see.
+ * Screening, every save sends it where Resume analysis goes, the same kind of
+ * reading on the same model slot: an engine narrowed to scoring is never
+ * handed other people's resumes by a box nobody could see, however many
+ * saves it took to narrow it (#551).
  */
-export function pickedTasks(sent: readonly AiTask[], employerMode: boolean, previous: readonly AiTask[] | undefined): AiTask[] {
+export function pickedTasks(sent: readonly AiTask[], employerMode: boolean): AiTask[] {
   if (employerMode) return [...sent];
   const shown = sent.filter((task) => task !== 'screening');
-  const screening = previous ? previous.includes('screening') : shown.includes('analysis');
-  return screening ? [...shown, 'screening'] : shown;
+  return shown.includes('analysis') ? [...shown, 'screening'] : shown;
 }
 
 /**
