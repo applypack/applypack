@@ -31,10 +31,16 @@ export interface LedgerInput {
   packId?: number;
 }
 
-/** The `ai_call` columns for one attempt. A local call is free and carries no cost at all. */
+/**
+ * The `ai_call` columns for one attempt. A local call is free and carries no
+ * cost at all. The tokens are the answering model's; the cost counts every
+ * model the call ran, and is "not priced" when one of them is.
+ */
 export function ledgerRow(i: LedgerInput) {
   const usage = i.spend?.usage ?? null;
-  const priced = usage && i.billing !== 'local' ? costMicroUsd(i.spend?.model ?? (i.model || null), usage) : null;
+  const parts = usage && i.billing !== 'local' ? [{ model: i.spend?.model ?? (i.model || null), usage }, ...(i.spend?.alongside ?? [])] : [];
+  const costs = parts.map((p) => costMicroUsd(p.model, p.usage));
+  const priced = costs.length > 0 && costs.every((c): c is number => c !== null) ? costs.reduce((a, b) => a + b, 0) : null;
   const reported = i.spend?.reportedUsd;
   return {
     at: i.at,

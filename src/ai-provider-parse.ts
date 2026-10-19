@@ -58,8 +58,22 @@ const ClaudeCodeResultSchema = z.object({
   num_turns: z.number().optional(),
   total_cost_usd: z.number().optional(),
   usage: AnthropicUsageSchema.optional(),
-  modelUsage: z.record(z.string(), z.object({ outputTokens: z.number().optional() }).passthrough()).optional(),
+  modelUsage: z
+    .record(
+      z.string(),
+      z
+        .object({
+          inputTokens: z.number().optional(),
+          outputTokens: z.number().optional(),
+          cacheReadInputTokens: z.number().optional(),
+          cacheCreationInputTokens: z.number().optional(),
+          webSearchRequests: z.number().optional(),
+        })
+        .passthrough(),
+    )
+    .optional(),
 });
+type CliModelUsage = NonNullable<z.infer<typeof ClaudeCodeResultSchema>['modelUsage']>[string];
 
 /** What one CLI call spent — logged per call, so a slow call, a throttled call and a thinking call stop looking alike (#168). */
 export interface CliUsage {
@@ -285,10 +299,12 @@ export function parseClaudeCodeOutput(raw: string): CliOutcome {
     return { text: null, rateLimited: false, error: 'claude-code: unexpected result shape' };
   }
   const r = parsed.data;
+  const { main, helpers } = cliModels(r.usage, r.modelUsage);
   const spend: AiSpend = {
-    usage: anthropicUsage(r.usage),
-    model: mainModel(r.modelUsage),
+    usage: { ...anthropicUsage(r.usage), webSearches: cliSearches(r.usage, r.modelUsage) },
+    model: main,
     reportedUsd: typeof r.total_cost_usd === 'number' ? r.total_cost_usd : null,
+    ...(helpers.length > 0 ? { alongside: helpers.map(([model, m]) => ({ model, usage: helperUsage(m) })) } : {}),
   };
   if (r.is_error || r.subtype !== 'success') {
     const message = r.result ?? r.subtype;
@@ -312,11 +328,42 @@ export function parseClaudeCodeOutput(raw: string): CliOutcome {
   };
 }
 
-/** The model that did the work: the one with the most output, when the CLI ran more than one. */
-function mainModel(models: Record<string, { outputTokens?: number }> | undefined): string | null {
+/**
+ * The model that wrote the answer, and the ones the CLI ran beside it (#583):
+ * its WebSearch tool reads the results with Haiku, which can write more than
+ * the model asked. The top-level `usage` is the conversation's own, so the
+ * model whose tokens are those wrote the answer; failing that, the one that
+ * wrote the most.
+ */
+function cliModels(
+  usage: AnthropicUsage | undefined,
+  models: Record<string, CliModelUsage> | undefined,
+): { main: string | null; helpers: [string, CliModelUsage][] } {
   const entries = Object.entries(models ?? {});
-  if (entries.length === 0) return null;
-  return entries.reduce((best, cur) => ((cur[1].outputTokens ?? 0) > (best[1].outputTokens ?? 0) ? cur : best))[0];
+  if (entries.length === 0) return { main: null, helpers: [] };
+  const own = entries.find(([, m]) => usage !== undefined && m.inputTokens === usage.input_tokens && m.outputTokens === usage.output_tokens);
+  const main = own ?? entries.reduce((best, cur) => ((cur[1].outputTokens ?? 0) > (best[1].outputTokens ?? 0) ? cur : best));
+  return { main: main[0], helpers: entries.filter((entry) => entry !== main) };
+}
+
+/** Every web search of the call: the CLI counts them per model, the searching helper's included; the top level counts the conversation's own. */
+function cliSearches(usage: AnthropicUsage | undefined, models: Record<string, CliModelUsage> | undefined): number | null {
+  const own = usage?.server_tool_use?.web_search_requests;
+  const perModel = Object.values(models ?? {}).flatMap((m) => (m.webSearchRequests === undefined ? [] : [m.webSearchRequests]));
+  if (own === undefined && perModel.length === 0) return null;
+  return Math.max(own ?? 0, perModel.reduce((a, b) => a + b, 0));
+}
+
+/** A helper model's tokens as the ledger reads them; its searches are counted on the call (`cliSearches`), and its writes, unsplit, as five-minute ones. */
+function helperUsage(m: CliModelUsage): AiUsage {
+  return {
+    inputTokens: count(m.inputTokens),
+    cacheWriteTokens: count(m.cacheCreationInputTokens),
+    cacheWrite1hTokens: null,
+    cacheReadTokens: count(m.cacheReadInputTokens),
+    outputTokens: count(m.outputTokens),
+    webSearches: null,
+  };
 }
 
 /**
