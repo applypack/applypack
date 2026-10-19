@@ -21,7 +21,7 @@ describe('feedUrl', () => {
   });
 
   it('refuses an ADR 0005 host and a non-http scheme', () => {
-    assert.throws(() => feedUrl('https://www.linkedin.com/jobs.rss'), /ADR 0005/);
+    assert.throws(() => feedUrl('https://www.linkedin.com/jobs.rss'), /That site is never fetched here — paste the posting text instead\.$/);
     assert.throws(() => feedUrl('file:///etc/passwd'), /http/);
     assert.throws(() => feedUrl('not a url'), /URL/);
   });

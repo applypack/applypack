@@ -158,7 +158,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
     if (progress.status === 'not_modified') sourcesUnchanged++;
-    bySource.push({ name: progress.company, status: progress.status, count: progress.count, ms: progress.durationMs });
+    bySource.push({ name: progress.company, kind: progress.atsType, status: progress.status, count: progress.count, ms: progress.durationMs });
     opts.onSource?.(progress);
   }, { manual: opts.manual === true, only: opts.only, places: opts.places });
   logger.info(

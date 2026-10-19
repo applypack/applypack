@@ -1,5 +1,5 @@
 import type { CronStats } from '../jobs/cron-run';
-import { filteredReasons, funnelCounts, reasonsText } from '../funnel';
+import { FLASH_REASONS, filteredReasons, funnelCounts, reasonsText } from '../funnel';
 import type { FlashKind } from './flash';
 import { formatDuration } from './format';
 import { t } from '../i18n/t';
@@ -71,10 +71,11 @@ export function pageCheckLine(label: string, stats: CronStats): { kind: FlashKin
   return { kind: 'ok', text: t('fetchSummary.page.unchanged', { label }) };
 }
 
-/** " The filter set aside 500: 480 without a title keyword, 20 outside your places." — its two largest gates (N2). */
+/** " The filter set aside 500: 480 without a title keyword, 15 outside your places and 5 more." — its two largest gates (N2). */
 function filteredClause(stats: CronStats): string {
-  const why = reasonsText(filteredReasons(funnelCounts(stats)), 2);
-  return why ? ` ${t('fetchSummary.filtered', { n: num(stats, 'filterRejected'), why })}` : '';
+  const total = num(stats, 'filterRejected');
+  const why = reasonsText(filteredReasons(funnelCounts(stats)), { max: FLASH_REASONS, total });
+  return why ? ` ${t('fetchSummary.filtered', { n: total, why })}` : '';
 }
 
 /** " (44 unchanged, 2 failed)" — whichever of the two happened, with the space that sets it off. */

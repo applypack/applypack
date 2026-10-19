@@ -10,12 +10,15 @@ import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
 import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
+  jobsHref,
   parsePlaces,
   parsePosted,
   parseWorkplaces,
+  pastEndPage,
   placeWhere,
   postedWhere,
   tallyFacets,
+  type JobsFilters,
 } from '../job-facets';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
@@ -233,12 +236,13 @@ jobsRoute.get('/jobs', async (c) => {
   // facet then applies the others' selections in tallyFacets. Five narrow
   // columns per row — ~1k rows today; past ~50k move the tally into SQL.
   const facetWhere: Prisma.JobWhereInput = { ...where };
-  const facetAnd: Prisma.JobWhereInput[] = [...hide];
+  const facets: Prisma.JobWhereInput[] = [];
   const postedIn = postedWhere(posted, now);
-  if (postedIn) facetAnd.push(postedIn);
+  if (postedIn) facets.push(postedIn);
   const place = placeWhere(country);
-  if (place) facetAnd.push(place);
-  if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
+  if (place) facets.push(place);
+  if (workplace.length > 0) facets.push({ workplace: { in: workplace } });
+  const facetAnd = [...hide, ...facets];
   if (facetAnd.length > 0) where.AND = facetAnd;
   // A status tab's count is what the tab would show: every filter but the status itself.
   const { status: _status, ...anyStatusWhere } = where;
@@ -293,7 +297,8 @@ jobsRoute.get('/jobs', async (c) => {
     prisma.job.groupBy({ by: ['status'], where: anyStatusWhere, _count: { _all: true } }),
     getActiveProfile(),
     listActiveProfiles(),
-    hiddenKeys.length > 0 ? prisma.job.count({ where: { employerKey: { in: hiddenKeys } } }) : 0,
+    // What the same filters would show of the muted companies (#540): a search that matches nothing hides nothing.
+    hiddenKeys.length > 0 ? prisma.job.count({ where: { ...where, AND: facets, employerKey: { in: hiddenKeys } } }) : 0,
     loadUnscored(),
   ]);
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
@@ -302,26 +307,31 @@ jobsRoute.get('/jobs', async (c) => {
     ? (statusCounts[status as JobStatus] ?? 0)
     : statusGroups.reduce((sum, g) => (g.status === JobStatus.DISMISSED ? sum : sum + g._count._all), 0);
 
+  const filters: JobsFilters = {
+    status: status ?? '',
+    minFit,
+    q,
+    sort,
+    verified,
+    open,
+    watched,
+    muted,
+    profile: profile ?? null,
+    country,
+    workplace: workplace.map((w) => w.toLowerCase()),
+    posted,
+  };
+  // A link to a page the list no longer reaches — the last rows muted, dismissed or deleted — lands on its last page (#540).
+  const last = pastEndPage(page, total, PAGE_SIZE);
+  if (last !== null) return c.redirect(jobsHref(filters, { page: last, panel: panel === '1' }), 302);
+
   return c.html(
     <JobsListPage
       jobs={jobs}
       total={total}
       page={page}
       pageSize={PAGE_SIZE}
-      filters={{
-        status: status ?? '',
-        minFit,
-        q,
-        sort,
-        verified,
-        open,
-        watched,
-        muted,
-        profile: profile ?? null,
-        country,
-        workplace: workplace.map((w) => w.toLowerCase()),
-        posted,
-      }}
+      filters={filters}
       panelOpen={panel === '1'}
       statusCounts={statusCounts}
       facets={tallyFacets(facetRows, { places: country, workplaces: workplace, posted }, now)}
@@ -672,9 +682,9 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
     logger.error({ err, jobId: id }, 'web: reclassify failed');
     outcome = { kind: 'failed', reason: '' };
   }
-  // A press that formed no verdict says so: the page it comes back to looks exactly as it did.
-  const said = rescoreFlash(outcome, job.status);
-  return said ? flashRedirect(jobHref(id, tab), said.kind, said.text) : c.redirect(jobHref(id, tab), 303);
+  // Every press says what it came to: a page that comes back looking exactly as it did reads as nothing done.
+  const said = rescoreFlash(outcome, job);
+  return flashRedirect(jobHref(id, tab), said.kind, said.text);
 });
 
 /**
