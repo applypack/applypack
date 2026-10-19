@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.4] — 2026-10-18
+
+### Changed
+- Messages about jobs stored without a score (paused Fetch now, file import,
+  folder check) point at **Score them** on the Overview or Jobs, which
+  scores only those jobs.
+- Runs and the Overview name each job in your language ("Hourly search",
+  "Fetch now", "Score everything again" …) instead of its internal code.
+- A run's count of rows written says "stored", and Runs → By source calls
+  its column "Stored".
+- The pause banner says what a pause does and how to resume.
+- The salary hint in dollars converts the whole range ("≈ $62k-69k/yr"), or
+  says "up to" when only the top is known.
+
+### Fixed
+- A filter summary names the rest of its reasons as "and N more", and no
+  longer repeats one number twice.
+- A Jobs link to a page past the end opens the last page instead of saying
+  nothing matches.
+- The "postings from muted companies are hidden" line counts only what your
+  current filters would show.
+- Re-classify always says the score it came back with, including "as
+  before".
+- A board link no longer suggests the board vendor (like "Ashbyhq") as the
+  company's name.
+- Help text no longer mentions source files, decision-record numbers or
+  release numbers; a folder that moved shows its problem in words on Runs.
+
 ## [2.61.3] — 2026-10-18
 
 ### Changed
@@ -6303,6 +6331,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.4]: https://github.com/applypack/applypack/compare/v2.61.3...v2.61.4
 [2.61.3]: https://github.com/applypack/applypack/compare/v2.61.2...v2.61.3
 [2.61.2]: https://github.com/applypack/applypack/compare/v2.61.1...v2.61.2
 [2.61.1]: https://github.com/applypack/applypack/compare/v2.61.0...v2.61.1
