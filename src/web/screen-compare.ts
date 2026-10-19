@@ -3,7 +3,7 @@ import { readScreenReply } from '../screening/prompts';
 import { readScreenBreakdown, type ConfidenceBand, type GateBucket, type ScoreRow } from '../screening/score';
 import type { Criterion, Rubric } from '../screening/rubric';
 import { trajectoryLine, trajectoryOf } from '../screening/trajectory';
-import { adjustedScore } from './screen-view';
+import { adjustedScore, consistentVerdict, type VerdictLine } from './screen-view';
 
 /*
  * Side by side (plan §5): the ticked applicants as columns, the criteria as
@@ -25,7 +25,7 @@ export interface CompareColumn {
   level: string | null;
   career: string | null;
   standout: string[];
-  verdictLine: string;
+  verdictLine: VerdictLine;
   /** The scorecard row per criterion id. */
   rows: Map<string, ScoreRow>;
 }
@@ -35,6 +35,7 @@ export interface CompareRow {
   label: string;
   kind: Criterion['kind'];
   mode: Criterion['mode'];
+  source: Criterion['source'];
   /** One per column; null when that verdict has no row for the criterion. */
   cells: (ScoreRow | null)[];
 }
@@ -66,7 +67,7 @@ export function sideBySide(rubric: Rubric, applicants: ApplicantWithVerdict[], n
       level: bd.level,
       career: career.roles > 0 ? trajectoryLine(career) : null,
       standout: reply.standout.map((f) => f.fact),
-      verdictLine: reply.summary.verdict,
+      verdictLine: consistentVerdict(reply.summary.verdict, bd),
       rows: new Map(bd.rows.map((r) => [r.id, r])),
     });
   }
@@ -75,6 +76,7 @@ export function sideBySide(rubric: Rubric, applicants: ApplicantWithVerdict[], n
     label: c.label,
     kind: c.kind,
     mode: c.mode,
+    source: c.source,
     cells: columns.map((col) => col.rows.get(c.id) ?? null),
   }));
   return { columns, rows };

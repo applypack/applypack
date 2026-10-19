@@ -7,6 +7,7 @@ import {
   feedItemKey,
   normalizeTextKey,
   normalizeUrlKey,
+  urlKeyNeedle,
   decideStageStrategy,
   extractAtsToken,
   extractJson,
@@ -329,6 +330,19 @@ describe('extractAtsToken', () => {
     );
     assert.equal(extractAtsToken('https://www.rippling.com/careers'), null);
   });
+
+  it('skips the locale a localised Rippling page puts before the slug (#541)', () => {
+    for (const url of [
+      'https://ats.rippling.com/en-CA/acme/jobs',
+      'https://ats.rippling.com/en-GB/acme/jobs/2f0674e6',
+      'https://ats.rippling.com/en/acme/jobs',
+      'https://ats.rippling.com/en-CA/acme',
+    ]) {
+      assert.deepEqual(extractAtsToken(url), { atsType: 'RIPPLING', atsToken: 'acme' }, url);
+    }
+    // A two-letter slug is still a slug.
+    assert.deepEqual(extractAtsToken('https://ats.rippling.com/hq/jobs'), { atsType: 'RIPPLING', atsToken: 'hq' });
+  });
 });
 
 describe('daysSince', () => {
@@ -369,6 +383,13 @@ describe('url and text keys', () => {
   // Same posting, different ordering, trailing slash, fragment and campaign.
   assert.equal(normalizeUrlKey('https://example.com/jobs/7?a=1&b=2#apply'), canonical);
   assert.equal(normalizeUrlKey('https://example.com/jobs/7?utm_medium=cpc&b=2&a=1'), canonical);
+  });
+
+  it('urlKeyNeedle is the part a stored link with the same key contains (#579)', () => {
+    assert.equal(urlKeyNeedle('https://jobicy.com/jobs/152752-senior-backend-engineer-core-team/?utm_source=x'), '/jobs/152752-senior-backend-engineer-core-team');
+    assert.equal(urlKeyNeedle('https://Acme.example/?job=7'), 'acme.example');
+    assert.equal(urlKeyNeedle('n/a'), null);
+    assert.equal(urlKeyNeedle('javascript:alert(1)'), null);
   });
 
   it('normalizeUrlKey returns null for junk, never an empty string', () => {

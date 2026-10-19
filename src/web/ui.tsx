@@ -191,13 +191,16 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
       {children}
     </div>
     {/* TASKS U15: the field the message is about says so itself — invalid, described by the message, focused.
-        Looked up inside the form that posted; both parts passed flash.ts's patterns, so neither can close a quote.
-        Focused on load: the jump to a redirect's #fragment comes after this script and takes the focus back. */}
+        Looked up inside the form that posted, past a hidden copy of the field (a folder's own Check, #546); both
+        parts passed flash.ts's patterns, so neither can close a quote.
+        Marked on load: the jump to a redirect's #fragment comes after this script and takes the focus back, and by
+        then a chip editor (chips.mjs) has hidden its textarea behind a field of its own. A field folded in a closed
+        <details> is unfolded first, or it could not take the focus (#549). */}
     {flash.field && (
       <script
         type="module"
         dangerouslySetInnerHTML={{
-          __html: `const f = document.querySelector('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]'); if (f) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', ['flash-text', f.getAttribute('aria-describedby')].filter(Boolean).join(' ')); const focus = () => f.focus(); if (document.readyState === 'complete') focus(); else addEventListener('load', focus, { once: true }); }`,
+          __html: `const f = [...document.querySelectorAll('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]')].find((e) => e.type !== 'hidden'); if (f) { for (let d = f.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; const mark = () => { const c = (f.hidden && f.parentElement.querySelector('input[type=text]')) || f; c.setAttribute('aria-invalid', 'true'); c.setAttribute('aria-describedby', ['flash-text', c.getAttribute('aria-describedby')].filter(Boolean).join(' ')); c.focus(); }; if (document.readyState === 'complete') mark(); else addEventListener('load', mark, { once: true }); }`,
         }}
       />
     )}
@@ -557,7 +560,8 @@ const SparkBars: FC<{ values: readonly number[]; tone: Tone; class?: string }> =
  * One number that stands alone: its icon on the tone's tint, the label, the
  * value at the KPI step and one line of what moved. With `href` the value is
  * a link stretched over the card; `spark` draws the last fortnight beside it
- * where there is room.
+ * where there is room. On a phone, two to a row (#570): the icon steps back
+ * and the padding tightens, so the label and the number keep their room.
  */
 export const StatCard: FC<{
   label: string;
@@ -571,11 +575,11 @@ export const StatCard: FC<{
   spark?: readonly number[];
 }> = ({ label, value, tone, icon, delta, href, hrefLabel, spark }) => (
   <div
-    class={`relative flex gap-3.5 rounded-lg border border-line bg-surface-raised p-5 shadow-card transition-colors duration-150 ${
+    class={`relative flex gap-3.5 rounded-lg border border-line bg-surface-raised p-4 shadow-card transition-colors duration-150 sm:p-5 ${
       href ? 'hover:border-line-strong' : ''
     }`}
   >
-    <IconTile icon={icon} tone={tone} />
+    <IconTile icon={icon} tone={tone} class="hidden h-10 w-10 sm:grid" />
     <div class="min-w-0 flex-1">
       <div class="break-words text-label text-ink-muted">{label}</div>
       {/* The bars share the number's row and give way first: a narrow card clips the oldest days, never the number. */}
@@ -616,12 +620,14 @@ export const Badge: FC<PropsWithChildren<{ tone?: Tone; size?: keyof typeof BADG
   </span>
 );
 
-export const Tag: FC<PropsWithChildren<{ tone?: Tone }>> = ({
+/** `wrap`: a long tag in a narrow cell takes a second line rather than run past the cell's edge (#537). */
+export const Tag: FC<PropsWithChildren<{ tone?: Tone; wrap?: boolean }>> = ({
   children,
   tone = 'neutral',
+  wrap = false,
 }) => (
   <span
-    class={`inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-meta font-medium ring-1 ring-inset ${TONE_SOFT[tone]}`}
+    class={`inline-flex items-center ${wrap ? 'whitespace-normal [overflow-wrap:anywhere]' : 'whitespace-nowrap'} rounded-md px-2 py-0.5 text-meta font-medium ring-1 ring-inset ${TONE_SOFT[tone]}`}
   >
     {children}
   </span>
@@ -756,7 +762,7 @@ export const NEEDS_FILE_JS =
  * explanation never becomes the control's accessible name (audit A11Y-4):
  * `more` sits outside it, behind "How this works".
  */
-export const Field: FC<PropsWithChildren<{ label: string; hint?: string; more?: Child; class?: string }>> = ({
+export const Field: FC<PropsWithChildren<{ label: string; hint?: Child; more?: Child; class?: string }>> = ({
   label,
   hint,
   more,
@@ -895,9 +901,27 @@ export const ConfirmAction: FC<{
   /** For a label that needs more than its words ("Delete" on a row). */
   ariaLabel?: string;
   disabled?: boolean;
-}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled }) => {
+  /**
+   * Instead of a form of its own, the real button sends the form this one sits
+   * in (the one posting to `action`) as this name and value: a second way to
+   * send a bigger form ("Save & re-classify", #562).
+   */
+  submit?: { name: string; value: string };
+  /**
+   * The real button submits this form of the page instead of one of its own —
+   * a form that carries what the page holds, such as the editor's text; its
+   * `onclick` runs first. `action` and `hidden` then only name the question.
+   */
+  submits?: { form: string; onclick?: string };
+}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled, submit, submits }) => {
   // The same action with the same fields is the same question, so one id per question on a page.
   const id = `confirm-${hashShortId(`${action}\n${label}\n${JSON.stringify(hidden ?? {})}`)}`;
+  const yesVariant = variant === 'ghost' ? 'danger' : variant;
+  const cancel = (
+    <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
+      {t('ui.cancel')}
+    </Button>
+  );
   const parts = disabled ? (
     <button type="button" class={buttonClass(variant, size)} disabled>
       {label}
@@ -915,15 +939,30 @@ export const ConfirmAction: FC<{
         class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
         <p>{confirm}</p>
-        <form method="post" action={action} class="mt-3 flex justify-end gap-2">
-          {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
-          <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
-            {t('ui.cancel')}
-          </Button>
-          <Button variant={variant === 'ghost' ? 'danger' : variant} size="sm">
-            {yes ?? label}
-          </Button>
-        </form>
+        {submit ? (
+          // A form inside the form would be dropped by the parser: the buttons belong to the one around them.
+          <div class="mt-3 flex justify-end gap-2">
+            {cancel}
+            <Button variant={yesVariant} size="sm" name={submit.name} value={submit.value}>
+              {yes ?? label}
+            </Button>
+          </div>
+        ) : submits ? (
+          <div class="mt-3 flex justify-end gap-2">
+            {cancel}
+            <Button variant={yesVariant} size="sm" form={submits.form} onclick={submits.onclick}>
+              {yes ?? label}
+            </Button>
+          </div>
+        ) : (
+          <form method="post" action={action} class="mt-3 flex justify-end gap-2">
+            {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
+            {cancel}
+            <Button variant={yesVariant} size="sm">
+              {yes ?? label}
+            </Button>
+          </form>
+        )}
       </div>
     </>
   );

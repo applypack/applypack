@@ -61,6 +61,11 @@ holds more entries than a look lists (ADR 0062). The closed list is
 `source-health.ts:FETCH_STATUSES`; a failure added to it counts toward the
 streak without further code, as this ADR intends.
 
+*Amended 2026-10-19 (#547):* a fourth column, `lastFetchedAt`, is stamped by
+the same write on every attempt, a failed one too (`source-health.ts:healthUpdate`).
+It is what "Last fetch" on Companies shows; the newest stored posting stood in
+for it, and a board read fine whose postings the filter turned away read "—".
+
 Two pure, unit-tested functions carry all the logic
 (`src/fetchers/source-health.ts`): `classifyFetchError(err)` implements the
 table above, and `nextStreak(status, current)` implements the streak.

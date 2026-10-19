@@ -20,15 +20,15 @@ import {
 } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
-import { formatRange, parseRange } from '../../screening/dates';
+import { formatRange } from '../../screening/dates';
 import { trajectoryLine, trajectoryOf } from '../../screening/trajectory';
 import { STANDOUT_SINCE } from '../../screening/prompts';
-import { criterionLabel, CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type Rubric } from '../../screening/rubric';
+import { criterionLabel, CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, modelWorded, type Rubric } from '../../screening/rubric';
 import type { ScreenReply } from '../../screening/prompts';
-import { answerBadge, answerWords, capExplanation, detailWords, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
+import { answerBadge, answerWords, capExplanation, detailParts, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
 import { describeRedactions, leakKinds, leakLabel, type Redaction } from '../../screening/redact';
 import { GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
-import { adjustedScore, ANSWER_TONE, confidenceLabel } from '../screen-view';
+import { adjustedScore, ANSWER_TONE, confidenceLabel, consistentVerdict } from '../screen-view';
 import { DECISIONS, type Decision } from '../../screening/store';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
@@ -76,6 +76,8 @@ export interface ScreenApplicantProps {
   scoredAt: Date | null;
   now: Date;
   flash?: FlashMessage | null;
+  /** A refused adjustment, sent back into its form as it was typed (#549); the score above keeps the stored one. */
+  sentAdjustment?: { points: number; note: string } | null;
 }
 
 /** The person's decision as the select names it; the stored value is the key. */
@@ -85,14 +87,23 @@ const DECISION_WORDS: Record<Decision, MessageKey> = {
   declined: 'screening.decision.declined',
 };
 
-/** One criterion on the scorecard: what was asked, how the text answered, the quote, the points. */
-const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
+/** A row's detail in the reader's words, the model's own marked English (#569) — the compare page shows it too. */
+export const DetailWords: FC<{ detail: string }> = ({ detail }) => (
+  <>
+    {detailParts(detail).map((part, i) => [i > 0 ? '; ' : '', 'model' in part ? inEnglish([part.model]) : tRich(part.key, part.params, { en: inEnglish })])}
+  </>
+);
+
+/** One criterion on the scorecard: what was asked, how the text answered, the quote, the points. `drafted`: its words are the model's. */
+const CriterionAnswerRow: FC<{ r: ScoreRow; drafted: boolean }> = ({ r, drafted }) => {
   const answerTitle = (EVIDENCE_RUNG_LABELS as Record<string, string>)[r.answer];
   const tone = r.mode === 'gate' && r.gate ? ANSWER_TONE[r.gate] : (ANSWER_TONE[r.answer] ?? 'neutral');
   return (
     <Tr>
       <Td class="align-top">
-        <div class="text-ink">{criterionLabel(r)}</div>
+        <div class="text-ink" lang={drafted ? 'en' : undefined}>
+          {criterionLabel(r)}
+        </div>
         <div class="text-meta text-ink-faint">
           {CRITERION_KIND_LABELS[r.kind as keyof typeof CRITERION_KIND_LABELS] ?? r.kind} ·{' '}
           {r.mode === 'gate' ? t('screening.applicant.modeGate') : r.mode === 'note' ? t('screening.applicant.modeNote') : <Stars n={r.weight} />}
@@ -105,7 +116,11 @@ const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
       </Td>
       <Td class="align-top text-ink-muted">
         {r.quote ? <q class="text-ink">{r.quote}</q> : null}
-        {r.detail && <div class={`text-meta ${r.quote ? 'mt-1' : ''} text-ink-faint`}>{detailWords(r.detail)}</div>}
+        {r.detail && (
+          <div class={`text-meta ${r.quote ? 'mt-1' : ''} text-ink-faint`}>
+            <DetailWords detail={r.detail} />
+          </div>
+        )}
         {!r.quote && !r.detail && '—'}
       </Td>
       <Td class="whitespace-nowrap text-right align-top tabular-nums">{r.mode === 'scored' ? (r.max === 0 ? '—' : `${r.pts} / ${r.max}`) : ''}</Td>
@@ -113,10 +128,12 @@ const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
   );
 };
 
-export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, applicant, letters, rubric, reply, breakdown, stale, model, promptVersion, scoredAt, now, flash }) => {
+export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, applicant, letters, rubric, reply, breakdown, stale, model, promptVersion, scoredAt, now, flash, sentAdjustment }) => {
   const title = `№${applicant.number}${applicant.name ? ` — ${applicant.name}` : ''}`;
   const back = `/screen/${screening.id}`;
   const career = reply ? trajectoryOf(reply.roles, now) : null;
+  const drafted = new Set(rubric.criteria.filter(modelWorded).map((c) => c.id));
+  const verdict = reply && breakdown ? consistentVerdict(reply.summary.verdict, breakdown) : null;
   return (
     <Layout title={title} titleIsData active="screen">
       <PageHeader
@@ -222,8 +239,8 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   {reply.summary.did || '—'}
                 </dd>
                 <dt class="text-ink-faint">{t('screening.applicant.verdict')}</dt>
-                <dd class="font-medium text-ink" lang="en">
-                  {reply.summary.verdict || '—'}
+                <dd class="font-medium text-ink" lang={verdict?.modelWritten ? 'en' : undefined}>
+                  {verdict?.text || '—'}
                 </dd>
               </dl>
               {reply.injection && (
@@ -267,7 +284,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                 thClasses={['', '', '', 'text-right']}
               >
                 {breakdown.rows.map((r) => (
-                  <CriterionAnswerRow r={r} />
+                  <CriterionAnswerRow r={r} drafted={drafted.has(r.id)} />
                 ))}
               </Table>
             </Card>
@@ -280,17 +297,17 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               ) : (
                 <ul class="mt-2 space-y-1.5 text-sm">
                   {reply.roles.map((r) => {
-                    const range = parseRange(r.start, r.end, now);
+                    const range = formatRange(r.start, r.end, now);
                     return (
                       <li class={`flex flex-wrap gap-x-2 ${r.relevant ? 'text-ink' : 'text-ink-faint'}`}>
                         <span class="font-medium">{r.position}</span>
                         {r.employer && <span>· {r.employer}</span>}
                         <span class="tabular-nums text-ink-faint">
-                          {range ? formatRange(range, now) : [r.start, r.end].filter(Boolean).join(' – ') || t('screening.applicant.noDates')}
+                          {range ?? ([r.start, r.end].filter(Boolean).join(' – ') || t('screening.applicant.noDates'))}
                         </span>
                         {(r.sector || r.companyType) && (
                           <span class="text-ink-faint">
-                            · {[r.sector, r.companyType].filter(Boolean).join(', ')}
+                            · <span lang="en">{[r.sector, r.companyType].filter(Boolean).join(', ')}</span>
                           </span>
                         )}
                         <span class="text-ink-faint">
@@ -366,7 +383,9 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                     .map((r) => (
                       <tr class={r.max === 0 ? 'text-ink-faint' : ''}>
                         <th scope="row" class="py-1.5 pr-2 text-left align-top font-normal">
-                          <div class="text-ink">{criterionLabel(r)}</div>
+                          <div class="text-ink" lang={drafted.has(r.id) ? 'en' : undefined}>
+                            {criterionLabel(r)}
+                          </div>
                           <div class="text-meta text-ink-faint">
                             {r.max === 0 ? t('screening.applicant.answerNotCounted', { answer: answerWords(r.answer) }) : answerWords(r.answer)}
                           </div>
@@ -427,7 +446,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                     min={-MAX_ADJUSTMENT}
                     max={MAX_ADJUSTMENT}
                     step="1"
-                    value={applicant.adjustment}
+                    value={sentAdjustment?.points ?? applicant.adjustment}
                     class="w-24"
                     aria-label={t('screening.applicant.points')}
                   />
@@ -437,7 +456,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   type="text"
                   name="note"
                   maxlength="200"
-                  value={applicant.adjustmentNote ?? ''}
+                  value={sentAdjustment?.note ?? applicant.adjustmentNote ?? ''}
                   placeholder={t('screening.applicant.reasonPlaceholder')}
                   aria-label={t('screening.applicant.reason')}
                 />

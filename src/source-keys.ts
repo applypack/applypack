@@ -38,6 +38,16 @@ export function isSourceKeyField(source: KeyedSource, field: unknown): field is 
   return typeof field === 'string' && field in SOURCE_KEY_FIELDS[source];
 }
 
+/** The values one form sent for a source's fields, trimmed; a field left empty keeps what is stored (#561). */
+export function typedSourceKeys(source: KeyedSource, form: Readonly<Record<string, unknown>>): { field: SourceKeyField; value: string }[] {
+  return (Object.keys(SOURCE_KEY_FIELDS[source]) as SourceKeyField[])
+    .map((field) => {
+      const value = form[field];
+      return { field, value: typeof value === 'string' ? value.trim() : '' };
+    })
+    .filter((typed) => typed.value.length > 0);
+}
+
 const StoredSchema = z.record(z.string(), z.record(z.string(), z.string()));
 
 /** Parses the raw AppSettings.sourceKeys JSON. Tolerant: drops unknown sources, fields, blanks and over-long entries. */

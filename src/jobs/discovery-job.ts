@@ -73,7 +73,8 @@ export async function runDiscoveryJob(): Promise<{ stats: CronStats }> {
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {
-    pending: candidates.length,
+    // What is left for review, as /discovery counts it — not the list the run started from (#542).
+    pending: await prisma.companyCandidate.count({ where: { status: CandidateStatus.PENDING } }),
     probed,
     alive,
     dead,

@@ -254,6 +254,16 @@ function interfaceNames(): Map<string, string> {
   return (namesByLanguage = names);
 }
 
+/**
+ * Every spelling `findCountry` resolves besides a code or a flag, normalised:
+ * the picker's copy, so the chip input refuses as the save refuses (#549).
+ */
+export function countrySpellings(): string[] {
+  const keys = new Set([...DEMONYMS.keys(), ...interfaceNames().keys()]);
+  for (const [key, hit] of PLACE_ALIASES) if (hit.kind !== 'region') keys.add(key);
+  return [...keys];
+}
+
 const REGIONAL_INDICATOR_A = 0x1f1e6;
 const FLAG_RE = /\p{Regional_Indicator}{2}/u;
 

@@ -85,7 +85,7 @@ test('sideBySide aligns the stored rows by criterion and leaves out a stale verd
     [applicant(1, 1, 80, [row('g', 'pass', 'EU passport'), row('php', 'production', 'shipped PHP')]), applicant(2, 2, 60, [row('php', 'listed', null)]), applicant(3, 3, 90, [], true)],
     new Date('2026-09-09T00:00:00Z'),
   );
-  assert.deepEqual(view.columns.map((x) => [x.number, x.score, x.adjusted, x.career, x.standout, x.verdictLine]), [
+  assert.deepEqual(view.columns.map((x) => [x.number, x.score, x.adjusted, x.career, x.standout, x.verdictLine.text]), [
     [1, 80, 80, '6.8 years across 1 employer · average stay 6.8 years · in a role now · fintech', ['fact 1'], 'talk to 1'],
     [2, 60, 70, '6.8 years across 1 employer · average stay 6.8 years · in a role now · fintech', ['fact 2'], 'talk to 2'],
   ]);

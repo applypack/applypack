@@ -112,6 +112,11 @@ export function hasCheckNote(item: { why: string }): boolean {
   return item.why.includes(WARN_NOTE);
 }
 
+/** Whether the gate refused the item: its wording, or a removal's span — the reason is on `why`. */
+export function wasRefused(item: { why: string }): boolean {
+  return item.why.includes(BLOCK_NOTE);
+}
+
 /**
  * What gives a note to the writer away. Each is something a resume line does
  * not say: a request to the candidate, a slot left to fill in, a question.

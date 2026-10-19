@@ -11,6 +11,7 @@ import { annotateAliasOnly } from './keyword-anchor';
 import { withEvidence } from './evidence';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
+import { keptByWrite, NOTHING_KEPT, type ResumeFiles } from './kept-upload';
 import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, withSuggestionsMode, type MatchMode } from './match-mode';
 import { comparedResumeName } from './match-name';
 import { readPromptVersion, readVerificationId } from './match-reuse';
@@ -22,9 +23,9 @@ import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
 import { readBreakdown, scoreMatch, type ScoreBreakdown } from './score';
 
 /** Resume without the uploaded bytes — what every page and prompt works with. */
-export type ResumeSummary = Omit<Resume, 'original'>;
+export type ResumeSummary = Omit<Resume, 'original' | 'uploadFile'>;
 
-const WITHOUT_ORIGINAL = { original: true } as const;
+const WITHOUT_ORIGINAL = { original: true, uploadFile: true } as const;
 
 export async function listResumes(): Promise<ResumeSummary[]> {
   return prisma.resume.findMany({
@@ -131,15 +132,30 @@ export async function upsertScratchResume(input: {
   return row;
 }
 
-/** "Upload new version": swap the file + text, bump version, clear the scan. */
+const RESUME_FILES = { original: true, sourceFilename: true, mimeType: true, uploadFile: true, uploadName: true, uploadMime: true } as const;
+
+/** The file in place and the upload kept beside it (kept-upload.ts). */
+export async function getResumeFiles(id: number): Promise<ResumeFiles | null> {
+  return prisma.resume.findUnique({ where: { id }, select: RESUME_FILES });
+}
+
+/**
+ * "Upload new version", or Save as vN when ApplyPack wrote the file
+ * (`writtenHere`, which keeps the upload it replaces — #590): swap the file +
+ * text, bump version, clear the scan.
+ */
 export async function replaceResumeFile(
   id: number,
   input: { sourceFilename: string; mimeType: string; original: Buffer; text: string },
+  writtenHere = false,
 ): Promise<ResumeSummary> {
+  const files = writtenHere ? await getResumeFiles(id) : null;
+  const upload = files ? keptByWrite(files) : NOTHING_KEPT;
   const row = await prisma.resume.update({
     where: { id },
     data: {
       ...input,
+      ...upload,
       original: new Uint8Array(input.original),
       version: { increment: 1 },
       scannedAt: null,
@@ -750,6 +766,8 @@ export async function createCoverLetter(input: {
   resumeId: number;
   resumeVersion: number;
   tone: string;
+  /** Who it greets, as asked ('' = the team); null when nobody was asked (cover-letter.ts). */
+  addressee: string | null;
   text: string;
   model: string;
   promptVersion: number;

@@ -29,3 +29,18 @@ test('nextDelay backs off and caps', async () => {
   assert.ok(nextDelay(1) > nextDelay(0));
   assert.equal(nextDelay(99), 15_000, 'never sleeps forever');
 });
+
+test('#581: the fact-check badge follows the verdict a save returns', async () => {
+  // @ts-expect-error — plain JS with no declaration file.
+  const { paintGate } = (await import('./public/cover-letter.mjs')) as {
+    paintGate: (badges: { dataset: { gate: string }; hidden: boolean }[], verdict: unknown) => void;
+  };
+  const badges = ['pass', 'warn', 'block'].map((gate) => ({ dataset: { gate }, hidden: gate !== 'pass' }));
+  const shown = () => badges.filter((b) => !b.hidden).map((b) => b.dataset.gate);
+  paintGate(badges, 'block');
+  assert.deepEqual(shown(), ['block']);
+  paintGate(badges, 'warn');
+  assert.deepEqual(shown(), ['warn']);
+  paintGate(badges, undefined);
+  assert.deepEqual(shown(), ['pass']);
+});

@@ -37,7 +37,7 @@ export const FunnelCard: FC<{ week: FunnelView; month: FunnelView; sources: Sour
             <div class="mt-2 overflow-hidden rounded-lg border border-line">
               <Table
                 caption={t('funnel.whatEachSourceBroughtIn')}
-                columns={[t('funnel.column.source'), t('funnel.column.new'), t('funnel.column.matches')]}
+                columns={[t('funnel.column.source'), t('funnel.column.stored'), t('funnel.column.matches')]}
                 widths={['w-[47%]', 'w-[24%]', 'w-[28%]']}
                 thClasses={['', 'text-right', 'text-right']}
               >

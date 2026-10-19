@@ -8,6 +8,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { basicAuth } from 'hono/basic-auth';
 import { bodyLimit } from 'hono/body-limit';
+import { compress } from 'hono/compress';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { config } from '../config';
@@ -39,6 +40,7 @@ import { screenRoute } from './routes/screen';
 import { ensureEmployerMode } from './employer-mode';
 import { ensureUpdateNotice } from './update-notice';
 import { withDisplayZone } from './display-zone';
+import { withFlashCookie } from './flash';
 import { getDisplaySettings } from '../settings';
 import { withLocale, type Locale } from '../i18n/locale';
 import { t } from '../i18n/t';
@@ -49,6 +51,12 @@ import { DEFAULT_BODY_BYTES, hasOwnBodyLimit } from './body-limits';
 const STATIC_FONT_CACHE = 'public, max-age=604800';
 
 const app = new Hono();
+
+// Outermost, so it sees every answer as it leaves (#548): a page is mostly
+// repeated class lists and goes out at a fraction of its size to a browser
+// that asks for gzip. Hono's content-type list keeps fonts, PDFs and .docx
+// files as they are; no route streams a response that must be flushed.
+app.use('*', compress());
 
 app.use(
   '*',
@@ -150,7 +158,7 @@ app.use('*', async (c, next) => {
   const started = Date.now();
   await withLocale(language.locale, () =>
     withLanguagePage({ invite: language.invite, back: backFor(c.req.method, c.req.url) }, () =>
-      withDisplayZone(display.timezone, () => next()),
+      withDisplayZone(display.timezone, () => withFlashCookie(c.req.url, () => next())),
     ),
   );
   logger.info(

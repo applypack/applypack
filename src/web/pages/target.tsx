@@ -84,6 +84,8 @@ export interface TargetPageProps {
   cleanHref?: string | null;
   /** A pack's edits, opened from its tab: the draft and the applied cards the page starts with (pack/view.ts:tailorSeed). */
   seed?: { text: string; edits: TailorEdits } | null;
+  /** The cost line Rebuild keywords says before its second press (cost-hint.ts:spendHint). */
+  rebuildCost: string;
   /** The score the pack's own analysis gave that draft, beside a ring that re-counts it (#582). */
   packScore?: number | null;
 }
@@ -134,6 +136,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   seed = null,
   packScore = null,
   flash,
+  rebuildCost,
 }) => {
   // The panes, the chips and the live score work from the effective list: the
   // user's own levels, without the terms they ignored (§5). The table below
@@ -803,7 +806,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 }
                 // Through the editor's own form, so a rebuild judges the text on
                 // screen — the same call the analyse button makes, minus the stored frame.
-                rebuild={{ jobId: job.id, resumeId: resume.id, mode: fast ? 'fast' : 'full', formId: 'reanalyze-form' }}
+                rebuild={{ jobId: job.id, resumeId: resume.id, mode: fast ? 'fast' : 'full', formId: 'reanalyze-form', cost: rebuildCost }}
               />
                 </div>
               </details>

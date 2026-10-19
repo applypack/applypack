@@ -31,7 +31,7 @@ import type { FlashMessage } from '../flash';
 import { formatUsdPerYear } from '../../currency';
 import type { WorkplaceCode } from '../../location';
 import { placeLine } from '../place-line';
-import { techLabel } from '../tech-label';
+import { techLabels } from '../tech-label';
 import {
   activeFilters,
   clearFiltersHref,
@@ -415,7 +415,7 @@ export const JobsListPage: FC<JobsListProps> = ({
                           )}
                           {j.techMatch.length > 0 && (
                             <div class="mt-0.5 truncate text-meta text-ink-faint" translate="no">
-                              {j.techMatch.map(techLabel).join(' · ')}
+                              {techLabels(j.techMatch).join(' · ')}
                             </div>
                           )}
                         </Td>

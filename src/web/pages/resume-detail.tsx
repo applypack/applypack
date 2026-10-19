@@ -102,7 +102,13 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         back={{ href: '/resumes', label: t('resume.allResumes') }}
         actions={
           <div class="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" href={`/resumes/${resume.id}/download`}>
+            {/* Once a Save as vN wrote the file in place, the one the person uploaded is a download of its own (#590). */}
+            {resume.uploadName !== null && (
+              <Button variant="secondary" size="sm" href={`/resumes/${resume.id}/download`}>
+                {t('resume.downloadVersion', { version: resume.version })}
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" href={`/resumes/${resume.id}/download/original`}>
               {t('resume.downloadOriginal')}
             </Button>
             <ActionForm action={`/resumes/${resume.id}/rescan`} once>

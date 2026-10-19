@@ -1,12 +1,13 @@
 import type { ApplicantRow } from '../screening/store';
 import { readScreenReply, type GateStatus } from '../screening/prompts';
-import { orderVerdicts, readScreenBreakdown, type CapReason, type ConfidenceBand, type GateBucket } from '../screening/score';
+import { orderVerdicts, readScreenBreakdown, type CapReason, type ConfidenceBand, type GateBucket, type ScreenBreakdown } from '../screening/score';
 import type { ExportRow } from '../screening/export';
 import { trajectoryLine, trajectoryOf, type Trajectory } from '../screening/trajectory';
 import { noteWords } from '../screening/redact';
 import type { CalibrationRow, Decided } from '../screening/calibration';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import { formatList } from '../i18n/format';
 
 /*
  * The screening table's rows, read off stored applicants and verdicts — one
@@ -28,13 +29,44 @@ export interface VerdictView {
   years: number | null;
   level: string | null;
   injection: boolean;
-  verdictLine: string;
+  verdictLine: VerdictLine;
   questions: string[];
   /** Facts no criterion asked for, each with its line (plan §5) — read, never scored. */
   standout: { fact: string; quote: string | null }[];
   /** The career as the dated roles give it — a fact, never a penalty (ADR 0047). */
   career: Trajectory;
   careerLine: string;
+}
+
+export interface VerdictLine {
+  text: string;
+  /** The model's own sentence, in English (ADR 0061); otherwise ours, in the reader's language. */
+  modelWritten: boolean;
+}
+
+/** The three openings the prompt gives the verdict (prompts.ts RULE_SUMMARY), by the bucket each one names. */
+const VERDICT_OPENINGS: readonly [RegExp, GateBucket][] = [
+  [/^\W*priority to talk to\b/i, 'pass'],
+  [/^\W*ask\b/i, 'ask'],
+  [/^\W*not this position\b/i, 'fail'],
+];
+
+/**
+ * The verdict beside the bucket. The model writes it before the quotes are
+ * checked, so it can name a bucket the gates did not reach ("priority to
+ * talk to" on an applicant whose gate turned unknown): then the gates'
+ * own sentence stands in for it (#566). A verdict that names no bucket stays.
+ */
+export function consistentVerdict(verdict: string, bd: Pick<ScreenBreakdown, 'gateBucket' | 'gatesFailed' | 'gatesUnknown'>): VerdictLine {
+  const named = VERDICT_OPENINGS.find(([opening]) => opening.test(verdict))?.[1];
+  if (named === undefined || named === bd.gateBucket) return { text: verdict, modelWritten: true };
+  const text =
+    bd.gateBucket === 'pass'
+      ? t('screening.verdict.pass')
+      : bd.gateBucket === 'ask'
+        ? t('screening.verdict.ask', { gates: formatList(bd.gatesUnknown) })
+        : t('screening.verdict.fail', { gates: formatList(bd.gatesFailed) });
+  return { text, modelWritten: false };
 }
 
 const CONFIDENCE_WORD: Record<ConfidenceBand, MessageKey> = { high: 'screen.confidence.high', medium: 'screen.confidence.medium', low: 'screen.confidence.low' };
@@ -65,6 +97,13 @@ export const ANSWER_TONE: Record<string, 'danger' | 'warn' | 'neutral' | 'ok'> =
 export function scoredBeforePosting(rows: { scoredAt: Date | null }[], postingUpdatedAt: Date | null): number {
   if (!postingUpdatedAt) return 0;
   return rows.filter((r) => r.scoredAt !== null && r.scoredAt < postingUpdatedAt).length;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "Keep N more days": N days past the date the screening is kept until now — or past today, if that date has gone (#554). */
+export function extendedRetention(retainUntil: Date, days: number, now = new Date()): Date {
+  return new Date(Math.max(retainUntil.getTime(), now.getTime()) + days * DAY_MS);
 }
 
 export interface ApplicantRowView {
@@ -125,7 +164,7 @@ export function rowView(a: ApplicantRow & { sameAsNumber?: number | null }, now 
           years: bd.years,
           level: bd.level,
           injection: reply.injection,
-          verdictLine: reply.summary.verdict,
+          verdictLine: consistentVerdict(reply.summary.verdict, bd),
           questions: reply.questions,
           standout: reply.standout,
           career,
@@ -202,7 +241,7 @@ export function exportRows(rows: ApplicantRowView[]): ExportRow[] {
     mustTotal: r.verdict && !r.stale ? r.verdict.mustTotal : null,
     years: r.verdict && !r.stale ? r.verdict.years : null,
     level: r.verdict && !r.stale ? r.verdict.level : null,
-    verdict: r.verdict && !r.stale ? r.verdict.verdictLine : null,
+    verdict: r.verdict && !r.stale ? r.verdict.verdictLine.text : null,
     questions: r.verdict && !r.stale ? r.verdict.questions : [],
     standout: r.verdict && !r.stale ? r.verdict.standout.map((f) => f.fact) : [],
     career: r.verdict && !r.stale && r.verdict.career.roles > 0 ? r.verdict.careerLine : null,

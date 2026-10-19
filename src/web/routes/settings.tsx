@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
@@ -14,6 +14,7 @@ import {
   getPackSettings,
   getSchedule,
   getSettings,
+  listActiveNotificationTargets,
   listNotificationTargets,
   maskToken,
   setAiBudgetCents,
@@ -48,9 +49,11 @@ import {
 } from '../../settings';
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
-import { config } from '../../config';
+import { config, setInEnv } from '../../config';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
+import { canonicalZone, readZone, timeZoneChoices } from '../time-zones';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
+import { alertsSwitchedLine } from '../held-line';
 import {
   addStage,
   allStages,
@@ -110,6 +113,7 @@ import {
   isSourceKeyField,
   sourceKeyOrigin,
   sourceUnlocked,
+  typedSourceKeys,
   type KeyedSource,
   type SourceKeyField,
   type SourceKeys,
@@ -130,7 +134,8 @@ import {
   setProfileActive,
   updateProfile,
 } from '../../profiles';
-import { runReclassifyAll } from '../../jobs/reclassify-job';
+import { countReclassifyAll, runReclassifyAll } from '../../jobs/reclassify-job';
+import { spendHint } from '../cost-hint';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
 import { isCountryCode, isRegionCode, resolveCountries } from '../../countries';
@@ -147,19 +152,20 @@ import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
+import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SourceKeyRow } from '../pages/settings';
+import { profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
 import type { MessageKey } from '../../i18n/catalog';
-import { formatNumber } from '../../i18n/format';
+import { formatList, formatNumber } from '../../i18n/format';
 import { isSelectableLocale, withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { describeDestination } from '../../notify/targets';
 import { isDiscordWebhookUrl, testDiscordWebhook } from '../../notify/discord';
 import { missingLinkMessage } from '../profile-links';
-import { createResume, getResume, listResumes } from '../../resume/store';
+import { getResume, listResumes, upsertScratchResume, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft } from '../../resume/profile-draft';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
@@ -242,16 +248,6 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 
-/**
- * The zone picker's options: every IANA zone the runtime knows, plus the
- * stored one if this Node build has never heard of it (so a schedule saved
- * on another machine is not silently rewritten by the select).
- */
-function supportedTimezones(current: string): string[] {
-  const zones = Intl.supportedValuesOf('timeZone');
-  return zones.includes(current) ? [...zones] : [current, ...zones];
-}
-
 /** Engine cards: the list in priority order, then the last resort (it serves), then the rest. */
 function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }): number {
   if (e.enabled) return e.position;
@@ -283,10 +279,10 @@ async function loadSettingsProps(here: string) {
   const check = await loadNextCheck(settings.schedule);
   const scheduleView = {
     schedule: check.schedule,
-    zones: supportedTimezones(check.schedule.timezone),
+    zone: canonicalZone(check.schedule.timezone) ?? check.schedule.timezone,
+    zones: timeZoneChoices(),
     nextFetch: check.next,
     held: await loadHeldLine(check.schedule),
-    unsaved: settings.schedule === null,
   };
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
@@ -303,6 +299,7 @@ async function loadSettingsProps(here: string) {
       more: t('settingsRoute.server.openai.more'),
       value: openAiServer,
       stored: openAiBaseUrl !== null,
+      fromEnv: setInEnv('OPENAI_BASE_URL'),
       local: isLocalUrl(openAiServer),
     },
     local_api: {
@@ -312,6 +309,7 @@ async function loadSettingsProps(here: string) {
       hint: t('settingsRoute.server.local.hint'),
       value: localServer,
       stored: settings.localAiUrl !== null,
+      fromEnv: setInEnv('OLLAMA_URL'),
       local: true,
       context: { value: settings.localContextTokens ?? DEFAULT_LOCAL_CONTEXT_TOKENS, choices: LOCAL_CONTEXT_CHOICES },
     },
@@ -321,11 +319,11 @@ async function loadSettingsProps(here: string) {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
-  // A CLI engine with no model set runs whatever its own configuration names.
-  const cliDefault = t('settingsRoute.cliDefault');
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
-    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || cliDefault;
-    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || cliDefault;
+    // A CLI engine with no model set runs whatever its own configuration names; the local engine runs none (#563).
+    const unset = id === 'local_api' ? '' : t('settingsRoute.cliDefault');
+    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || unset;
+    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || unset;
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
     return {
       id,
@@ -347,7 +345,7 @@ async function loadSettingsProps(here: string) {
       classifierDefault,
       resumeDefault,
       // An empty cover slot takes the engine's own letter default, not the resume slot.
-      coverDefault: defaultModelFor(id, 'cover', aiEnv) || cliDefault,
+      coverDefault: defaultModelFor(id, 'cover', aiEnv) || unset,
       // TASKS S3: an OpenAI-compatible server's own models, as its last Test listed them.
       options: id === 'openai_api' ? knownModels(openAiServer) : id === 'local_api' ? knownModels(localServer) : PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api' || id === 'local_api',
@@ -383,6 +381,7 @@ async function loadSettingsProps(here: string) {
   }
   const keys = await getSourceKeys();
   const screeningCount = await prisma.screening.count();
+  const [reclassifyJobs, scoringCost] = await Promise.all([countReclassifyAll(), spendHint('classifier')]);
   const screeningEngine = engine.chainFor('screening')[0]!;
   const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const aiStatus = {
@@ -443,6 +442,7 @@ async function loadSettingsProps(here: string) {
       line: profileLine(p),
     })),
     activeProfile: active,
+    reclassifyQuestion: reclassifyQuestion(reclassifyJobs, scoringCost),
     availableTargets: targets.map((target) => ({
       id: target.id,
       name: target.name,
@@ -483,11 +483,41 @@ settingsRoute.get('/settings', async (c) => {
     if (editorProfile) props.activeProfile = editorProfile;
   }
   const fill = idParam(c.req.query('fill'));
+  const keys = c.req.query('keys');
+  // `?draft=` is where "Fill from a resume" lands (#555): the draft read again off the resume's stored scan, no AI on a view.
+  const draftFrom = idParam(c.req.query('draft'));
+  const scanned = Number.isFinite(draftFrom) ? await getResume(draftFrom) : null;
+  const draft = scanned?.scannedAt && props.activeProfile ? fillDraft(props.activeProfile, scanned) : null;
   const flash = parseFlashCookie(c.req.header('cookie'));
-  return c.html(<SettingsPage {...props} fillResumeId={Number.isFinite(fill) ? fill : undefined} activeTab={activeTab} flash={flash} />, 200, {
-    'Set-Cookie': clearFlashCookie(),
-  });
+  return c.html(
+    <SettingsPage
+      {...props}
+      {...(draft && !draft.empty ? { activeProfile: draft.activeProfile, profileDraft: draft.notice } : {})}
+      fillResumeId={Number.isFinite(fill) ? fill : undefined}
+      openSourceKeys={isKeyedSource(keys) ? keys : undefined}
+      activeTab={activeTab}
+      flash={flash}
+    />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
+  );
 });
+
+/**
+ * A refused form, sent back with what was typed in it (#549): the page again
+ * from this POST, its flash on it and the field it is about marked, instead
+ * of a redirect that would render the stored values over the typing.
+ */
+async function settingsAgain(
+  c: Context,
+  page: Partial<SettingsProps> & Pick<SettingsProps, 'activeTab'>,
+  text: string,
+  field?: string,
+): Promise<Response> {
+  const props = await loadSettingsProps(new URL(c.req.url).origin);
+  const flash = { kind: 'err' as const, text, ...(field ? { field: { form: c.req.path, name: field } } : {}) };
+  return c.html(<SettingsPage {...props} {...page} flash={flash} />, 422);
+}
 
 // --- Fetching pause / resume -----------------------------------------------
 
@@ -525,8 +555,8 @@ settingsRoute.post('/settings/schedule', async (c) => {
   const part = schedulePart(form.part);
   const takes = (p: SchedulePart): boolean => part === null || part === p;
   const candidate = {
-    // The zone form always sends it; the other two only while no zone was ever saved — the browser's guess (TASKS S28).
-    timezone: str(form.timezone) || current.timezone,
+    // Only the zone's own form moves it: saving the hours never changes how every date reads (#538).
+    timezone: takes('zone') ? readZone(str(form.timezone)) || current.timezone : current.timezone,
     fetch: takes('fetch')
       ? {
           every: str(form.fetchEvery),
@@ -545,13 +575,17 @@ settingsRoute.post('/settings/schedule', async (c) => {
         }
       : current.alerts,
   };
-  const back = SCHEDULE_BACK[part ?? 'fetch'];
+  // The browser's zone, offered beside the hours, lands back where it was pressed.
+  const back = SCHEDULE_BACK[schedulePart(form.from) ?? part ?? 'fetch'];
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
     return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   await setSchedule(parsed.data);
-  if (part === 'zone') return flashRedirect(back, 'ok', t('settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
+  if (part === 'zone') {
+    const moved = canonicalZone(parsed.data.timezone) !== canonicalZone(current.timezone);
+    return flashRedirect(back, 'ok', t(moved ? 'settingsRoute.schedule.zoneChanged' : 'settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
+  }
   const held = await loadHeldLine(parsed.data);
   const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
   return flashRedirect(back, 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
@@ -596,9 +630,9 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   const enabled = !settings.telegramEnabled;
   await setTelegramEnabled(enabled);
   // Every channel, Discord included (ADR 0041) — the column is just old.
-  if (!enabled) return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.alerts.disabled'));
-  const held = await loadHeldLine(await getSchedule());
-  return flashRedirect('/settings?tab=notifications', 'ok', sentences(t('settingsRoute.alerts.enabled'), held ? `${held.text}.` : ''));
+  const targets = (await listActiveNotificationTargets()).length;
+  const held = enabled ? await loadHeldLine(await getSchedule()) : null;
+  return flashRedirect('/settings?tab=notifications', 'ok', alertsSwitchedLine(enabled, targets, held));
 });
 
 /** The list the engine cards show (`aiEngineOrder`), the stored config, and the .env engine that seeds it. */
@@ -716,7 +750,7 @@ settingsRoute.post('/settings/ai/tasks', async (c) => {
   }
   const settings = await getSettings();
   const config = parseAiEngineConfig(settings.aiEngine);
-  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode, config.tasks[provider]);
+  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode);
   const next = withEngineTasks(config, provider, picked);
   await setAiEngineConfig(next);
   if (wantsJson) return c.json({ ok: true });
@@ -871,28 +905,34 @@ function fieldLabel(source: KeyedSource, field: string): string {
 }
 
 /**
- * Saves or removes one field of a keyed source's credential (ADR 0034). As
- * with engine keys, the value never comes back to the browser, a log line
- * or a flash message.
+ * Saves a keyed source's credential — every field it takes, with one Save —
+ * or removes one field (ADR 0034). A field left empty keeps what is stored
+ * (#561). As with engine keys, the value never comes back to the browser, a
+ * log line or a flash message.
  */
 settingsRoute.post('/settings/sources/key', async (c) => {
   const form = await c.req.parseBody();
   const source = typeof form.source === 'string' ? form.source : '';
-  const field = typeof form.field === 'string' ? form.field : '';
-  if (!isKeyedSource(source) || !isSourceKeyField(source, field)) {
-    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.unknown'));
+  if (!isKeyedSource(source)) return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.unknown'));
+  // Back to the card, open, so what the save changed can be read on it.
+  const back = `/settings?tab=sources&keys=${source}#source-keys`;
+  const labelOf = (fields: readonly string[]): string =>
+    t('settingsRoute.sourceKey.label', { source: SOURCE_KEY_META[source].label, field: formatList(fields.map((field) => fieldLabel(source, field))) });
+  if (form.clear === '1') {
+    const field = form.field;
+    if (!isSourceKeyField(source, field)) return flashRedirect(back, 'err', t('settingsRoute.sourceKey.unknown'));
+    await setSourceKey(source, field, '');
+    return flashRedirect(back, 'ok', t('settingsRoute.sourceKey.removed', { label: labelOf([field]) }));
   }
-  const label = t('settingsRoute.sourceKey.label', { source: SOURCE_KEY_META[source].label, field: fieldLabel(source, field) });
-  const clearing = form.clear === '1';
-  const key = typeof form.key === 'string' ? form.key.trim() : '';
-  if (!clearing && key.length === 0) {
-    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.pasteFirst', { label }));
+  const typed = typedSourceKeys(source, form);
+  if (typed.length === 0) {
+    return flashRedirect(back, 'err', t('settingsRoute.sourceKey.pasteFirst', { label: labelOf(Object.keys(SOURCE_KEY_FIELDS[source])) }));
   }
-  if (key.length > MAX_SOURCE_KEY_LENGTH) {
-    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.tooLong', { n: key.length }));
-  }
-  await setSourceKey(source, field, clearing ? '' : key);
-  return flashRedirect('/settings?tab=sources', 'ok', t(clearing ? 'settingsRoute.sourceKey.removed' : 'settingsRoute.sourceKey.saved', { label }));
+  const tooLong = typed.find((key) => key.value.length > MAX_SOURCE_KEY_LENGTH);
+  if (tooLong) return flashRedirect(back, 'err', t('settingsRoute.sourceKey.tooLong', { n: tooLong.value.length }));
+  for (const { field, value } of typed) await setSourceKey(source, field, value);
+  const saved = t('settingsRoute.sourceKey.saved', { label: labelOf(typed.map((key) => key.field)) });
+  return flashRedirect(back, 'ok', sourceUnlocked(source, await getSourceKeys()) ? sentences(saved, t('settings.readyAddItOnCompanies')) : saved);
 });
 
 settingsRoute.post('/settings/ai/test', async (c) => {
@@ -1093,8 +1133,8 @@ settingsRoute.post('/settings/dashboard-url', async (c) => {
   }
   const checked = checkDashboardUrl(typed);
   if (!checked.ok) {
-    const field = { form: '/settings/dashboard-url', name: 'url' };
-    return flashRedirect(back, 'err', t('settingsRoute.dashboardUrl.notSaved', { reason: checked.reason }), { field });
+    const dashboard = { url: typed, here: new URL(c.req.url).origin };
+    return settingsAgain(c, { activeTab: 'notifications', dashboard }, t('settingsRoute.dashboardUrl.notSaved', { reason: checked.reason }), 'url');
   }
   await setDashboardUrl(checked.url);
   return flashRedirect(back, 'ok', t('settingsRoute.dashboardUrl.saved', { url: checked.url }));
@@ -1210,14 +1250,23 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
     botToken: form.botToken,
     chatId: form.chatId,
   });
+  // #549: a refusal sends the form back with the name and the chat id kept — never the token, a secret no page echoes.
+  const telegramSent = { name: str(form.name), chatId: str(form.chatId) };
+  const refuse = (text: string, field?: string): Promise<Response> =>
+    settingsAgain(c, { activeTab: 'notifications', telegramSent }, text, field);
   if (!parsed.success) {
-    return flashRedirect(back, 'err', t('settingsRoute.targets.invalidTelegram'));
+    return refuse(t('settingsRoute.targets.invalidTelegram'), refusedField(c.req.path, parsed.error.issues).field?.name);
   }
   const same = await findSameDestination({ kind: 'TELEGRAM', ...parsed.data });
-  if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.telegramExists', { name: same.name }));
+  if (same) return refuse(t('settingsRoute.targets.telegramExists', { name: same.name }), 'chatId');
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
-    return flashRedirect(back, 'err', t('settingsRoute.targets.telegramTestFailed', { reason: test.error ?? noReason() }));
+    // #561: the field Telegram refused, in words — a refused token is never blamed on the chat id.
+    if (test.failed === 'token') return refuse(t('settingsRoute.targets.telegramToken'), 'botToken');
+    if (test.failed === 'chat') {
+      return refuse(t('settingsRoute.targets.telegramChat', { bot: test.botUsername ?? '?', chat: parsed.data.chatId }), 'chatId');
+    }
+    return refuse(t('settingsRoute.targets.telegramTestFailed', { reason: test.error ?? noReason() }));
   }
   const added = await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
   if (!added) {
@@ -1375,13 +1424,19 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // `all: true` is required so multi-value checkboxes (seniority,
   // remoteRegions) come back as arrays instead of just the last value.
   const form = await c.req.parseBody({ all: true });
+  // #549: a refused save sends the editor back as it was typed, the field it is about marked — never the stored values.
+  const refuse = async (text: string, field?: string): Promise<Response> => {
+    const sent = sentProfile(before, form);
+    return settingsAgain(c, { activeTab: 'profile', activeProfile: sent.profile, profileSent: sent }, text, field);
+  };
   const parsed = ProfileFormSchema.safeParse(form);
   if (!parsed.success) {
     logger.warn(
       { errors: parsed.error.flatten().fieldErrors, form },
       'profile form: validation failed',
     );
-    return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.search.notSavedIssue', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    const issue = firstIssue(parsed.error.issues, profileFieldLabel);
+    return refuse(t('settingsRoute.search.notSavedIssue', { issue }), refusedField(c.req.path, parsed.error.issues).field?.name);
   }
   const f = parsed.data;
 
@@ -1392,11 +1447,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     parsePriorityRulesText(f.priorityRules);
   if (priorityErrors.length > 0) {
     const first = priorityErrors[0]!;
-    return flashRedirect(
-      '/settings?tab=profile',
-      'err',
-      t('settingsRoute.search.priorityRule', { line: first.line, reason: first.reason }),
-    );
+    return refuse(t('settingsRoute.search.priorityRule', { line: first.line, reason: first.reason }), 'priorityRules');
   }
 
   // Both ids come from dropdowns rendered when the page loaded; either row
@@ -1408,21 +1459,18 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       ? null
       : prisma.notificationTarget.findUnique({ where: { id: notificationTargetId }, select: { id: true } }),
   ]);
+  const resumeGone = resumeId !== null && resumeRow === null;
   const missing = missingLinkMessage({
-    resumeGone: resumeId !== null && resumeRow === null,
+    resumeGone,
     notificationTargetGone: notificationTargetId !== null && targetRow === null,
   });
-  if (missing) return flashRedirect('/settings?tab=profile', 'err', missing);
+  if (missing) return refuse(missing, resumeGone ? 'resumeId' : 'notificationTargetId');
 
   // Countries arrive as names, codes or flags in any spelling; an entry the
   // gazetteer does not know is an error, not a silent drop.
   const countries = resolveCountries(toStringArray(f.countries).flatMap(parseTagList));
   if (countries.unknown.length > 0) {
-    return flashRedirect(
-      '/settings?tab=profile',
-      'err',
-      t('settingsRoute.search.countryUnknown', { list: countries.unknown.join(', ') }),
-    );
+    return refuse(t('settingsRoute.search.countryUnknown', { list: countries.unknown.join(', ') }), 'countries');
   }
 
   const input = {
@@ -1508,10 +1556,11 @@ async function sourcesWaiting(search: Profile): Promise<string> {
   return waiting === 0 ? '' : t('settingsRoute.search.sourcesWaiting', { n: waiting });
 }
 
-// Prefill the editor from a resume's AI scan. Renders the draft directly —
-// nothing is saved until the user submits the profile form. With no resumes
-// yet the card sends a file instead of a resumeId: the upload becomes a real
-// Resume row (first one turns default in createResume), then the same flow.
+// Prefill the editor from a resume's AI scan, then send the browser to the
+// editor with the draft in it (`?draft=`) — nothing is saved until the user
+// submits the profile form. With no resumes yet the card sends a file instead
+// of a resumeId: it is read on the hidden scratch row the Tailor page uses,
+// so the draft saves no resume either (#555).
 settingsRoute.post(
   '/settings/profiles/:id/fill-from-resume',
   resumeUploadLimit('/settings?tab=profile'),
@@ -1526,15 +1575,16 @@ settingsRoute.post(
   if (form.file instanceof File && form.file.size > 0) {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return flashRedirect('/settings?tab=profile', 'err', upload.error);
-    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+    resume = await upsertScratchResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
     const resumeId = idParam(form.resumeId);
     if (!Number.isFinite(resumeId)) {
       return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.pickResume'));
     }
     resume = await getResume(resumeId);
+    if (resume?.hidden) resume = null;
   }
-  if (!resume || resume.hidden) {
+  if (!resume) {
     return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.resumeGone'));
   }
 
@@ -1551,41 +1601,39 @@ settingsRoute.post(
     resume = (await getResume(resume.id)) ?? resume;
   }
 
-  const draft = buildProfileDraft(profile, {
-    title: resume.title,
-    seniority: resume.seniority,
-    skills: resume.skills,
-    primarySkills: resume.primarySkills,
-    roleTypes: resume.roleTypes,
-  });
-  // Filling from a resume also proposes it as the search's resume — same
-  // review-then-save contract (ADR 0015): the select below carries it.
-  const linking = profile.resumeId !== resume.id;
-  if (draft.changed.length === 0 && !linking) {
+  const fill = fillDraft(profile, resume);
+  if (fill.empty) {
     const names = { profile: profile.name, resume: resume.name };
-    const note = draft.warnings[0];
+    const note = fill.notice.warnings[0];
     return flashRedirect(
       '/settings?tab=profile',
       'ok',
       note ? t('settingsRoute.fill.alreadyMatchesNote', { ...names, note }) : t('settingsRoute.fill.alreadyMatches', names),
     );
   }
-
-  const props = await loadSettingsProps(new URL(c.req.url).origin);
-  return c.html(
-    <SettingsPage
-      {...props}
-      activeTab="profile"
-      flash={null}
-      activeProfile={{ ...profile, ...draft.changes, resumeId: resume.id }}
-      profileDraft={{
-        resumeName: resume.name,
-        changed: linking ? [...draft.changed, t('profile.draft.changed.resume')] : draft.changed,
-        warnings: draft.warnings,
-      }}
-    />,
-  );
+  // A redirect, not the page itself: the address is the editor's, and a reload reads the draft again without a POST.
+  return c.redirect(`/settings?tab=profile&profile=${profile.id}&draft=${resume.id}#edit`, 303);
 });
+
+/**
+ * What filling `profile` from a scanned resume puts in the editor (ADR 0015):
+ * its fields, and the notice that names them. A saved resume is proposed as
+ * the search's own as well; the file read on the hidden scratch row never is
+ * — it is no resume of the user's (#555).
+ */
+function fillDraft(profile: Profile, resume: ResumeSummary): { activeProfile: Profile; notice: ProfileDraftNotice; empty: boolean } {
+  const draft = buildProfileDraft(profile, resume);
+  const linking = !resume.hidden && profile.resumeId !== resume.id;
+  return {
+    activeProfile: { ...profile, ...draft.changes, ...(linking ? { resumeId: resume.id } : {}) },
+    notice: {
+      resumeName: resume.name,
+      changed: linking ? [...draft.changed, t('profile.draft.changed.resume')] : draft.changed,
+      warnings: draft.warnings,
+    },
+    empty: draft.changed.length === 0 && !linking,
+  };
+}
 
 // --- Re-classify ------------------------------------------------------------
 // Reached only through "Save & re-classify" in the profile editor — the

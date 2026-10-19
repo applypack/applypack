@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
+import { describe, it, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cronMinute, spreadMinute, withMinute } from './schedule';
+import { cronMinute, cronWarningLevel, spreadMinute, withMinute } from './schedule';
 
 /** A plausible spread of installs: uuid-shaped ids, all distinct. */
 function instanceIds(count: number): string[] {
@@ -79,4 +79,10 @@ describe('spreadMinute', () => {
     assert.equal(spreadMinute('0 8 * * *', id, 'stale-applications'), '0 8 * * *');
     assert.equal(spreadMinute('0 3 * * 0', id, 'cleanup'), '0 3 * * 0');
   });
+});
+
+test('#589: a beat skipped by overlap prevention is a debug line; a missed beat stays a warning', () => {
+  // node-cron 4's own words (dist/node-cron.cjs).
+  assert.equal(cronWarningLevel('task still running, new execution blocked by overlap prevention!'), 'debug');
+  assert.equal(cronWarningLevel('missed execution at Sun Oct 18 2026 10:01:00! Possible blocking IO or high CPU user at the same process used by node-cron.'), 'warn');
 });

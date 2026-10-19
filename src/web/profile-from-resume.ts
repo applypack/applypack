@@ -8,7 +8,7 @@
  * for instead of only what differs from the search already running.
  */
 import type { Profile } from '@prisma/client';
-import { blankProfileInput, createProfile } from '../profiles';
+import { blankProfileInput, createProfile, listProfiles } from '../profiles';
 import { buildProfileDraft, type ProfileDraft, type ScanForDraft } from '../resume/profile-draft';
 import type { ResumeSummary } from '../resume/store';
 
@@ -23,12 +23,25 @@ export function scanFields(resume: ResumeSummary): ScanForDraft {
   };
 }
 
-/** The draft a "create a search" button would save. `changes.name` is always set. */
-export function newProfileDraft(resume: ResumeSummary): ProfileDraft {
+/** The longest name the search editor saves (routes/settings.tsx, ProfileFormSchema). */
+const PROFILE_NAME_MAX = 100;
+
+/**
+ * A search's name that no other search has: the second "Senior Backend
+ * Engineer" carries the resume it hunts with — "Senior Backend Engineer —
+ * marta v2" — or the list tells the two apart only by "primary" (#589).
+ */
+export function distinctName(name: string, resumeName: string, taken: readonly string[]): string {
+  if (!taken.includes(name) || name === resumeName) return name;
+  return Array.from(`${name} — ${resumeName}`).slice(0, PROFILE_NAME_MAX).join('');
+}
+
+/** The draft a "create a search" button would save, beside the searches named `taken`. `changes.name` is always set. */
+export function newProfileDraft(resume: ResumeSummary, taken: readonly string[]): ProfileDraft {
   const draft = buildProfileDraft(blankProfileInput(), scanFields(resume));
   // A scan with no headline leaves the base name, "New profile" — the resume's
   // own name says more, and the user renames either one in the editor.
-  return { ...draft, changes: { ...draft.changes, name: draft.changes.name ?? resume.name } };
+  return { ...draft, changes: { ...draft.changes, name: distinctName(draft.changes.name ?? resume.name, resume.name, taken) } };
 }
 
 /**
@@ -39,7 +52,7 @@ export function newProfileDraft(resume: ResumeSummary): ProfileDraft {
 export async function createProfileFromResume(resume: ResumeSummary): Promise<Profile> {
   return createProfile({
     ...blankProfileInput(),
-    ...newProfileDraft(resume).changes,
+    ...newProfileDraft(resume, (await listProfiles()).map((p) => p.name)).changes,
     resumeId: resume.id,
   });
 }

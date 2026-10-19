@@ -3,7 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Badge, Card, CardHeader, CardLink, Empty, Flash, Hint, Notice, PageHeader, Tabs } from '../ui';
 import type { FlashMessage } from '../flash';
-import { formatDuration } from '../format';
+import { formatCompact, formatDuration } from '../format';
 import { billingWords, failureWords, formatUsd, slowTail, SPEND_PERIODS, type ModelUsage, type SpendPeriod, type SpendRow, type SpendView } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { AiPlanRow } from '../ai-plan';
@@ -237,7 +237,7 @@ const FeatureRow: FC<{ row: SpendRow }> = ({ row: r }) => {
         {tail !== null && <div class="text-meta text-ink-faint">{t('ai.nineInTenUnder', { time: formatDuration(tail) })}</div>}
       </td>
       <td class="hidden whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink-muted sm:table-cell">
-        {compact(r.tokensIn)} → {compact(r.tokensOut)}
+        {formatCompact(r.tokensIn)} → {formatCompact(r.tokensOut)}
       </td>
       <td class="hidden whitespace-nowrap py-2.5 pl-4 text-right tabular-nums sm:table-cell" title={t(MONEY_TITLE[r.billing])}>
         {cost}
@@ -249,11 +249,4 @@ const FeatureRow: FC<{ row: SpendRow }> = ({ row: r }) => {
 /** A bill as it is, what a plan covered as an estimate: "$0.12", "≈ $0.30". */
 function money(billing: AiBilling, micro: number): string {
   return `${billing === 'plan' ? '≈ ' : ''}${formatUsd(micro)}`;
-}
-
-/** 1 204 → "1.2k", 3 400 000 → "3.4M": the table's tokens at a glance. */
-function compact(n: number): string {
-  if (n < 1_000) return String(n);
-  if (n < 1_000_000) return `${(n / 1_000).toFixed(n < 10_000 ? 1 : 0)}k`;
-  return `${(n / 1_000_000).toFixed(1)}M`;
 }

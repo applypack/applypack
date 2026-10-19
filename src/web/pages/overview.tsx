@@ -34,7 +34,7 @@ import type { ReadyPack } from '../../pack/store';
 import { KPI_STATUSES, overviewHref, type KpiStatus } from '../overview-numbers';
 import type { OverviewStats } from '../overview-stats';
 import { placeLine } from '../place-line';
-import { techLabel } from '../tech-label';
+import { techLabel, techLabels } from '../tech-label';
 import type { WorkplaceCode } from '../../location';
 import { FetchNowButton } from './fetch-run';
 import { MatchesChart } from './matches-chart';
@@ -52,7 +52,7 @@ import type { Tone } from '../format';
 import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
-import { unscoredRun } from '../runs-summary';
+import { runName, unscoredRun } from '../runs-summary';
 import { UnscoredNotice } from './unscored-notice';
 import type { UnscoredView } from '../score-run';
 
@@ -200,13 +200,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       {/* What stands between the search and its alerts, said before any number. */}
       {!fetchingEnabled && (
         <Notice tone="warn" class="mb-4">
-          {tRich('overview.pausedNotice', {}, {
-            link: (words) => (
-              <a href="/settings?tab=profile" class="font-medium underline">
-                {words}
-              </a>
-            ),
-          })}
+          {t('overview.pausedNotice')}
         </Notice>
       )}
       {unscored && <UnscoredNotice {...unscored} class="mb-4" />}
@@ -222,7 +216,7 @@ export const OverviewPage: FC<OverviewProps> = ({
         </Notice>
       )}
 
-      <section aria-label={t('overview.jobsByStatus')} class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(18rem,27%)]">
+      <section aria-label={t('overview.jobsByStatus')} class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(18rem,27%)]">
         {KPI_STATUSES.map((status) => {
           const moved = stats.kpi[status].last24h;
           return (
@@ -251,9 +245,12 @@ export const OverviewPage: FC<OverviewProps> = ({
       {readyPacks.length > 0 && <ReadyPacksCard packs={readyPacks} total={readyPacksTotal} />}
 
       <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,27%)]">
-        <div class="min-w-0 space-y-4">
+        {/* #570: on a phone the latest matches come before the chart, so the first one is in the first screen. */}
+        <div class="flex min-w-0 flex-col gap-4">
           <MatchesChart chart={stats.chart} funnel={stats.funnel} />
-          <RecentMatches jobs={recentMatches} places={places} />
+          <div class="order-first sm:order-none">
+            <RecentMatches jobs={recentMatches} places={places} />
+          </div>
         </div>
 
         <div class="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
@@ -272,9 +269,7 @@ export const OverviewPage: FC<OverviewProps> = ({
                     class={`h-2 w-2 shrink-0 rounded-full ${run ? TONE_FILL[runBadge(run).tone] : 'bg-line-strong'}`}
                     aria-hidden="true"
                   />
-                  <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" translate="no">
-                    {name}
-                  </span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">{runName(name)}</span>
                   {/* The word, not the dot alone: said aloud for a healthy run, shown for one that is not. */}
                   {run && runBadge(run).ok && <span class="sr-only">{t('run.status.ok')}</span>}
                   {run && !runBadge(run).ok && <Badge tone={runBadge(run).tone}>{runBadge(run).label}</Badge>}
@@ -421,6 +416,7 @@ const RecentMatches: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places 
           // Who hires, and — only when the row names nobody — the source it came through (#444).
           const { name, via } = companyOnPage(j.employer, j.company);
           const who = name ?? t('job.companyNotNamed');
+          const tech = techLabels(j.techMatch);
           return (
             <li>
               <a
@@ -439,19 +435,19 @@ const RecentMatches: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places 
                     <span translate={place.asPosted ? 'no' : undefined}>{place.text}</span>
                   </div>
                 </div>
-                {j.techMatch.length > 0 && (
+                {tech.length > 0 && (
                   // Two technologies where the column is narrow, three from 2xl; the rest is a count either way.
-                  <div class="hidden shrink-0 items-center gap-1.5 lg:flex" translate="no" title={j.techMatch.map(techLabel).join(', ')}>
-                    {j.techMatch.slice(0, ROW_TAGS).map((tech, i) => (
+                  <div class="hidden shrink-0 items-center gap-1.5 lg:flex" translate="no" title={tech.join(', ')}>
+                    {tech.slice(0, ROW_TAGS).map((label, i) => (
                       <span class={i === ROW_TAGS - 1 ? 'hidden 2xl:inline-flex' : 'inline-flex'}>
-                        <Tag>{techLabel(tech)}</Tag>
+                        <Tag>{label}</Tag>
                       </span>
                     ))}
-                    {j.techMatch.length >= ROW_TAGS && (
-                      <span class="text-meta tabular-nums text-ink-faint 2xl:hidden">+{j.techMatch.length - (ROW_TAGS - 1)}</span>
+                    {tech.length >= ROW_TAGS && (
+                      <span class="text-meta tabular-nums text-ink-faint 2xl:hidden">+{tech.length - (ROW_TAGS - 1)}</span>
                     )}
-                    {j.techMatch.length > ROW_TAGS && (
-                      <span class="hidden text-meta tabular-nums text-ink-faint 2xl:inline">+{j.techMatch.length - ROW_TAGS}</span>
+                    {tech.length > ROW_TAGS && (
+                      <span class="hidden text-meta tabular-nums text-ink-faint 2xl:inline">+{tech.length - ROW_TAGS}</span>
                     )}
                   </div>
                 )}

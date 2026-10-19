@@ -83,6 +83,19 @@ export function fitScale(available, pageWidth) {
   return Math.min(1, Math.max(MIN_SCALE, available / pageWidth));
 }
 
+/**
+ * How the sheet sits in a pane: whole while it fits at full size; else its
+ * text column fitted to the pane and the paper's side margins left outside —
+ * at 1280 px the whole sheet drew at 48 % and its text at 6–7 px (#589).
+ * `shift` is how far the sheet moves left, in its own pixels.
+ */
+export function sheetFit(available, page) {
+  const whole = fitScale(available, page.width + 2 * SHEET_GUTTER_PX);
+  const column = page.width - page.left - page.right;
+  if (whole === 1 || !(column > 0)) return { zoom: whole, shift: 0 };
+  return { zoom: fitScale(available, column + 2 * SHEET_GUTTER_PX), shift: page.left };
+}
+
 /** Most text lines one paragraph is drawn from: a bullet or a summary a PDF's text broke over several. */
 const MAX_WINDOW = 4;
 /** A paragraph this short is not looked for inside a longer line — "Go" is in half of them. */
@@ -402,7 +415,13 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, draft, ge
   function fit() {
     const wrapper = pane.querySelector('.docx-wrapper');
     if (!wrapper || !page) return;
-    wrapper.style.zoom = String(fitScale(pane.clientWidth - 2 * SHEET_GUTTER_PX, page.width + 2 * SHEET_GUTTER_PX));
+    // The gutters are the wrapper's padding, inside the zoom: sheetFit counts them, so the pane's width is all there is.
+    const { zoom, shift } = sheetFit(pane.clientWidth, page);
+    wrapper.style.zoom = String(zoom);
+    // Moved left, the sheets start at the pane's edge and what sticks out on the right is cut, not scrolled to.
+    wrapper.style.alignItems = shift > 0 ? 'flex-start' : '';
+    wrapper.style.overflowX = shift > 0 ? 'clip' : '';
+    for (const sheet of wrapper.querySelectorAll(':scope > section.docx')) sheet.style.marginLeft = shift > 0 ? `${-shift}px` : '';
   }
   new ResizeObserver(fit).observe(pane);
 

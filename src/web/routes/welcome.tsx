@@ -16,7 +16,7 @@ import {
   setOpenAiBaseUrl,
   setSetupCompleted,
 } from '../../settings';
-import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
+import { getActiveProfile, listProfiles, updateProfile, type ProfileInput } from '../../profiles';
 import { resolveCountries } from '../../countries';
 import { isProfileWorkplace } from '../../location';
 import { searchPlaces } from '../../fetchers/fetch-context';
@@ -31,6 +31,7 @@ import {
   AI_PROVIDER_LABELS,
   adoptFoundEngine,
   aiEngineOrder,
+  firstForEveryTask,
   isAiProviderId,
   parseAiEngineConfig,
   resolveAiEngine,
@@ -109,7 +110,7 @@ welcomeRoute.get('/welcome', async (c) => {
   const resumeId = idParam(c.req.query('resume'));
   const asNew = c.req.query('mode') === 'new';
   const draftResume = Number.isFinite(resumeId) && profile ? await getResume(resumeId) : null;
-  const draft = draftResume && profile ? draftCard(profile, draftResume, asNew) : null;
+  const draft = draftResume && profile ? draftCard(profile, draftResume, asNew, asNew ? (await listProfiles()).map((p) => p.name) : []) : null;
 
   return c.html(
     <WelcomePage
@@ -166,12 +167,14 @@ welcomeRoute.get('/welcome', async (c) => {
 });
 
 welcomeRoute.post('/welcome/skip', async () => {
+  await keepFoundEngine();
   await setSetupCompleted(currentLocale());
   return flashRedirect('/', 'ok', t('welcome.flash.skipped'));
 });
 
 /** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
 welcomeRoute.post('/welcome/finish', async () => {
+  await keepFoundEngine();
   await setFetchingEnabled(true);
   await setSetupCompleted(currentLocale());
   return flashRedirect('/', 'ok', t('welcome.flash.finished'));
@@ -220,16 +223,20 @@ welcomeRoute.post('/welcome/ai/local', async (c) => {
   }
   await (engine === 'local_api' ? setLocalAiUrl(checked.url) : setOpenAiBaseUrl(checked.url));
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
-  await setAiEngineConfig(withEngineFirst(parseAiEngineConfig(settings.aiEngine), engine, getAiEngineEnv(keys, settings.openAiBaseUrl), model));
+  const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
+  const next = withEngineFirst(parseAiEngineConfig(settings.aiEngine), engine, env, model);
+  await setAiEngineConfig(next);
   forgetAiProbe();
-  return flashRedirect(AI_STEP, 'ok', t('welcome.flash.localFirst', { model }));
+  const alone = firstForEveryTask(resolveAiEngine(next, env), engine);
+  return flashRedirect(AI_STEP, 'ok', t(alone ? 'welcome.flash.localAlone' : 'welcome.flash.localFirst', { model }));
 });
 
 /**
- * Step 1's Continue: an engine found on this machine becomes the chosen one when nothing in the list can run
- * (`adoptFoundEngine`), so the AI tab shows the engine that answers as the one picked. Calls go where they went.
+ * Leaving step 1 by Continue, or setup by Skip or Finish (#559): an engine found on this machine becomes the chosen
+ * one when nothing in the list can run (`adoptFoundEngine`), so the AI tab shows the engine that answers as the one
+ * picked. Calls go where they went.
  */
-welcomeRoute.post('/welcome/ai/continue', async (c) => {
+async function keepFoundEngine(): Promise<void> {
   const { statuses, settings } = await loadWelcomeContext();
   const env = getAiEngineEnv(await getAiKeys(), settings.openAiBaseUrl);
   const adopted = adoptFoundEngine(parseAiEngineConfig(settings.aiEngine), env, AI_PROVIDER_IDS.filter((id) => statuses[id].ok));
@@ -237,6 +244,10 @@ welcomeRoute.post('/welcome/ai/continue', async (c) => {
     await setAiEngineConfig(adopted);
     forgetAiProbe();
   }
+}
+
+welcomeRoute.post('/welcome/ai/continue', async (c) => {
+  await keepFoundEngine();
   return c.redirect(SEARCH_STEP, 303);
 });
 
@@ -453,9 +464,11 @@ function draftCard(
   profile: ProfileForDraft,
   resume: ResumeSummary,
   asNew: boolean,
+  /** The searches' names, which a new one's must not repeat. */
+  taken: readonly string[],
 ): ProfileDraftCard | null {
   if (!resume.scannedAt || resume.hidden) return null;
-  const draft = asNew ? newProfileDraft(resume) : buildProfileDraft(profile, scanFields(resume));
+  const draft = asNew ? newProfileDraft(resume, taken) : buildProfileDraft(profile, scanFields(resume));
   const primary = draft.changes.stackRequired ?? resume.primarySkills;
   return {
     asNew,

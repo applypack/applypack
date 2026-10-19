@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmAction,
   FitBadge,
   Hint,
   HistoryChip,
@@ -85,6 +86,8 @@ export interface ResumeMatchCardProps {
   verification: VerificationForHint | null;
   /** What a comparison usually costs here (ai-spend.ts:costHintText); null until there are three. */
   costHint: string | null;
+  /** The cost line Rebuild keywords says before its second press (cost-hint.ts:spendHint). */
+  rebuildCost: string;
 }
 
 const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
@@ -140,6 +143,8 @@ export interface RebuildTarget {
   /** The analysed text when it was an unsaved draft: re-judged as is, so the frame is the only thing that changes. */
   draftText?: string;
   formId?: string;
+  /** What the calls usually cost here, or whose money they spend (cost-hint.ts:spendHint) — said before the second press. */
+  cost: string;
 }
 
 const HARD_VIEW = {
@@ -169,6 +174,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   job,
   verification,
   costHint,
+  rebuildCost,
 }) => (
   <div id="resume-match">
     <Card>
@@ -237,6 +243,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           factsBack={`/jobs/${jobId}?match=${selected.id}#resume-match`}
           job={job}
           verification={verification}
+          rebuildCost={rebuildCost}
         />
       )}
 
@@ -490,7 +497,8 @@ const MatchReport: FC<{
   /** The latest verdict's findings ride along the cautions (#162). */
   verification: VerificationForHint | null;
   summaryGuide: SummaryGuide | null;
-}> = ({ match, previous, keywords, written, summaryGuide, factsBack, job, verification }) => {
+  rebuildCost: string;
+}> = ({ match, previous, keywords, written, summaryGuide, factsBack, job, verification, rebuildCost }) => {
   const bd = readBreakdown(match.breakdown);
   // A re-extracted frame counts different terms, so the older number is not a
   // baseline for this one (keyword-frame.ts). DeltaBox says so in words.
@@ -579,6 +587,7 @@ const MatchReport: FC<{
           matchId: match.id,
           mode: readMatchMode(match.breakdown),
           ...(match.draft ? { draftText: match.resumeText } : {}),
+          cost: rebuildCost,
         }}
       />
     </div>
@@ -1134,35 +1143,29 @@ export const KeywordTable: FC<{
  * own keyword edits are re-applied to whatever comes back — a rebuild resets
  * the model's guess, not their decisions.
  */
-function rebuildTitle(mode: MatchMode): string {
-  return t(mode === 'fast' ? 'keyword.rebuild.titleFast' : 'keyword.rebuild.titleFull');
-}
-
-const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
-  target.formId ? (
-    <button
-      type="submit"
-      form={target.formId}
-      class={`${ROW_LINK} ml-auto`}
-      title={rebuildTitle(target.mode)}
-      onclick={`this.form.elements.rebuild.value='1';this.form.elements.mode.value='${target.mode}'`}
-    >
-      {t('keyword.rebuild')}
-    </button>
+const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) => {
+  const confirm = `${t(target.mode === 'fast' ? 'keyword.rebuild.confirmFast' : 'keyword.rebuild.confirmFull')} ${target.cost}`.trim();
+  const shared = { action: `/jobs/${target.jobId}/match`, label: t('keyword.rebuild'), confirm, variant: 'secondary', class: 'ml-auto' } as const;
+  return target.formId ? (
+    <ConfirmAction
+      {...shared}
+      submits={{ form: target.formId, onclick: `this.form.elements.rebuild.value='1';this.form.elements.mode.value='${target.mode}'` }}
+    />
   ) : (
-    <form method="post" action={`/jobs/${target.jobId}/match`} class="ml-auto" onsubmit={SUBMIT_ONCE}>
-      <input type="hidden" name="resumeId" value={String(target.resumeId)} />
-      {target.matchId !== undefined && <input type="hidden" name="matchId" value={String(target.matchId)} />}
-      <input type="hidden" name="mode" value={target.mode} />
-      <input type="hidden" name="rebuild" value="1" />
-      {/* A draft row was judged on text no version holds — send it back, or the
-          rebuild would quietly score the stored resume instead. */}
-      {target.draftText !== undefined && <input type="hidden" name="draftText" value={target.draftText} />}
-      <button type="submit" class={ROW_LINK} title={rebuildTitle(target.mode)}>
-        {t('keyword.rebuild')}
-      </button>
-    </form>
+    <ConfirmAction
+      {...shared}
+      hidden={{
+        resumeId: target.resumeId,
+        ...(target.matchId !== undefined ? { matchId: target.matchId } : {}),
+        mode: target.mode,
+        rebuild: '1',
+        // A draft row was judged on text no version holds — send it back, or the
+        // rebuild would quietly score the stored resume instead.
+        ...(target.draftText !== undefined ? { draftText: target.draftText } : {}),
+      }}
+    />
   );
+};
 
 const KEYWORD_SUMMARY =
   'cursor-pointer border-t border-line px-5 py-2.5 text-note font-medium text-ink-muted transition-colors duration-150 hover:text-ink';

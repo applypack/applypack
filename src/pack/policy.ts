@@ -1,7 +1,7 @@
 import { proposalOf, suggestionKey } from '../resume/change-sheet';
 import { effectiveKeywords } from '../resume/keyword-overrides';
 import type { ACTION_SECTIONS, MatchAction, MatchKeyword, MatchRemoval } from '../resume/prompts';
-import { hasCheckNote, instructionIn } from '../resume/replacement-gate';
+import { hasCheckNote, instructionIn, wasRefused } from '../resume/replacement-gate';
 import { isNamedSkill } from '../resume/keyword-shape';
 import { isTitleKeyword } from '../resume/title-keyword';
 
@@ -52,13 +52,30 @@ export interface SkillTerm {
 }
 
 /**
- * `no-wording`: an instruction with nothing to paste, or wording the gate
- * refused. `drops-figure`: the new wording loses a number the line had.
+ * Why a card with no operation is left (#589 — the page said "this or that"):
+ * `refused`, the gate refused its wording; `instruction`, advice with no
+ * wording to paste, or wording that is a note to the writer; `no-place`,
+ * wording with no line to change or follow; `cut-refused`, the gate took a
+ * removal's span away (contact details, a wanted keyword); `no-quote`, a cut
+ * with no text named. `no-wording` is what a pack stored before the split
+ * says, for all of them.
+ * `drops-figure`: the new wording loses a number the line had.
  * `check-first`: the gate let the wording through with a note to check — a
  * skill nobody confirmed, a term the line loses. On the Tailor page the person
  * reads that note before pressing Apply; a pack is a file nobody has read yet.
  */
-export type HeldReason = 'no-wording' | 'check-first' | 'drops-figure' | 'section' | 'over-limit' | 'removals-off';
+export type HeldReason =
+  | 'refused'
+  | 'instruction'
+  | 'no-place'
+  | 'cut-refused'
+  | 'no-quote'
+  | 'no-wording'
+  | 'check-first'
+  | 'drops-figure'
+  | 'section'
+  | 'over-limit'
+  | 'removals-off';
 
 export interface HeldEdit {
   section: ActionSection;
@@ -103,6 +120,13 @@ function operationOf(action: MatchAction): EditOperation | null {
   return null;
 }
 
+/** Which of the reasons a card that has no operation is left for (`operationOf` returned null). */
+function unworded(action: MatchAction): HeldReason {
+  if (wasRefused(action)) return 'refused';
+  const wording = proposalOf(action)?.text;
+  return !wording || instructionIn(wording, action.quote ?? '') ? 'instruction' : 'no-place';
+}
+
 export function planEdits(
   report: {
     actions: MatchAction[];
@@ -125,7 +149,7 @@ export function planEdits(
   const open: { action: MatchAction; op: EditOperation }[] = [];
   for (const action of report.actions) {
     const op = operationOf(action);
-    if (!op) hold(action, 'no-wording');
+    if (!op) hold(action, unworded(action));
     else if (!allowed(action)) hold(action, 'section');
     else if (hasCheckNote(action)) hold(action, 'check-first');
     else if (op.kind === 'change' && dropsFigure(op.quote, op.wording)) hold(action, 'drops-figure');
@@ -148,7 +172,7 @@ export function planEdits(
   }
   for (const removal of report.removals) {
     const key = suggestionKey(removal);
-    if (!removal.quote) hold(removal, 'no-wording');
+    if (!removal.quote) hold(removal, wasRefused(removal) ? 'cut-refused' : 'no-quote');
     else if (!policy.removals) hold(removal, 'removals-off');
     else if (!allowed(removal)) hold(removal, 'section');
     else if (hasCheckNote(removal)) hold(removal, 'check-first');

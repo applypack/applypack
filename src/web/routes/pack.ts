@@ -1,10 +1,11 @@
 import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
+import { hiringName } from '../../employer';
 import { t } from '../../i18n/t';
 import { cancelQueuedPack, getPack, getPackFile, packFiles, packIsKept, packOfSameRole, queuePack } from '../../pack/store';
 import { packBusy, preparingLine, readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
-import { contentDisposition } from '../../resume/draft-document';
+import { contentDisposition, packFileName } from '../../resume/draft-document';
 import { loadLineDiff } from '../../resume/line-diff';
 import { readKeywords } from '../../resume/prompts';
 import { PDF_MIME } from '../../resume/render/clean-pdf';
@@ -63,12 +64,15 @@ packRoute.get('/jobs/:id/pack/state', async (c) => {
 async function sendPackFile(c: Context, kind: 'docx' | 'pdf'): Promise<Response> {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const file = await getPackFile(id, kind);
-  if (!file) return c.text(t('http.notFound'), 404);
+  const [file, job] = await Promise.all([
+    getPackFile(id, kind),
+    prisma.job.findUnique({ where: { id }, select: { employer: true, company: { select: { name: true, atsType: true } } } }),
+  ]);
+  if (!file || !job) return c.text(t('http.notFound'), 404);
   return new Response(new Uint8Array(file.bytes), {
     headers: {
       'Content-Type': kind === 'pdf' ? PDF_MIME : DOCX_MIME,
-      'Content-Disposition': contentDisposition(file.fileName),
+      'Content-Disposition': contentDisposition(packFileName(file.fileName, hiringName(job.employer, job.company), kind)),
       'Cache-Control': 'no-store',
     },
   });

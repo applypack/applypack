@@ -60,6 +60,17 @@ export function normalizeUrlKey(input: string | null | undefined): string | null
 }
 
 /**
+ * What a stored link must contain to share `input`'s `normalizeUrlKey`: its
+ * path, or its host when the path is empty — the cheap cut a database can make
+ * before the keys are compared. Null for junk, as the key is.
+ */
+export function urlKeyNeedle(input: string): string | null {
+  if (normalizeUrlKey(input) === null) return null;
+  const url = new URL(input.trim());
+  return url.pathname.replace(/\/+$/, '') || url.host.toLowerCase();
+}
+
+/**
  * Free text reduced to a comparable key. NFKC then letters/marks/digits in
  * **any** script — an ASCII-only strip would map every Cyrillic or CJK
  * company name to the empty string and collide them all. Null for junk.
@@ -295,9 +306,11 @@ export function extractAtsToken(
   if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
     return { atsType: 'PINPOINT', atsToken: m[1].toLowerCase() };
   }
-  // Rippling: ats.rippling.com/{slug}/jobs OR the board API URL
+  // Rippling: ats.rippling.com/{slug}/jobs OR the board API URL. A localised
+  // page puts its locale first (ats.rippling.com/en-CA/{slug}/jobs), and the
+  // locale was read as the slug (#541); a two-letter slug is still a slug.
   m =
-    /https?:\/\/(?:ats\.rippling\.com|api\.rippling\.com\/platform\/api\/ats\/v1\/board)\/([\w-]{2,60})/i.exec(
+    /https?:\/\/(?:ats\.rippling\.com(?:\/[a-z]{2}(?:-[a-z]{2})?(?=\/(?!jobs(?:[/?#]|$))[\w-]{2,60}))?|api\.rippling\.com\/platform\/api\/ats\/v1\/board)\/([\w-]{2,60})/i.exec(
       url,
     );
   if (m && m[1]) {

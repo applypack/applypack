@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COUNTRIES, findCountry } from '../countries';
+import { COUNTRIES, REGIONS, countrySpellings, findCountry } from '../countries';
 
 // The browser copy ships as a static ES module; node loads it the same way.
 // @ts-expect-error — plain JS with no declaration file.
@@ -13,6 +13,7 @@ const picker = import('./public/countries.mjs') as Promise<{
     limit?: number,
   ) => { country: { code: string; name: string; flag: string }; via: string }[];
   chipText: (c: { flag: string; name: string }) => string;
+  knowsCountry: (value: string, countries: readonly { code: string; flag: string }[], spellings: Set<string>) => boolean;
 }>;
 
 /*
@@ -69,6 +70,23 @@ test('a chip round-trips through findCountry', async () => {
     assert.equal(findCountry(chipText(hit.country))?.code, hit.country.code, q);
   }
   assert.equal(chipText({ flag: '🇵🇱', name: 'Poland' }), '🇵🇱 Poland');
+});
+
+test('the chip input refuses exactly what the save refuses (#549)', async () => {
+  const { knowsCountry } = await picker;
+  const spellings = new Set(countrySpellings());
+  const typed = [
+    ...COUNTRIES.flatMap((c) => [c.code, c.code.toLowerCase(), c.flag, `${c.flag} ${c.name}`, c.name, ...c.names, ...c.demonyms, ...c.cities]),
+    ...REGIONS.flatMap((r) => [r.label, ...r.aliases]),
+    ...['uk', 'es', 'fr'].flatMap((lang) => {
+      const display = new Intl.DisplayNames([lang], { type: 'region', fallback: 'none' });
+      return COUNTRIES.map((c) => display.of(c.code) ?? '');
+    }),
+    'California', 'Texas', 'Ontario', 'Allemagne', 'Georgia', 'Neverland', 'land', 'P.L.', '  ', '🇵🇱 Neverland',
+  ];
+  for (const value of typed) {
+    assert.equal(knowsCountry(value, COUNTRIES, spellings), value.trim() === '' || findCountry(value) !== null, value);
+  }
 });
 
 test('normalises like the server does', async () => {

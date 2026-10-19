@@ -44,8 +44,11 @@ export interface ComparisonRequest {
   failure?: string;
 }
 
-/** The job is already stored: answer from the memo without a run, or claim one and compare. */
-export async function startComparison(c: Context, req: ComparisonRequest): Promise<Response> {
+/**
+ * The job is already stored: answer from the memo without a run, or claim one
+ * and compare. `back` is where a failed run returns: the page it was started from (#527).
+ */
+export async function startComparison(c: Context, req: ComparisonRequest, back: { url: string; label: string }): Promise<Response> {
   const { jobId, job, resume, text, mode, rebuild } = req;
 
   // The same text was already judged: show that analysis instead of paying for
@@ -73,7 +76,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
   // second submit joins the run in flight rather than paying for it twice.
   const { run, joined } = claimRun(
     `match:${jobId}:${resume.id}:${mode}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
-    { steps: ['brief', matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId },
+    { steps: ['brief', matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId, backUrl: back.url, backLabel: back.label },
   );
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, () => compare(run.id, req));

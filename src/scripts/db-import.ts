@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { prisma } from '../db';
-import { importPlan, splitSql } from '../sql-dump';
+import { applySchema } from '../init';
+import { importPlan, splitSql, truncateStatement } from '../sql-dump';
 import { dataDirFor, localPaths } from '../local/data-dir';
 import { NO_ANSWER, firstLinePid } from '../local/postgres-setup';
 import { commandLineOf, pidAlive } from '../local/postgres';
@@ -59,6 +60,9 @@ async function main(): Promise<void> {
   if (await workerRunning()) {
     fail('ApplyPack is running, and its worker would write while the tables are replaced. Stop it (npm run stop), start only the database (npm run db), then import.');
   }
+  // A new data folder's database has no tables until ApplyPack first starts (#550): the import makes them as a start would.
+  await prisma.$queryRaw`SELECT 1`;
+  applySchema();
   const started = Date.now();
   await prisma.$transaction(
     async (tx) => {
@@ -68,7 +72,8 @@ async function main(): Promise<void> {
       const tables = await tx.$queryRawUnsafe<{ tablename: string }[]>(
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'",
       );
-      await tx.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"public"."${t.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`);
+      const truncate = truncateStatement(tables.map((t) => t.tablename));
+      if (truncate) await tx.$executeRawUnsafe(truncate);
       for (const [i, statement] of statements.entries()) {
         await tx.$executeRawUnsafe(statement);
         if ((i + 1) % PROGRESS_EVERY === 0) say(`  ${(i + 1).toLocaleString('en-US')} of ${statements.length.toLocaleString('en-US')}…`);
