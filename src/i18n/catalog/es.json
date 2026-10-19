@@ -330,6 +330,7 @@
   "runs.fact.aiCallsDeleted": "{n, plural, one {# registro antiguo de llamada a la IA eliminado} many {# de registros antiguos de llamadas a la IA eliminados} other {# registros antiguos de llamadas a la IA eliminados}}",
   "runs.fact.candidates": "{n, plural, one {# candidato} many {# de candidatos} other {# candidatos}}",
   "runs.fact.candidatesRecorded": "{n, plural, one {# candidato registrado} many {# de candidatos registrados} other {# candidatos registrados}}",
+  "runs.fact.discoveryPending": "{n, plural, one {# pendiente de revisión} many {# pendientes de revisión} other {# pendientes de revisión}}",
   "runs.after.fetch": "Lo que guardó antes del fallo se queda, y el próximo ciclo lo vuelve a intentar.",
   "runs.after.fetchNow": "Lo que guardó antes del fallo se queda; pulsa Obtener ahora otra vez o espera al próximo ciclo.",
   "runs.after.hnHiring": "Lo que guardó antes del fallo se queda, y la próxima ejecución lo vuelve a intentar.",

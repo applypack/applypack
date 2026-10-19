@@ -85,6 +85,8 @@ const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] =
   { key: 'aiCallsDeleted', words: 'runs.fact.aiCallsDeleted' },
   { key: 'candidates', words: 'runs.fact.candidates', always: true },
   { key: 'candidatesRecorded', words: 'runs.fact.candidatesRecorded' },
+  // What a discovery run leaves for review: the number /discovery shows beside "Pending review" (#542).
+  { key: 'pending', job: 'discovery', words: 'runs.fact.discoveryPending', always: true },
 ];
 
 /**

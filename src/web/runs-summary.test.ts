@@ -67,6 +67,17 @@ describe('summarizeRun', () => {
     assert.match(summarizeRun('fetch-now', { reason: 'no-sources', fetched: 0 })[0] ?? '', /^No source to read/);
   });
 
+  it('a discovery run leads with what is left for review, the count /discovery shows (#542)', () => {
+    assert.deepEqual(summarizeRun('discovery', { pending: 31, probed: 28, alive: 27, dead: 1, jobsCountUpdated: 0, durationMs: 40_000 }), [
+      '31 pending review',
+      '28 probed',
+      '27 alive',
+      '1 dead',
+    ]);
+    // Another job's "pending" is not a review list.
+    assert.deepEqual(summarizeRun('x', { pending: 2 }), ['2 pending']);
+  });
+
   it('keeps the facts after a mid-run pause', () => {
     assert.deepEqual(summarizeRun('fetch-now', { reason: 'paused-mid-run', fetched: 120, sources: 3 }), [
       'Fetching was paused mid-run; nothing stored',

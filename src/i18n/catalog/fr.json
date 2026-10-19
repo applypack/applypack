@@ -330,6 +330,7 @@
   "runs.fact.aiCallsDeleted": "{n, plural, one {# ancien enregistrement d'appel à l'IA supprimé} many {# d'anciens enregistrements d'appels à l'IA supprimés} other {# anciens enregistrements d'appels à l'IA supprimés}}",
   "runs.fact.candidates": "{n, plural, one {# candidat} many {# de candidats} other {# candidats}}",
   "runs.fact.candidatesRecorded": "{n, plural, one {# candidat enregistré} many {# de candidats enregistrés} other {# candidats enregistrés}}",
+  "runs.fact.discoveryPending": "{n, plural, one {# en attente d'examen} many {# en attente d'examen} other {# en attente d'examen}}",
   "runs.after.fetch": "Ce qu'elle a enregistré avant l'échec est conservé, et le prochain cycle réessaie.",
   "runs.after.fetchNow": "Ce qu'elle a enregistré avant l'échec est conservé ; appuyez de nouveau sur Récupérer maintenant ou attendez le prochain cycle.",
   "runs.after.hnHiring": "Ce qu'elle a enregistré avant l'échec est conservé, et la prochaine exécution réessaie.",

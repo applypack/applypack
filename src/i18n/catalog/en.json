@@ -330,6 +330,7 @@
   "runs.fact.aiCallsDeleted": "{n, plural, one {# old AI call record deleted} other {# old AI call records deleted}}",
   "runs.fact.candidates": "{n, plural, one {# candidate} other {# candidates}}",
   "runs.fact.candidatesRecorded": "{n, plural, one {# candidate recorded} other {# candidates recorded}}",
+  "runs.fact.discoveryPending": "{n, plural, one {# pending review} other {# pending review}}",
   "runs.after.fetch": "What it stored before the failure stays, and the next tick tries again.",
   "runs.after.fetchNow": "What it stored before the failure stays; press Fetch now again, or wait for the next tick.",
   "runs.after.hnHiring": "What it stored before the failure stays, and the next run tries again.",
