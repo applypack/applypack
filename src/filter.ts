@@ -141,10 +141,8 @@ export function titleHasKeyword(title: string, keyword: string): boolean {
   const k = keyword.toLowerCase();
   if (k.length === 0) return false;
   if (hasBoundedRun(title, k, title, null)) return true;
-  const joinedKey = joinParts(k).text;
   const joined = joinParts(title);
-  if (joinedKey === k && joined.text === title) return false;
-  return hasBoundedRun(joined.text, joinedKey, title, joined.at);
+  return hasBoundedRun(joined.text, joinParts(k).text, title, joined.at);
 }
 
 /**
@@ -171,8 +169,8 @@ function hasBoundedRun(haystack: string, k: string, title: string, at: readonly 
   return false;
 }
 
-/** Hyphens, spaces and dots between two parts of a word: "back-end", "node js". */
-const PART_SEPARATOR = /[\s.\-‐‑]/u;
+/** Hyphens (the Unicode ones too), spaces and dots between two parts of a word: "back-end", "node js". */
+const PART_SEPARATOR = /[\s.\-\u2010\u2011]/u;
 
 /** The text with every run of separators between two word characters taken out, and where each kept character stood. */
 function joinParts(text: string): { text: string; at: number[] } {
