@@ -6,9 +6,11 @@ import {
   PACING_TOLERANCE_MS,
   alertsEveryPosting,
   dueCutoff,
+  idleReason,
   intervalLabel,
   isDue,
   nextCheckAfter,
+  nextCheckAfterManual,
   starred,
   toAlertPolicy,
   toCheckInterval,
@@ -142,6 +144,53 @@ describe('nextCheckAfter', () => {
     for (const every of CHECK_INTERVALS) {
       assert.ok(nextCheckAfter({ checkEvery: every }, NOW).getTime() > NOW.getTime());
     }
+  });
+});
+
+/**
+ * #557, measured on the live install 2026-10-18: a Fetch now at :57 stamped
+ * every source an hour on, the :12 tick read nothing, and the next read came
+ * 75 minutes after the press.
+ */
+describe('a read the user asked for', () => {
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+  /** The install's :12 heartbeat, `h` hours on. */
+  const tick = (h: number): Date => new Date(NOW.getTime() + h * HOUR + 12 * MINUTE);
+  const fetchNow = new Date(tick(0).getTime() + 45 * MINUTE);
+
+  it('leaves an hourly source due at the next heartbeat', () => {
+    const nextCheckAt = nextCheckAfterManual({ checkEvery: 'hour' }, fetchNow);
+    assert.equal(isDue({ checkEvery: 'hour', nextCheckAt }, tick(1)), true);
+    // The stamp a scheduled read takes is the defect: that tick read nothing.
+    assert.equal(isDue({ checkEvery: 'hour', nextCheckAt: nextCheckAfter({ checkEvery: 'hour' }, fetchNow) }, tick(1)), false);
+  });
+
+  it('brings a daily or weekly source due on the heartbeat a scheduled read would have set, not the next one', () => {
+    for (const [every, hours] of [['day', 24], ['week', 7 * 24]] as const) {
+      const manual = nextCheckAfterManual({ checkEvery: every }, fetchNow);
+      const scheduled = nextCheckAfter({ checkEvery: every }, tick(0));
+      assert.equal(isDue({ checkEvery: every, nextCheckAt: manual }, tick(1)), false);
+      assert.equal(isDue({ checkEvery: every, nextCheckAt: manual }, tick(hours - 1)), false);
+      assert.equal(isDue({ checkEvery: every, nextCheckAt: manual }, tick(hours)), true);
+      assert.equal(isDue({ checkEvery: every, nextCheckAt: scheduled }, tick(hours)), true);
+    }
+  });
+});
+
+describe('idleReason', () => {
+  it('is null when the walk reads any source', () => {
+    assert.equal(idleReason({ roster: 9, due: 3, walked: 3 }), null);
+  });
+
+  it('says nothing was due when every switched-on source waits for its interval', () => {
+    assert.equal(idleReason({ roster: 9, due: 0, walked: 0 }), 'none-due');
+  });
+
+  it('says there was nothing to read when no source is on, or the scope matched none', () => {
+    assert.equal(idleReason({ roster: 0, due: 0, walked: 0 }), 'no-sources');
+    // A Check now on a row whose kind is paused: the row is due, the walk leaves it out.
+    assert.equal(idleReason({ roster: 9, due: 9, walked: 0 }), 'no-sources');
   });
 });
 

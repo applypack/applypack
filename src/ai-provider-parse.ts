@@ -221,6 +221,21 @@ export function cliFailure(
   return { reason: t('engine.fail.noOutput'), log };
 }
 
+/** Node's codes for an address where nothing could be reached at all. */
+const NOTHING_THERE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'UND_ERR_CONNECT_TIMEOUT']);
+
+/**
+ * Why a fetch found nothing at its address (`ECONNREFUSED`, `ENOTFOUND` …),
+ * read off the cause Node keeps under its bare "fetch failed"; null for any
+ * other failure. A local server that is not running is a state, not a fault:
+ * its caller logs it in one line, with no stack (#571).
+ */
+export function unreachableCode(err: unknown): string | null {
+  if (!(err instanceof TypeError)) return null;
+  const code = (err.cause as { code?: unknown } | null | undefined)?.code;
+  return typeof code === 'string' && NOTHING_THERE.has(code) ? code : null;
+}
+
 /** The log's word for a CLI that answered with nothing. */
 export const CLI_NO_TEXT = 'the CLI returned no text';
 

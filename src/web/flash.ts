@@ -3,6 +3,7 @@
  * short-lived cookie. Shared by every route that redirects after a write.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { defaultErrorMap, type ZodIssue } from 'zod';
 import { t } from '../i18n/t';
 
@@ -32,17 +33,47 @@ export interface FlashMessage {
   download?: string;
   /** The form field a schema refused — the page marks it invalid and points it at this message (TASKS U15). */
   field?: RefusedField;
+  /** What a refused form held — the page puts it back instead of an empty form (#534). */
+  draft?: FormDraft;
+}
+
+/** A refused form's values, by the form they came from. */
+export interface FormDraft {
+  /** The form's `action` — the path the POST went to. */
+  form: string;
+  values: Record<string, string>;
 }
 
 const FLASH_TTL_SECONDS = 5;
+/** A draft is a few short fields; the cap keeps a pasted essay from pushing the cookie past what a browser keeps. */
+const MAX_DRAFT_FIELDS = 8;
+const MAX_DRAFT_CHARS = 300;
 /** A schema's message can echo the value it refused; a flash rides in a cookie, so the echo is cut. */
 const MAX_ISSUE_CHARS = 160;
+
+/*
+ * Cookies ignore the port, so two installs on one machine — Docker on 4747,
+ * `npm start` on 4848 — showed each other's flash (#556). The cookie's name
+ * carries the port the page was asked at (`flash-4848`); app.ts sets it for
+ * the request. Outside a request, and on a default port, it is `flash`.
+ */
+const FLASH_COOKIE = 'flash';
+const cookieName = new AsyncLocalStorage<string>();
+
+export function withFlashCookie<T>(url: string, fn: () => T): T {
+  const port = new URL(url).port;
+  return cookieName.run(port ? `${FLASH_COOKIE}-${port}` : FLASH_COOKIE, fn);
+}
+
+function currentName(): string {
+  return cookieName.getStore() ?? FLASH_COOKIE;
+}
 
 export function flashRedirect(
   location: string,
   kind: FlashMessage['kind'],
   text: string,
-  opts: { rerun?: boolean; mode?: string; tailor?: string; download?: string; field?: RefusedField } = {},
+  opts: { rerun?: boolean; mode?: string; tailor?: string; download?: string; field?: RefusedField; draft?: FormDraft } = {},
 ): Response {
   const value = encodeFlash({
     kind,
@@ -51,12 +82,13 @@ export function flashRedirect(
     ...(opts.tailor ? { tailor: opts.tailor } : {}),
     ...(opts.download ? { download: opts.download } : {}),
     ...(opts.field ? { field: opts.field } : {}),
+    ...(opts.draft ? { draft: readDraft(opts.draft) } : {}),
   });
   return new Response(null, {
     status: 303,
     headers: {
       Location: location,
-      'Set-Cookie': `flash=${value}; Path=/; Max-Age=${FLASH_TTL_SECONDS}; HttpOnly; SameSite=Lax`,
+      'Set-Cookie': `${currentName()}=${value}; Path=/; Max-Age=${FLASH_TTL_SECONDS}; HttpOnly; SameSite=Lax`,
     },
   });
 }
@@ -74,7 +106,7 @@ function encodeFlash(message: Record<string, unknown>): string {
 
 export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage | null {
   if (!cookieHeader) return null;
-  const match = /(?:^|;\s*)flash=([^;]+)/.exec(cookieHeader);
+  const match = new RegExp(`(?:^|;\\s*)${currentName()}=([^;]+)`).exec(cookieHeader);
   if (!match || !match[1]) return null;
   try {
     const parsed = JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8'));
@@ -84,6 +116,7 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
       (parsed.kind === 'ok' || parsed.kind === 'warn' || parsed.kind === 'err') &&
       typeof parsed.text === 'string'
     ) {
+      const draft = readDraft(parsed.draft);
       return {
         kind: parsed.kind,
         text: parsed.text,
@@ -97,6 +130,8 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
         ...(typeof parsed.download === 'string' && /^\/resumes\/\d+\/download$/.test(parsed.download) ? { download: parsed.download } : {}),
         // A form's path and a field's name, nothing else: both land in a selector on the page.
         ...(isRefusedField(parsed.field) ? { field: { form: parsed.field.form, name: parsed.field.name } } : {}),
+        // Values only go back into the form they came from, as attribute values the renderer escapes.
+        ...(draft ? { draft } : {}),
       };
     }
   } catch {
@@ -181,6 +216,15 @@ export function refusedField(form: string, issues: readonly { path: readonly Pro
   return typeof name === 'string' && isRefusedField({ form, name }) ? { field: { form, name } } : {};
 }
 
+/** A draft as the cookie may carry it: a form of ours, field names only, short string values. Anything else is none. */
+function readDraft(value: unknown): FormDraft | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { form, values } = value as Record<string, unknown>;
+  if (typeof form !== 'string' || !FORM_ACTION.test(form) || !values || typeof values !== 'object') return undefined;
+  const fields = Object.entries(values).filter((e): e is [string, string] => FIELD_NAME.test(e[0]) && typeof e[1] === 'string');
+  return { form, values: Object.fromEntries(fields.slice(0, MAX_DRAFT_FIELDS).map(([name, v]) => [name, v.slice(0, MAX_DRAFT_CHARS)])) };
+}
+
 function isRefusedField(value: unknown): value is RefusedField {
   if (!value || typeof value !== 'object') return false;
   const { form, name } = value as Record<string, unknown>;
@@ -219,5 +263,5 @@ export function safeBack(back: unknown, fallback: string): string {
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
 
 export function clearFlashCookie(): string {
-  return 'flash=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
+  return `${currentName()}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
 }

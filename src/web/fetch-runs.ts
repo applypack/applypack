@@ -19,7 +19,17 @@ export type FetchRunStage = 'fetch' | 'store' | 'done' | 'error';
  * What the walk asks: every due source, the aggregators alone (the wizard's
  * test search), or one company — the watchlist's Check now (TASKS S23).
  */
-export type FetchScope = 'every' | 'aggregators' | { companyId: number; name: string; /** A folder on this computer (ADR 0062): no request is made, and "no jobs" means nothing new landed in it. */ folder?: boolean };
+export type FetchScope =
+  | 'every'
+  | 'aggregators'
+  | {
+      companyId: number;
+      name: string;
+      /** A folder on this computer (ADR 0062): no request is made, and "no jobs" means nothing new landed in it. */
+      folder?: boolean;
+      /** A careers page under a change watch (ADR 0036): it never yields a job, and the run says what the page did (#533). */
+      changeWatch?: boolean;
+    };
 
 export const FETCH_RUN_STEPS: FetchRunStage[] = ['fetch', 'store'];
 

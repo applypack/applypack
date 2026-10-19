@@ -4,12 +4,13 @@ import { Layout } from '../layout';
 import { ActionForm, Badge, Button, Card, Flash, Hint, Notice, PageHeader } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
-import { CRITERION_KIND_LABELS, criterionLabel, EVIDENCE_RUNG_LABELS } from '../../screening/rubric';
-import { answerBadge, GATE_BUCKET_LABELS, type ScoreRow, detailWords } from '../../screening/score';
+import { CRITERION_KIND_LABELS, criterionLabel, EVIDENCE_RUNG_LABELS, modelWorded } from '../../screening/rubric';
+import { answerBadge, GATE_BUCKET_LABELS, type ScoreRow } from '../../screening/score';
 import { GATE_MARK } from '../../screening/export';
 import { who, type ComparisonView } from '../../screening/comparison';
 import type { SideBySide } from '../screen-compare';
 import { ANSWER_TONE, BUCKET_TONE, confidenceLabel } from '../screen-view';
+import { DetailWords } from './screen-applicant';
 import { t } from '../../i18n/t';
 
 /*
@@ -43,7 +44,11 @@ const Cell: FC<{ r: ScoreRow | null }> = ({ r }) => {
       {r.mode === 'scored' && r.max > 0 && <span class="ml-1.5 text-meta tabular-nums text-ink-faint">{r.pts} / {r.max}</span>}
       {r.quote && <q class="mt-1 block text-note leading-5 text-ink-muted" translate="no">{r.quote}</q>}
       {/* Stored in English (score.ts) and worded here, as the scorecard words it. */}
-      {!r.quote && r.detail && <div class="mt-1 text-meta text-ink-faint">{detailWords(r.detail)}</div>}
+      {!r.quote && r.detail && (
+        <div class="mt-1 text-meta text-ink-faint">
+          <DetailWords detail={r.detail} />
+        </div>
+      )}
     </>
   );
 };
@@ -116,7 +121,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
               {side.rows.map((r) => (
                 <tr>
                   <td class={`${td} text-ink`}>
-                    <div>{criterionLabel(r)}</div>
+                    <div lang={modelWorded(r) ? 'en' : undefined}>{criterionLabel(r)}</div>
                     <div class="text-meta text-ink-faint">
                       {CRITERION_KIND_LABELS[r.kind]} · {t('screen.compare.mode', { mode: r.mode })}
                     </div>
@@ -249,7 +254,9 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                 <tbody class="divide-y divide-line">
                   {view.criteria.map((c) => (
                     <tr>
-                      <td class={`${td} text-ink`}>{criterionLabel(c)}</td>
+                      <td class={`${td} text-ink`} lang={modelWorded(c) ? 'en' : undefined}>
+                        {criterionLabel(c)}
+                      </td>
                       <td class={td}>
                         <Ranking ranking={c.rankings[0]} names={names} />
                         {c.why[0] && <div class="mt-0.5 text-note text-ink-muted" lang="en">{c.why[0]}</div>}
@@ -274,7 +281,9 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                     .filter((c) => c.quotes.length > 0)
                     .map((c) => (
                       <li>
-                        <span class="text-ink">{criterionLabel(c)}</span>
+                        <span class="text-ink" lang={modelWorded(c) ? 'en' : undefined}>
+                          {criterionLabel(c)}
+                        </span>
                         <ul class="mt-0.5 list-disc space-y-0.5 pl-5 text-ink-muted">
                           {c.quotes.map((q) => (
                             <li translate="no">

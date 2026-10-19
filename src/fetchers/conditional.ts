@@ -31,6 +31,14 @@
  *    committing after either would answer 304 next tick and leave those
  *    postings unseen until the feed happened to change again.
  *
+ * 4. **A validator is only sent under the rules it was learned under**
+ *    (#558). A 304 says the feed is what we read, not what we kept: the
+ *    postings the base filter, a mute or the re-apply window turned away were
+ *    never stored. Once a search is edited or a company unmuted, the first
+ *    read under the new rules is a full one. The walk computes its rules
+ *    itself (`folder-scan.ts:rulesKey`), so the worker and the dashboard each
+ *    see a change without being told of it.
+ *
  * The cache lives in the process and on the Company row (TASKS S31): the
  * first tick of a process takes what the rows kept, and every commit writes
  * what it promoted back. `npm start` installs restart with the laptop, and
@@ -45,6 +53,8 @@ export interface Entry {
   lastModified: string | null;
   /** Rows the last full response carried. */
   count: number;
+  /** The rules its postings were judged under (`folder-scan.ts:rulesKey`); null on a row kept before #558. */
+  rules: string | null;
 }
 
 /** What the next request may send. */
@@ -53,6 +63,13 @@ const live = new Map<number, Entry>();
 let hydrated = false;
 /** What this tick learned, promoted only once its jobs are stored. */
 const staged = new Map<number, Entry>();
+/** The rules the walk judges postings under — rule 4. Null outside a walk. */
+let rules: string | null = null;
+
+/** The walk's rules, set before it asks any board (rule 4). */
+export function judgeUnder(key: string): void {
+  rules = key;
+}
 
 /**
  * Validators for this company's next request, or `{}` when we have nothing
@@ -60,7 +77,7 @@ const staged = new Map<number, Entry>();
  */
 export function conditionalHeaders(companyId: number, url: string): Record<string, string> {
   const entry = live.get(companyId);
-  if (!entry || entry.url !== url) return {};
+  if (!entry || entry.url !== url || entry.rules !== rules) return {};
   const headers: Record<string, string> = {};
   if (entry.etag) headers['If-None-Match'] = entry.etag;
   if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
@@ -88,7 +105,7 @@ export function rememberResponse(
   const etag = resp.headers.get('etag');
   const lastModified = resp.headers.get('last-modified');
   if (etag === null && lastModified === null) return;
-  staged.set(companyId, { url, etag, lastModified, count });
+  staged.set(companyId, { url, etag, lastModified, count, rules });
 }
 
 /** Rows the last full response carried, or null if we have never had one. */
@@ -140,7 +157,13 @@ export function readValidator(value: unknown): Entry | null {
   const etag = text(v.etag);
   const lastModified = text(v.lastModified);
   if (url === null || (etag === null && lastModified === null)) return null;
-  return { url, etag, lastModified, count: typeof v.count === 'number' && Number.isInteger(v.count) && v.count >= 0 ? v.count : 0 };
+  return {
+    url,
+    etag,
+    lastModified,
+    count: typeof v.count === 'number' && Number.isInteger(v.count) && v.count >= 0 ? v.count : 0,
+    rules: text(v.rules),
+  };
 }
 
 /** Whether this process still has to take the rows' validators. */
@@ -167,4 +190,5 @@ export function resetConditionalCache(): void {
   live.clear();
   staged.clear();
   hydrated = false;
+  rules = null;
 }

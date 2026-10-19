@@ -7,6 +7,7 @@ import type { AiAttempt, AiProvider, AiRequest } from './ai-provider';
 import type { AiCallRequest } from './ai-runtime';
 import type { LedgerInput } from './ai-spend';
 import type { AiOutcome } from './ai-usage';
+import { logger } from './logger';
 
 // H45: the failover loop on recorded answers — no backend, no ledger, no clock of its own.
 
@@ -127,6 +128,31 @@ test('an engine in cooldown is skipped, unless nothing else is left to try', asy
   const alone = resolveAiEngine({ order: ['anthropic_api'], models: {} }, ENV);
   await runChain(alone, REQ, h.ctx, h.deps);
   assert.deepEqual(h.asked.map((a) => a.id), ['claude_code', 'anthropic_api']);
+});
+
+test('a local server that is down costs the chain no warning, and nothing while it rests (#571)', async (t) => {
+  const engine = resolveAiEngine({ order: ['local_api', 'claude_code'], models: {} }, ENV);
+  const down = failure('unreachable');
+  const h = harness({ local_api: [down, down, down], claude_code: [answer('1'), answer('2'), answer('3'), answer('4')] });
+  const lines: string[] = [];
+  for (const level of ['error', 'warn', 'info'] as const) {
+    t.mock.method(logger, level, (_fields: unknown, message: string) => void lines.push(`${level} ${message}`));
+  }
+  for (let call = 0; call < 4; call++) assert.ok(await runChain(engine, REQ, h.ctx, h.deps));
+  // The fourth call finds the engine resting after three failures and goes straight on.
+  assert.deepEqual(h.asked.map((a) => a.id), ['local_api', 'claude_code', 'local_api', 'claude_code', 'local_api', 'claude_code', 'claude_code']);
+  const perCall = ['info ai: engine failed, trying next', 'info ai: served by fallback engine'];
+  assert.deepEqual(lines, [...perCall, ...perCall, ...perCall]);
+  assert.equal(h.rows.at(-1)?.viaFallback, true);
+});
+
+test('a chain where every engine failed is still an error', async (t) => {
+  const engine = resolveAiEngine({ order: ['local_api'], models: {} }, ENV);
+  const h = harness({ local_api: [failure('unreachable')] });
+  const errors: string[] = [];
+  t.mock.method(logger, 'error', (_fields: unknown, message: string) => void errors.push(message));
+  assert.equal(await runChain(engine, REQ, h.ctx, h.deps), null);
+  assert.deepEqual(errors, ['ai: every engine in the chain failed']);
 });
 
 test('a web-tools call goes to an engine that has the tools first', async () => {
