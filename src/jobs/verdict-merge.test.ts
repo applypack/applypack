@@ -5,8 +5,10 @@ import {
   buildVerdicts,
   decideDismissReason,
   mergeVerdicts,
+  openThroughGroup,
   type ProfileVerdict,
 } from './verdict-merge';
+import type { StoredPlace } from './location-merge';
 import type { ClaudeClassification } from '../types';
 
 const classification = (fit: number, over: Partial<ClaudeClassification> = {}): ClaudeClassification => ({
@@ -105,23 +107,28 @@ const profile = (id: number, over: Partial<Profile> = {}): Profile =>
     minSalaryUsd: 0,
     priorityRules: [],
     notificationTargetId: null,
+    countries: ['US'],
+    regions: [],
+    workplace: ['REMOTE'],
+    residence: null,
     ...over,
   }) as unknown as Profile;
 
 const JOB = { title: 'Senior Backend Engineer', description: 'We use Laravel.', location: 'Remote, US' };
+const PLACE: StoredPlace = { workplace: 'REMOTE', countries: ['US'], regions: [], source: 'parsed' };
 
 test('each search is judged against its OWN threshold', () => {
   const results = new Map([
     [1, classification(75)],
     [2, classification(75)],
   ]);
-  const { verdicts } = buildVerdicts(results, [profile(1, { minFitScore: 70 }), profile(2, { minFitScore: 80 })], JOB);
+  const { verdicts } = buildVerdicts(results, [profile(1, { minFitScore: 70 }), profile(2, { minFitScore: 80 })], JOB, PLACE);
   assert.equal(verdicts.find((v) => v.profileId === 1)?.dismissReason, null);
   assert.equal(verdicts.find((v) => v.profileId === 2)?.dismissReason, 'low-fit');
 });
 
 test('a search with no verdict in the reply is skipped, not defaulted to zero', () => {
-  const { verdicts } = buildVerdicts(new Map([[1, classification(80)]]), [profile(1), profile(2)], JOB);
+  const { verdicts } = buildVerdicts(new Map([[1, classification(80)]]), [profile(1), profile(2)], JOB, PLACE);
   assert.deepEqual(
     verdicts.map((v) => v.profileId),
     [1],
@@ -134,7 +141,7 @@ test("one search's priority rule lifts only its own score", () => {
     [1, classification(40, { location_match: false })],
     [2, classification(40, { location_match: false })],
   ]);
-  const { verdicts, boosted } = buildVerdicts(results, [profile(1, { priorityRules: rules }), profile(2)], JOB);
+  const { verdicts, boosted } = buildVerdicts(results, [profile(1, { priorityRules: rules }), profile(2)], JOB, PLACE);
   assert.equal(boosted, 1);
   assert.equal(verdicts.find((v) => v.profileId === 1)?.classification.fit_score, 90);
   assert.equal(verdicts.find((v) => v.profileId === 2)?.classification.fit_score, 40);
@@ -142,6 +149,39 @@ test("one search's priority rule lifts only its own score", () => {
   // search 2 is still on the raw 40 and fails its own threshold first.
   assert.equal(verdicts.find((v) => v.profileId === 1)?.dismissReason, null);
   assert.equal(verdicts.find((v) => v.profileId === 2)?.dismissReason, 'low-fit');
+});
+
+test('a remote posting open to a group that holds the search\'s country is not dismissed on place (#530)', () => {
+  const plDe = profile(1, { minFitScore: 70, countries: ['PL', 'DE'], regions: [], workplace: ['REMOTE', 'HYBRID'], residence: null });
+  const europe: StoredPlace = { workplace: 'REMOTE', countries: [], regions: ['EUROPE'], source: 'structured' };
+  // Lemon.io on 2026-10-18: 92, then dismissed as a location mismatch.
+  const { verdicts } = buildVerdicts(new Map([[1, classification(92, { location_match: false })]]), [plDe], JOB, europe);
+  assert.equal(verdicts[0]?.classification.location_match, true);
+  assert.equal(verdicts[0]?.dismissReason, null);
+  // A union of places proves it as well: "Europe, USA, Canada, APAC".
+  assert.equal(openThroughGroup({ ...europe, countries: ['US', 'CA'], regions: ['EUROPE', 'APAC'] }, plDe), true);
+  assert.equal(openThroughGroup({ ...europe, regions: ['EMEA', 'LATAM'] }, plDe), true);
+  // A group the search lists, or one that holds all of it.
+  assert.equal(openThroughGroup(europe, { ...plDe, countries: [], regions: ['EU'] }), true);
+});
+
+test('the place overrules the model only where the columns settle it', () => {
+  const plDe = profile(1, { countries: ['PL', 'DE'], regions: [], workplace: ['REMOTE'], residence: null });
+  const europe: StoredPlace = { workplace: 'REMOTE', countries: [], regions: ['EUROPE'], source: 'parsed' };
+  assert.equal(openThroughGroup({ ...europe, regions: ['LATAM'] }, plDe), false);
+  assert.equal(openThroughGroup({ ...europe, regions: ['WORLDWIDE'] }, plDe), false);
+  assert.equal(openThroughGroup({ ...europe, regions: [], countries: ['PL'] }, plDe), false);
+  // The model read a narrower place in the description ("Europe — Spain or Portugal only").
+  assert.equal(openThroughGroup({ ...europe, countries: ['ES', 'PT'], source: 'ai' }, plDe), false);
+  // An office somewhere in Europe is not an office in Poland.
+  assert.equal(openThroughGroup({ ...europe, workplace: 'HYBRID' }, { ...plDe, workplace: ['REMOTE', 'HYBRID'] }), false);
+  assert.equal(openThroughGroup(europe, { ...plDe, workplace: ['HYBRID'] }), false);
+  // Anywhere: a search with no places.
+  assert.equal(openThroughGroup(europe, { ...plDe, countries: [] }), false);
+  // Where the candidate lives: inside the search's places and the group, or the model decides.
+  assert.equal(openThroughGroup(europe, { ...plDe, residence: 'PL' }), true);
+  assert.equal(openThroughGroup(europe, { ...plDe, residence: 'UA' }), false);
+  assert.equal(openThroughGroup({ ...europe, regions: ['NORTH_AMERICA'] }, { ...plDe, countries: ['PL', 'US'], residence: 'PL' }), false);
 });
 
 test('dismiss reasons keep their order of precedence', () => {

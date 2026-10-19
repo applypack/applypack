@@ -295,9 +295,11 @@ export function extractAtsToken(
   if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
     return { atsType: 'PINPOINT', atsToken: m[1].toLowerCase() };
   }
-  // Rippling: ats.rippling.com/{slug}/jobs OR the board API URL
+  // Rippling: ats.rippling.com/{slug}/jobs OR the board API URL. A localised
+  // page puts its locale first (ats.rippling.com/en-CA/{slug}/jobs), and the
+  // locale was read as the slug (#541); a two-letter slug is still a slug.
   m =
-    /https?:\/\/(?:ats\.rippling\.com|api\.rippling\.com\/platform\/api\/ats\/v1\/board)\/([\w-]{2,60})/i.exec(
+    /https?:\/\/(?:ats\.rippling\.com(?:\/[a-z]{2}(?:-[a-z]{2})?(?=\/(?!jobs(?:[/?#]|$))[\w-]{2,60}))?|api\.rippling\.com\/platform\/api\/ats\/v1\/board)\/([\w-]{2,60})/i.exec(
       url,
     );
   if (m && m[1]) {

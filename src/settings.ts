@@ -10,6 +10,7 @@ import { parseSchedule, type Schedule } from './user-schedule';
 import { config } from './config';
 import { isLocale, languageKeptAtSetup, type Locale } from './i18n/locale';
 import { t } from './i18n/t';
+import { telegramFailure, telegramReason, type TelegramFailure } from './notify/telegram-check';
 
 export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -649,6 +650,8 @@ export interface TelegramTestResult {
   ok: boolean;
   botUsername?: string;
   error?: string;
+  /** On a failure, what Telegram refused: the form words each one apart (#561). */
+  failed?: TelegramFailure;
 }
 
 /**
@@ -667,14 +670,14 @@ export async function testTelegramTarget(
     });
     if (!meResp.ok) {
       const body = await meResp.text().catch(() => '');
-      return { ok: false, error: `getMe failed: ${meResp.status} ${body.slice(0, 200)}` };
+      return { ok: false, failed: telegramFailure('getMe', meResp.status), error: telegramReason(meResp.status, body) };
     }
     const meData = (await meResp.json()) as {
       ok: boolean;
       result?: { username?: string };
     };
     if (!meData.ok) {
-      return { ok: false, error: 'getMe responded with ok=false' };
+      return { ok: false, failed: 'telegram', error: 'getMe responded with ok=false' };
     }
     const botUsername = meData.result?.username;
 
@@ -694,13 +697,15 @@ export async function testTelegramTarget(
       return {
         ok: false,
         botUsername,
-        error: `sendMessage failed: ${sendResp.status} ${body.slice(0, 200)}`,
+        failed: telegramFailure('sendMessage', sendResp.status),
+        error: telegramReason(sendResp.status, body),
       };
     }
     return { ok: true, botUsername };
   } catch (err) {
     return {
       ok: false,
+      failed: 'telegram',
       error: err instanceof Error ? err.message : 'unknown error',
     };
   } finally {

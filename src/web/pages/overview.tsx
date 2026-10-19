@@ -52,7 +52,7 @@ import type { Tone } from '../format';
 import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
-import { unscoredRun } from '../runs-summary';
+import { runName, unscoredRun } from '../runs-summary';
 import { UnscoredNotice } from './unscored-notice';
 import type { UnscoredView } from '../score-run';
 
@@ -200,13 +200,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       {/* What stands between the search and its alerts, said before any number. */}
       {!fetchingEnabled && (
         <Notice tone="warn" class="mb-4">
-          {tRich('overview.pausedNotice', {}, {
-            link: (words) => (
-              <a href="/settings?tab=profile" class="font-medium underline">
-                {words}
-              </a>
-            ),
-          })}
+          {t('overview.pausedNotice')}
         </Notice>
       )}
       {unscored && <UnscoredNotice {...unscored} class="mb-4" />}
@@ -275,9 +269,7 @@ export const OverviewPage: FC<OverviewProps> = ({
                     class={`h-2 w-2 shrink-0 rounded-full ${run ? TONE_FILL[runBadge(run).tone] : 'bg-line-strong'}`}
                     aria-hidden="true"
                   />
-                  <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" translate="no">
-                    {name}
-                  </span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">{runName(name)}</span>
                   {/* The word, not the dot alone: said aloud for a healthy run, shown for one that is not. */}
                   {run && runBadge(run).ok && <span class="sr-only">{t('run.status.ok')}</span>}
                   {run && !runBadge(run).ok && <Badge tone={runBadge(run).tone}>{runBadge(run).label}</Badge>}

@@ -4,6 +4,12 @@
  */
 export type Limiter = <T>(fn: () => Promise<T>) => Promise<T>;
 
+/** `limit(fn)`, with `fn` told how long it waited for its turn: a task's own time starts when it runs (#564). */
+export function runTimed<T>(limit: Limiter, fn: (waitedMs: number) => Promise<T>, now: () => number = Date.now): Promise<T> {
+  const asked = now();
+  return limit(() => fn(now() - asked));
+}
+
 export function createLimiter(max: number): Limiter {
   if (!Number.isInteger(max) || max < 1) {
     throw new RangeError(`createLimiter: max must be a positive integer, got ${max}`);

@@ -28,6 +28,8 @@ import {
   keyOf,
 } from '../../starter-packs/resolve';
 import { CompaniesPage } from '../pages/companies';
+import { readBoardInput } from '../add-company';
+import { sourceLabel } from '../source-names';
 import type { WatchedRow } from '../pages/watchlist';
 import {
   StarterPackPreviewPage,
@@ -576,8 +578,14 @@ companiesRoute.post('/companies/:id/delete', async (c) => {
   );
 });
 
+/** The fields of "Add one company" a refusal hands back to it (#534). */
+const ADD_FIELDS = ['name', 'atsType', 'atsToken', 'careerUrl'] as const;
+
 companiesRoute.post('/companies/new', async (c) => {
   const form = await c.req.parseBody();
+  // Every refusal puts the typed values back, so the form is not emptied (#534).
+  const draft = { form: c.req.path, values: Object.fromEntries(ADD_FIELDS.map((k) => [k, typeof form[k] === 'string' ? form[k] : ''])) };
+  const refuse = (text: string): Response => flashRedirect('/companies', 'err', text, { draft, field: { form: c.req.path, name: 'atsToken' } });
   const parsed = NewCompanySchema.safeParse({
     name: form.name,
     atsType: form.atsType,
@@ -589,25 +597,32 @@ companiesRoute.post('/companies/new', async (c) => {
       { errors: parsed.error.flatten().fieldErrors },
       'companies/new: validation failed',
     );
-    return redirectWithFlash('err', t('companies.flash.invalid', { issue: firstIssue(parsed.error.issues) }));
+    return flashRedirect('/companies', 'err', t('companies.flash.invalid', { issue: firstIssue(parsed.error.issues) }), {
+      draft,
+      ...refusedField(c.req.path, parsed.error.issues),
+    });
   }
-  const { name, atsType, atsToken, careerUrl } = parsed.data;
+  const { name, careerUrl } = parsed.data;
+  // A board's link names the board, whatever the select said.
+  const board = readBoardInput(parsed.data.atsType, parsed.data.atsToken);
+  if (!board.ok) return refuse(t('companies.flash.notABoardLink', { ats: sourceLabel(parsed.data.atsType) }));
+  const { atsType, atsToken } = board;
 
   const probe = await probeAts(atsType, atsToken, {
     keys: await getSourceKeys(),
     aiTokens: await installAiTokens(),
   });
   if (!probe.ok) {
-    return redirectWithFlash('err', t('companies.flash.probeFailed', { reason: probe.error ?? t('companies.flash.noReason') }));
+    return refuse(t('companies.flash.probeFailed', { reason: probe.error ?? t('companies.flash.noReason') }));
   }
 
   // Refuse silent overwrites — if the (atsType, atsToken) pair already
   // exists, send the user to the existing row with a hint.
   const existing = await prisma.company.findUnique({
-    where: { atsType_atsToken: { atsType, atsToken: atsToken.trim() } },
+    where: { atsType_atsToken: { atsType, atsToken } },
   });
   if (existing) {
-    return redirectWithFlash('err', t('companies.flash.exists', { ats: atsType, token: atsToken, name: existing.name }));
+    return refuse(t('companies.flash.exists', { ats: atsType, token: atsToken, name: existing.name }));
   }
 
   try {
@@ -615,7 +630,7 @@ companiesRoute.post('/companies/new', async (c) => {
       data: {
         name: name.trim(),
         atsType,
-        atsToken: atsToken.trim(),
+        atsToken,
         careerUrl: careerUrl && careerUrl.length > 0 ? careerUrl : null,
         active: true,
       },
@@ -623,10 +638,16 @@ companiesRoute.post('/companies/new', async (c) => {
   } catch (err) {
     // The findUnique above is a read; two tabs pass it together (ADR 0053).
     if (!isUniqueViolation(err)) throw err;
-    return redirectWithFlash('err', t('companies.flash.addedElsewhere', { ats: atsType, token: atsToken }));
+    return refuse(t('companies.flash.addedElsewhere', { ats: atsType, token: atsToken }));
   }
 
-  return redirectWithFlash('ok', t('companies.flash.added', { name, n: probe.jobsCount ?? 0 }));
+  const n = probe.jobsCount ?? 0;
+  return redirectWithFlash(
+    'ok',
+    board.picked === null
+      ? t('companies.flash.added', { name, n })
+      : t('companies.flash.addedFromLink', { name, ats: sourceLabel(atsType), token: atsToken, picked: sourceLabel(board.picked), n }),
+  );
 });
 
 // --- helpers ----------------------------------------------------------------

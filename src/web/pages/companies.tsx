@@ -310,6 +310,8 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   folderHost,
 }) => {
   const empty = companies.length === 0;
+  // What a refused "Add one company" held, put back (#534).
+  const draft = flash?.draft?.form === '/companies/new' ? flash.draft.values : null;
   // A folder path Check turned away comes back in its form, open, with the reason beside it (#546).
   const refusedFolder =
     flash?.field?.form === FOLDER_CHECK && flash.field.name === 'path' ? { path: flash.field.value ?? '', reason: flash.text } : undefined;
@@ -442,7 +444,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
             <StarterPackPicker segments={packs} />
           </div>
         </Disclosure>
-        <Disclosure variant="button" summary={t('companies.addOneCompany')} open={empty} class="contents">
+        <Disclosure variant="button" summary={t('companies.addOneCompany')} open={empty || draft !== null} class="contents">
           <div class="order-last basis-full">
             <Card>
               <Hint>{t('companies.thePublicAtsEndpointIs')}</Hint>
@@ -455,22 +457,22 @@ export const CompaniesPage: FC<CompaniesProps> = ({
               class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_auto_1fr_1.2fr_auto]"
             >
               <Field label={t('companies.name')}>
-                <Input type="text" name="name" required placeholder="Honeycomb.io" translate="no" />
+                <Input type="text" name="name" required placeholder="Honeycomb.io" translate="no" value={draft?.name} />
               </Field>
               <Field label={t('companies.ats')}>
                 <Select name="atsType">
                   {PROBEABLE_ATS.filter((ats) => !KEYED_ATS.includes(ats) || keyedUnlocked.includes(ats)).map((ats) => (
-                    <option value={ats} translate="no">
+                    <option value={ats} translate="no" selected={draft?.atsType === ats}>
                       {ats}
                     </option>
                   ))}
                 </Select>
               </Field>
               <Field label={t('companies.atsTokenSlug')}>
-                <Input type="text" name="atsToken" required placeholder="honeycombio" mono translate="no" />
+                <Input type="text" name="atsToken" required placeholder="honeycombio" mono translate="no" value={draft?.atsToken} />
               </Field>
               <Field label={t('companies.careerUrlOptional')}>
-                <Input type="url" name="careerUrl" placeholder="https://acme.com/careers" translate="no" />
+                <Input type="url" name="careerUrl" placeholder="https://acme.com/careers" translate="no" value={draft?.careerUrl} />
               </Field>
               <div class="flex items-end">
                 <Button class="w-full">{t('companies.add')}</Button>

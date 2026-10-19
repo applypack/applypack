@@ -25,7 +25,7 @@ import {
   type ButtonVariant,
 } from '../ui';
 import { toCheckInterval } from '../../watchlist/interval';
-import { formatDate, formatRelative, formatSalary, safeHref } from '../format';
+import { formatDate, formatPosted, formatRelative, formatSalary, safeHref } from '../format';
 import { techLabel } from '../tech-label';
 import { sourceLabel } from '../source-names';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
@@ -375,7 +375,7 @@ const JobRail: FC<RailProps> = ({ job, appliedResumePicker, applicationTrackingE
             </span>
           )}
         </FactRow>
-        <FactRow label={t(job.postedAtKnown ? 'job.posted' : 'job.firstSeen')}>{formatDate(job.postedAt)}</FactRow>
+        <FactRow label={t(job.postedAtKnown ? 'job.posted' : 'job.firstSeen')}>{formatPosted(job.postedAt)}</FactRow>
         <FactRow label={t('job.fetched')}>{formatDate(job.fetchedAt)}</FactRow>
         {job.alertedAt && <FactRow label={t('job.alerted')}>{formatDate(job.alertedAt)}</FactRow>}
         <AppliedWithRow job={job} />

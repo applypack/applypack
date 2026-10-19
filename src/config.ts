@@ -117,6 +117,11 @@ function loadConfig(): Config {
 
 export const config: Config = loadConfig();
 
+/** Whether the environment (`.env`, compose) names `key` itself, rather than leaving it to the schema's default (#563). */
+export function setInEnv(key: keyof Config, env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env[key]?.trim());
+}
+
 /**
  * True for a process of a local install that the launcher did not start: it
  * was given no database and found the built-in one through `db.json`. The

@@ -515,6 +515,11 @@ export function criterionLabel(c: Pick<Criterion, 'kind' | 'label'>): string {
   return c.label;
 }
 
+/** A row drafted from the posting's reading is worded by the model, in English (#569); impact and the overall read are ours (`criterionLabel`). */
+export function modelWorded(c: Pick<Criterion, 'kind' | 'source'>): boolean {
+  return c.source === 'posting' && c.kind !== 'impact' && c.kind !== 'overall';
+}
+
 /** The editor's text back into a spec (the label is the text). Null when the kind needs text and none was given. */
 export function parseCriterionText(kind: CriterionKind, raw: string): { label: string; spec: CriterionSpec } | null {
   const text = raw.trim().replace(/\s+/g, ' ').slice(0, MAX_TEXT);

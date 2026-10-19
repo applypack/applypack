@@ -9,8 +9,15 @@ test('the dashboard address is kept as a link can start with it (#487)', () => {
   assert.deepEqual(checkDashboardUrl('http://192.168.1.20:4747'), { ok: true, url: 'http://192.168.1.20:4747' });
 });
 
+test('an address typed without its scheme gets the http:// a browser would add (#549)', () => {
+  assert.deepEqual(checkDashboardUrl('192.168.1.20:4993'), { ok: true, url: 'http://192.168.1.20:4993' });
+  assert.deepEqual(checkDashboardUrl('applypack.local:4747/'), { ok: true, url: 'http://applypack.local:4747' });
+  assert.deepEqual(checkDashboardUrl('localhost:4747'), { ok: true, url: 'http://localhost:4747' });
+  assert.deepEqual(checkDashboardUrl('home.example.com/applypack'), { ok: true, url: 'http://home.example.com/applypack' });
+});
+
 test('an address a message must not carry is refused, with the reason', () => {
-  assert.deepEqual(checkDashboardUrl('applypack.local:4747/'), { ok: false, reason: 'The address starts with http:// or https://.' });
+  assert.deepEqual(checkDashboardUrl('ftp://applypack.local/'), { ok: false, reason: 'The address starts with http:// or https://.' });
   assert.equal(checkDashboardUrl('not an address').ok, false);
   assert.equal(checkDashboardUrl('javascript:alert(1)').ok, false);
   // The link goes into a chat: the dashboard's Basic Auth password must not.

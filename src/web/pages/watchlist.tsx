@@ -476,7 +476,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={t('watchlist.unwatchNamed', { name: r.name })}
+                      aria-label={t(isChangeWatch(r) ? 'watchlist.unwatchPageNamed' : 'watchlist.unwatchNamed', { name: r.name })}
                     >
                       {t('watchlist.unwatch')}
                     </Button>

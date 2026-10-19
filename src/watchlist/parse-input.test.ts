@@ -84,6 +84,11 @@ describe('nameFromUrl', () => {
   it('takes the first label that is not just "this is the careers site"', () => {
     assert.equal(nameFromUrl('https://www.netlify.com/careers/'), 'Netlify');
     assert.equal(nameFromUrl('https://careers.datadoghq.com/'), 'Datadoghq');
-    assert.equal(nameFromUrl('https://jobs.ashbyhq.com/Linear'), 'Ashbyhq');
+  });
+
+  it('takes a board URL\'s company slug, never the vendor\'s host (#544)', () => {
+    assert.equal(nameFromUrl('https://jobs.ashbyhq.com/Linear'), 'Linear');
+    assert.equal(nameFromUrl('https://jobs.ashbyhq.com/deno'), 'Deno');
+    assert.equal(nameFromUrl('https://boards.greenhouse.io/acme/jobs/123'), 'Acme');
   });
 });

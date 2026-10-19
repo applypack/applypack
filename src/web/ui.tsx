@@ -193,12 +193,14 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
     {/* TASKS U15: the field the message is about says so itself — invalid, described by the message, focused.
         Looked up inside the form that posted, past a hidden copy of the field (a folder's own Check, #546); both
         parts passed flash.ts's patterns, so neither can close a quote.
-        Focused on load: the jump to a redirect's #fragment comes after this script and takes the focus back. */}
+        Marked on load: the jump to a redirect's #fragment comes after this script and takes the focus back, and by
+        then a chip editor (chips.mjs) has hidden its textarea behind a field of its own. A field folded in a closed
+        <details> is unfolded first, or it could not take the focus (#549). */}
     {flash.field && (
       <script
         type="module"
         dangerouslySetInnerHTML={{
-          __html: `const f = [...document.querySelectorAll('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]')].find((e) => e.type !== 'hidden'); if (f) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', ['flash-text', f.getAttribute('aria-describedby')].filter(Boolean).join(' ')); const focus = () => f.focus(); if (document.readyState === 'complete') focus(); else addEventListener('load', focus, { once: true }); }`,
+          __html: `const f = [...document.querySelectorAll('form[action=${JSON.stringify(flash.field.form)}] [name=${JSON.stringify(flash.field.name)}]')].find((e) => e.type !== 'hidden'); if (f) { for (let d = f.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; const mark = () => { const c = (f.hidden && f.parentElement.querySelector('input[type=text]')) || f; c.setAttribute('aria-invalid', 'true'); c.setAttribute('aria-describedby', ['flash-text', c.getAttribute('aria-describedby')].filter(Boolean).join(' ')); c.focus(); }; if (document.readyState === 'complete') mark(); else addEventListener('load', mark, { once: true }); }`,
         }}
       />
     )}
@@ -760,7 +762,7 @@ export const NEEDS_FILE_JS =
  * explanation never becomes the control's accessible name (audit A11Y-4):
  * `more` sits outside it, behind "How this works".
  */
-export const Field: FC<PropsWithChildren<{ label: string; hint?: string; more?: Child; class?: string }>> = ({
+export const Field: FC<PropsWithChildren<{ label: string; hint?: Child; more?: Child; class?: string }>> = ({
   label,
   hint,
   more,
@@ -899,9 +901,25 @@ export const ConfirmAction: FC<{
   /** For a label that needs more than its words ("Delete" on a row). */
   ariaLabel?: string;
   disabled?: boolean;
-}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled }) => {
+  /**
+   * Instead of a form of its own, the real button sends the form this one sits
+   * in (the one posting to `action`) as this name and value: a second way to
+   * send a bigger form ("Save & re-classify", #562).
+   */
+  submit?: { name: string; value: string };
+}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled, submit }) => {
   // The same action with the same fields is the same question, so one id per question on a page.
   const id = `confirm-${hashShortId(`${action}\n${label}\n${JSON.stringify(hidden ?? {})}`)}`;
+  const buttons = (
+    <>
+      <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
+        {t('ui.cancel')}
+      </Button>
+      <Button variant={variant === 'ghost' ? 'danger' : variant} size="sm" name={submit?.name} value={submit?.value}>
+        {yes ?? label}
+      </Button>
+    </>
+  );
   const parts = disabled ? (
     <button type="button" class={buttonClass(variant, size)} disabled>
       {label}
@@ -919,15 +937,15 @@ export const ConfirmAction: FC<{
         class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
         <p>{confirm}</p>
-        <form method="post" action={action} class="mt-3 flex justify-end gap-2">
-          {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
-          <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
-            {t('ui.cancel')}
-          </Button>
-          <Button variant={variant === 'ghost' ? 'danger' : variant} size="sm">
-            {yes ?? label}
-          </Button>
-        </form>
+        {submit ? (
+          // A form inside the form would be dropped by the parser: the buttons belong to the one around them.
+          <div class="mt-3 flex justify-end gap-2">{buttons}</div>
+        ) : (
+          <form method="post" action={action} class="mt-3 flex justify-end gap-2">
+            {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
+            {buttons}
+          </form>
+        )}
       </div>
     </>
   );

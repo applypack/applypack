@@ -27,6 +27,7 @@ import {
   Radio,
   SectionTitle,
   Select,
+  SUBMIT_ONCE,
   Table,
   Tag,
   TagListInput,
@@ -57,8 +58,9 @@ import { MAX_UPLOAD_MB } from '../upload';
 import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
+import { RENAMED_ZONES } from '../time-zones';
 import { AiPlan, BILLING_TONE } from './ai-plan';
-import { planSummary, type AiPlanRow } from '../ai-plan';
+import { LOCAL_WINDOW_ID, planSummary, type AiPlanRow } from '../ai-plan';
 import { billingWords, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
@@ -161,6 +163,8 @@ export interface EngineServer {
   more?: string;
   value: string;
   stored: boolean;
+  /** `.env` names the address; otherwise an address not stored here is the built-in default. */
+  fromEnv: boolean;
   local: boolean;
   /** The local engine's context window: the stored choice and the ones offered. */
   context?: { value: number; choices: readonly number[] };
@@ -169,14 +173,14 @@ export interface EngineServer {
 /** Everything the Schedule section renders, resolved by the route (TASKS §16). */
 export interface ScheduleView {
   schedule: Schedule;
-  /** IANA zones the runtime knows, for the picker. */
-  zones: string[];
+  /** The zone in force — the stored one, else the install's (`TZ`) — under its current name. */
+  zone: string;
+  /** IANA zones the runtime knows, under current names: the picker's suggestions. */
+  zones: readonly string[];
   /** "today at 14:05" — already formatted in the schedule's own zone. */
   nextFetch: string;
   /** Matches waiting to be sent — for the window, for Alerts, for a chat — or null. */
   held: HeldLine | null;
-  /** No schedule saved yet: the zone is the install's default, and the browser's is the better guess (TASKS S28). */
-  unsaved: boolean;
 }
 
 export interface AiStatusSummary {
@@ -243,14 +247,28 @@ export interface SettingsProps {
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
+  /** What "Save & re-classify" asks first: how many jobs, and what a call costs (#562). */
+  reclassifyQuestion: string;
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
   /** Employer mode (ADR 0049) and its guardrails (ADR 0048). */
   screening: ScreeningSettings;
   activeTab: SettingsTab;
   flash?: FlashMessage | null;
-  /** Set by the fill-from-resume POST: the editor shows draft values. */
+  /** Set by `?draft=`, where "Fill from a resume" lands: the editor shows draft values. */
   profileDraft?: ProfileDraftNotice | null;
+  /** A refused save, sent back (#549): the countries and score adjustments as they were typed. */
+  profileSent?: ProfileSentText | null;
+  /** A refused Telegram connection, sent back open (#549): the name and the chat id as typed, never the token. */
+  telegramSent?: { name: string; chatId: string } | null;
+  /** `?keys=<source>` after its keys were saved: that card stays open, so its state can be read (#561). */
+  openSourceKeys?: string;
+}
+
+/** What a refused save shows as it was typed, where the stored form of the field could not hold it. */
+export interface ProfileSentText {
+  countries: string[];
+  priorityRules: string;
 }
 
 export interface ScreeningSettings {
@@ -271,11 +289,6 @@ export interface ScreeningSettings {
 /** A resume in a picker: its name, and what the reader should know about it before choosing it. */
 function resumeOption(r: ResumeListItem, scanned = true): string {
   return t('settings.resumeOption', { name: r.name, isDefault: r.isDefault ? 'yes' : 'no', scanned: scanned ? 'yes' : 'no' });
-}
-
-/** An `onclick` that asks first. The question goes in as a JSON string, so a quote or an apostrophe in a language's wording cannot end it. */
-function confirmScript(question: string): string {
-  return `return confirm(${JSON.stringify(question)})`;
 }
 
 /**
@@ -360,33 +373,59 @@ const DayPills: FC<{ name: string; days: readonly number[] }> = ({ name, days })
 );
 
 /**
- * Until a zone is saved the install's default stands, and the browser's is the
- * better guess (TASKS S28): every schedule form carries it, so the first save
- * of any of them stores it — the select under General shows it picked.
+ * The browser's zone is offered, never filled in (#538): until the person
+ * presses "Use …", the hours and every date stay in the zone in force. The
+ * offer shows only when the browser's zone is another one, compared by the
+ * browser's own reading of both names, so Europe/Kiev and Europe/Kyiv are one.
  */
-const BrowserZone: FC<{ view: ScheduleView }> = ({ view }) =>
-  view.unsaved ? <input type="hidden" name="timezone" value={view.schedule.timezone} data-browser-zone="" /> : null;
-
 const BROWSER_ZONE_JS = [
+  `const names = ${JSON.stringify(RENAMED_ZONES)};`,
+  "const id = (z) => { try { return new Intl.DateTimeFormat('en-US', { timeZone: z }).resolvedOptions().timeZone; } catch { return null; } };",
   'const z = Intl.DateTimeFormat().resolvedOptions().timeZone;',
-  "const s = document.querySelector('select[data-browser-zone]');",
-  'if (s && [...s.options].some((o) => o.value === z)) s.value = z;',
-  "const known = typeof Intl.supportedValuesOf === 'function' && Intl.supportedValuesOf('timeZone').includes(z);",
-  "if (z && (known || (s && s.value === z))) document.querySelectorAll('input[data-browser-zone], [data-zone-name]').forEach((n) => { if (n.tagName === 'INPUT') n.value = z; else n.textContent = z; });",
+  "const f = document.getElementById('browser-zone');",
+  'if (f && z && id(z) && id(z) !== id(f.dataset.zone)) {',
+  'f.elements.timezone.value = names[z] ?? z;',
+  "document.querySelectorAll('[data-browser-zone-name]').forEach((n) => { n.textContent = names[z] ?? z; });",
+  "document.querySelectorAll('[data-zone-offer]').forEach((n) => { n.hidden = false; });",
+  '}',
 ].join(' ');
+
+/** Where each tab's schedule part is; the browser's zone, offered there, comes back to it. */
+const ZONE_OFFER_FROM: Partial<Record<SettingsTab, 'fetch' | 'alerts' | 'zone'>> = { profile: 'fetch', notifications: 'alerts', general: 'zone' };
+
+/** The one form every offer posts, from outside the forms it sits in (`form="browser-zone"`); the script fills in the zone. */
+const BrowserZoneForm: FC<{ zone: string; from: 'fetch' | 'alerts' | 'zone' }> = ({ zone, from }) => (
+  <form id="browser-zone" method="post" action="/settings/schedule" data-zone={zone} hidden>
+    <input type="hidden" name="part" value="zone" />
+    <input type="hidden" name="from" value={from} />
+    <input type="hidden" name="timezone" value="" />
+  </form>
+);
+
+/** "Use America/Chicago, your browser's zone" — hidden until the script finds the browser in another zone. */
+const ZoneOffer: FC = () => (
+  <span hidden data-zone-offer="">
+    <Button type="submit" form="browser-zone" variant="secondary">
+      {tRich('settings.useBrowserZone', {}, { zone: () => <span translate="no" data-browser-zone-name="" /> })}
+    </Button>
+  </span>
+);
 
 /** The hours of a schedule are the zone's: said once beside them, with the way to change it. */
 const ZoneLine: FC<{ zone: string }> = ({ zone }) => (
-  <Hint>
-    {tRich('settings.hoursInZone', {}, {
-      zone: () => <span translate="no" data-zone-name="">{zone}</span>,
-      link: (words) => (
-        <a href="/settings?tab=general#timezone" class="font-medium text-accent-strong hover:text-accent-deep">
-          {words}
-        </a>
-      ),
-    })}
-  </Hint>
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+    <Hint>
+      {tRich('settings.hoursInZone', {}, {
+        zone: () => <span translate="no">{zone}</span>,
+        link: (words) => (
+          <a href="/settings?tab=general#timezone" class="font-medium text-accent-strong hover:text-accent-deep">
+            {words}
+          </a>
+        ),
+      })}
+    </Hint>
+    <ZoneOffer />
+  </div>
 );
 
 const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
@@ -394,7 +433,6 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
   return (
     <form method="post" action="/settings/schedule" class="space-y-3">
       <input type="hidden" name="part" value="fetch" />
-      <BrowserZone view={view} />
       <div>
         <div class="text-label text-ink">{t('settings.checkForJobs')}</div>
         <Hint class="mt-0.5">
@@ -415,7 +453,7 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
         <HourSelect name="fetchTo" value={s.fetch.to} label={t('settings.toInclusive')} />
       </div>
       <DayPills name="fetchDays" days={s.fetch.days} />
-      <ZoneLine zone={s.timezone} />
+      <ZoneLine zone={view.zone} />
       <Hint>{t('settings.fetchNowIgnoresTheSchedule')}</Hint>
       <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
     </form>
@@ -463,7 +501,6 @@ const AlertTimingForm: FC<{ view: ScheduleView }> = ({ view }) => {
   return (
     <form method="post" action="/settings/schedule" class="space-y-5">
       <input type="hidden" name="part" value="alerts" />
-      <BrowserZone view={view} />
       <div data-ui="alert-modes">
         {held && (
           <Hint class="mb-2 text-warn">
@@ -509,30 +546,27 @@ const AlertTimingForm: FC<{ view: ScheduleView }> = ({ view }) => {
         </Hint>
         <DigestTimes hours={s.alerts.digestAt} />
       </div>
-      <ZoneLine zone={s.timezone} />
+      <ZoneLine zone={view.zone} />
       <Button type="submit" variant="secondary">{t('settings.saveAlertTiming')}</Button>
     </form>
   );
 };
 
+/** The zone: typed or picked from the runtime's list (#572) — a city alone is read too (`time-zones.ts:readZone`). */
 const TimeZoneForm: FC<{ view: ScheduleView }> = ({ view }) => (
   <form method="post" action="/settings/schedule" class="flex flex-wrap items-end gap-3">
     <input type="hidden" name="part" value="zone" />
-    <Field
-      label={t('settings.timeZone')}
-      hint={view.unsaved ? t('settings.timeZoneHintUnsaved') : t('settings.timeZoneHint')}
-      class="w-full max-w-sm"
-    >
+    <Field label={t('settings.timeZone')} hint={t('settings.timeZoneHint')} class="w-full max-w-sm">
       {/* IANA zone ids: data, in every language. */}
-      <Select name="timezone" translate="no" data-browser-zone={view.unsaved ? '' : undefined}>
+      <Input type="text" name="timezone" value={view.zone} list="time-zones" autocomplete="off" spellcheck="false" translate="no" />
+      <datalist id="time-zones">
         {view.zones.map((z) => (
-          <option value={z} selected={z === view.schedule.timezone}>
-            {z}
-          </option>
+          <option value={z} />
         ))}
-      </Select>
+      </datalist>
     </Field>
     <Button type="submit" variant="secondary">{t('common.save')}</Button>
+    <ZoneOffer />
   </form>
 );
 
@@ -628,12 +662,16 @@ export const SettingsPage: FC<SettingsProps> = ({
   targets,
   profiles,
   activeProfile,
+  reclassifyQuestion,
   availableTargets,
   resumes,
   screening,
   activeTab,
   flash,
   profileDraft,
+  profileSent,
+  telegramSent,
+  openSourceKeys,
 }) => (
   <Layout title={t('nav.settings')} active="settings">
     <div class="w-full">
@@ -756,15 +794,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                 </ActionForm>
               )}
               {!p.primary && (
-                <ActionForm action="/settings/profiles/delete" hidden={{ id: p.id }}>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onclick={confirmScript(t('settings.deleteSearchConfirm'))}
-                  >
-                    {t('common.delete')}
-                  </Button>
-                </ActionForm>
+                <ConfirmAction action="/settings/profiles/delete" hidden={{ id: p.id }} label={t('common.delete')} confirm={t('settings.deleteSearchConfirm')} />
               )}
             </li>
           ))}
@@ -798,10 +828,12 @@ export const SettingsPage: FC<SettingsProps> = ({
                 <More class="mb-3 mt-1">
                   {t('settings.fillMoreRescanned')}
                 </More>
+                {/* The scan can take half a minute: the button goes quiet at once, so a second press sends nothing (#555). */}
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
                   class="flex flex-wrap items-center gap-2"
+                  onsubmit={SUBMIT_ONCE}
                 >
                   <Select
                     name="resumeId"
@@ -823,13 +855,14 @@ export const SettingsPage: FC<SettingsProps> = ({
                   {t('settings.fillPickAFile', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}
                 </Hint>
                 <More class="mb-3 mt-1">
-                  {t('settings.fillMoreLandsInResumes')}
+                  {t('settings.fillMoreFileNotKept')}
                 </More>
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
                   enctype="multipart/form-data"
                   class="flex flex-wrap items-center gap-2"
+                  onsubmit={SUBMIT_ONCE}
                 >
                   <Input
                     type="file"
@@ -851,6 +884,8 @@ export const SettingsPage: FC<SettingsProps> = ({
             availableTargets={availableTargets}
             resumes={resumes}
             draft={profileDraft}
+            sent={profileSent}
+            reclassifyQuestion={reclassifyQuestion}
           />
         ) : (
           <Empty bare title={t('settings.noSearchSelected')}>
@@ -926,7 +961,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           <Button variant="secondary">{t('settings.saveSources')}</Button>
         </form>
       </Section>
-      <SourceKeysSection rows={sourceKeyRows} />
+      <SourceKeysSection rows={sourceKeyRows} openSourceKeys={openSourceKeys} />
       </>
       )}
 
@@ -1056,17 +1091,28 @@ export const SettingsPage: FC<SettingsProps> = ({
         {/* One way to connect at a time: each opens its own form under the row of buttons
             (the Add sources pattern on Companies), and none stands open by default. */}
         <div class="flex flex-wrap items-start gap-2">
-          <Disclosure variant="button" summary={t('settings.addATelegramTarget')} class="contents">
+          <Disclosure variant="button" summary={t('settings.addATelegramTarget')} open={Boolean(telegramSent)} class="contents">
             <div class="order-last basis-full rounded-md border border-line p-4">
-              <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
+              <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2 sm:items-end">
                 <input type="hidden" name="kind" value="telegram" />
                 <Field label={t('settings.name')}>
-                  <Input type="text" name="name" required placeholder={t('settings.myPhone')} />
+                  <Input type="text" name="name" required placeholder={t('settings.myPhone')} value={telegramSent?.name} />
                 </Field>
-                <Field label={t('settings.chatId')}>
-                  <Input type="text" name="chatId" required placeholder="-100…" mono translate="no" />
+                {/* #561: where each value comes from, one sentence each; the address and the key are Telegram's, never translated. */}
+                <Field
+                  label={t('settings.chatId')}
+                  hint={tRich('settings.chatIdHint', {}, {
+                    url: () => (
+                      <span class="break-all">
+                        <Code>{'https://api.telegram.org/bot<token>/getUpdates'}</Code>
+                      </span>
+                    ),
+                    key: () => <Code>{'"chat":{"id":'}</Code>,
+                  })}
+                >
+                  <Input type="text" name="chatId" required placeholder="-100…" mono translate="no" value={telegramSent?.chatId} />
                 </Field>
-                <Field label={t('settings.botToken')} class="sm:col-span-2">
+                <Field label={t('settings.botToken')} hint={t('settings.botTokenHint')} class="sm:col-span-2">
                   <Input
                     type="password"
                     name="botToken"
@@ -1587,7 +1633,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                   {words}
                 </span>
               ),
-            })}
+            })}{' '}
             {screening.engineSubscription ? (
               <Badge tone="warn" class="ml-2">
                 {t('settings.personalSubscription')}
@@ -1632,7 +1678,12 @@ export const SettingsPage: FC<SettingsProps> = ({
       </div>
       </div>
     </div>
-    {schedule.unsaved && <script type="module" dangerouslySetInnerHTML={{ __html: BROWSER_ZONE_JS }} />}
+    {ZONE_OFFER_FROM[activeTab] && (
+      <>
+        <BrowserZoneForm zone={schedule.zone} from={ZONE_OFFER_FROM[activeTab]} />
+        <script type="module" dangerouslySetInnerHTML={{ __html: BROWSER_ZONE_JS }} />
+      </>
+    )}
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
     <script type="module" dangerouslySetInnerHTML={{ __html: "import { wireCopy } from '/static/copy.mjs'; wireCopy(document);" }} />
     <script type="module" dangerouslySetInnerHTML={{ __html: MODELS_BOOT }} />
@@ -1665,7 +1716,7 @@ export interface SourceKeyRow {
   fields: { field: string; label: string; envVar: string; origin: 'db' | 'env' | 'none'; masked: string }[];
 }
 
-const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
+const SourceKeysSection: FC<{ rows: SourceKeyRow[]; openSourceKeys?: string }> = ({ rows, openSourceKeys }) => (
   <Section
     id="source-keys"
     title={t('settings.extraSourcesAFreeAccount')}
@@ -1699,52 +1750,62 @@ const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
               {r.terms}
             </a>
           </p>
-          {/* The fields open on demand: a source nobody uses shows what it is and how to get it, not four empty inputs. */}
-          <Disclosure summary={r.ready ? t('settings.changeKeys') : t('settings.connectSource', { source: r.label })} class="mt-2">
-            {r.fields.map((f) => (
-              <form method="post" action="/settings/sources/key" class="mt-2.5 flex flex-wrap items-end gap-2">
-                <input type="hidden" name="source" value={r.source} />
-                <input type="hidden" name="field" value={f.field} />
-                <div class="flex min-w-[9rem] flex-col gap-1 text-meta text-ink-muted">
-                  {/* The vendor's own name for the field, as its sign-up page writes it. */}
-                  <span class="font-medium text-ink" translate="no">
-                    {f.label}
-                  </span>
-                  {f.origin === 'db' && (
-                    <span>
-                      <Badge tone="ok">{t('settings.saved')}</Badge>{' '}
-                      <span class="font-mono" translate="no">
-                        {f.masked}
+          {/* The fields open on demand: a source nobody uses shows what it is and how to get it, not four empty inputs.
+              One form takes both values with one Save, and the card stays open after it to say what came of it (#561). */}
+          <Disclosure summary={r.ready ? t('settings.changeKeys') : t('settings.connectSource', { source: r.label })} open={r.source === openSourceKeys} class="mt-2">
+            <form method="post" action="/settings/sources/key" class="mt-2.5 space-y-2.5">
+              <input type="hidden" name="source" value={r.source} />
+              {r.fields.map((f) => (
+                <div class="flex flex-wrap items-end gap-2">
+                  <div class="flex min-w-[9rem] flex-col gap-1 text-meta text-ink-muted">
+                    {/* The vendor's own name for the field, as its sign-up page writes it. */}
+                    <span class="font-medium text-ink" translate="no">
+                      {f.label}
+                    </span>
+                    {f.origin === 'db' && (
+                      <span>
+                        <Badge tone="ok">{t('settings.saved')}</Badge>{' '}
+                        <span class="font-mono" translate="no">
+                          {f.masked}
+                        </span>
                       </span>
-                    </span>
-                  )}
-                  {f.origin === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
-                  {f.origin === 'none' && (
-                    <span class="text-ink-faint" translate="no">
-                      {f.envVar}
-                    </span>
+                    )}
+                    {f.origin === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
+                    {f.origin === 'none' && (
+                      <span class="text-ink-faint" translate="no">
+                        {f.envVar}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    type="password"
+                    name={f.field}
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label={t('settings.sourceKeyField', { source: r.label, field: f.label })}
+                    placeholder={f.origin === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
+                    mono
+                    class="min-w-[14rem] flex-1"
+                  />
+                  {/* Its own form's button (below), so Enter in a field saves instead of removing. */}
+                  {f.origin === 'db' && (
+                    <Button size="sm" variant="danger" form={`source-key-${r.source}-${f.field}`}>
+                      {t('common.remove')}
+                    </Button>
                   )}
                 </div>
-                <Input
-                  type="password"
-                  name="key"
-                  autocomplete="off"
-                  spellcheck="false"
-                  aria-label={t('settings.sourceKeyField', { source: r.label, field: f.label })}
-                  placeholder={f.origin === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
-                  mono
-                  class="min-w-[14rem] flex-1"
-                />
-                <Button variant="secondary">
-                  {t('common.save')}
-                </Button>
-                {f.origin === 'db' && (
-                  <Button size="sm" variant="danger" name="clear" value="1">
-                    {t('common.remove')}
-                  </Button>
-                )}
-              </form>
-            ))}
+              ))}
+              <Button variant="secondary">{t('common.save')}</Button>
+            </form>
+            {r.fields
+              .filter((f) => f.origin === 'db')
+              .map((f) => (
+                <form id={`source-key-${r.source}-${f.field}`} method="post" action="/settings/sources/key" hidden>
+                  <input type="hidden" name="source" value={r.source} />
+                  <input type="hidden" name="field" value={f.field} />
+                  <input type="hidden" name="clear" value="1" />
+                </form>
+              ))}
           </Disclosure>
           <Hint class="mt-2">
             {r.ready
@@ -1830,12 +1891,16 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
   <Card variant="subtle" class="mt-3">
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-label text-ink">{server.label}</span>
-      <Badge tone="neutral">{server.stored ? t('settings.saved') : t('settings.fromEnv')}</Badge>
+      <Badge tone="neutral">{server.stored ? t('settings.saved') : server.fromEnv ? t('settings.fromEnv') : t('settings.builtInAddress')}</Badge>
       {server.local && <Badge tone="ok">{t('settings.onThisMachineNoKey')}</Badge>}
       {server.stored && (
         <ActionForm action={server.action} hidden={{ clear: '1' }} class="ml-auto">
-          <Button size="sm" variant="secondary" title={t('settings.forgetThisAddress', { envVar: server.envVar })}>
-            {t('settings.useEnv')}
+          <Button
+            size="sm"
+            variant="secondary"
+            title={server.fromEnv ? t('settings.forgetThisAddress', { envVar: server.envVar }) : t('settings.forgetForDefault')}
+          >
+            {server.fromEnv ? t('settings.useEnv') : t('settings.useDefault')}
           </Button>
         </ActionForm>
       )}
@@ -1860,7 +1925,7 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
     <Hint class="mt-2">{server.hint}</Hint>
     {server.more && <More class="mt-1">{server.more}</More>}
     {server.context && (
-      <form method="post" action={server.action} class="mt-3 flex flex-wrap items-end gap-2">
+      <form id={LOCAL_WINDOW_ID} method="post" action={server.action} class="mt-3 flex flex-wrap items-end gap-2">
         <Field
           label={t('settings.contextWindow')}
           hint={t('settings.roomForThePromptAnd')}
@@ -2080,7 +2145,7 @@ const EngineTrial: FC<{ id: string; trial: TrialView }> = ({ id, trial }) => (
   <div class="mt-4 border-t border-line pt-4">
     <h4 class="text-label text-ink">{t('trial.title')}</h4>
     <Hint class="mt-1">
-      {t('trial.what', { max: TRIAL_SIZE, model: trial.model })}
+      {trial.model === null ? t('trial.whatNoModel', { max: TRIAL_SIZE }) : t('trial.what', { max: TRIAL_SIZE, model: trial.model })}
     </Hint>
     <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
       <ActionForm action="/settings/ai/trial" hidden={{ provider: id }} once>
@@ -2149,7 +2214,9 @@ const ProfileEditor: FC<{
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
   draft?: ProfileDraftNotice | null;
-}> = ({ profile, availableTargets, resumes, draft }) => {
+  sent?: ProfileSentText | null;
+  reclassifyQuestion: string;
+}> = ({ profile, availableTargets, resumes, draft, sent, reclassifyQuestion }) => {
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
   // Open the advanced block only when free-form content lives in it. The alert
   // destination deliberately doesn't count: one picked target is not something
@@ -2157,7 +2224,8 @@ const ProfileEditor: FC<{
   const advancedOpen =
     Boolean(profile.notes && profile.notes.trim().length > 0) ||
     profile.onsiteCities.length > 0 ||
-    rulesCount > 0;
+    rulesCount > 0 ||
+    Boolean(sent?.priorityRules.trim());
   return (
   <form
     method="post"
@@ -2254,7 +2322,7 @@ const ProfileEditor: FC<{
         more={t('settings.polandPolskaAndPlAll')}
         name="countries"
         // Each line goes back through the form: the flag is what the save reads, so the name may be in any language.
-        values={profile.countries.map(countryChip)}
+        values={sent?.countries ?? profile.countries.map(countryChip)}
         placeholder={t('settings.polandGermanyNetherlands')}
         rows={2}
         picker="countries"
@@ -2352,7 +2420,7 @@ const ProfileEditor: FC<{
           rows={2}
         />
 
-        <PriorityRulesEditor profile={profile} />
+        <PriorityRulesEditor profile={profile} typed={sent?.priorityRules} />
 
         <Field label={t('settings.alertTarget')} class="sm:max-w-md">
           <Select name="notificationTargetId">
@@ -2372,16 +2440,15 @@ const ProfileEditor: FC<{
     {/* Sticks to the bottom of the window while the editor scrolls: a long form keeps its Save in reach. */}
     <div class="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center gap-3 border-t border-line bg-surface-raised px-5 py-3">
       <Button size="lg">{t('settings.saveProfile')}</Button>
-      <Button
-        size="lg"
+      <ConfirmAction
+        action={`/settings/profiles/${profile.id}/save`}
+        submit={{ name: 'action', value: 'save-and-reclassify' }}
+        label={t('settings.saveReClassify')}
+        confirm={reclassifyQuestion}
         variant="violet"
-        name="action"
-        value="save-and-reclassify"
-        onclick={confirmScript(t('settings.reclassifyConfirm'))}
-      >
-        {t('settings.saveReClassify')}
-      </Button>
-      <span data-dirty-indicator hidden={!draft} class="text-note font-medium text-warn">
+        size="lg"
+      />
+      <span data-dirty-indicator hidden={!draft && !sent} class="text-note font-medium text-warn">
         {t('settings.unsavedChanges')}
       </span>
     </div>
@@ -2389,11 +2456,12 @@ const ProfileEditor: FC<{
   );
 };
 
-const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
+/** `typed`: the text a refused save sent, a line the save could not read included (#549). */
+const PriorityRulesEditor: FC<{ profile: Profile; typed?: string }> = ({ profile, typed }) => {
   const rules = parsePriorityRules(profile.priorityRules);
-  const text = formatPriorityRulesText(rules);
+  const text = typed ?? formatPriorityRulesText(rules);
   return (
-    <details class="rounded-md border border-line" open={rules.length > 0}>
+    <details class="rounded-md border border-line" open={text.trim().length > 0}>
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-note font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
         {t('settings.priorityRulesSummary')}
         <span class="ml-2 font-normal text-ink-faint">

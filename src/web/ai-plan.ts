@@ -9,6 +9,10 @@ import { t } from '../i18n/t';
  * behind. Pure.
  */
 
+/** The local engine's Context window on the AI tab: where a prompt it refused as too large is made to fit (#523). */
+export const LOCAL_WINDOW_ID = 'local-context';
+export const LOCAL_WINDOW_HREF = `/settings?tab=ai#${LOCAL_WINDOW_ID}`;
+
 export interface AiPlanRow {
   task: AiTask;
   label: string;
@@ -25,17 +29,15 @@ export function taskShown(task: AiTask, employerMode: boolean): boolean {
 
 /**
  * The boxes a save sent, as the tasks they stand for. While the page hides
- * Screening, an engine that already has a list keeps the choice in it — it
- * may have been made on purpose, with the box in sight. An engine with no
- * list yet gets Screening where Resume analysis goes, the same kind of
- * reading on the same model slot: one narrowed to scoring is never handed
- * other people's resumes by a box nobody could see.
+ * Screening, every save sends it where Resume analysis goes, the same kind of
+ * reading on the same model slot: an engine narrowed to scoring is never
+ * handed other people's resumes by a box nobody could see, however many
+ * saves it took to narrow it (#551).
  */
-export function pickedTasks(sent: readonly AiTask[], employerMode: boolean, previous: readonly AiTask[] | undefined): AiTask[] {
+export function pickedTasks(sent: readonly AiTask[], employerMode: boolean): AiTask[] {
   if (employerMode) return [...sent];
   const shown = sent.filter((task) => task !== 'screening');
-  const screening = previous ? previous.includes('screening') : shown.includes('analysis');
-  return screening ? [...shown, 'screening'] : shown;
+  return shown.includes('analysis') ? [...shown, 'screening'] : shown;
 }
 
 /**
@@ -62,7 +64,8 @@ export function aiPlanRows(engine: ResolvedAiEngine, billingFor: (id: AiProvider
       engines: p.engines.map((id) => ({
         id,
         label: AI_PROVIDER_LABELS[id],
-        model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || t('ai.cliDefault'),
+        // An empty slot runs a CLI's own default; the local engine runs nothing (#563).
+        model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || t(id === 'local_api' ? 'ai.noModel' : 'ai.cliDefault'),
         billing: billingFor(id),
       })),
     }));

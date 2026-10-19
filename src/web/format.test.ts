@@ -6,9 +6,12 @@ import {
   FIT_WARN_FLOOR,
   fitTone,
   fitWord,
+  formatCompact,
   formatDate,
   formatDateShort,
   formatDuration,
+  formatPosted,
+  formatPostedShort,
   formatRelative,
   formatStamp,
   formatTime,
@@ -18,6 +21,7 @@ import {
 } from './format';
 import { displayZoneLabel, withDisplayZone } from './display-zone';
 import { withLocale } from '../i18n/locale';
+import { readDate } from '../datasets/map';
 
 /** ICU writes a narrow no-break space before AM/PM; the tests read plain spaces. */
 const plain = (s: string): string => s.replace(/\s/g, ' ');
@@ -45,6 +49,19 @@ describe('formatDate', () => {
   it('has an em dash for nothing', () => {
     assert.equal(formatDate(null), '—');
     assert.equal(formatDateShort(undefined), '—');
+  });
+
+  // #532: a CSV's "2026-10-15" read as "Oct 14, 2026, 07:00 PM CDT" in Chicago.
+  it('writes a posting date that names a day as that day in every zone, with no time', () => {
+    const day = readDate('2026-10-15', new Date('2026-10-18T00:00:00Z'))!;
+    for (const zone of ['America/Chicago', 'Pacific/Pago_Pago', 'UTC', 'Europe/Kyiv', 'Pacific/Kiritimati']) {
+      assert.equal(withDisplayZone(zone, () => formatPosted(day)), 'Oct 15, 2026', zone);
+      assert.equal(withDisplayZone(zone, () => formatPostedShort(day)), 'Oct 15', zone);
+    }
+    // A moment keeps its time, in the reader's zone.
+    const moment = new Date('2026-10-16T03:30:00Z');
+    assert.equal(plain(withDisplayZone('America/Chicago', () => formatPosted(moment))), 'Oct 15, 2026, 10:30 PM CDT');
+    assert.equal(withDisplayZone('America/Chicago', () => formatPostedShort(moment)), 'Oct 15');
   });
 
   // A table cell has room for the day and the time; the header names the zone once.
@@ -144,6 +161,15 @@ describe('in Ukrainian', () => {
   it('writes a duration with the comma Ukrainian uses', () => {
     assert.equal(uk(() => formatDuration(1500)), '1,5 с');
     assert.equal(uk(() => formatDuration(250)), '250 мс');
+  });
+
+  // #569: /ai wrote "7.7k → 8.0k" beside "26,4 с".
+  it('shortens a token count with the comma and the word Ukrainian uses', () => {
+    assert.equal(plain(uk(() => formatCompact(7_700))), '7,7 тис.');
+    assert.equal(plain(uk(() => formatCompact(3_400_000))), '3,4 млн');
+    assert.equal(formatCompact(7_700), '7.7K');
+    assert.equal(formatCompact(12_345), '12K');
+    assert.equal(formatCompact(999), '999');
   });
 
   it('names a status and a fit floor', () => {

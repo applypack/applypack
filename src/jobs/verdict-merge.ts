@@ -1,8 +1,11 @@
 import type { Job, Profile } from '@prisma/client';
+import { countriesOf } from '../countries';
 import { toUsdPerYear } from '../currency';
+import { placesOverlap } from '../filter';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
 import type { ClaudeClassification } from '../types';
 import type { ClassificationsByProfile } from '../classifier';
+import type { StoredPlace } from './location-merge';
 
 /*
  * ADR 0028: one posting, one verdict per active search. `Job` still carries a
@@ -80,11 +83,15 @@ function best(verdicts: ProfileVerdict[]): ProfileVerdict {
  * Searches with no entry in the reply are skipped rather than defaulted: a
  * missing verdict is missing information, and inventing a zero would dismiss
  * a posting nobody judged.
+ *
+ * `place` is the posting's place as it will be stored, the model's reading
+ * merged in (location-merge.ts).
  */
 export function buildVerdicts(
   results: ClassificationsByProfile,
   profiles: Profile[],
   job: Pick<Job, 'title' | 'description' | 'location'>,
+  place: StoredPlace,
 ): { verdicts: ProfileVerdict[]; boosted: number } {
   const verdicts: ProfileVerdict[] = [];
   let boosted = 0;
@@ -93,16 +100,52 @@ export function buildVerdicts(
     if (!raw) continue;
     const priority = applyPriorityFloor(raw, parsePriorityRules(profile.priorityRules), job);
     if (priority.applied.length > 0) boosted++;
+    const classification =
+      !priority.classification.location_match && openThroughGroup(place, profile)
+        ? { ...priority.classification, location_match: true }
+        : priority.classification;
     verdicts.push({
       profileId: profile.id,
       profileName: profile.name,
-      classification: priority.classification,
-      dismissReason: decideDismissReason(priority.classification, profile),
+      classification,
+      dismissReason: decideDismissReason(classification, profile),
       priorityRulesApplied: priority.applied.map((r) => r.label),
       notificationTargetId: profile.notificationTargetId,
     });
   }
   return { verdicts, boosted };
+}
+
+/**
+ * Whether a remote posting's own place proves it open to the search (#530):
+ * a group it names holds a country the search hunts in (EUROPE holds PL), or
+ * the whole of a group the search hunts in. The model wrote "remote EUROPE
+ * excludes PL/DE" and dismissed a 92 for it, so the code overrules its
+ * `location_match: false` here, as ADR 0045 does for presence.
+ *
+ * Only where the columns settle it: never WORLDWIDE (proves no country),
+ * never a place the model itself changed (`source: 'ai'` — it read a narrower
+ * one in the description), and when the search says where the candidate
+ * lives, only for a group that holds that country inside the search's own
+ * places — elsewhere, work rights are the model's call (ADR 0033).
+ */
+export function openThroughGroup(
+  place: StoredPlace,
+  profile: Pick<Profile, 'countries' | 'regions' | 'workplace' | 'residence'>,
+): boolean {
+  if (place.workplace !== 'REMOTE' || place.source === 'ai') return false;
+  if (profile.workplace.length > 0 && !profile.workplace.includes('REMOTE')) return false;
+  const residence = profile.residence ?? null;
+  if (residence !== null && !placesOverlap({ countries: [residence], regions: [] }, profile)) return false;
+  return place.regions.some((region) => {
+    if (region === 'WORLDWIDE') return false;
+    const members = countriesOf(region);
+    if (residence !== null) return members.includes(residence);
+    return (
+      profile.countries.some((c) => members.includes(c)) ||
+      profile.regions.some((g) => g === region || countriesOf(g).every((c) => members.includes(c)))
+    );
+  });
 }
 
 /** Would THIS search drop the posting? Its own threshold, its own regions. */

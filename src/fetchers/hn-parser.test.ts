@@ -148,6 +148,22 @@ describe('parseHnComment — robustness', () => {
     assert.match(out!.title, /Senior PHP Engineers/);
   });
 
+  // #541: this comment became a job titled with the whole line, scored by a model.
+  it('never takes a link for the title: it takes the next field, or drops the comment', () => {
+    assert.equal(
+      parseHnComment(
+        '3Gimbals | https://www.linkedin.com/jobs/view/4477632187 (US/Remote) Hiring entry / mid-level software engineers to build data products for defense customers.',
+      ),
+      null,
+    );
+    const out = parseHnComment('Acme | https://acme.example/jobs | Senior Backend Engineer | Remote (EU)');
+    assert.ok(out !== null);
+    assert.equal(out!.companyName, 'Acme');
+    assert.equal(out!.title, 'Senior Backend Engineer');
+    assert.equal(out!.location, 'Remote (EU)');
+    assert.equal(out!.url, 'https://acme.example/jobs');
+  });
+
   it('skips URL-shaped fields when picking the location', () => {
     const out = parseHnComment(
       'Foo Corp | Senior PHP | https://foo.example | Remote, US',

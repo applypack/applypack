@@ -1,82 +1,48 @@
-import { AtsType, CandidateStatus, type CompanyCandidate } from '@prisma/client';
+import { CandidateStatus, type CompanyCandidate } from '@prisma/client';
 import { prisma } from './db';
 import { t } from './i18n/t';
 import { logger } from './logger';
-import { extractAtsToken } from './text-utils';
+import { boardHints } from './watchlist/scan';
 
-export interface CandidateInput {
-  atsType: AtsType;
-  atsToken: string;
-  name?: string | null;
-  source: string;
-  sourceUrl?: string | null;
-  signal?: string | null;
-}
+/** Boards read from one text: more is a list of links, not one employer's post. */
+const MAX_BOARDS_PER_TEXT = 20;
 
 /**
- * Idempotent: insert a candidate if (atsType, atsToken) is not already
- * known. If it exists, leave it alone (don't overwrite a PROMOTED row
- * with a fresh PENDING signal).
- */
-async function recordCandidate(
-  input: CandidateInput,
-): Promise<CompanyCandidate | null> {
-  // Don't propose candidates we already track in Company — they're already
-  // being fetched.
-  const existingCompany = await prisma.company.findUnique({
-    where: {
-      atsType_atsToken: { atsType: input.atsType, atsToken: input.atsToken },
-    },
-    select: { id: true },
-  });
-  if (existingCompany) return null;
-
-  // Don't double-record candidates either.
-  const existingCandidate = await prisma.companyCandidate.findUnique({
-    where: {
-      atsType_atsToken: { atsType: input.atsType, atsToken: input.atsToken },
-    },
-  });
-  if (existingCandidate) return existingCandidate;
-
-  return prisma.companyCandidate.create({
-    data: {
-      name: input.name ?? null,
-      atsType: input.atsType,
-      atsToken: input.atsToken,
-      source: input.source,
-      sourceUrl: input.sourceUrl ?? null,
-      signal: input.signal ?? null,
-      status: CandidateStatus.PENDING,
-    },
-  });
-}
-
-/**
- * Pull candidate URLs out of arbitrary text (HN comment, blog post, etc.)
- * and record any that match a known ATS pattern. Returns count recorded.
+ * Record the boards a text links (HN comment, a feed's posting, …) as
+ * candidates. Returns how many it added: each board once, however many of
+ * its postings the text links, and never one already listed or already
+ * tracked — the run rows used to count every mention, so an HN run said 61
+ * where /discovery listed 32 (#542).
  */
 export async function recordCandidatesFromText(
   text: string,
   source: string,
   options: { name?: string | null; sourceUrl?: string | null; signal?: string | null } = {},
 ): Promise<number> {
-  const urls = (text.match(/https?:\/\/[^\s<>"')]+/gi) ?? []).slice(0, 20);
-  let recorded = 0;
-  for (const u of urls) {
-    const ats = extractAtsToken(u);
-    if (!ats) continue;
-    const created = await recordCandidate({
-      atsType: ats.atsType as AtsType,
-      atsToken: ats.atsToken,
-      name: options.name ?? null,
-      source,
-      sourceUrl: options.sourceUrl ?? u,
-      signal: options.signal ?? null,
-    });
-    if (created) recorded++;
-  }
-  return recorded;
+  const boards = boardHints(text).slice(0, MAX_BOARDS_PER_TEXT);
+  if (boards.length === 0) return 0;
+  // A board already tracked as a Company is already fetched.
+  const tracked = await prisma.company.findMany({
+    where: { OR: boards.map((b) => ({ atsType: b.atsType, atsToken: b.atsToken })) },
+    select: { atsType: true, atsToken: true },
+  });
+  const known = new Set(tracked.map((c) => `${c.atsType}:${c.atsToken}`));
+  // A candidate already listed keeps its row and its status: a PROMOTED or IGNORED one is not made PENDING again.
+  const { count } = await prisma.companyCandidate.createMany({
+    data: boards
+      .filter((b) => !known.has(`${b.atsType}:${b.atsToken}`))
+      .map((b) => ({
+        name: options.name ?? null,
+        atsType: b.atsType,
+        atsToken: b.atsToken,
+        source,
+        sourceUrl: options.sourceUrl ?? b.url,
+        signal: options.signal ?? null,
+        status: CandidateStatus.PENDING,
+      })),
+    skipDuplicates: true,
+  });
+  return count;
 }
 
 export async function listCandidates(
