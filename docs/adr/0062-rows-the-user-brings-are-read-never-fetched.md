@@ -717,3 +717,32 @@ the last: the id over the text as it was read before, form and all
 (`SavedPage.former`), under both earlier rules. A page saved again is the
 job it was, and no model is asked. Stored rows are never rewritten: a job
 read before keeps the text it has.
+
+*Amended 2026-10-18 (#451).* **The call that reads a saved posting is shown
+the page's own `<title>`** (`SavedPage.pageTitle`), fenced as a block of its
+own beside the text. It is the best line on a single-file save, which never
+carries the structured block, and on a page whose block names no company.
+Measured with the scoring task's engine (the Claude Code CLI's Haiku) on
+twelve pages built from stored public postings — six `.mhtml`, six `.html`
+whose block names no company: the company was found on 5 before and 9
+after; the four it gained are named in the title alone. None answered a
+company the page does not name. One answered the job board in its title
+("… – Remote | Himalayas") on a page that names no company anywhere: the
+model did not know the name for a board's, and a sentence more in the
+prompt did not change that. One title names a recruiter whose text says
+"our client", and that page stays without a company, as the rule asks.
+
+*Amended 2026-10-18 (#451).* **A page that is no posting is kept, and not
+scored.** The same call answers `is_job_posting`; only a stated `false`
+counts. Such a page still becomes its job — setting it aside would lose a
+posting on a wrong "no", and the user saved the file by hand — but it is
+stored **Saved** and unscored, with the red flag `not-a-posting`
+(`posting-file.ts:NOT_A_POSTING_FLAG`): the scoring call is skipped, and the
+job page and the Files line say it may not be a posting. Re-classify scores
+it as any job and the flag goes; the status stays Saved, the person's own
+list. Measured on six pages that are no posting (a sign-in page, a cookie
+wall, a list of results, a 404, an "About us", a newsletter) and eighteen
+real ones (the twelve above, and six short or oddly laid out: a vacancy
+notice in fields, a table, a Spanish posting, a page in its board's chrome,
+a short text over an application form, a 300-character teaser): six of six
+caught, none of the eighteen called no posting.

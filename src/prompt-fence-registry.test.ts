@@ -131,8 +131,11 @@ const CASES: Record<string, Case> = {
     ],
   },
   buildExtractPrompt: {
-    build: () => extractMod.buildExtractPrompt(DESC),
-    fenced: [['JOB POSTING', DESC]],
+    build: () => extractMod.buildExtractPrompt(DESC, 'PAGETITLE-NEEDLE'),
+    fenced: [
+      ['JOB POSTING', DESC],
+      ['PAGE TITLE', 'PAGETITLE-NEEDLE'],
+    ],
   },
   buildScanPrompt: {
     build: () => resumeMod.buildScanPrompt(RESUME),

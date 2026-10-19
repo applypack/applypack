@@ -800,7 +800,12 @@ Check guesses which kind a folder holds and lets the user switch it.
   `og:url`, the browser's "saved from url" note), its main text without the
   application form and the navigation a board puts beside the posting. A model
   reads the title and the company only when the page does not state them —
-  one small call, none while fetching is paused (the file waits).
+  one small call, which is shown the page's own title too, none while
+  fetching is paused (the file waits).
+- A page the model takes for no job posting at all — a sign-in page, a
+  cookie wall, a list of results — is still kept, as **Saved** and
+  unscored: no search scores it, and its job and its line on the Files page
+  say it may not be a posting. Re-classify scores it if it is one.
 - Each file becomes one job of the folder, taken as a paste: no search's
   filter and no employer rule sets it aside, it is scored, and one that
   every search turns down is kept **Saved**. A match alerts like any other

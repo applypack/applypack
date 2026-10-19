@@ -10,6 +10,7 @@ import { loadEmployerRules } from './employer-store';
 import { dismissedKeys } from './dismissed-store';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { withApplyLinkFlags } from '../apply-link';
+import { NOT_A_POSTING_FLAG } from '../datasets/posting-file';
 import { validDate } from '../fetchers/dates';
 import { countTurnedAway, type TurnedAwayTally } from '../fetchers/folder-ledger';
 import { parseLocation } from '../location';
@@ -313,10 +314,18 @@ export async function processNormalizedJobs(
   const packs = await getPackSettings();
   let packsToday = packs.enabled ? await autoPacksToday(new Date()) : 0;
 
+  // A saved page its reader took for no job posting (#451) is kept, Saved and
+  // flagged, and no search scores it: Re-classify does, if it is one after all.
+  const toScore: Candidate[] = [];
+  for (const item of candidates) {
+    if (item.job.notAPosting === true) await persistJob(item, null, JobStatus.SAVED, [], batch);
+    else toScore.push(item);
+  }
+
   // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
   // original order, so persisting and alerting stay sequential and ordered.
   const limit = createLimiter(config.AI_CONCURRENCY);
-  const pending = candidates.map((item) => ({
+  const pending = toScore.map((item) => ({
     ...item,
     outcome: limit(async (): Promise<ClassifyOutcome> => {
       if (cancelled) return { results: new Map(), location: null, preFiltered: false, ledgerIds: [] };
@@ -765,7 +774,7 @@ function buildJobData(
     // `pasted: false` is an invariant, not an assumption: a MANUAL company's
     // fetchOne returns [], so a pasted row never reaches this loop. Pasted
     // jobs get their flags from classify-existing.ts instead.
-    redFlags: withApplyLinkFlags(c?.red_flags ?? [], { url: job.url, pasted: false }),
+    redFlags: withApplyLinkFlags([...(c?.red_flags ?? []), ...(job.notAPosting === true ? [NOT_A_POSTING_FLAG] : [])], { url: job.url, pasted: false }),
     summary: c?.summary ?? null,
     status,
     priorityRulesApplied,

@@ -15,6 +15,7 @@ import {
   Flash,
   Hint,
   Input,
+  Notice,
   SectionTitle,
   Select,
   StatusBadge,
@@ -49,6 +50,7 @@ import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { ApplicationPackCard, PACK_LINE_ID, type ApplicationPackProps } from './application-pack-card';
 import { packBusy } from '../../pack/view';
+import { NOT_A_POSTING_FLAG } from '../../datasets/posting-file';
 
 interface JobDetail {
   id: number;
@@ -466,9 +468,12 @@ wireSelectCommits(document);
  * for an unscored posting too — that is when Re-classify matters most.
  */
 const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }> = ({ job, scores, tab }) => {
+  // A saved page its reader took for no posting (#451): said in words, not as a tag.
+  const notAPosting = job.redFlags.includes(NOT_A_POSTING_FLAG);
+  const flags = job.redFlags.filter((flag) => flag !== NOT_A_POSTING_FLAG);
   const scored =
     job.techMatch.length > 0 ||
-    job.redFlags.length > 0 ||
+    flags.length > 0 ||
     Boolean(job.summary) ||
     job.priorityRulesApplied.length > 0;
   return (
@@ -481,6 +486,11 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
           </Button>
         </ActionForm>
       </div>
+      {notAPosting && (
+        <Notice tone="warn" class={scored ? 'mb-3' : undefined}>
+          {t('job.notAPosting')}
+        </Notice>
+      )}
       {scored ? (
         <>
           {/* What the classifier wrote stays as it wrote it; the technologies and the user's own rules are data. */}
@@ -491,13 +501,13 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
           )}
           <dl class="space-y-2">
             <TagRow label={t('job.tech')} items={job.techMatch.map(techLabel)} tone="ok" />
-            <TagRow label={t('job.flags')} items={job.redFlags} tone="danger" modelText />
+            <TagRow label={t('job.flags')} items={flags} tone="danger" modelText />
             <TagRow label={t('job.priorityRules')} items={job.priorityRulesApplied} tone="neutral" />
           </dl>
           <ProfileScoreRow scores={scores} />
         </>
       ) : (
-        <p class="text-sm text-ink-muted">{t('job.notScoredYetReClassify')}</p>
+        !notAPosting && <p class="text-sm text-ink-muted">{t('job.notScoredYetReClassify')}</p>
       )}
     </Card>
   );

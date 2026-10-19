@@ -147,13 +147,13 @@ async function lookAtRows(
 const readByModel = new Map<string, ModelFacts>();
 const READ_BY_MODEL_CAP = 500;
 
-/** A model's reading of a posting's head, or null when no engine answered: the file's name then stands in for the title. */
-async function readWithModel(sha256: string, text: string): Promise<ModelFacts | null> {
+/** A model's reading of a posting's head and the page's own title, or null when no engine answered: the file's name then stands in for the title. */
+async function readWithModel(sha256: string, text: string, pageTitle: string | null): Promise<ModelFacts | null> {
   const known = readByModel.get(sha256);
   if (known) return known;
   let facts: ModelFacts | null = null;
   try {
-    facts = await extractPostingFacts(text);
+    facts = await extractPostingFacts(text, pageTitle);
   } catch (err) {
     logger.warn({ err }, 'folder: a saved posting was not read by the model; its file name stands in');
   }
@@ -222,7 +222,7 @@ async function lookAtPostings(
         changes.push({ ...measured, sha256: null, status: 'waiting', detail: POSTING_NOTES.needsModel });
         continue;
       }
-      model = await readWithModel(got.sha256, read.text);
+      model = await readWithModel(got.sha256, read.text, read.pageTitle);
     }
     const job = savedPostingJob({ companyId, relPath: file.relPath, mtimeMs: got.mtimeMs }, read, model, externalId, now);
     changes.push({ ...measured, status: 'done', detail: savedPostingNote(job), jobCount: 1 });
