@@ -41,7 +41,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   const started = new Date();
   const { stats, firstScoring } = await reclassify({});
   // Postings a paused fetch stored unscored, scored here for the first time: the Overview's chart and /runs's funnel count them (#552).
-  await addCountsToDay(started, scorePassCounts(firstScoring));
+  await addCountsToDay(started, scorePassCounts(firstScoring)).catch((err) => logger.warn({ err }, 'reclassify-all: funnel day not updated'));
   return { stats };
 }
 
