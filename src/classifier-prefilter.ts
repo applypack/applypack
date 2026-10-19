@@ -3,6 +3,7 @@ import type { Profile } from '@prisma/client';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
 import type { ScoringCall } from './classifier';
+import { titleHasKeyword } from './filter';
 import type { ClassifyInput } from './types';
 import { UNTRUSTED_DIRECTIVE_SHORT, fence } from './prompt-fence';
 
@@ -43,6 +44,19 @@ export async function preClassify(
   await call.ai.unparsed(out);
   logger.warn({ raw: out.text.slice(0, 300), title: input.title }, 'prefilter: response did not match schema');
   return null;
+}
+
+/**
+ * Whether the gate is asked at all (#441). It reads the first MAX_DESC_CHARS
+ * characters, and asked three times about each of 13 postings single-stage
+ * scoring kept, it turned away 6 — every time over the stack, which sat
+ * further down, or read React as no match for a JavaScript search. A posting
+ * whose title or text names a search's required stack goes to the classifier;
+ * the gate judges only those that name none of it.
+ */
+export function prefilterMayJudge(input: Pick<ClassifyInput, 'title' | 'description'>, profiles: Profile[]): boolean {
+  const text = `${input.title}\n${input.description}`.toLowerCase();
+  return !profiles.some((p) => p.stackRequired.some((k) => titleHasKeyword(text, k)));
 }
 
 /**

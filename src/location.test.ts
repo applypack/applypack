@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLocation, placesFromText, workplaceFromText } from './location';
+import { arrangementOnly, parseLocation, placesFromText, workplaceFromText } from './location';
 
 const countries = (text: string) => parseLocation(text).countries;
 const regions = (text: string) => parseLocation(text).regions;
@@ -26,6 +26,18 @@ describe('workplaceFromText', () => {
     assert.equal(workplaceFromText('Denver, CO - Hybrid; New York, NY; San Francisco, CA - Hybrid'), 'HYBRID');
     assert.equal(workplaceFromText('Atlanta, GA - Remote; Denver, CO - Hybrid'), 'REMOTE');
     assert.equal(workplaceFromText('REMOTE (NA/LATAM/EU) + ONSITE (San Francisco)'), 'REMOTE');
+  });
+});
+
+describe('arrangementOnly', () => {
+  it('reads a bare arrangement as naming no place', () => {
+    for (const text of ['Remote', 'REMOTE', '100% remote', 'Remote / WFH', 'Hybrid']) assert.equal(arrangementOnly(text), true, text);
+  });
+
+  it('keeps a word the gazetteer does not know as a place (#386)', () => {
+    for (const text of ['Remote · Dehradun', 'Remote · Menlo Park', 'Remote · Remoto', 'Remote (Pacific-Eastern)']) {
+      assert.equal(arrangementOnly(text), false, text);
+    }
   });
 });
 
