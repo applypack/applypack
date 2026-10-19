@@ -1,3 +1,5 @@
+// First: docx reads localStorage as it loads.
+import './no-web-storage';
 import {
   AlignmentType,
   BorderStyle,
