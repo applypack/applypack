@@ -10,8 +10,10 @@ import {
   MAX_ROW_FILES_PER_LOOK,
   OPEN_ROW_SETTLE_MS,
   SETTLE_MS,
+  UNJUDGED,
   guessHolds,
   includeMatcher,
+  judgedAgain,
   kindsFor,
   maxBytesOf,
   pageResources,
@@ -21,6 +23,7 @@ import {
   newestIsMisfit,
   planScan,
   rowFileKind,
+  rulesKey,
   unreachedChanges,
   unreadChange,
   type FileRead,
@@ -32,7 +35,7 @@ import { emptyMapping, type Mapping } from './map';
 const NOW = Date.UTC(2026, 9, 5, 12);
 const MINUTE = 60_000;
 const file = (relPath: string, ageMs = 10 * MINUTE, size = 1_000): ListedFile => ({ relPath, size, mtimeMs: NOW - ageMs });
-const seen = (f: ListedFile, status: LedgerEntry['status'] = 'done'): LedgerEntry => ({ ...f, sha256: 'a'.repeat(64), status, rowsRead: 0, jobCount: 0 });
+const seen = (f: ListedFile, status: LedgerEntry['status'] = 'done'): LedgerEntry => ({ ...f, sha256: 'a'.repeat(64), status, rowsRead: 0, jobCount: 0, ...UNJUDGED });
 const names = (files: readonly ListedFile[]): string[] => files.map((f) => f.relPath);
 
 describe('rowFileKind', () => {
@@ -101,7 +104,7 @@ describe('planScan', () => {
 
   it('leaves a file the ledger settled alone, and reads it again once it changed', () => {
     const settled = file('a.json');
-    assert.deepEqual(planScan([settled], [seen(settled)], NOW), { read: [], waiting: [], later: [], tooLarge: [], unchanged: 1, other: 0 });
+    assert.deepEqual(planScan([settled], [seen(settled)], NOW), { read: [], rejudged: new Set(), waiting: [], later: [], tooLarge: [], unchanged: 1, other: 0 });
     assert.deepEqual(names(planScan([{ ...settled, size: 1_001 }], [seen(settled)], NOW).read), ['a.json']);
     assert.deepEqual(names(planScan([{ ...settled, mtimeMs: settled.mtimeMs + 60_000 }], [seen(settled)], NOW).read), ['a.json']);
     // "Not rows" is settled too: the same bytes will not become rows by being read again.
@@ -186,7 +189,7 @@ describe('planScan', () => {
     const changes = unreachedChanges([a!, b!, c!], [seen(b!, 'failed')]);
     // b keeps the row that says why it could not be opened.
     assert.deepEqual(changes.map((ch) => ch.relPath), ['run-000.json', 'run-002.json']);
-    assert.deepEqual(changes[0], { ...a!, kind: 'json', sha256: null, status: 'waiting', detail: 'Not reached yet: a check reads only so much at a time. The next check reads it.', jobCount: 0, rowsRead: 0 });
+    assert.deepEqual(changes[0], { ...a!, kind: 'json', sha256: null, status: 'waiting', detail: 'Not reached yet: a check reads only so much at a time. The next check reads it.', jobCount: 0, rowsRead: 0, ...UNJUDGED });
     // Noted, it is in the ledger: the next look that still does not reach it writes nothing.
     assert.deepEqual(unreachedChanges([a!], [{ ...changes[0]!, sha256: null }]), []);
     assert.equal(unreachedChanges([file('page.html')], [], 'postings')[0]?.kind, 'html');
@@ -208,7 +211,79 @@ describe('planScan', () => {
 
   it('is not troubled by a file that disappeared: the ledger keeps its row and the plan says nothing', () => {
     const gone = file('gone.json');
-    assert.deepEqual(planScan([], [seen(gone)], NOW), { read: [], waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 });
+    assert.deepEqual(planScan([], [seen(gone)], NOW), { read: [], rejudged: new Set(), waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 });
+  });
+});
+
+describe('rulesKey (#448)', () => {
+  const search = { stackRequired: ['backend'], roleTypes: ['engineer'], stackExclude: ['intern'], countries: ['PL'], regions: [], workplace: ['REMOTE' as const], onsiteCities: [] };
+  const other = { ...search, stackRequired: ['data'], countries: ['DE'] };
+  const key = rulesKey([search, other], ['acme', 'globex'], 90);
+
+  it('is the same for the same rules, whatever their order, case or company', () => {
+    assert.equal(rulesKey([other, search], ['globex', 'acme'], 90), key);
+    assert.equal(rulesKey([{ ...search, stackRequired: [' Backend '] }, other], ['acme', 'globex'], 90), key);
+    // Two searches with the same filter turn away what one does.
+    assert.equal(rulesKey([search, search], [], null), rulesKey([search], [], null));
+    // A search's notes or thresholds are not what its filter reads.
+    assert.equal(rulesKey([{ ...search, notes: 'x', minFitScore: 90 } as typeof search, other], ['acme', 'globex'], 90), key);
+  });
+
+  it('moves with a filter field, a mute, an unmute or the re-apply window', () => {
+    assert.notEqual(rulesKey([{ ...search, stackRequired: ['backend', 'go'] }, other], ['acme', 'globex'], 90), key);
+    assert.notEqual(rulesKey([search], ['acme', 'globex'], 90), key);
+    assert.notEqual(rulesKey([search, other], ['acme'], 90), key);
+    assert.notEqual(rulesKey([search, other], ['acme', 'globex', 'initech'], 90), key);
+    assert.notEqual(rulesKey([search, other], ['acme', 'globex'], null), key);
+    assert.notEqual(rulesKey([search, other], ['acme', 'globex'], 30), key);
+  });
+});
+
+describe('judgedAgain and planScan with the rules (#448)', () => {
+  const RULES = 'k2';
+  const read = (f: ListedFile, judged: Partial<LedgerEntry>): LedgerEntry => ({ ...seen(f), rulesKey: 'k1', ...judged });
+
+  it('reads a file again when rows were turned away under other rules', () => {
+    const f = file('a.json');
+    assert.equal(judgedAgain(read(f, { turnedAway: 2 }), RULES, NOW), true);
+    assert.equal(judgedAgain(read(f, { windowTurnedAway: 1, windowEndsAt: NOW + MINUTE }), RULES, NOW), true);
+    // Read before rows were counted: some may have been.
+    assert.equal(judgedAgain(read(f, { turnedAway: null }), RULES, NOW), true);
+  });
+
+  it('leaves it alone when nothing was turned away, the rules are the same, or it carries no key yet', () => {
+    const f = file('a.json');
+    assert.equal(judgedAgain(read(f, { turnedAway: 0 }), RULES, NOW), false);
+    assert.equal(judgedAgain(read(f, { turnedAway: 2, rulesKey: RULES }), RULES, NOW), false);
+    // Read before keys existed: the upgrade stamps it, and reads nothing again.
+    assert.equal(judgedAgain(read(f, { turnedAway: null, rulesKey: null }), RULES, NOW), false);
+    // A file that waits is read on anyway; one set aside or misfit has no rows that were judged.
+    assert.equal(judgedAgain({ ...read(f, { turnedAway: 2 }), status: 'waiting' }, RULES, NOW), false);
+    assert.equal(judgedAgain({ ...read(f, { turnedAway: 2 }), status: 'failed' }, RULES, NOW), false);
+  });
+
+  it('reads it again once a re-apply window that turned rows away has closed, under the same rules', () => {
+    const f = file('a.json');
+    const waited = read(f, { rulesKey: RULES, windowTurnedAway: 1, windowEndsAt: NOW + MINUTE });
+    assert.equal(judgedAgain(waited, RULES, NOW), false);
+    assert.equal(judgedAgain(waited, RULES, NOW + 2 * MINUTE), true);
+  });
+
+  it('plans such a file behind new and retried ones, from its first row, within the look’s ceilings', () => {
+    const [old, again, fresh] = [file('old.json', 60 * MINUTE), file('again.json', 30 * MINUTE), file('fresh.json', 20 * MINUTE)];
+    const plan = planScan([old!, again!, fresh!], [read(old!, { turnedAway: 3 }), seen(again!, 'waiting')], NOW, undefined, 'rows', RULES);
+    assert.deepEqual(names(plan.read), ['fresh.json', 'again.json', 'old.json']);
+    assert.deepEqual([...plan.rejudged], ['old.json']);
+    assert.equal(plan.unchanged, 0);
+    // Without the rules — the Check page — the same file is unchanged.
+    assert.equal(planScan([old!], [read(old!, { turnedAway: 3 })], NOW).unchanged, 1);
+    // Past the ceiling it waits in `later` like any file, and is not marked to be read whole.
+    const many = Array.from({ length: MAX_ROW_FILES_PER_LOOK + 1 }, (_, i) => file(`run-${String(i).padStart(3, '0')}.json`, (1_000 - i) * MINUTE));
+    const full = planScan(many, many.map((f) => read(f, { turnedAway: 1 })), NOW, undefined, 'rows', RULES);
+    assert.equal(full.read.length, MAX_ROW_FILES_PER_LOOK);
+    assert.equal(full.later.length, 1);
+    assert.equal(full.rejudged.size, MAX_ROW_FILES_PER_LOOK);
+    assert.equal(full.rejudged.has(full.later[0]!.relPath), false);
   });
 });
 
@@ -233,7 +308,18 @@ describe('judgeFile', () => {
       [9, 'Backend Developer', 'Fennel Works'],
       [9, 'Mobile Developer', 'Fennel Works'],
     ]);
-    assert.deepEqual(verdict.change, { relPath: 'run-1.json', kind: 'json', status: 'done', detail: null, jobCount: 2, rowsRead: 2, size: got.ok ? got.size : 0, mtimeMs: listed.mtimeMs, sha256: got.ok ? got.sha256 : '' });
+    assert.deepEqual(verdict.change, {
+      relPath: 'run-1.json',
+      kind: 'json',
+      status: 'done',
+      detail: null,
+      jobCount: 2,
+      rowsRead: 2,
+      size: got.ok ? got.size : 0,
+      mtimeMs: listed.mtimeMs,
+      sha256: got.ok ? got.sha256 : '',
+      ...UNJUDGED,
+    });
     assert.equal(verdict.taken, 2);
   });
 
@@ -318,8 +404,8 @@ describe('judgeFile', () => {
     };
     const look = (listedAs: ListedFile, body: string, known?: LedgerEntry) => judgeFile(listedAs, read(listedAs, body), columns, 9, new Map(), known, undefined, NOW);
     const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
-      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
-      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+      const { kind, detail, ...entry } = verdict.change!;
+      return entry;
     };
     const head = 'id,title,url\n1,One,https://rows.example/1\n2,Two,https://rows.example/2\n3,Thr';
     const rest = 'ee,https://rows.example/3\n4,Four,https://rows.example/4\n';
@@ -397,8 +483,8 @@ describe('judgeFile', () => {
     };
     const look = (body: string | Uint8Array, known?: LedgerEntry, maxRows?: number) => judgeFile(csv, read(body), columns, 9, new Map(), known, maxRows, NOW);
     const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
-      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
-      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+      const { kind, detail, ...entry } = verdict.change!;
+      return entry;
     };
     const cut = ['id,title,url', '1,One,https://rows.example/1', '2,Two,https://rows.example/2', '3,"Three,https://rows.example/3', '4,Four,https://rows.example/4', ''].join('\n');
 
@@ -460,8 +546,8 @@ describe('judgeFile', () => {
     const lines = (from: number, to: number): string => Array.from({ length: to - from }, (_, i) => `${JSON.stringify(role(from + i))}\n`).join('');
     /** The ledger's row after a look, as the next look is handed it. */
     const kept = (verdict: ReturnType<typeof judgeFile>): LedgerEntry => {
-      const { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount } = verdict.change!;
-      return { relPath, size, mtimeMs, sha256, status, rowsRead, jobCount };
+      const { kind, detail, ...entry } = verdict.change!;
+      return entry;
     };
     const look = (got: FileRead, known?: LedgerEntry, maxRows = 3) => judgeFile(listed, got, mapping, 9, new Map(), known, maxRows);
     const titles = (verdict: ReturnType<typeof judgeFile>): string[] => verdict.jobs.map((j) => j.title);
@@ -481,6 +567,18 @@ describe('judgeFile', () => {
       const third = look(got, kept(second));
       assert.deepEqual(titles(third), ['Role 6', 'Role 7']);
       assert.deepEqual([third.change?.status, third.change?.detail, third.change?.rowsRead, third.change?.jobCount, third.taken], ['done', null, 8, 8, 2]);
+    });
+
+    // #448: a file finished under other rules than the ones that turned its first rows away is read again whole.
+    it('carries what was turned away of its first rows, and the rules that did it, to its end', () => {
+      const got = bytesOf(lines(0, 5));
+      const first = kept(look(got));
+      const away = look(got, { ...first, turnedAway: 2, windowTurnedAway: 1, windowEndsAt: NOW, rulesKey: 'k1' });
+      assert.deepEqual([away.change?.status, away.change?.turnedAway, away.change?.windowTurnedAway, away.change?.windowEndsAt, away.change?.rulesKey], ['done', 2, 1, NOW, 'k1']);
+      // Nothing turned away yet: the rules of the look that finishes it are the ones it was judged under.
+      assert.equal(look(got, { ...first, rulesKey: 'k1' }).change?.rulesKey, null);
+      // Read from its first row, it starts with nothing turned away.
+      assert.deepEqual(look(got, undefined, 100).change?.turnedAway, 0);
     });
 
     it('reads past the 2,000th row: one file may take the whole look', () => {
@@ -583,7 +681,7 @@ describe('newestIsMisfit', () => {
 
 describe('unreadChange', () => {
   it('records a file the plan did not read: one that waits, one too large', () => {
-    assert.deepEqual(unreadChange(file('a.csv'), 'fresh'), { ...file('a.csv'), kind: 'csv', sha256: null, status: 'waiting', detail: FILE_NOTES.fresh, jobCount: 0, rowsRead: 0 });
+    assert.deepEqual(unreadChange(file('a.csv'), 'fresh'), { ...file('a.csv'), kind: 'csv', sha256: null, status: 'waiting', detail: FILE_NOTES.fresh, jobCount: 0, rowsRead: 0, ...UNJUDGED });
     assert.equal(unreadChange(file('a.csv'), 'tooLarge').status, 'skipped');
   });
 });

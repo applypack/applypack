@@ -131,7 +131,11 @@ Every persisted Job also carries `workplace`, `countries`, `regions` and
 `locationSource` — the structured reading of the location string by
 `src/location.ts` (hints from the fetcher first, the parser for the rest);
 the string itself is never rewritten (ADR 0031). `/jobs` filters on them
-(`country=`, `workplace=`, `posted=`).
+(`country=`, `workplace=`, `posted=`). `postedAtKnown` is false when the
+source gave no date (a paste, a saved page, a row with no date column, a
+board that publishes none): `postedAt` is then when the posting was first
+seen, the job page says "First seen", and the Posted filter files it under
+"Date unknown" instead of a window (#458).
 
 The same inner loop is reused by `runHnHiringJob` (extracted into
 `src/jobs/process-jobs.ts`).
@@ -176,8 +180,8 @@ AI call (`web/overview-stats.ts`):
 - **What do the matches ask for?** *Jobs by stack*: the technologies of the
   running searches that the last 30 days' matches name (`Job.techMatch`), and
   the same list as the chart's **All stack** filter. Anything by technology
-  reads the jobs, and a dismissed job is deleted after 30 days — so the
-  filter covers 7D and 30D and is off beyond. A match here is a job that was
+  reads the jobs, and a dismissed job's text is deleted after 30 days — so
+  the filter covers 7D and 30D and is off beyond. A match here is a job that was
   scored and kept, or alerted or held before the user dismissed it.
 
 Beside them: pipeline health (the latest run of each scheduled job), recent
@@ -216,7 +220,7 @@ match and a recap at 09:00: the behaviour before v1.47.0.
 | `mm * * * *` | fetch              | full fetch + filter + classify + alert — gated by the user's schedule; held alerts and the France Travail check run first, even while paused |
 | `0 * * * *` | digest             | Recap of the NEW / ALERTED jobs stored since the last recap, to every active target; only on the digest hours |
 | `0 * * * *` | stale-applications | Nudge for jobs in the Applied column for more than 14 days with no recruiter contact; only on the first digest hour of the day |
-| `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days (never one with a pipeline stage), screenings past `retainUntil`, finished run rows older than 90 days and AI ledger rows older than 400 days |
+| `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days (never one with a pipeline stage), keeping each one's source and id for 180 days from when it was found so the tick does not score it again (`dismissed_posting`, #474), screenings past `retainUntil`, finished run rows older than 90 days and AI ledger rows older than 400 days |
 | `mm 4 * * 0` | discovery         | Re-probe the pending Greenhouse, Lever and Ashby CompanyCandidates |
 | `mm 6 1 * *` | hn-hiring         | Pull latest HN Who-is-hiring + extract candidates |
 | `* * * * *`  | pack               | Prepare the queued application packs one at a time and send one message for the finished ones (ADR 0063); a beat with nothing queued and no message owed writes no run row |
@@ -513,8 +517,10 @@ in six seconds — together with the keyword frame, the either/or requirement
 groups and the gates. It is stored in `posting_brief` against a hash of the
 title and description, so editing a resume and comparing again reuses the
 reading instead of paying for it; the progress page shows it as its own step
-and says when it was reused. The comparison copies the frame and judges only
-what the resume shows; the suggestions aim at the screening block. A missing
+and says when it was reused. **Rebuild keywords** reads the posting again: the
+new brief replaces the stored one, whichever engine wrote that (#410). The
+comparison copies the frame and judges only what the resume shows; the
+suggestions aim at the screening block. A missing
 brief costs context, never the comparison: both callers fall back to deriving
 the frame themselves.
 
@@ -1069,7 +1075,7 @@ for the person.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind over semantic CSS-variable tokens, built by `npm run css` and committed (`src/web/public/tailwind.css`), so the runtime has no build step and no page loads a CDN (light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam, seven engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `agy_cli` (headless CLI, Google Antigravity account), `openai_api` (fetch → any /chat/completions endpoint: the server on its card, else OPENAI_BASE_URL; a local one needs no key), `codex_cli` (headless CLI, ChatGPT subscription), `local_api` (Ollama's own `/api/chat` on this machine: the context window per call, JSON mode, one call at a time, a prompt too large for the window refused before it is sent — ADR 0057). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); each engine takes every task until its card unticks some (`aiEngine.tasks`, six tasks in `ai-tasks.ts`, ADR 0060), and a call fails over down the engines that take its task automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (on the two Claude engines: `CLAUDE_MODEL`, Haiku 4.5, for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter. Gemini 2.5 Flash for the classifier and 2.5 Pro for the rest on the Gemini CLI; `OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on Codex); `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam, seven engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `agy_cli` (headless CLI, Google Antigravity account), `openai_api` (fetch → any /chat/completions endpoint: the server on its card, else OPENAI_BASE_URL; a local one needs no key), `codex_cli` (headless CLI, ChatGPT subscription), `local_api` (Ollama's own `/api/chat` on this machine: the context window per call, JSON mode, one call at a time, a prompt too large for the window refused before it is sent, thinking switched off on a model whose `/api/show` lists it — ADR 0057). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); each engine takes every task until its card unticks some (`aiEngine.tasks`, six tasks in `ai-tasks.ts`, ADR 0060) — but the wizard's **Use it** gives a model on this computer scoring postings alone, and a call fails over down the engines that take its task automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (on the two Claude engines: `CLAUDE_MODEL`, Haiku 4.5, for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter. Gemini 2.5 Flash for the classifier and 2.5 Pro for the rest on the Gemini CLI; `OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on Codex); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout

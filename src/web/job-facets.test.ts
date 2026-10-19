@@ -11,7 +11,7 @@ import {
   parsePosted,
   parseWorkplaces,
   placeWhere,
-  postedSince,
+  postedWhere,
   rowPlaces,
   splitPlaces,
   tallyFacets,
@@ -24,12 +24,15 @@ const NOW = new Date('2026-09-03T12:00:00Z');
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * 24 * 60 * 60 * 1000);
 
 const rows: FacetRow[] = [
-  { countries: ['PL'], regions: [], workplace: 'REMOTE', postedAt: daysAgo(0.5) },
-  { countries: ['PL', 'DE'], regions: [], workplace: 'HYBRID', postedAt: daysAgo(3) },
-  { countries: [], regions: ['EU'], workplace: 'REMOTE', postedAt: daysAgo(10) },
-  { countries: [], regions: [], workplace: 'REMOTE', postedAt: daysAgo(40) },
-  { countries: ['US'], regions: [], workplace: 'UNKNOWN', postedAt: daysAgo(1) },
+  { countries: ['PL'], regions: [], workplace: 'REMOTE', postedAt: daysAgo(0.5), postedAtKnown: true },
+  { countries: ['PL', 'DE'], regions: [], workplace: 'HYBRID', postedAt: daysAgo(3), postedAtKnown: true },
+  { countries: [], regions: ['EU'], workplace: 'REMOTE', postedAt: daysAgo(10), postedAtKnown: true },
+  { countries: [], regions: [], workplace: 'REMOTE', postedAt: daysAgo(40), postedAtKnown: true },
+  { countries: ['US'], regions: [], workplace: 'UNKNOWN', postedAt: daysAgo(1), postedAtKnown: true },
 ];
+
+/** #458: a row whose source gave no date — stored an hour ago, which says nothing of when it was posted. */
+const undated: FacetRow = { countries: ['DE'], regions: [], workplace: 'REMOTE', postedAt: daysAgo(0.04), postedAtKnown: false };
 
 describe('query parsing', () => {
   it('keeps known country and region codes and "unknown", once each, uppercased', () => {
@@ -43,11 +46,12 @@ describe('query parsing', () => {
 
   it('keeps a known posted window only', () => {
     assert.equal(parsePosted('7d'), '7d');
+    assert.equal(parsePosted('unknown'), 'unknown');
     assert.equal(parsePosted('2y'), '');
     assert.equal(parsePosted(undefined), '');
     // A name every object has is not a window: /jobs?posted=constructor once queried an Invalid Date.
     assert.equal(parsePosted('constructor'), '');
-    assert.equal(postedSince('constructor', new Date()), null);
+    assert.equal(postedWhere('constructor', new Date()), null);
   });
 });
 
@@ -63,9 +67,10 @@ describe('where-clauses', () => {
     assert.equal(placeWhere([]), null);
   });
 
-  it('turns a window into a since-date', () => {
-    assert.deepEqual(postedSince('7d', NOW), daysAgo(7));
-    assert.equal(postedSince('', NOW), null);
+  it('turns a window into a since-date over the dated rows, and "unknown" into the undated ones', () => {
+    assert.deepEqual(postedWhere('7d', NOW), { postedAtKnown: true, postedAt: { gte: daysAgo(7) } });
+    assert.deepEqual(postedWhere('unknown', NOW), { postedAtKnown: false });
+    assert.equal(postedWhere('', NOW), null);
   });
 });
 
@@ -98,19 +103,34 @@ describe('tallyFacets', () => {
       ['unknown', 0, false],
     ]);
     // Posted: PL + remote → the one row from half a day ago.
-    assert.deepEqual(chips.posted.map((c) => [c.value, c.count]), [['24h', 1], ['7d', 1], ['30d', 1]]);
+    assert.deepEqual(chips.posted.map((c) => [c.value, c.count]), [['24h', 1], ['7d', 1], ['30d', 1], ['unknown', 0]]);
   });
 
   it('a posted window narrows the other two facets but not itself', () => {
     const chips = tallyFacets(rows, { places: [], workplaces: [], posted: '7d' }, NOW);
     assert.deepEqual(chips.places.map((c) => [c.value, c.count]), [['PL', 2], ['DE', 1], ['US', 1]]);
     assert.deepEqual(chips.workplaces.map((c) => [c.value, c.count]), [['remote', 1], ['hybrid', 1], ['onsite', 0], ['unknown', 1]]);
-    assert.deepEqual(chips.posted.map((c) => [c.value, c.count, c.selected]), [['24h', 2, false], ['7d', 3, true], ['30d', 4, false]]);
+    assert.deepEqual(chips.posted.map((c) => [c.value, c.count, c.selected]), [['24h', 2, false], ['7d', 3, true], ['30d', 4, false], ['unknown', 0, false]]);
   });
 
   it('posted windows are cumulative', () => {
     const { posted } = tallyFacets(rows, { places: [], workplaces: [], posted: '' }, NOW);
-    assert.deepEqual(posted.map((c) => [c.value, c.count]), [['24h', 2], ['7d', 3], ['30d', 4]]);
+    assert.deepEqual(posted.map((c) => [c.value, c.count]), [['24h', 2], ['7d', 3], ['30d', 4], ['unknown', 0]]);
+  });
+
+  // #458: an imported file of last month's postings was "posted in the last 24 hours".
+  it('a date nobody gave is in no window, only under "Date unknown"', () => {
+    const chips = tallyFacets([...rows, undated], { places: [], workplaces: [], posted: '' }, NOW);
+    assert.deepEqual(chips.posted.map((c) => [c.value, c.count, c.label]), [
+      ['24h', 2, 'Last 24h'],
+      ['7d', 3, 'Last 7 days'],
+      ['30d', 4, 'Last 30 days'],
+      ['unknown', 1, 'Date unknown'],
+    ]);
+    // Chosen, it narrows the other facets to the undated rows.
+    const picked = tallyFacets([...rows, undated], { places: [], workplaces: [], posted: 'unknown' }, NOW);
+    assert.deepEqual(picked.places.map((c) => [c.value, c.count]), [['DE', 1]]);
+    assert.equal(picked.posted.find((c) => c.value === 'unknown')?.selected, true);
   });
 });
 
@@ -223,6 +243,10 @@ describe('the active-filter row', () => {
       assert.equal(q.page, undefined);
     }
     assert.equal(byLabel('Verified').watched, '1');
+  });
+
+  it('names the undated rows as their chip does', () => {
+    assert.deepEqual(activeFilters({ ...NONE, posted: 'unknown' }, profiles).map((f) => [f.label, query(f.href).posted]), [['Date unknown', undefined]]);
   });
 
   it('still offers a way out of a search that is no longer running', () => {

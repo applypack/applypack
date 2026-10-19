@@ -6,15 +6,20 @@ import { extractJson, jsonFailure, type ParseResult } from './text-utils';
 
 const REQ: AiCallRequest = { system: 's', user: 'u', maxTokens: 100, label: 'resume-scan', role: 'resume' };
 
-/** A runtime that answers from a script; null means "no engine answered". */
+/** A runtime that answers from a script; null means "no engine answered". Call n wrote ledger row n; `marked` keeps the rows turned `unparsed`. */
 function runtime(replies: (string | null)[]) {
   const calls: AiCallRequest[] = [];
+  const marked: number[][] = [];
   return {
     calls,
+    marked,
     complete: async (req: AiCallRequest): Promise<AiCallResult | null> => {
       calls.push(req);
       const text = replies[calls.length - 1] ?? null;
-      return text === null ? null : { text, providerId: 'anthropic_api', model: 'm', viaFallback: calls.length > 1 };
+      return text === null ? null : { text, providerId: 'anthropic_api', model: 'm', viaFallback: calls.length > 1, ledgerIds: [calls.length] };
+    },
+    unparsed: async (result: AiCallResult): Promise<void> => {
+      marked.push(result.ledgerIds);
     },
   };
 }
@@ -33,6 +38,7 @@ test('askForJson returns the parsed reply with the engine marker', async () => {
   assert.equal(answer?.attempt, 0);
   assert.equal(answer?.chars, 7);
   assert.equal(ai.calls.length, 1);
+  assert.deepEqual(ai.marked, [], 'a reply that parsed stays `ok` on the ledger');
 });
 
 test('askForJson retries once when the reply did not fit the schema, and names a fallback engine', async () => {
@@ -42,22 +48,26 @@ test('askForJson retries once when the reply did not fit the schema, and names a
   assert.equal(answer?.attempt, 1);
   assert.equal(answer?.model, 'm · fallback');
   assert.equal(ai.calls.length, 2);
+  assert.deepEqual(ai.marked, [[1]], 'the first reply is `unparsed` on the ledger, the second `ok` (#463)');
 });
 
 test('askForJson gives up after the second bad reply', async () => {
   const ai = runtime(['{"x":1}', 'not even json']);
   assert.equal(await askForJson(ai, REQ, parse), null);
   assert.equal(ai.calls.length, 2);
+  assert.deepEqual(ai.marked, [[1], [2]]);
 });
 
 test('askForJson does not retry a reply cut off inside the JSON', async () => {
   const ai = runtime(['{"n": {"deep": 1', '{"n":3}']);
   assert.equal(await askForJson(ai, REQ, parse), null);
   assert.equal(ai.calls.length, 1);
+  assert.deepEqual(ai.marked, [[1]], 'a reply cut off inside the JSON did not parse either');
 });
 
 test('askForJson returns null when no engine answered', async () => {
   const ai = runtime([null]);
   assert.equal(await askForJson(ai, REQ, parse), null);
   assert.equal(ai.calls.length, 1);
+  assert.deepEqual(ai.marked, [], 'no reply, nothing to judge: the chain recorded how each attempt failed');
 });

@@ -188,7 +188,7 @@ async function freshIfChanged(screening: ScreeningWithJob): Promise<ScreeningWit
 }
 
 /** One worker: take the next applicant, score, repeat; refill from the database when the queue runs dry. */
-async function worker(run: Run, screening: ScreeningWithJob, runtime: Pick<AiRuntime, 'complete'>, matcher: Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>): Promise<void> {
+async function worker(run: Run, screening: ScreeningWithJob, runtime: Pick<AiRuntime, 'complete' | 'unparsed'>, matcher: Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>): Promise<void> {
   for (;;) {
     let next = run.queue.shift();
     if (!next) {
@@ -224,7 +224,7 @@ async function screenApplicant(
   screening: ScreeningWithJob,
   rubric: Rubric,
   applicant: Pick<Applicant, 'id' | 'number' | 'redactedText'>,
-  runtime: Pick<AiRuntime, 'complete'>,
+  runtime: Pick<AiRuntime, 'complete' | 'unparsed'>,
   matcher: Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>,
   now = new Date(),
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
