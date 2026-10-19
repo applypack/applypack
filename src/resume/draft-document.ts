@@ -26,7 +26,7 @@ import { t } from '../i18n/t';
 export type DocumentKind = 'own' | 'clean';
 
 /** Why the document is what it is — the page words its note from this. */
-export type DocumentBasis = 'own' | 'pdf' | 'text' | 'unsupported' | 'stale' | 'refused';
+export type DocumentBasis = 'own' | 'pdf' | 'text' | 'unsupported' | 'stale' | 'draft' | 'refused';
 
 export interface DraftInput {
   sourceFilename: string;
@@ -40,6 +40,8 @@ export interface DraftInput {
   knobs: RenderKnobs;
   /** What a PDF's page says about its lines — its columns and its skills table (pdf-layout.ts). */
   layout?: TextLayout | null;
+  /** The comparison read a draft of the saved version (an edit, another file, a pack's text), not an earlier version. */
+  draft?: boolean;
 }
 
 export interface DraftDocument {
@@ -62,7 +64,8 @@ export async function draftDocx(input: DraftInput): Promise<DraftDocument> {
     const patched = await patchDocx(original, input.baseText, input.text);
     if (patched.ok) return { kind: 'own', basis: 'own', docx: patched.docx, notice: null };
     // `reason` is the patcher's English, which STALE_REASON reads; `shown` is the same sentence in the page's language.
-    return clean(input, STALE_REASON.test(patched.reason) ? 'stale' : 'refused', patched.shown);
+    if (!STALE_REASON.test(patched.reason)) return clean(input, 'refused', patched.shown);
+    return clean(input, input.draft ? 'draft' : 'stale');
   }
   return clean(input, isPdf(sourceFilename) ? 'pdf' : 'text');
 }
@@ -150,6 +153,8 @@ export function noticeFor(basis: Exclude<DocumentBasis, 'own'>, reason?: string)
       return t('document.notice.unsupported');
     case 'stale':
       return t('document.notice.stale');
+    case 'draft':
+      return t('document.notice.draft');
     case 'refused':
       // The reason is the patcher's own sentence (docx-patch.ts), already in the page's language.
       return t('document.notice.refused', { reason: reason ?? t('document.notice.someLine') });

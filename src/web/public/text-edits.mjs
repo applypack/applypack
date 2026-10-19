@@ -24,9 +24,9 @@ import { locateQuote, findTerm } from './target.mjs';
 /*
  * The contact line is protected: gotcha 11 is that removal quotes leak into it,
  * and 7 of the 237 quoted spans in the live corpus sit on the line carrying the
- * email and phone. These two patterns are copied from
+ * email and phone. These patterns, and LINK_RE below, are copied from
  * src/resume/parse-warnings.ts — a browser module cannot import TypeScript, so
- * they are kept in step by hand.
+ * they are kept in step by hand (text-edits.test.ts compares the two).
  */
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 const PHONE_RUN_RE = /\+?\d[\d\s().\/-]{6,}\d/g;
@@ -36,6 +36,19 @@ const PHONE_MIN_DIGITS = 9;
 function isContactLine(line) {
   if (EMAIL_RE.test(line)) return true;
   return (line.match(PHONE_RUN_RE) ?? []).some((run) => (run.match(/\d/g) ?? []).length >= PHONE_MIN_DIGITS);
+}
+
+const LINK_RE = /(?:https?:\/\/|www\.)[^\s|·•,;]+|\b[\w-]+\.(?:com|dev|io|net|org|me|co)\/[^\s|·•,;]+/gi;
+
+/**
+ * Every email, phone and — beside one of those — link in a span, as written.
+ * A copy of parse-warnings.ts:contactDetails, held equal by text-edits.test.ts.
+ */
+export function contactDetails(text) {
+  const emails = text.match(new RegExp(EMAIL_RE.source, 'gi')) ?? [];
+  const phones = (text.match(PHONE_RUN_RE) ?? []).filter((run) => (run.match(/\d/g) ?? []).length >= PHONE_MIN_DIGITS);
+  const links = emails.length + phones.length === 0 ? [] : (text.match(LINK_RE) ?? []).map((l) => l.replace(/[.)]+$/, ''));
+  return [...new Set([...emails, ...phones, ...links])];
 }
 
 /** Start of the line containing `index`. */
@@ -66,6 +79,8 @@ function unmarked(wording) {
  * Replace the quoted span with `replacement`. The span is found the same way
  * the editor highlights it, so what gets replaced is what was outlined.
  * A leading bullet marker survives: the model quotes the sentence, not the "• ".
+ * Refuses a wording that loses an email, a phone or a profile link the span
+ * carried (gotcha 11); the separators between them may change.
  */
 export function applyReplacement(text, quote, replacement) {
   const loc = locateQuote(text, quote);
@@ -80,6 +95,9 @@ export function applyReplacement(text, quote, replacement) {
   const onBullet = keep !== '' || (marker !== null && loc.start >= start + marker[1].length);
   const body = keep + (onBullet ? unmarked(replacement) : replacement.trim());
   const from = keep ? start : loc.start;
+  // The gate refuses such a wording (replacement-gate.ts); a comparison stored
+  // before it did, or a wording typed over the card, must not drop them either.
+  if (contactDetails(text.slice(from, loc.end)).some((detail) => !body.includes(detail))) return { error: 'protected' };
   return {
     text: text.slice(0, from) + body + text.slice(loc.end),
     span: { start: from, end: from + body.length },
@@ -177,12 +195,83 @@ function isSectionHeading(line) {
 }
 
 /**
+ * The families a skills section is usually split into: the words a line's label
+ * uses for one, and the terms that belong to it. Not a taxonomy — enough to put
+ * a keyword with no hint on "Cloud & DevOps" rather than on whichever list came
+ * last (#576: Kubernetes, NoSQL, OAuth2 and JSON all landed under "Testing").
+ */
+const FAMILIES = [
+  {
+    label: /cloud|devops|infra|\bops\b|deploy/,
+    terms: /\b(?:kubernetes|k8s|docker|containers?|terraform|helm|aws|gcp|azure|ansible|jenkins|ci\/cd|github actions|gitlab|circleci|argo\s?cd|nginx|linux|serverless|lambda|ecs|eks|cloudformation|pulumi|prometheus|grafana|datadog|openshift)\b/,
+  },
+  {
+    label: /data|\bdbs?\b|storage|persistence|messaging/,
+    terms: /sql|\b(?:postgres|mongo(?:db)?|redis|dynamodb|cassandra|elasticsearch|opensearch|kafka|rabbitmq|sqs|kinesis|snowflake|bigquery|redshift|spark|airflow|dbt|etl|clickhouse|prisma|typeorm|sequelize|orm)\b/,
+  },
+  {
+    label: /\btest|\bqa\b|quality/,
+    terms: /\btest|\b(?:jest|mocha|chai|vitest|jasmine|cypress|playwright|selenium|puppeteer|pytest|junit|rspec|phpunit|tdd|bdd|pact)\b/,
+  },
+  {
+    label: /front|\bui\b|\bweb\b|client/,
+    terms: /\b(?:react|vue(?:\.js)?|angular|svelte|next\.?js|nuxt|css3?|html5?|sass|scss|tailwind|redux|webpack|vite|jquery|storybook)\b/,
+  },
+  {
+    label: /back|server|\bapis?\b/,
+    terms: /\b(?:node(?:\.?js)?|express|nest(?:js)?|rest(?:ful)?|graphql|grpc|oauth\s?2?|openid|jwt|json|xml|soap|openapi|swagger|spring|django|flask|fastapi|rails|laravel|symfony|asp\.net|microservices?|websockets?)\b/,
+  },
+  {
+    label: /language|programming/,
+    terms: /\b(?:javascript|typescript|python|java|golang|go|rust|kotlin|swift|ruby|php|scala|elixir|erlang|haskell|clojure|perl|bash)\b/,
+  },
+  { label: /mobile|\bios\b|android/, terms: /\b(?:ios|android|react native|flutter|swiftui|xamarin)\b/ },
+  { label: /security|\bauth/, terms: /\b(?:oauth|saml|sso|jwt|owasp|iam|keycloak|openid)/ },
+];
+/** A label that names the term's family outweighs one term of that family on the line. */
+const LABEL_POINTS = 2;
+/** A line that ends on its separator runs on into the next: appending there would split the list. */
+const RUNS_ON = /[,;|·•]\s*$/;
+
+/**
+ * The list a term with no hint belongs on: the one whose label names the term's
+ * family, or whose terms share it. With none, the last line that names no
+ * family of its own — the only list, an "Others" or "Tools" line, the
+ * unlabelled lines of one long list — and else null: the term then goes on a
+ * line of its own (appendSkills), never on a line it has nothing to do with.
+ */
+function nearestList(lines, lists, term) {
+  const targets = lists.filter((l) => !RUNS_ON.test(lines[l.i]));
+  const families = FAMILIES.filter((f) => f.terms.test(term.toLowerCase()));
+  const labelOf = (l) => {
+    const colon = lines[l.i].indexOf(':');
+    return colon === -1 ? '' : lines[l.i].slice(0, colon).toLowerCase();
+  };
+  const score = (l) =>
+    families.reduce(
+      (n, f) =>
+        n +
+        (f.label.test(labelOf(l)) ? LABEL_POINTS : 0) +
+        l.body.split(l.sep).filter((item) => f.terms.test(item.toLowerCase())).length,
+      0,
+    );
+  let best = null;
+  let bestScore = 0;
+  for (const l of targets) {
+    const s = score(l);
+    if (s > bestScore) [best, bestScore] = [l, s];
+  }
+  return best ?? targets.filter((l) => !FAMILIES.some((f) => f.label.test(labelOf(l)))).at(-1) ?? null;
+}
+
+/**
  * Add `term` to a skills line. Only ever writes inside a skills section: a term
  * list somewhere else is not a skills list, and the first walk of this shipped
  * appending a keyword to the contact line, which split on ", " into four parts
  * and passed for one. Returns `no-skills-list` when there is nothing safe to
  * write to — the caller must then not offer the button at all rather than offer
- * one that writes nonsense. A term already present is a no-op.
+ * one that writes nonsense — and `no-fitting-line` when no list is the term's
+ * (addKeywords gives it a line of its own). A term already present is a no-op.
  */
 export function insertIntoSkills(text, term, where) {
   const clean = String(term ?? '').trim();
@@ -207,10 +296,8 @@ export function insertIntoSkills(text, term, where) {
   const hint = String(where ?? '').toLowerCase();
   const hintWords = hint.match(/[a-z]{4,}/g) ?? [];
   const label = (i) => lines[i].toLowerCase().slice(0, lines[i].indexOf(':') + 1 || HEADING_MAX);
-  // With no hint that names a line, the last list: it is the "Others" line far
-  // more often than the first one is, and a framework does not belong among
-  // the programming languages the first line usually lists.
-  const target = lists.find((l) => hintWords.some((w) => label(l.i).includes(w))) ?? lists[lists.length - 1];
+  const target = lists.find((l) => hintWords.some((w) => label(l.i).includes(w))) ?? nearestList(lines, lists, clean);
+  if (!target) return { error: 'no-fitting-line' };
 
   const line = lines[target.i];
   const kept = line.replace(/\s*$/, '');
@@ -250,7 +337,7 @@ export function appendSkills(text, terms) {
     at = heading;
     for (let i = heading + 1; i < lines.length; i++) {
       const l = lines[i];
-      if (l.trim() === '' || isWorkHeading(l)) break;
+      if (l.trim() === '' || isWorkHeading(l) || DATE_RANGE.test(l)) break;
       const isLabel = l.trimEnd().endsWith(':');
       if (!termList(l) && !isLabel && l.length < HEADING_MAX && /\p{Lu}/u.test(l) && !/\p{Ll}/u.test(l.replace(/^#+\s*/, ''))) break;
       at = i;

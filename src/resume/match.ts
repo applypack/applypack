@@ -17,7 +17,8 @@ import {
 import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
 import { countableFlags } from './red-flags';
-import { gateActions, gateRemovals } from './replacement-gate';
+import { finishEdits, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
+import { structureFromText } from './structure-from-text';
 import { floorDemand, floorGaps, unwrittenMusts } from './suggestion-floor';
 import { suggestForMatch } from './suggestions';
 import { rewriteRefusedLeads } from './rewrite';
@@ -37,6 +38,7 @@ import { scoreMatch } from './score';
 import {
   createMatch,
   getLatestMatchForJob,
+  getLatestReportForJob,
   getLatestVerificationContext,
   getPostingRefreshedAt,
   getResumeIndustries,
@@ -92,10 +94,12 @@ export async function matchResumeToJob(
   // is not fatal — without it the call derives the frame itself, as before.
   const briefed =
     opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError, rebuild: opts.rebuild });
-  const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt, industries] = await Promise.all([
+  const [facts, otherSkills, previousMatch, lastReport, matcher, verification, refreshedAt, industries] = await Promise.all([
     judgedOn === 'own' ? listFacts() : [],
     judgedOn === 'own' ? listOtherResumeSkills(resume.id) : [],
     getLatestMatchForJob(job.id),
+    // The report the candidate took edits from: the full analysis reads it (applied.ts).
+    mode === 'full' ? getLatestReportForJob(job.id, resume.id) : null,
     loadKeywordMatcher(),
     // The full analysis reads what the verifier learned about the company as
     // context; the quick check never does (ADR 0042).
@@ -124,10 +128,7 @@ export async function matchResumeToJob(
   // What the candidate took from the last report is done (applied.ts): the
   // full analysis is told so, and how many of its actions reword those lines
   // anyway is the churn metric logged below.
-  const applied =
-    mode === 'full' && previousMatch
-      ? appliedWording(readActions(previousMatch.actions), resume.text, matcher.locateQuote)
-      : [];
+  const applied = lastReport ? appliedWording(readActions(lastReport.actions), resume.text, matcher.locateQuote) : [];
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
@@ -186,12 +187,14 @@ export async function matchResumeToJob(
   // What may be applied with one press is decided here, in code, against
   // the resume, the posting and the facts — never by the model (ADR 0037).
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
-  const gate = gateActions(reply.actions, gateSources);
+  const gate = gateActions(titleOverHeadline(reply.actions, resume.text, structureFromText(resume.text).basics.label), gateSources);
   const cuts = gateRemovals(reply.removals, gateSources);
   // How many reworks of applied wording the model wrote (the metric), and
   // then the rule as code: only one naming a keyword the text lacks stays.
   const churn = rewritesOfApplied(applied, gate.actions, resume.text, matcher.locateQuote);
   const fresh = freshActions(gate.actions, applied, keywords, resume.text, matcher);
+  // A card that asks for nothing is not a suggestion, and the count says so.
+  const edits = finishEdits(fresh.kept, cuts.removals, gateSources);
   // A flag that only restates a keyword the resume does not have is the same
   // fact billed twice: the keyword pool already charged for it, and whether the
   // model bothers to write the sentence was 80% of a ten-point spread across
@@ -210,7 +213,7 @@ export async function matchResumeToJob(
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
     model: answer.model,
-    result: { ...reply, keywords, actions: fresh.kept, removals: cuts.removals },
+    result: { ...reply, keywords, actions: edits.actions, removals: edits.removals },
     breakdown,
     promptVersion: PROMPT_VERSION,
     mode,
@@ -270,6 +273,7 @@ export async function matchResumeToJob(
       applied: applied.length,
       rewritesOfApplied: churn.length,
       reworksDropped: fresh.dropped.length,
+      noOpsDropped: edits.dropped,
       domain: context.candidateDomains?.verdict,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',

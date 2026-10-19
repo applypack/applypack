@@ -165,7 +165,7 @@ function toConfirmLine({ hard }: LinesInput): ScoreLine | null {
   }
   const counts = { failed: failed.length, unknown: unknown.length };
   return {
-    label: t('score.label.toConfirm'),
+    label: t('score.label.hard'),
     text: t(unknown.length === 0 ? 'score.confirm.failed' : failed.length === 0 ? 'score.confirm.unknown' : 'score.confirm.both', counts),
     tone: failed.length > 0 ? 'danger' : 'warn',
     title: [...failed, ...unknown].map((h) => h.requirement).join(' · '),

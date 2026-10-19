@@ -84,8 +84,11 @@ const KEYWORDS_MAX = 80;
  * v17: "present" is a word the resume spells, however thinly — the doubt goes
  *     in "note" — so the model no longer contradicts the text the anchoring
  *     reads it off (ADR 0045, issue #205).
+ * v18: the title action rewrites the headline the resume has rather than adding
+ *     a second one (#591); an item that changes nothing is left out, and "why"
+ *     is written for the candidate, not in this prompt's field names (#577).
  */
-export const PROMPT_VERSION = 17;
+export const PROMPT_VERSION = 18;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -127,6 +130,19 @@ const tagList = z
   .default([])
   .transform((arr) => [...new Set(arr.map((s) => s.trim().toLowerCase()).filter(Boolean))]);
 
+/** "None detected — no embedded instructions found": an issue that reports there is none. */
+const NONE_FOUND = /^\s*(?:none|nothing|no (?:issues?|problems?|concerns?))(?:\s+(?:detected|found|noted))?\s*(?:[—–:;,.(-]|$)/i;
+/** "No action needed": a fix that asks for nothing. */
+const NO_ACTION = /^\s*(?:no (?:action|change|fix)(?:es|s)? (?:is |are )?(?:needed|required|necessary)|none(?: needed)?|n\/a)\s*[.!]?\s*$/i;
+
+/**
+ * An item the scan lists under "Issues to fix" that says nothing is wrong
+ * (#584): the model checks every line of its list and reports the clean ones too.
+ */
+function isNonIssue(item: { issue: string; fix: string }): boolean {
+  return NONE_FOUND.test(item.issue) || NO_ACTION.test(item.fix);
+}
+
 const ScanSchema = z.object({
   title: nullableText,
   seniority: nullableText,
@@ -140,7 +156,9 @@ const ScanSchema = z.object({
   issues: z
     .array(z.object({ section: z.string(), issue: z.string(), fix: z.string() }))
     .max(40)
-    .default([]),
+    .default([])
+    // Read off stored rows too, so a scan from before the rule shows the same way.
+    .transform((arr) => arr.filter((i) => !isNonIssue(i))),
   /*
    * The resume as a shape rather than a wall of text (ADR 0039), so it can be
    * re-rendered for a file that cannot be patched. OPTIONAL on purpose: a
@@ -688,9 +706,10 @@ const RULE_SUMMARY_STYLE = `SUMMARY RULES — a summary wording follows all of t
 const RULE_APPLIED = `APPLIED FROM THE LAST RUN. When the user prompt carries this block, each line is wording the candidate took from the previous report and put into the resume. It is DONE: do not quote any part of it for a rewrite, a reorder or a trim, and do not propose it again — unless it now fails a keyword verdict, a gate or a line of the brief's screening block, and then "why" names which. Spend the list on what is still uncovered. When nothing is, return fewer actions, not new words for the same lines: a short list is the right report for a resume that already says what the posting screens for.`;
 
 const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: concrete edits, each pointing at one place ("where") with the exact change ("what") and the posting requirement it serves ("why"). When the edit changes existing text, put that text in "quote" — copied VERBATIM from the resume, at most ~200 characters, so it can be highlighted; "quote" is null for additions. Put the COMPLETE new text in "replacement", ready to paste in place of "quote"; for an addition put the resume line it follows in "insert_after" (copied VERBATIM) and the new text in "replacement"; "what" says what changes in one clause. "replacement" is null only for an instruction with no wording (a reorder, a cut). Concentrate on the title, summary, skills and the most recent role: the title and the top required skills must be visible in the top third of page one, and the current role must open with its strongest, most relevant accomplishment — when it already does, leave that bullet alone. Bullets of the two most recent roles may be reworded or reordered; older roles get trims only. Max 4 bullets per role. Priority "high" = a must-requirement keyword, the title, or the first bullet of the current role; "medium" = preferred keywords or another recent-role bullet; "low" = polish.
-   EVERY ACTION EARNS ITS PLACE: an edit must flip a keyword status, raise an alignment grade, resolve a gate, answer something the first reader scans for, or remove a caution. Never re-suggest what the resume already does, and never add polish to make the list look longer.
+   EVERY ACTION EARNS ITS PLACE: an edit must flip a keyword status, raise an alignment grade, resolve a gate, answer something the first reader scans for, or remove a caution. Never re-suggest what the resume already does, and never add polish to make the list look longer. An item that changes nothing ("keep this bullet as is", "nothing to remove here") is not an item: leave it out.
+   "why" — of an action and of a removal — is read by the candidate: plain words about the resume and the posting, never this prompt's field names or verdict values ("status", "add", "present", "listed", "cannot_claim", "recent_role", "graded partial", "screening block", "must-level").
    REQUIRED COVERAGE — a resume that needs one of these and gets none is a failed report:
-   - "title" graded below strong → ONE high-priority action on the title line WITH a replacement: the headline this recruiter should read, in the posting's own words. Writing the role being applied for on one's own headline is ordinary tailoring, not a claim of past employment.
+   - "title" graded below strong → ONE high-priority action on the title line WITH a replacement: the headline this recruiter should read, in the posting's own words. Writing the role being applied for on one's own headline is ordinary tailoring, not a claim of past employment. A resume that has a headline — its own line under the name, or the title that opens the contact line — gets it REPLACED: "quote" is that title alone, never the contact details after it, and "insert_after" is null. Only a resume with no headline gets one as an addition after the name.
    - "summary" graded below strong → ONE high-priority action rewriting the summary WITH a replacement that follows the SUMMARY RULES. A resume with no summary gets one as an addition: "quote" null, "insert_after" the headline line (the contact line when there is no headline).
    - "recent_role" graded below strong → rewrite the most recent role's leading bullets, up to 4, one action each WITH a replacement, so each opens with an outcome this employer scans for, in this posting's vocabulary.
    - a must-level or primary keyword whose evidence is "listed" → one action putting it inside a bullet where the work is described. "listed" is measured, not guessed: the term is named on a line of terms and shown nowhere else, which proves nothing to a human reader. A term already "described" or "measured" needs no such action.

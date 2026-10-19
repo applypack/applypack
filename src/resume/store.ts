@@ -499,10 +499,19 @@ export async function getMatch(id: number): Promise<ResumeMatch | null> {
 }
 
 /** Latest analysis of a posting, any resume — its keyword frame keeps re-runs comparable. */
-/** The newest comparison of this posting — or, with `before`, the newest one older than that row. */
-export async function getLatestMatchForJob(jobId: number, before?: number): Promise<ResumeMatch | null> {
+export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findFirst({ where: { jobId }, orderBy: { createdAt: 'desc' } });
+}
+
+/**
+ * The newest comparison of this resume against this posting that carries a
+ * to-do list — with `before`, the newest one older than that row. What the
+ * candidate took edits from (applied.ts): the newest row is often not it, since
+ * Save as vN scores the saved text as a quick check, which has no list (#588).
+ */
+export async function getLatestReportForJob(jobId: number, resumeId: number, before?: number): Promise<ResumeMatch | null> {
   return prisma.resumeMatch.findFirst({
-    where: { jobId, ...(before === undefined ? {} : { id: { lt: before } }) },
+    where: { jobId, resumeId, actions: { not: [] }, ...(before === undefined ? {} : { id: { lt: before } }) },
     orderBy: { createdAt: 'desc' },
   });
 }

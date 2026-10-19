@@ -43,15 +43,33 @@ export function jobHref(id: number, tab: JobTab = DEFAULT_TAB, params: Record<st
   return `/jobs/${id}${qs ? `?${qs}` : ''}${anchor ? `#${anchor}` : ''}`;
 }
 
+/** What shownMatch reads off a comparison: whose it is, and whether it judged a saved resume. */
+interface ShownCandidate {
+  id: number;
+  resumeId: number;
+  draft: boolean;
+  resume: { hidden: boolean };
+}
+
 /**
- * The comparison a job page opens on: the one asked for, else the latest —
- * but not the one a pack made of its own tailored text (#384). That draft
- * judges a file nobody has saved: headlined, the tab read "Resume match · 100"
- * while the resume itself scored 70. It stays in the list of runs, and the
- * pack's own tab opens it.
+ * The comparison a job page and its Tailor page open on: the one asked for,
+ * else the latest of the resume the job is linked to as saved — the search's
+ * resume, else the primary's (#582). A draft judges text nobody saved: a pack's
+ * tailored text (#384 — the tab read "Resume match · 100" while the resume
+ * scored 70), a file compared over the resume, an edit analysed before Save. A
+ * one-off file from the Tailor resume page is not the person's resume. Those
+ * stay in the list of runs beside it. With nothing linked, the latest saved
+ * comparison of any resume; with none saved, the latest there is.
  */
-export function shownMatch<M extends { id: number }>(matches: readonly M[], requested: number, packDraftId: number | null): M | null {
-  return matches.find((m) => m.id === requested) ?? matches.find((m) => m.id !== packDraftId) ?? matches[0] ?? null;
+export function shownMatch<M extends ShownCandidate>(matches: readonly M[], requested: number, linkedResumeId: number | null): M | null {
+  const saved = matches.filter((m) => !m.draft && !m.resume.hidden);
+  return (
+    matches.find((m) => m.id === requested) ??
+    saved.find((m) => m.resumeId === linkedResumeId) ??
+    saved[0] ??
+    matches[0] ??
+    null
+  );
 }
 
 /** What each tab's label carries: a tab says what already exists behind it. */

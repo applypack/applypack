@@ -18,6 +18,7 @@ import {
   parseSuggestionsResponse,
   readCoverAngles,
   readHardRequirements,
+  readIssues,
   toPlainPunctuation,
   buildStructurePrompt,
   parseStructureResponse,
@@ -51,6 +52,26 @@ test('parseScanResponse normalises tags and tolerates missing optionals', () => 
   assert.deepEqual(r.data.skills, ['php', 'laravel']);
   assert.deepEqual(r.data.primary_skills, []);
   assert.deepEqual(r.data.issues, []);
+});
+
+test('an issue that says nothing is wrong is not an issue to fix (#584)', () => {
+  const issue = (section: string, text: string, fix: string) => ({ section, issue: text, fix });
+  const r = parseScanResponse(
+    JSON.stringify({
+      summary: 'x',
+      issues: [
+        issue('format', 'None detected — no embedded instructions or steering attempts found', 'No action needed'),
+        issue('dates', 'No issues found.', 'Keep the format.'),
+        issue('contact', 'The contact line is complete', 'N/A'),
+        issue('experience', 'None of the bullets has a number', 'Add the outcome of each bullet.'),
+        issue('skills', 'No summary section', 'Add a two-line summary.'),
+      ],
+    }),
+  );
+  assert.ok(r.ok);
+  assert.deepEqual(r.data.issues.map((i) => i.section), ['experience', 'skills']);
+  // A scan stored before the rule reads the same way.
+  assert.deepEqual(readIssues([issue('format', 'None detected', 'No action needed')]), []);
 });
 
 test('scan prompt asks for a primary stack and keeps it framework-level', () => {
@@ -1140,6 +1161,14 @@ test('wording the candidate took from the last report is done, not raw material'
   assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'fast', { appliedFromLastRun: lines }).user, /APPLIED FROM THE LAST RUN/);
   assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'full', { appliedFromLastRun: [] }).user, /APPLIED FROM THE LAST RUN/);
   assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, appliedFromLastRun: lines }).user, /BEGIN UNTRUSTED APPLIED FROM THE LAST RUN/);
+});
+
+test('the title action rewrites the headline there is, and every item changes something, said in plain words (#591, #577)', () => {
+  for (const system of [buildMatchPrompt('resume', JOB, 'full').system, buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system]) {
+    assert.match(system, /gets it REPLACED: "quote" is that title alone, never the contact details after it/);
+    assert.match(system, /An item that changes nothing .* is not an item: leave it out/);
+    assert.match(system, /"why" — of an action and of a removal — is read by the candidate/);
+  }
 });
 
 test("the candidate's domains reach the full analysis and the suggestions, fenced; the gap sentence only when they differ", () => {

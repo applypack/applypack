@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countableFlags } from './red-flags';
+import { countableFlags, shownFlags } from './red-flags';
 import { annotateEvidence } from './evidence';
 import { annotateAliasOnly, anchorStatuses } from './keyword-anchor';
 import { withTableAliases } from './keyword-aliases';
@@ -110,4 +110,18 @@ test('the case of #204 in match.ts order: anchored present through "php", the fl
   assert.equal(graded[0]?.evidence, 'measured');
   assert.equal(graded[0]?.aliasOnly, 'PHP');
   assert.deepEqual(countableFlags(['No PHP 8 experience shown, only PHP'], graded, full).counted, []);
+});
+
+test('the page shows what the score charged: a free flag that is true is a caution, a false "nowhere" is not shown (#591)', async () => {
+  const out = shownFlags(
+    [
+      'No React experience shown anywhere in the resume (must-have primary-adjacent requirement)',
+      'No GraphQL experience in any role',
+      'The posting requires on-site work in Berlin; the resume shows Austin, TX',
+    ],
+    [kw({ term: 'React', status: 'present', evidence: 'listed' }), kw({ term: 'GraphQL', status: 'cannot_claim' })],
+    await matcher(),
+  );
+  assert.deepEqual(out.redFlags, ['The posting requires on-site work in Berlin; the resume shows Austin, TX']);
+  assert.deepEqual(out.cautions, ['No GraphQL experience in any role']);
 });

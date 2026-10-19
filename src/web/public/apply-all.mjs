@@ -71,20 +71,22 @@ export function applyAll(text, ops) {
 }
 
 /**
- * Every term a skills line can take, each on the line its hint names; the
- * ones no list line can take go on one line of their own (appendSkills).
+ * Every term a skills line can take, each on the line its hint names or the
+ * one it belongs to; the ones no list line takes go on one line of their own
+ * (appendSkills).
  * What the page's "Add keywords" runs — one edit per term, so each can be
  * undone on its own, and one for the leftover line.
  */
 export function addKeywords(text, terms) {
   const first = applyAll(text, terms.map((k) => ({ key: 'kw:' + k.term, kind: 'keyword', term: k.term, where: k.where })));
-  const leftover = first.failed.filter((f) => f.error === 'no-skills-list').map((f) => f.key.slice(3));
+  const placeless = (f) => f.error === 'no-skills-list' || f.error === 'no-fitting-line';
+  const leftover = first.failed.filter(placeless).map((f) => f.key.slice(3));
   if (leftover.length === 0) return first;
   const rest = applyAll(first.text, [{ key: 'kw-line:' + leftover.join(','), kind: 'skills-line', terms: leftover }]);
   return {
     text: rest.text,
     done: [...first.done, ...rest.done],
-    failed: [...first.failed.filter((f) => f.error !== 'no-skills-list'), ...rest.failed],
+    failed: [...first.failed.filter((f) => !placeless(f)), ...rest.failed],
   };
 }
 

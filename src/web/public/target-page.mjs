@@ -850,6 +850,7 @@ export function init(data) {
           resumeId: data.resumeId,
           name: data.documentName,
           baseText: data.resumeText,
+          draft: data.documentDraft,
           getText: () => editor.value,
           setText: (text) => {
             editor.value = text;
@@ -885,7 +886,13 @@ export function init(data) {
     try {
       const res = await fetch(`/resumes/${data.resumeId}/document`, {
         method: 'POST',
-        body: new URLSearchParams({ text: editor.value, baseText: data.resumeText, name: data.documentName, as: format }),
+        body: new URLSearchParams({
+          text: editor.value,
+          baseText: data.resumeText,
+          name: data.documentName,
+          draft: data.documentDraft ? '1' : '',
+          as: format,
+        }),
       });
       // The user's own .docx is printed as drawn: no renderer of ours re-sets it.
       if (res.status === 409) { docPane.print(data.documentName); return; }

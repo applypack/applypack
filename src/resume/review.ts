@@ -50,7 +50,7 @@ export async function reviewResume(resume: {
   // An example that reaches past the resume becomes the question it needed (TASKS R3).
   const gate = gateReviewAdvice(answer.data.advice, [resume.text, ...answers.map((a) => `${a.question} ${a.answer}`)]);
   const review = { ...answer.data, advice: gate.advice };
-  const breakdown = scoreReview(review.grades);
+  const breakdown = scoreReview(review.grades, review.advice.length);
   const row = await createReview({
     resumeId: resume.id,
     resumeVersion: resume.version,
@@ -73,6 +73,7 @@ export async function reviewResume(resume: {
       advice: review.advice.length,
       asks: review.advice.filter((a) => a.ask !== null).length,
       examplesBlocked: gate.blocked,
+      untrueDropped: gate.untrue,
       // The point of the loop: answered figures should make asks go down.
       answersUsed: answers.length,
       chars: answer.chars,

@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.2] — 2026-10-18
+
+### Changed
+- A strength review that still lists changes to make no longer scores 100.
+- Resume match counts now say what they count: the requirements you have,
+  the terms already written in your resume, and the hard requirements.
+- A job's Resume match tab and its Tailor page open on the latest comparison
+  of your saved resume. One-off files, drafts and a pack's tailored text are
+  listed beside it.
+
+### Fixed
+- "Add missing keywords to your skills" puts each keyword on the skills line
+  it belongs to (Kubernetes under Cloud & DevOps, NoSQL under Data), or on a
+  line of its own, never under an unrelated one.
+- Suggestions that change nothing ("keep this bullet as is", "nothing to
+  remove here") are no longer listed or counted, and suggestion reasons no
+  longer use the analysis's internal field names.
+- The suggested headline replaces your current one instead of adding a
+  second headline under your name.
+- A red flag that says a skill appears nowhere is no longer shown when your
+  resume names it; flags that cost nothing are shown as cautions.
+- When a failed hard requirement says a skill is missing but your resume
+  names it, a line under it now says where: only on a skills line, or in
+  your resume.
+- A suggested rewrite of your contact line can no longer drop or change your
+  email, phone or profile links, and Apply refuses such a rewrite from an
+  older comparison too.
+- Comparing again after saving no longer rewrites the wording you just
+  applied.
+- The resume scan no longer lists "none detected" under Issues to fix, and
+  the strength review no longer shows advice that your own bullets
+  contradict.
+- The Document view no longer says a draft comparison read "an earlier
+  version of your resume". Opened from an application pack, the Tailor page
+  explains why its score differs from the pack's.
+- A resume whose name is set as a title (a .md file, or a Word Title style)
+  has its name, headline and contacts read correctly again.
+
 ## [2.63.1] — 2026-10-18
 
 ### Changed
@@ -6559,6 +6597,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.2]: https://github.com/applypack/applypack/compare/v2.63.1...v2.63.2
 [2.63.1]: https://github.com/applypack/applypack/compare/v2.63.0...v2.63.1
 [2.63.0]: https://github.com/applypack/applypack/compare/v2.62.0...v2.63.0
 [2.62.0]: https://github.com/applypack/applypack/compare/v2.61.10...v2.62.0

@@ -315,7 +315,7 @@ function loadVendor() {
  * a paragraph edit wrote the text (the page re-scores); `say` is the status
  * line. Returns the controls target-page.mjs drives.
  */
-export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, setText, say }) {
+export function mountDocPane({ pane, notice, resumeId, name, baseText, draft, getText, setText, say }) {
   const stage = document.createElement('div');
   stage.className = 'doc-stage';
   stage.setAttribute('aria-hidden', 'true');
@@ -344,7 +344,7 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
       const docx = await loadVendor();
       const res = await fetch(`/resumes/${resumeId}/document`, {
         method: 'POST',
-        body: new URLSearchParams({ text, baseText, name, as: 'preview' }),
+        body: new URLSearchParams({ text, baseText, name, draft: draft ? '1' : '', as: 'preview' }),
       });
       if (mine !== token) return;
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t('browser.server.answered', { status: res.status }));

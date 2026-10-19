@@ -37,3 +37,14 @@ test('a figure the candidate supplied earlier is a source; an ask the model alre
   assert.equal(kept.blocked, 1);
   assert.equal(kept.advice[0]!.ask, 'How big was the billing team?');
 });
+
+test('advice whose claim the text contradicts is not shown (#584)', () => {
+  const resume = ['Jane Example', 'EXPERIENCE', '- Built the GraphQL gateway for the Frachtwerk freight platform.', '- Cut p95 latency by 40%.'].join('\n');
+  const claim = (issue: string) => ({ ...advice(null), issue });
+  const out = gateReviewAdvice(
+    [claim('GraphQL is never in a bullet, only in the skills line.'), claim('React is never mentioned in any experience bullet.'), claim('Logistics is three roles back.')],
+    [resume],
+  );
+  assert.deepEqual(out.advice.map((a) => a.issue), ['React is never mentioned in any experience bullet.', 'Logistics is three roles back.']);
+  assert.equal(out.untrue, 1);
+});

@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { contactDetails as server } from '../resume/parse-warnings';
 
 // The edit operations ship to the browser as a static ES module; node loads it the same way.
 type Edit = { text: string; span: { start: number; end: number } } | { error: string };
 // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
 const edits = import('./public/text-edits.mjs') as Promise<{
   applyReplacement: (text: string, quote: string, replacement: string) => Edit;
+  contactDetails: (text: string) => string[];
   removeSpan: (text: string, quote: string) => Edit;
   insertIntoSkills: (text: string, term: string, where?: string) => Edit;
   insertAfterLine: (text: string, anchor: string, wording: string) => Edit;
@@ -210,6 +212,35 @@ test('insertIntoSkills refuses a term list that is not in a skills section', asy
   assert.equal(err(insertIntoSkills(text, 'Rust', 'Programming')), 'no-skills-list');
 });
 
+test('insertIntoSkills puts a term with no hint on the line it belongs to, never on an unrelated one (#576)', async () => {
+  const { insertIntoSkills } = await edits;
+  const text = [
+    '## Skills',
+    '- Backend: Node.js, TypeScript, NestJS, GraphQL, REST',
+    '- Data: PostgreSQL, Redis, MongoDB',
+    '- Cloud & DevOps: AWS, Docker, Terraform',
+    '- Testing: Jest, Playwright, contract testing (Pact)',
+  ].join('\n');
+  const lineOf = (term: string) => ok(insertIntoSkills(text, term)).text.split('\n').find((l) => l.includes(term));
+  assert.match(lineOf('Kubernetes') ?? '', /^- Cloud & DevOps:/);
+  assert.match(lineOf('NoSQL') ?? '', /^- Data:/);
+  assert.match(lineOf('OAuth2') ?? '', /^- Backend:/);
+  assert.match(lineOf('JSON') ?? '', /^- Backend:/);
+  // A term of no family, and every line named for one: no line is its own.
+  assert.equal(err(insertIntoSkills(text, 'Salesforce')), 'no-fitting-line');
+  // The terms on an unlabelled line say what it is, and an "Others" line takes the rest.
+  const mixed = ['SKILLS', 'Languages: Go, PHP', 'Kafka, RabbitMQ, MySQL', 'Others: Jira, Figma'].join('\n');
+  assert.match(ok(insertIntoSkills(mixed, 'MongoDB')).text, /^Kafka, RabbitMQ, MySQL, MongoDB$/m);
+  assert.match(ok(insertIntoSkills(mixed, 'Salesforce')).text, /^Others: Jira, Figma, Salesforce$/m);
+});
+
+test('insertIntoSkills never splits a list that runs on into the next line', async () => {
+  const { insertIntoSkills } = await edits;
+  const text = ['## Skills', 'TypeScript, Node.js, PostgreSQL, Docker,', 'Terraform, GraphQL, Jest'].join('\n');
+  assert.match(ok(insertIntoSkills(text, 'Kubernetes')).text, /^Terraform, GraphQL, Jest, Kubernetes$/m);
+  assert.match(ok(insertIntoSkills(text, 'Salesforce')).text, /^Terraform, GraphQL, Jest, Salesforce$/m);
+});
+
 test('insertIntoSkills is a no-op for a term the resume already claims', async () => {
   const { insertIntoSkills } = await edits;
   const text = 'KEY SKILLS\nProgramming: Go, PHP, JavaScript';
@@ -332,4 +363,36 @@ test('cutting the first item after a label takes the separator after it', async 
   assert.equal(ok(removeSpan('Skills: Go, PHP, JavaScript', 'Go')).text, 'Skills: PHP, JavaScript');
   assert.equal(ok(removeSpan('Tools — Docker, Git', 'Docker')).text, 'Tools — Git');
   assert.equal(ok(removeSpan('Skills: Go', 'Go')).text, 'Skills:');
+});
+
+test('applyReplacement never drops an email, a phone or a profile link the span carried', async () => {
+  const { applyReplacement } = await edits;
+  const line = 'Senior Full-Stack Engineer · Austin, Texas · boyko.nazar@gmail.com · +1 (612) 267-5544 · github.com/nazar';
+  const text = `Nazar Boyko\n${line}\n\nEXPERIENCE`;
+  // A stored comparison from before the gate, or a wording typed over the card: refused.
+  assert.equal(err(applyReplacement(text, line, 'Backend Engineer · Austin, Texas · +1 (612) 267-5544 · github.com/nazar')), 'protected');
+  assert.equal(err(applyReplacement(text, line, 'Backend Engineer · Austin, Texas · boyko.nazar@gmail.com · github.com/nazar')), 'protected');
+  // The separators may change; the details may not.
+  const kept = ok(applyReplacement(text, line, 'Backend Engineer - Austin, Texas - boyko.nazar@gmail.com - +1 (612) 267-5544 - github.com/nazar'));
+  assert.equal(kept.text.split('\n')[1], 'Backend Engineer - Austin, Texas - boyko.nazar@gmail.com - +1 (612) 267-5544 - github.com/nazar');
+  // Only the title words quoted: the contact details are outside the span.
+  assert.equal(ok(applyReplacement(text, 'Senior Full-Stack Engineer', 'Backend Engineer')).text.split('\n')[1], line.replace('Senior Full-Stack Engineer', 'Backend Engineer'));
+});
+
+test('the editor reads contact details exactly as parse-warnings.ts does', async () => {
+  const { contactDetails } = await edits;
+  for (const sample of [
+    'Senior Backend Engineer · Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera',
+    'Nazar Boyko | +1 (612) 267-5544 | linkedin.com/in/nazar-boyko | https://nazar.dev/work.',
+    'Shipped the CLI (github.com/alex/tool) to 2k users',
+    'Worked there 2020-2024; cut costs 40%',
+  ]) {
+    assert.deepEqual(contactDetails(sample), server(sample), sample);
+  }
+  assert.deepEqual(server('Shipped the CLI (github.com/alex/tool) to 2k users'), []);
+  assert.deepEqual(server('Nazar Boyko | +1 (612) 267-5544 | linkedin.com/in/nazar-boyko | https://nazar.dev/work.'), [
+    '+1 (612) 267-5544',
+    'linkedin.com/in/nazar-boyko',
+    'https://nazar.dev/work',
+  ]);
 });

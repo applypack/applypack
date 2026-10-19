@@ -48,6 +48,13 @@ test('a comparison of an older version is named as such, not as a refusal', asyn
   assert.match(doc.notice ?? '', /earlier version/);
 });
 
+test('a comparison of a draft of this version does not claim an earlier one (#582)', async () => {
+  const doc = await draftDocx(input({ baseText: 'Some other resume entirely\n\nwith other lines', text: FLOW_TEXT, draft: true }));
+  assert.equal(doc.basis, 'draft');
+  assert.match(doc.notice ?? '', /read a draft, not the file you saved/);
+  assert.doesNotMatch(doc.notice ?? '', /earlier version/);
+});
+
 test('a PDF resume is drawn as the clean version of the draft, and its PDF is ours', async () => {
   const text = [
     'Alex Example',
@@ -73,7 +80,7 @@ test('a PDF resume is drawn as the clean version of the draft, and its PDF is ou
 });
 
 test('every clean basis has its own sentence', () => {
-  for (const basis of ['pdf', 'text', 'unsupported', 'stale', 'refused'] as const) {
+  for (const basis of ['pdf', 'text', 'unsupported', 'stale', 'draft', 'refused'] as const) {
     assert.ok(noticeFor(basis).length > 40, basis);
   }
   assert.match(noticeFor('refused', 'a table row cannot be rewritten as one line'), /a table row cannot be rewritten/);

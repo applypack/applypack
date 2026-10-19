@@ -14,6 +14,8 @@ import { t } from '../i18n/t';
  *   however polished the rest is. `impact` weak caps the total at 55.
  * - Two or more weak dimensions cap it at 45 — a resume with two broken legs
  *   is not "above average" because the other four are fine.
+ * - A review that still lists changes holds it at 95: every dimension graded
+ *   strong and two edits to make is not a resume with nothing left to do (#584).
  *
  * Pure — tested in review-score.test.ts, including the duties-only guard.
  */
@@ -48,7 +50,7 @@ export const REVIEW_SCORING = {
   } as Record<ReviewDimension, number>,
   /** "ok" is half credit: acceptable and unremarkable. "weak" earns nothing. */
   credit: { strong: 1, ok: 0.5, weak: 0 } as Record<ReviewGrade, number>,
-  caps: { impactWeak: 55, twoWeak: 45 },
+  caps: { impactWeak: 55, twoWeak: 45, advised: 95 },
 } as const;
 
 export const REVIEW_WEIGHT_TOTAL = REVIEW_DIMENSIONS.reduce((n, d) => n + REVIEW_SCORING.weight[d], 0);
@@ -70,7 +72,7 @@ export interface ReviewBreakdown {
   /** The cap that applied, or null when none did. */
   cap: number | null;
   /** Which rule capped it — the card says why, never just what. */
-  capReason: 'impact' | 'two-weak' | null;
+  capReason: 'impact' | 'two-weak' | 'advised' | null;
   score: number;
   /** Dimensions the model did not grade; they earn nothing and are named on the card. */
   missing: string[];
@@ -81,8 +83,9 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
 /**
  * Grades → 0-100. A dimension the reply omitted earns zero rather than being
  * dropped from the denominator: a missing judgment is not a good one.
+ * `changes` is how many edits the review lists.
  */
-export function scoreReview(grades: ReviewGradeEntry[]): ReviewBreakdown {
+export function scoreReview(grades: ReviewGradeEntry[], changes = 0): ReviewBreakdown {
   const byDimension = new Map<ReviewDimension, ReviewGrade>();
   for (const g of grades) if (!byDimension.has(g.dimension)) byDimension.set(g.dimension, g.grade);
 
@@ -106,13 +109,24 @@ export function scoreReview(grades: ReviewGradeEntry[]): ReviewBreakdown {
   // A missing grade is weak in everything but name — it must not dodge the caps.
   const effectiveWeak = weakCount + missing.length;
   const impactWeak = byDimension.get('impact') !== 'strong' && byDimension.get('impact') !== 'ok';
+  const raw = Math.round(round1(rawPts));
+  // Named only where it bites: nearly every review lists something to change.
+  const advised = changes > 0 && raw > REVIEW_SCORING.caps.advised;
   const cap = impactWeak
     ? Math.min(REVIEW_SCORING.caps.impactWeak, effectiveWeak >= 2 ? REVIEW_SCORING.caps.twoWeak : 100)
     : effectiveWeak >= 2
       ? REVIEW_SCORING.caps.twoWeak
-      : null;
-  const capReason = cap === null ? null : cap === REVIEW_SCORING.caps.twoWeak ? 'two-weak' : 'impact';
-  const raw = Math.round(round1(rawPts));
+      : advised
+        ? REVIEW_SCORING.caps.advised
+        : null;
+  const capReason =
+    cap === null
+      ? null
+      : cap === REVIEW_SCORING.caps.twoWeak
+        ? 'two-weak'
+        : cap === REVIEW_SCORING.caps.advised
+          ? 'advised'
+          : 'impact';
 
   return {
     v: REVIEW_SCORING.version,
@@ -130,6 +144,7 @@ export function scoreReview(grades: ReviewGradeEntry[]): ReviewBreakdown {
 /** Plain-words reason for the cap — the card must never show a number it cannot explain. */
 export function capExplanation(bd: ReviewBreakdown): string | null {
   if (bd.capReason === null) return null;
+  if (bd.capReason === 'advised') return t('review.cap.advised', { cap: bd.cap ?? 0 });
   return bd.capReason === 'impact'
     ? t('review.cap.impact', { cap: bd.cap ?? 0 })
     : t('review.cap.weak', { cap: bd.cap ?? 0, weak: bd.weakCount, total: REVIEW_DIMENSIONS.length });
@@ -153,7 +168,7 @@ const ReviewBreakdownSchema = z.object({
   points: z.record(z.string(), z.number()).default({}),
   weakCount: z.number().int(),
   cap: z.number().nullable(),
-  capReason: z.enum(['impact', 'two-weak']).nullish().transform((x) => x ?? null),
+  capReason: z.enum(['impact', 'two-weak', 'advised']).nullish().transform((x) => x ?? null),
   score: z.number(),
   missing: z.array(z.string()).default([]),
 });

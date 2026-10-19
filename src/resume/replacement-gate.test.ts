@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gateActions, gateRemovals, hasCheckNote, instructionIn, splitRefusal, type GateSources } from './replacement-gate';
+import { finishEdits, gateActions, gateRemovals, hasCheckNote, instructionIn, splitRefusal, titleOverHeadline, type GateSources } from './replacement-gate';
+import { structureFromText } from './structure-from-text';
 import { readKeywords, readRemovals, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 const RESUME = [
@@ -422,4 +423,127 @@ test('a check note is read off a wording the gate let through, and only its own'
   ).actions;
   assert.equal(hasCheckNote(warned!), true);
   assert.equal(hasCheckNote(clean!), false);
+});
+
+// #591: the resume's title opens its contact line, and the title action added a second headline above it.
+const HEADED = [
+  '# Alex Rivera',
+  'Senior Backend Engineer · Austin, TX · alex.rivera@example.com · (512) 555-0147',
+  '',
+  '## Summary',
+  'Backend engineer with 8 years building Node.js services.',
+].join('\n');
+
+test('a title action that adds a headline rewrites the one the resume has instead', async () => {
+  const headline = structureFromText(HEADED).basics.label;
+  assert.equal(headline, 'Senior Backend Engineer');
+  const add = action({
+    section: 'title',
+    what: 'Add a headline naming the posting title',
+    insert_after: '# Alex Rivera',
+    replacement: 'Software Engineer, Backend - Node.js & TypeScript',
+  });
+  const summary = action({ section: 'summary', insert_after: '# Alex Rivera', replacement: 'A summary.' });
+  const [title, other] = titleOverHeadline([add, summary], HEADED, headline);
+  assert.equal(title!.quote, 'Senior Backend Engineer');
+  assert.equal(title!.insert_after, null);
+  assert.equal(other, summary, 'only the title action');
+  // Through the editor: the title words change, the contact details stay where they were.
+  // @ts-expect-error — plain JS with no declaration file.
+  const { applyReplacement } = (await import('../web/public/text-edits.mjs')) as {
+    applyReplacement: (text: string, quote: string, wording: string) => { text: string };
+  };
+  assert.equal(
+    applyReplacement(HEADED, title!.quote!, title!.replacement!).text.split('\n')[1],
+    'Software Engineer, Backend - Node.js & TypeScript · Austin, TX · alex.rivera@example.com · (512) 555-0147',
+  );
+});
+
+test('a title action stays an addition when the resume has no headline to rewrite', () => {
+  const add = action({ section: 'title', insert_after: 'Alex Rivera', replacement: 'Backend Engineer' });
+  const placeOnly = 'Alex Rivera\nAustin, TX\n\nSUMMARY\nEngineer.';
+  assert.deepEqual(titleOverHeadline([add], placeOnly, structureFromText(placeOnly).basics.label), [add]);
+  assert.deepEqual(titleOverHeadline([add], 'Alex Rivera\nalex@example.com', null), [add]);
+  // A headline the text does not carry verbatim is not one to quote.
+  assert.deepEqual(titleOverHeadline([add], HEADED, 'Staff Engineer'), [add]);
+});
+
+test('an edit that asks for nothing is dropped, and the count says how many (#577)', async () => {
+  const src = await sources({
+    keywords: [keyword({ term: 'React', status: 'cannot_claim' }), keyword({ term: 'Laravel' })],
+  });
+  const real = action({ quote: 'Designed Laravel payment workflows', replacement: 'Owned Laravel payment workflows.' });
+  const out = finishEdits(
+    [
+      real,
+      action({ what: 'Keep refunds-service bullet as is', quote: 'Designed Laravel payment workflows' }),
+      action({ quote: 'Led migration of the monolith', replacement: 'Led migration of the monolith' }),
+      action({ what: 'Remove React since it cannot be claimed' }),
+      // A keep that moves the line is a reorder, and stays.
+      action({ what: 'Keep the payments bullet as is but move it to the top' }),
+      // Taking out a term the resume does carry is a real edit.
+      action({ what: 'Remove Laravel from the summary' }),
+    ],
+    [
+      removal({ what: 'Nothing to remove here — line only contains present/add keywords' }),
+      removal({ what: 'Remove React from the skills line' }),
+      removal({ what: 'Drop MySQL from the skills line', quote: 'MySQL' }),
+    ],
+    src,
+  );
+  assert.deepEqual(
+    out.actions.map((a) => a.what),
+    ['Reword it.', 'Keep the payments bullet as is but move it to the top', 'Remove Laravel from the summary'],
+  );
+  assert.deepEqual(out.removals.map((r) => r.what), ['Drop MySQL from the skills line']);
+  assert.equal(out.dropped, 5);
+});
+
+test('a why the candidate reads is in plain words, not the prompt\'s field names (#577)', async () => {
+  const src = await sources();
+  const why = (text: string) => action({ quote: 'Designed Laravel payment workflows', replacement: 'Owned Laravel payment workflows.', why: text });
+  const out = finishEdits(
+    [
+      why('title graded partial; recruiter scans for the role name first'),
+      why('SQL is a must-have keyword marked add; this bullet already has the evidence'),
+      why('recent_role graded off per screening block'),
+      why('must show must-level keywords present/add up top'),
+    ],
+    [removal({ what: 'Drop the noise.', quote: 'MySQL', why: 'cannot_claim term, add-status context keyword' })],
+    src,
+  );
+  assert.deepEqual(out.actions.map((a) => a.why), [
+    'title only partly matches the posting; recruiter scans for the role name first',
+    'SQL is a must-have keyword not written in the resume yet; this bullet already has the evidence',
+    "recent role does not match the posting per the posting's screening points",
+    'must show must-have keywords the resume can claim up top',
+  ]);
+  assert.equal(out.removals[0]!.why, 'unsupported term, not yet written context keyword');
+});
+
+// The stored title action of the scratch comparison: the whole contact line quoted, "·" written as "-".
+const CONTACT = 'Senior Backend Engineer · Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera';
+
+test('a rewrite of the contact line keeps every email, phone and profile link as written (gotcha 11)', async () => {
+  const src = await sources({ resumeText: `# Alex Rivera\n${CONTACT}` });
+  const title = (replacement: string) => action({ section: 'title', quote: CONTACT, replacement });
+  const [separators, noEmail, newPhone, noLink] = gateActions(
+    [
+      title('Software Engineer, Backend (Node.js/TypeScript) - Austin, TX - alex.rivera@example.com - (512) 555-0147 - github.com/alexrivera'),
+      title('Software Engineer, Backend · Austin, TX · (512) 555-0147 · github.com/alexrivera'),
+      title('Software Engineer, Backend · Austin, TX · alex.rivera@example.com · 512-555-0147 · github.com/alexrivera'),
+      title('Software Engineer, Backend · Austin, TX · alex.rivera@example.com · (512) 555-0147'),
+    ],
+    src,
+  ).actions;
+  // Only the separators changed: the details stand as written.
+  assert.match(separators!.replacement ?? '', /alex\.rivera@example\.com - \(512\) 555-0147 - github\.com\/alexrivera$/);
+  for (const refused of [noEmail, newPhone, noLink]) {
+    assert.equal(refused!.replacement, null);
+    assert.match(splitRefusal(refused!).refusal ?? '', /keep the contact details exactly as they are/);
+  }
+  assert.match(splitRefusal(noEmail!).refusal ?? '', /"alex\.rivera@example\.com"/);
+  // A link in a bullet is a project's page, not a contact detail.
+  const bullet = action({ quote: 'Shipped the CLI (github.com/alex/tool) to 2k users', replacement: 'Shipped a CLI used by 2k engineers' });
+  assert.equal(gateActions([bullet], await sources({ resumeText: bullet.quote! })).blocked, 0);
 });

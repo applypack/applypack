@@ -86,6 +86,8 @@ export interface TargetPageProps {
   seed?: { text: string; edits: TailorEdits } | null;
   /** The cost line Rebuild keywords says before its second press (cost-hint.ts:spendHint). */
   rebuildCost: string;
+  /** The score the pack's own analysis gave that draft, beside a ring that re-counts it (#582). */
+  packScore?: number | null;
 }
 
 /* Side by side is first and default (user pref); Suggestions keeps its
@@ -132,6 +134,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   fileVerdict,
   cleanHref,
   seed = null,
+  packScore = null,
   flash,
   rebuildCost,
 }) => {
@@ -181,6 +184,8 @@ export const TargetPage: FC<TargetPageProps> = ({
     // The document pane draws the draft through POST /resumes/:id/document.
     resumeId: resume.id,
     documentName: resume.name,
+    // This comparison read a text the saved file does not hold — a draft of this very version, not an earlier one.
+    documentDraft: match.draft && match.resumeVersion === resume.version,
   };
   return (
     <Layout title={t('target.pageTitle', { title: job.title })} active="jobs">
@@ -332,6 +337,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             </p>
             <MainAdviceLine advice={advice} />
             {breakdown && <ScoreCeilingLine bd={breakdown} />}
+            {packScore !== null && <Hint class="!mt-1.5">{t('target.packScore', { pack: packScore })}</Hint>}
             {/* The number alone used to decide this, so "stop polishing" sat
                 above three suggested edits, five removals and an unconfirmed
                 hard requirement on a live 100/100. A score is not a verdict

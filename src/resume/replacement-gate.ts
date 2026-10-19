@@ -25,6 +25,10 @@
  *    warns — the rule as written blocked a good rewrite of a bullet whose one
  *    "SQL" was the phrase "SQL injection".
  *
+ *  - a rewrite of the contact line keeps every email, phone and profile link
+ *    as written, as a removal may not touch them (gotcha 11): a title action
+ *    once quoted the whole line, and a replacement that loses one is refused.
+ *
  *  - wording that is a note to the writer and not resume text is refused
  *    (`instructionIn`): the prompt sends "ask the candidate for the real
  *    number" to `why`, and the model still writes it, or a slot to fill in,
@@ -56,7 +60,7 @@ import { factCheck } from './fact-check';
 import type { FactLike } from './facts';
 import { effectiveRequirement } from './keyword-overrides';
 import type { KeywordMatcher } from './keyword-matcher';
-import { hasContactDetail } from './parse-warnings';
+import { contactDetails, hasContactDetail } from './parse-warnings';
 import { toPlainPunctuation, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 export interface GateSources {
@@ -184,6 +188,11 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
     // First on purpose: of the reasons a card can show, this one says the wording was never a line.
     const instruction = instructionIn(text, quote);
     if (instruction) blocks.push(`"${instruction}" is a note to the writer, not resume text`);
+    // PROTECTED, as for a removal (gotcha 11): a rewrite of the contact line
+    // carries every email, phone and profile link over as written. Only the
+    // separators between them may change.
+    const lost = contactDetails(quote).find((detail) => !text.includes(detail));
+    if (lost) blocks.push(`it changes or drops "${lost}" — keep the contact details exactly as they are`);
 
     if (check.verdict === 'block') blocks.push(...check.reasons);
     else if (check.verdict === 'warn') warns.push(...check.reasons);
@@ -303,4 +312,111 @@ export function gateRemovals(removals: MatchRemoval[], sources: GateSources): Re
   });
 
   return { removals: gated, blocked, warned };
+}
+
+/** A word that makes a line a job title. Only a headline that has one is rewritten in place. */
+const ROLE_WORD =
+  /\b(?:engineer|developer|programmer|architect|manager|designer|analyst|scientist|lead|consultant|specialist|administrator|director|officer|tester|devops|sre|head|founder|cto|researcher|writer|editor|marketer|recruiter|accountant|technician|coordinator|strategist)\b/i;
+/** A title is a few words; a longer line under the name is a sentence. */
+const TITLE_MAX_WORDS = 10;
+
+/**
+ * A title action that adds a headline to a resume that already has one becomes
+ * the rewrite of that headline (#591). Where the title opens the contact line
+ * ("Senior Backend Engineer · Austin, TX · …") the model reads the line as
+ * contact details, inserts its headline after the name, and Apply all left two
+ * titles one over the other. `headline` is the title structure-from-text.ts
+ * reads — the line under the name, or the part that opens the contact line —
+ * and it is used only when the text carries it verbatim and it reads as a title.
+ * Runs before gateActions, so the gate judges the wording against what it replaces.
+ */
+export function titleOverHeadline(actions: MatchAction[], resumeText: string, headline: string | null): MatchAction[] {
+  const title = headline?.trim() ?? '';
+  const isTitle =
+    title !== '' && ROLE_WORD.test(title) && title.split(/\s+/).length <= TITLE_MAX_WORDS && !hasContactDetail(title);
+  if (!isTitle || !resumeText.includes(title)) return actions;
+  return actions.map((a) =>
+    a.section === 'title' && !a.quote && typeof a.replacement === 'string' && a.replacement.trim() !== ''
+      ? { ...a, quote: title, insert_after: null }
+      : a,
+  );
+}
+
+/** "Keep the refunds bullet as is": an edit that says to change nothing. */
+const KEEP_AS_IS = /^\s*(?:keep|leave|retain)\b[^.;]*\b(?:as[ -]is|unchanged|alone|untouched)\b/i;
+/** A removal that says there is nothing to remove. */
+const NOTHING_TO_REMOVE =
+  /\bnothing (?:to|worth) (?:remove|cut|delete|trim|drop)\b|\bno (?:removal|cut|deletion)s? (?:is |are )?(?:needed|required|necessary)\b/i;
+/** An order to take something out. */
+const TAKE_OUT = /\b(?:remove|drop|delete|cut|strip|take out)\b/i;
+/** A keep that moves the line is a reorder, and a reorder changes something. */
+const MOVES = /\b(?:move|reorder|swap|lead|open|first|top|above|below|before|after|up)\b/i;
+
+/*
+ * The prompt's own words for its verdicts, as they reach a "why" the candidate
+ * reads, and plain ones for them. Measured on prompt v18, which asks for plain
+ * words: "title graded partial", "SQL is a must-have keyword marked add" still
+ * came back. Only this vocabulary is touched — it means one thing here.
+ */
+const PLAIN_WHY: [RegExp, string][] = [
+  [/\brecent_role\b/gi, 'recent role'],
+  [/\bgraded (?:as )?partial\b/gi, 'only partly matches the posting'],
+  [/\bgraded (?:as )?off\b/gi, 'does not match the posting'],
+  [/\bmarked (?:as )?["']?add\b["']?/gi, 'not written in the resume yet'],
+  [/\bmarked (?:as )?["']?cannot_claim["']?/gi, 'with nothing in the resume behind it'],
+  [/\bmarked (?:as )?["']?ask_user["']?/gi, 'still to confirm'],
+  [/\bcannot_claim\b/gi, 'unsupported'],
+  [/\bask_user\b/gi, 'to confirm'],
+  [/\bpresent\/add\b/gi, 'the resume can claim'],
+  [/\badd-status\b/gi, 'not yet written'],
+  [/\bmust-level\b/gi, 'must-have'],
+  [/\b(?:the )?screening block\b/gi, "the posting's screening points"],
+];
+
+function plainWhy<T extends { why: string }>(item: T): T {
+  return { ...item, why: PLAIN_WHY.reduce((why, [re, words]) => why.replace(re, words), item.why) };
+}
+
+export interface FinishedEdits {
+  actions: MatchAction[];
+  removals: MatchRemoval[];
+  /** How many cards asked for nothing. */
+  dropped: number;
+}
+
+/**
+ * The edits as they reach the page, after the gates (#577). Those that ask for
+ * nothing are taken out: a rewording identical to the text it replaces, a
+ * "keep … as is" with no wording, a removal that says there is nothing to
+ * remove, an order to take out terms the text does not carry ("remove React"
+ * where React is nowhere). The prompt already says every action earns its
+ * place; these still came back, and a card that can only be read and skipped
+ * makes the count on the page a lie. Every "why" left is put in plain words.
+ */
+export function finishEdits(
+  actions: MatchAction[],
+  removals: MatchRemoval[],
+  sources: Pick<GateSources, 'resumeText' | 'keywords' | 'matcher'>,
+): FinishedEdits {
+  const has = (text: string, k: MatchKeyword) => sources.matcher.findTerm(text, k.term, k.aliases ?? []).length > 0;
+  /** An order to take out terms none of which the resume carries. */
+  const takesOutAbsent = (what: string) => {
+    if (!TAKE_OUT.test(what)) return false;
+    const named = sources.keywords.filter((k) => has(what, k));
+    return named.length > 0 && named.every((k) => !has(sources.resumeText, k));
+  };
+  const noWording = (a: MatchAction) => (a.replacement ?? '').trim() === '' && !a.insert_after;
+  const actionAsksNothing = (a: MatchAction) =>
+    (Boolean(a.quote) && Boolean(a.replacement) && toPlainPunctuation(a.quote ?? '') === toPlainPunctuation(a.replacement ?? '')) ||
+    (noWording(a) && KEEP_AS_IS.test(a.what) && !MOVES.test(a.what)) ||
+    (noWording(a) && !a.quote && takesOutAbsent(a.what));
+  const removalAsksNothing = (r: MatchRemoval) =>
+    NOTHING_TO_REMOVE.test(r.what) || KEEP_AS_IS.test(r.what) || (!r.quote && takesOutAbsent(r.what));
+  const keptActions = actions.filter((a) => !actionAsksNothing(a));
+  const keptRemovals = removals.filter((r) => !removalAsksNothing(r));
+  return {
+    actions: keptActions.map(plainWhy),
+    removals: keptRemovals.map(plainWhy),
+    dropped: actions.length - keptActions.length + removals.length - keptRemovals.length,
+  };
 }
