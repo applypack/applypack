@@ -107,7 +107,7 @@ export function buildVerdicts(
 
 /** Would THIS search drop the posting? Its own threshold, its own regions. */
 export function decideDismissReason(
-  c: ClaudeClassification,
+  c: Pick<ClaudeClassification, 'fit_score' | 'location_match' | 'salary_min' | 'salary_currency' | 'salary_period'>,
   profile: Pick<Profile, 'minFitScore' | 'minSalaryUsd'>,
 ): DismissReason | null {
   if (c.fit_score < profile.minFitScore) return 'low-fit';

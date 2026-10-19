@@ -11,6 +11,7 @@ const group = (over: Partial<SpendGroup>): SpendGroup => ({
   billing: 'plan',
   calls: 1,
   failed: 0,
+  unparsed: 0,
   noUsage: 0,
   unpriced: 0,
   tokensIn: 0,
@@ -77,11 +78,11 @@ test('the volume on a plan, with a model on this computer idle: no bill to cut, 
   assert.match(hint!.text, /^Scoring postings is 395 of 429 calls in the last 7 days \(92 %\), all on Claude Code CLI\. A plan covers them, so there is no bill to cut\./);
   assert.match(hint!.text, /Local model \(Ollama\) runs on this computer and can be given this task/);
   // #415: "can be given this task" named no step, and this engine is not even enabled.
-  assert.match(hint!.text, /Enable it, leave only Scoring postings ticked on its card and put it above Claude Code CLI: it then answers first, with Claude Code CLI as its fallback\. How well a small model does this task is not measured here\.$/);
+  assert.match(hint!.text, /Enable it, leave only Scoring postings ticked on its card and put it above Claude Code CLI: it then answers first, with Claude Code CLI as its fallback\. How well it scores your postings is not measured yet: Try it on my postings, on its card, compares it with the scores on record\.$/);
   // Enabled and below the plan, the step is the order; enabled and above, with every box ticked, it is the boxes.
   const below = usageHints(facts({ groups, engines: [PLAN, engine('local_api', 'local', 1)] }))[0];
   assert.match(below!.text, /Leave only Scoring postings ticked on its card and put it above Claude Code CLI:/);
-  assert.match(hint!.text, /not measured here\.$/);
+  assert.match(hint!.text, /compares it with the scores on record\.$/);
   // Without a local model ready, or once it answers the task, there is nothing to suggest.
   assert.equal(usageHints(facts({ groups }))[0]?.tone, 'ok');
   assert.equal(usageHints(facts({ groups, engines: [PLAN, LOCAL], first: { scoring: 'local_api' } }))[0]?.tone, 'ok');
@@ -130,7 +131,7 @@ test('the step it names is the one that is missing: the box, the order, or the e
 test('with only a local model to offer, the hint says how to try it and what is not known', () => {
   const hint = find(usageHints(facts({ groups: billedScoring, engines: [engine('anthropic_api', 'billed', 0), LOCAL], first: { scoring: 'anthropic_api' }, budgetCents: 10_000 })), /Scoring postings was/);
   assert.match(hint!.text, /was \$4\.10 billed in the last 7 days\. Local model \(Ollama\) runs on this computer for free\. Enable it, leave only Scoring postings ticked on its card and put it above Anthropic API: it then answers first/);
-  assert.match(hint!.text, /not measured here: compare a day of results before you rely on it\.$/);
+  assert.match(hint!.text, /not measured yet: press Try it on my postings on its card before you rely on it\.$/);
 });
 
 test('a billed letter, analysis or web check is never offered to the model on this computer', () => {
@@ -162,7 +163,7 @@ test('a failing model is named once it is a pattern, and a rate limit gets its o
   assert.match(broken!.text, /^Quick check on Claude Code CLI · claude-haiku-4-5-20251001: 4 of 10 calls did not answer in the last 7 days\. Each is retried or handed to the next engine, which costs time\. Try another model/);
   const limited = find(usageHints(facts({ groups: [group({ calls: 100, failed: 30, rateLimited: 28 })], engines: [PLAN, LOCAL] })), /did not answer/);
   assert.match(limited!.text, /\(28 hit a rate limit\)/);
-  assert.match(limited!.text, /Local model \(Ollama\) runs on this computer and has no limit to hit; giving it Scoring postings would take the volume off this engine\. How well a small model does this task is not measured here\.$/);
+  assert.match(limited!.text, /Local model \(Ollama\) runs on this computer and has no limit to hit; giving it Scoring postings would take the volume off this engine\. How well it scores your postings is not measured yet: Try it on my postings, on its card, compares it with the scores on record\.$/);
   // A small model is never offered the analysis, whatever the limit did to it.
   const analysis = find(usageHints(facts({ groups: [group({ feature: 'resume-match', model: 'claude-sonnet-5', calls: 20, failed: 9, rateLimited: 9 })], engines: [PLAN, LOCAL] })), /did not answer/);
   assert.match(analysis!.text, /Put a second engine behind it for this task, or lower AI_CONCURRENCY\.$/);
@@ -243,6 +244,9 @@ test('each kind of trouble says what to do about that kind, and none blames the 
   assert.match(said('failing'), /its last 4 calls failed\. Press Test on its card/);
   assert.match(said('failing', 1), /its last call failed/);
   for (const kind of ['unreachable', 'window', 'limited', 'signin'] as const) assert.doesNotMatch(said(kind), /another model/);
+  // Replies that came back unreadable are the one case for another model — and Test, one word long, would pass (#463).
+  assert.match(said('unparsed'), /its last 4 calls came back with a reply ApplyPack could not read.*Try another model in its slot/);
+  assert.doesNotMatch(said('unparsed'), /Press Test/);
 });
 
 test('an engine the person has disabled since is not theirs to fix, and a last resort that answers is', () => {
@@ -268,4 +272,40 @@ test('a failure hint gives the advice of how most of the calls ended', () => {
     group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'b', calls: 6, failed: 1, failedAs: 'empty' }),
   ];
   assert.match(find(usageHints(facts({ groups: mixed, engines: [engine('local_api', 'local', 0)] })), /did not answer/)!.text, /raise the window/);
+});
+
+test('#463: a reply that could not be read is worded as an answer, never as "did not answer"', () => {
+  const said = (over: Partial<SpendGroup>) =>
+    find(usageHints(facts({ groups: [group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'llama3.1:8b', calls: 10, ...over })], engines: [engine('local_api', 'local', 0)] })), /on Local model/)!.text;
+  // Every failure an unreadable reply: one sentence for them, and the advice that fits them.
+  const unread = said({ failed: 4, unparsed: 4, failedAs: 'unparsed' });
+  assert.match(
+    unread,
+    /^Full analysis on Local model \(Ollama\) · llama3\.1:8b: 4 of 10 calls answered in the last 7 days, but the reply could not be read\. .* try another model in that slot\.$/,
+  );
+  assert.doesNotMatch(unread, /did not answer/);
+  // Some with no answer, some unreadable: each counted as what it was.
+  assert.match(
+    said({ failed: 5, unparsed: 2, failedAs: 'timeout' }),
+    /: 3 of 10 calls did not answer in the last 7 days\. 2 more calls answered, but the reply could not be read\. /,
+  );
+  assert.match(said({ failed: 2, unparsed: 1, failedAs: 'timeout' }), /: 1 of 10 calls did not answer in the last 7 days\. 1 more call answered, but the reply could not be read\. /);
+  // None unreadable: the sentence stays what it was.
+  assert.doesNotMatch(said({ failed: 4, failedAs: 'timeout' }), /could not be read/);
+});
+
+test('a hint that offers the scoring to a local model quotes its last trial instead of "not measured" (#412)', () => {
+  const groups = [group({ calls: 300 })];
+  const local = engine('local_api', 'local', 1);
+  const trials = { local_api: { postings: 20, compared: 20, agreed: 12, falseMatches: 8, missed: 0 } };
+  const hint = usageHints(facts({ groups, engines: [PLAN, local], trials }))[0];
+  assert.match(hint!.text, /Tried on 20 of your postings, Local model \(Ollama\) agreed with the scores on record on 12 of 20, with 8 false matches and 0 missed\.$/);
+  assert.doesNotMatch(hint!.text, /not measured/);
+  // A trial whose replies could not be compared measured nothing.
+  const empty = usageHints(facts({ groups, engines: [PLAN, local], trials: { local_api: { ...trials.local_api, compared: 0 } } }))[0];
+  assert.match(empty!.text, /not measured yet/);
+});
+
+test('an engine trial is not usage', () => {
+  assert.deepEqual(usageHints(facts({ groups: [group({ feature: 'engine-trial', calls: 20 })] })), []);
 });

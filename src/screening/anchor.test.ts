@@ -145,6 +145,40 @@ test('a list is at most listed, a stack line at most role, a term the text never
   assert.equal(report.rungsRaised, 1, 'kafka');
 });
 
+test('a stack named in the headline is listed; the role line under it is still a role (#313)', async () => {
+  const matcher = await loadKeywordMatcher();
+  const headline = 'Senior QA Automation Engineer — Playwright, TypeScript, payments';
+  const role = 'Senior QA Automation Engineer, SoftServe — березень 2021 – дотепер';
+  const text = `Applicant №1\n${headline}\n\nEXPERIENCE\n${role}\n- Built the Playwright suite for 40 microservices\n`;
+  assert.deepEqual(textEvidence([{ term: 'TypeScript', aliases: [] }], text, matcher), { rung: 'listed', quote: 'Playwright, TypeScript, payments' });
+  assert.deepEqual(textEvidence([{ term: 'Playwright', aliases: [] }], text, matcher), { rung: 'role', quote: 'Built the Playwright suite for 40 microservices' });
+  assert.deepEqual(textEvidence([{ term: 'SoftServe', aliases: [] }], text, matcher), { rung: 'role', quote: role });
+  const reply = ScreenReplySchema.parse({ answers: [{ id: 'ts', rung: 'production', quote: headline }] });
+  const { reply: out } = anchorScreenReply(reply, text, RubricSchema.parse({ criteria: [skill('ts', 'TypeScript')] }), matcher);
+  assert.equal(out.answers[0]!.rung, 'listed', 'the headline quoted for production carries a list, no more');
+});
+
+test('production needs a number in its quote; without one it is role (#218)', async () => {
+  const matcher = await loadKeywordMatcher();
+  const reply = ScreenReplySchema.parse({
+    answers: [
+      { id: 'java', rung: 'production', quote: 'Owned the payments ledger on Java 17 and Spring Boot, 12k rps, cut p99 latency 40%' },
+      { id: 'pg', rung: 'production', quote: 'Ran the PostgreSQL migration for 30 services' },
+      { id: 'kafka', rung: 'production', quote: 'Java, Spring Boot, PostgreSQL, Kafka, Docker' },
+      { id: 'how', rung: 'production', quote: 'Led a team of four engineers through the migration' },
+    ],
+  });
+  const { reply: out, report } = anchorScreenReply(reply, TEXT, RUBRIC, matcher);
+  const by = Object.fromEntries(out.answers.map((a) => [a.id, a]));
+  assert.equal(by.java!.rung, 'production', 'a bullet with its outcome keeps production');
+  assert.equal(by.pg!.rung, 'production', '30 services is a scale');
+  assert.equal(by.kafka!.rung, 'listed', 'a list stays a list');
+  assert.equal(by.how!.rung, 'role', 'an ownership bullet with no number is role');
+  assert.equal(report.rungsLowered, 2, 'kafka, how');
+  const owned = anchorScreenReply(ScreenReplySchema.parse({ answers: [{ id: 'pg', rung: 'production', quote: 'Ran the PostgreSQL migration end to end' }] }), TEXT.replace('for 30 services', 'end to end'), RUBRIC, matcher);
+  assert.equal(owned.reply.answers.find((a) => a.id === 'pg')!.rung, 'role', 'the same bullet with no number');
+});
+
 test('anchorScreenReply raises a rung the text shows more of, and lowers a strong impact with no quote', async () => {
   const matcher = await loadKeywordMatcher();
   const reply = ScreenReplySchema.parse({

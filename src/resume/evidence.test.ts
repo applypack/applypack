@@ -47,6 +47,20 @@ test('a flattened .docx skills table is judged cell by cell, and is a list', () 
   assert.equal(isTermList('Reduced the complexity of the system, cutting costs by hundreds of thousands of dollars annually'), false);
 });
 
+test('a stack named after the title in a headline is a list; a role line and a bullet keep their line (#313)', async () => {
+  const headline = 'Senior QA Automation Engineer — Playwright, TypeScript, payments';
+  assert.equal(segmentAt(headline, headline.indexOf('TypeScript')), 'Playwright, TypeScript, payments');
+  assert.equal(segmentAt(headline, headline.indexOf('QA')), headline, 'the title keeps its line');
+  const role = 'Senior QA Automation Engineer, SoftServe — березень 2021 – дотепер';
+  assert.equal(segmentAt(role, role.length), role, 'a dated tail is no list');
+  assert.equal(isTermList(segmentAt(role, role.indexOf('SoftServe'))), false, 'the role line still reads as a role');
+  const bullet = '- Built the checkout — Node.js, PostgreSQL, Redis';
+  assert.equal(segmentAt(bullet, bullet.indexOf('Redis')), bullet, 'a bullet is a sentence about work');
+  const m = await matcher();
+  assert.equal(evidenceFor(kw('TypeScript'), `Alex Example\n${headline}\n- Wrote the API tests`, m), 'listed');
+  assert.equal(evidenceFor(kw('Redis'), bullet, m), 'described');
+});
+
 test('the strongest evidence wins: listed, described, measured', async () => {
   const m = await matcher();
   // Docker is only on the skills line.

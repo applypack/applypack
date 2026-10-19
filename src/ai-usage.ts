@@ -18,8 +18,11 @@ import { t } from './i18n/t';
  * to do about them differs (#413): `unreachable` — no server answered at the
  * address — and `too_large` — the prompt was bigger than the model's context
  * window and was not sent. Rows written before them say `error` for both.
+ * `unparsed` is never what a provider reports: a row is written `ok` when
+ * the transport answers, and the caller that cannot read the reply turns it
+ * into `unparsed` (#463, ADR 0055 addendum 2026-10-18).
  */
-const AI_OUTCOMES = ['ok', 'rate_limited', 'timeout', 'cut_off', 'refused', 'empty', 'unauthorized', 'unreachable', 'too_large', 'error'] as const;
+const AI_OUTCOMES = ['ok', 'rate_limited', 'timeout', 'cut_off', 'refused', 'empty', 'unauthorized', 'unreachable', 'too_large', 'unparsed', 'error'] as const;
 export type AiOutcome = (typeof AI_OUTCOMES)[number];
 
 /** Tokens as the vendor counted them; input is the UNCACHED part. */
@@ -102,6 +105,7 @@ const AI_FEATURES = [
   'screening-compare',
   'screening-bench',
   'engine-test',
+  'engine-trial',
 ] as const;
 export type AiFeature = (typeof AI_FEATURES)[number];
 

@@ -6,7 +6,7 @@ import { buildLetterPdf } from '../resume/pdf-write';
 import { buildZip } from '../resume/zip-write';
 import { simhash64 } from '../fingerprint';
 import { hashShortId } from '../text-utils';
-import { POSTING_NOTES, identifyPosting, needsModel, readPostingFile, savedPostingJob, savedPostingNote, type PostingRead, type StoredPosting } from './posting-file';
+import { NOT_A_POSTING_FLAG, POSTING_NOTES, identifyPosting, needsModel, readPostingFile, savedPostingJob, savedPostingNote, type PostingRead, type StoredPosting } from './posting-file';
 
 const NOW = new Date(Date.UTC(2026, 9, 6, 12));
 const BODY = 'You will own the payments ledger, its APIs and its on-call rota, working with two product teams. '.repeat(4).trim();
@@ -133,7 +133,7 @@ describe('savedPostingJob', () => {
 
   it('takes what the page said first, a model’s reading second', () => {
     const page = { ...plain, address: 'https://jobs.example/9', addressIsOwn: true, facts: { title: 'Page Title', company: 'Page Co', location: null, workplace: 'REMOTE' as const, postedAt: null } };
-    const job = savedPostingJob(file, page, { title: 'Model Title', company: 'Model Co', location: 'Berlin', workplace: 'hybrid' }, 'saved-1');
+    const job = savedPostingJob(file, page, { title: 'Model Title', company: 'Model Co', location: 'Berlin', workplace: 'hybrid', isPosting: true }, 'saved-1');
     assert.deepEqual(
       [job.title, job.employer, job.location, job.locationHints?.workplace, job.url, job.externalId],
       ['Page Title', 'Page Co', 'Berlin', 'REMOTE', 'https://jobs.example/9', 'saved-1'],
@@ -141,6 +141,17 @@ describe('savedPostingJob', () => {
     assert.equal(job.sourceFile, 'saved/Senior_PHP_Developer at Acme.pdf');
     assert.equal(job.handPicked, true);
     assert.equal(job.companyId, 7);
+    assert.equal(job.notAPosting, undefined);
+  });
+
+  // #451: a page the model took for no posting is still a job — a wrong "no" must not lose what someone saved.
+  it('keeps a page the model took for no posting, and says so on its line', () => {
+    const job = savedPostingJob(file, plain, { title: null, company: null, location: null, workplace: null, isPosting: false }, 'saved-1', NOW);
+    assert.equal(job.notAPosting, true);
+    assert.equal(job.handPicked, true);
+    assert.equal(job.title, 'Senior PHP Developer at Acme');
+    assert.match(savedPostingNote(job), /no address to apply at; it may not be a job posting, so it is kept as Saved and not scored\.$/);
+    assert.equal(NOT_A_POSTING_FLAG, 'not-a-posting');
   });
 
   // #396: a file dated ahead of the clock, or out of an archive stamped 1980, gave the posting that date.
@@ -159,6 +170,16 @@ describe('savedPostingJob', () => {
     assert.equal(job.url, '');
     assert.equal(job.locationHints, undefined);
     assert.match(savedPostingNote(job), /company not named; the file gives no address/);
+  });
+
+  // #458: the file's time is when it was saved, which the job page calls "First seen".
+  it('is undated when the page states no date, and dated by the page when it does', () => {
+    assert.equal(savedPostingJob(file, plain, null, 'saved-1', NOW).undated, true);
+    const stated = new Date(Date.UTC(2026, 9, 1));
+    const page = { ...plain, facts: { title: 'T', company: 'C', location: null, workplace: null, postedAt: stated } };
+    const job = savedPostingJob(file, page, null, 'saved-1', NOW);
+    assert.equal(job.postedAt, stated);
+    assert.equal('undated' in job, false);
   });
 
   it('asks a model only when the page did not say both its title and its company', () => {

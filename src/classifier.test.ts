@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Profile } from '@prisma/client';
-import { buildClassifyPrompt, parseClassifications } from './classifier';
+import { buildClassifyPrompt, classifyJob, parseClassifications } from './classifier';
+import type { AiCallRequest, AiCallResult } from './ai-runtime';
 import { buildPrefilterPrompt } from './classifier-prefilter';
 import { FORGED_MARKER_PLACEHOLDER, INJECTION_FLAG, fenceClose, fenceOpen } from './prompt-fence';
 
@@ -236,6 +237,17 @@ test('a search describes its place as codes only', () => {
   assert.doesNotMatch(line, /Poland|Germany|European Union/);
 });
 
+test('a bare "Remote" reaches the prompt decided; a place the parser missed does not (#386)', () => {
+  const remote = { workplace: 'REMOTE' as const, countries: [], regions: [] };
+  const bare = buildClassifyPrompt({ ...input('x'), location: 'Remote', place: remote }, [PROFILE]);
+  assert.match(bare.user, /^Location as parsed from the source: REMOTE · no country named — decided: location_match true/m);
+  assert.match(bare.system, /Parsed "no country named" \(a bare "Remote"\) is not doubt: true for every search accepting remote/);
+  const city = buildClassifyPrompt({ ...input('x'), location: 'Remote · Dehradun', place: remote }, [PROFILE]).user;
+  assert.match(city, /^Location as parsed from the source: REMOTE$/m);
+  const named = buildClassifyPrompt({ ...input('x'), location: 'Remote · DE', place: { ...remote, countries: ['DE'] } }, [PROFILE]);
+  assert.match(named.user, /^Location as parsed from the source: REMOTE · countries DE$/m);
+});
+
 test('eligibility rules exist and speak of the candidate, not of a country list (ADR 0033)', () => {
   const ua = { ...PROFILE, countries: ['PL', 'DE'], regions: ['EU'], residence: 'UA', relocation: 'sponsorship' } as Profile;
   const { system } = buildClassifyPrompt(input('x'), [ua]);
@@ -289,4 +301,53 @@ test('the location block is read once, codes validated, and optional', () => {
   const odd = parseClassifications(withLocation.replace('"remote"', '"office"'), [PROFILE]);
   assert.equal(odd?.location?.workplace, 'UNKNOWN');
   assert.equal(parseClassifications(reply([entry(3, 80)]), [PROFILE])?.location, null);
+});
+
+/* ---------------------------------------------------------------------- *
+ * The ledger (#463, #483): what a reply that does not parse is recorded   *
+ * as, and which rows a scoring hands back to be named on its posting.     *
+ * ---------------------------------------------------------------------- */
+
+/** Answers from a script, call n writing ledger row n; keeps what each call was asked and which rows were turned `unparsed`. */
+function scriptedRuntime(replies: (string | null)[]) {
+  const asked: AiCallRequest[] = [];
+  const marked: number[][] = [];
+  return {
+    asked,
+    marked,
+    complete: async (req: AiCallRequest): Promise<AiCallResult | null> => {
+      asked.push(req);
+      const text = replies[asked.length - 1] ?? null;
+      return text === null ? null : { text, providerId: 'local_api', model: 'm', viaFallback: false, ledgerIds: [asked.length] };
+    },
+    unparsed: async (result: AiCallResult): Promise<void> => {
+      marked.push(result.ledgerIds);
+    },
+  };
+}
+
+test('a scoring reply that does not parse is `unparsed`, and every row comes back with the verdict', async () => {
+  const ai = scriptedRuntime(['Sure! Here is the JSON you asked for.', reply([entry(3, 82)])]);
+  const out = await classifyJob(input('Laravel'), [PROFILE], 'single', { ai, jobId: 41 });
+  assert.equal(out.results.get(3)?.fit_score, 82);
+  assert.deepEqual(ai.marked, [[1]]);
+  assert.deepEqual(out.ledgerIds, [1, 2]);
+  // A stored posting is named on its calls as they are written.
+  assert.deepEqual(ai.asked.map((r) => r.subject), [{ jobId: 41 }, { jobId: 41 }]);
+});
+
+test('the tick scores a posting with no row yet: no subject, and the rows to name it on afterwards', async () => {
+  const turnedAway = scriptedRuntime(['{"relevant": false, "reason": "a Rails role"}']);
+  const out = await classifyJob(input('Rails'), [PROFILE], 'two_stage', { ai: turnedAway });
+  assert.equal(out.preFiltered, true);
+  assert.deepEqual(out.ledgerIds, [1]);
+  assert.equal(turnedAway.asked[0]?.subject, undefined);
+  // An unreadable gate falls open to the full classifier; both calls belong to the posting. (A posting that names
+  // the search's stack skips the gate, so this one names none of it.)
+  const fellOpen = scriptedRuntime(['relevant: maybe', reply([entry(3, 64)])]);
+  const scored = await classifyJob(input('Go'), [PROFILE], 'two_stage', { ai: fellOpen });
+  assert.equal(scored.preFiltered, false);
+  assert.deepEqual(fellOpen.marked, [[1]]);
+  assert.deepEqual(scored.ledgerIds, [1, 2]);
+  assert.deepEqual(fellOpen.asked.map((r) => r.label), ['prefilter', 'classifier']);
 });

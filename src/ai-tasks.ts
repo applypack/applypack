@@ -73,6 +73,7 @@ const TASK_OF: Record<AiFeature, AiTask | null> = {
   'screening-compare': 'screening',
   'screening-bench': 'screening',
   'engine-test': null,
+  'engine-trial': null,
 };
 
 export function taskOf(feature: AiFeature): AiTask | null {

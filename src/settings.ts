@@ -48,6 +48,8 @@ export interface AppSettingsView {
   employersFilledAt: Date | null;
   /** Raw AppSettings.pack JSON — parse with parsePackSettings (ADR 0063). */
   pack: unknown;
+  /** #487: the address the dashboard is opened at, for links in messages; null = none. */
+  dashboardUrl: string | null;
   /** Raw AppSettings.coverAngles JSON — parse with readCoverAngles. */
   coverAngles: unknown;
   /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
@@ -142,6 +144,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     reapplyDays: row.reapplyDays,
     employersFilledAt: row.employersFilledAt,
     pack: row.pack,
+    dashboardUrl: row.dashboardUrl,
     coverAngles: row.coverAngles,
     pipelineStages: row.pipelineStages,
     schedule: row.schedule,
@@ -411,6 +414,16 @@ export async function setLocalContextTokens(tokens: number | null): Promise<void
     update: { localContextTokens: tokens },
     create: { id: SETTINGS_ID, localContextTokens: tokens },
   });
+}
+
+/** #487: the dashboard's address for links in messages, or null for none. The route checks the address. */
+export async function setDashboardUrl(url: string | null): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { dashboardUrl: url },
+    create: { id: SETTINGS_ID, dashboardUrl: url },
+  });
+  logger.info({ cleared: url === null }, 'settings: dashboard address updated');
 }
 
 /** ADR 0056: the re-apply window in days, or null to switch it off. The route checks the choice. */

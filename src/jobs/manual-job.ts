@@ -92,7 +92,9 @@ export async function createManualJob(
           description,
           salaryMin: f.salaryMin ?? null,
           salaryMax: f.salaryMax ?? null,
+          // A paste carries no date: this is when it was first seen (#458).
           postedAt: new Date(),
+          postedAtKnown: false,
           status: JobStatus.SAVED,
         },
         include: jobInclude,

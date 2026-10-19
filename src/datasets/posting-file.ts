@@ -121,7 +121,16 @@ export interface ModelFacts {
   company: string | null;
   location: string | null;
   workplace: 'remote' | 'hybrid' | 'onsite' | null;
+  /** False: the model took the page for something else — a sign-in page, a list of results (#451). */
+  isPosting: boolean;
 }
+
+/**
+ * The red flag on a saved page the model took for no job posting. Such a page
+ * is still stored — a wrong "no" would lose a posting saved by hand — but
+ * Saved and unscored (process-jobs.ts); Re-classify scores it and the flag goes.
+ */
+export const NOT_A_POSTING_FLAG = 'not-a-posting';
 
 /** Whether the page said its title and its company itself; if not, a model reads them. */
 export function needsModel(read: Extract<PostingRead, { ok: true }>): boolean {
@@ -149,7 +158,8 @@ export interface SavedFile {
  * model's reading second, the file's name last for the title. Its id is the
  * one `identifyPosting` gave: nothing a model said. Flagged `handPicked`: the
  * user chose it, so no base filter and no employer gate turns it away. A page
- * that states no date takes its file's, when that can be one (map.ts:fileDate).
+ * that states no date takes its file's, when that can be one (map.ts:fileDate),
+ * and is `undated`: the date says when it was saved, not when it was posted.
  */
 export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok: true }>, model: ModelFacts | null, externalId: string, now: Date = new Date()): NormalizedJob {
   const facts = read.facts;
@@ -163,10 +173,12 @@ export function savedPostingJob(file: SavedFile, read: Extract<PostingRead, { ok
     location: facts?.location ?? model?.location ?? '',
     description: read.text,
     postedAt: facts?.postedAt ?? fileDate(file.mtimeMs, now),
+    ...(!facts?.postedAt && { undated: true }),
     ...(workplace && { locationHints: { workplace } }),
     employer: facts?.company ?? model?.company ?? null,
     sourceFile: file.relPath,
     handPicked: true,
+    ...(model?.isPosting === false && { notAPosting: true }),
   };
 }
 
@@ -270,6 +282,12 @@ export function identifyPosting(relPath: string, read: Extract<PostingRead, { ok
 }
 
 /** The per-file list's line for a saved posting that became a job. */
-export function savedPostingNote(job: Pick<NormalizedJob, 'title' | 'url'> & { employer?: string | null }): string {
-  return t('datasets.posting.readAs', { title: job.title, named: job.employer ? 'yes' : 'no', company: job.employer ?? '', noAddress: job.url ? 'no' : 'yes' });
+export function savedPostingNote(job: Pick<NormalizedJob, 'title' | 'url' | 'notAPosting'> & { employer?: string | null }): string {
+  return t('datasets.posting.readAs', {
+    title: job.title,
+    named: job.employer ? 'yes' : 'no',
+    company: job.employer ?? '',
+    noAddress: job.url ? 'no' : 'yes',
+    posting: job.notAPosting === true ? 'no' : 'yes',
+  });
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { addCounts, FUNNEL_KEYS, funnelCounts, funnelView, readCounts, reasonsText, runCounts, stageCount, sumDays, utcDay } from './funnel';
+import { addCounts, FUNNEL_KEYS, funnelCounts, funnelView, readCounts, reasonsText, runCounts, scorePassCounts, stageCount, sumDays, utcDay } from './funnel';
 
 test('a run gives the funnel its counts and nothing else', () => {
   assert.deepEqual(
@@ -97,4 +97,12 @@ test('the backfill reads the same counters the ticks write', () => {
     [...list.matchAll(/'(\w+)'/g)].map((m) => m[1]),
     FUNNEL_KEYS.filter((k) => !COUNTED_SINCE_BACKFILL.includes(k)),
   );
+});
+
+test("the first scoring of stored postings counts what it found and what the filled-in search turned away", () => {
+  // The wizard's pass on a fresh install (2026-10-18): 10 scored, 2 kept, 453 off-topic for free.
+  const stats = { scanned: 10, reclassified: 10, matched: 2, unchanged: 2, demoted: 8, dismissedLowFit: 8, failed: 0, filterDismissed: 453, rejectedTitle: 453, remaining: 48, concurrency: 3 };
+  assert.deepEqual(scorePassCounts(stats), { classified: 10, matched: 2, dismissed: 8, filterRejected: 453, rejectedTitle: 453, dismissedLowFit: 8 });
+  const day = funnelView(addCounts({ fetched: 617, filterRejected: 105, duplicate: 1 }, scorePassCounts(stats)));
+  assert.deepEqual(day.stages.map((s) => s.count), [617, 59, 58, 10, 2, 0]);
 });

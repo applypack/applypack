@@ -303,7 +303,7 @@ describe('a local OpenAI-compatible server', () => {
         claude_code: { resume: 'claude-sonnet-5' },
         openai_api: { classifier: 'llama3.1:8b', resume: 'llama3.1:8b', cover: 'llama3.1:8b' },
       },
-      tasks: {},
+      tasks: { openai_api: ['scoring'] },
     });
   });
 
@@ -411,9 +411,23 @@ describe('tasks per engine', () => {
     assert.deepEqual(parseAiEngineConfig({ order: ['claude_code'], tasks: 'everything' }), { order: ['claude_code'], models: {}, tasks: {} });
   });
 
-  it('"Use it" lifts a narrower list from the engine it puts first', () => {
-    const stored = parseAiEngineConfig({ order: ['claude_code', 'local_api'], tasks: { local_api: ['scoring'], claude_code: ['letters'] } });
-    assert.deepEqual(withEngineFirst(stored, 'local_api', env, 'gemma4:e4b').tasks, { claude_code: ['letters'] });
+  it('"Use it" gives a local model scoring alone, whatever its list was, and leaves the other lists as they were', () => {
+    const stored = parseAiEngineConfig({ order: ['claude_code', 'local_api'], tasks: { local_api: ['letters', 'analysis'], claude_code: ['letters'] } });
+    assert.deepEqual(withEngineFirst(stored, 'local_api', env, 'gemma4:e4b').tasks, { local_api: ['scoring'], claude_code: ['letters'] });
+    assert.deepEqual(withEngineFirst(parseAiEngineConfig(both), 'local_api', env, 'gemma4:e4b').tasks, { local_api: ['scoring'] });
+  });
+
+  it('after "Use it" the engine behind takes every other task, and a local model alone still answers them all', () => {
+    const behind = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: ['claude_code'] }), 'local_api', env, 'gemma4:e4b'), env);
+    assert.deepEqual(behind.chainFor('scoring'), ['local_api', 'claude_code']);
+    for (const task of AI_TASKS.filter((t) => t !== 'scoring')) assert.deepEqual(behind.chainFor(task), ['claude_code']);
+    // Nothing else in the list: nobody takes the other tasks, so the whole chain — the local model — answers them as before.
+    const alone = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: [] }), 'local_api', { ...env, provider: 'local_api' }, 'gemma4:e4b'), env);
+    assert.deepEqual(alone.order, ['local_api']);
+    for (const task of AI_TASKS) assert.deepEqual(alone.chainFor(task), ['local_api']);
+    // The same when the engines behind it cannot run here (no key).
+    const keyless = resolveAiEngine(withEngineFirst(parseAiEngineConfig({ order: ['anthropic_api'] }), 'local_api', env, 'gemma4:e4b'), env);
+    assert.deepEqual(keyless.chainFor('letters'), ['local_api']);
   });
 });
 

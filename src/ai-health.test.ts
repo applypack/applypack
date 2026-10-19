@@ -35,6 +35,9 @@ test('the kind is what the failures have in common, so the advice can differ', (
   assert.equal(kind('unreachable', 'unreachable', 'unreachable'), 'unreachable');
   assert.equal(kind('too_large', 'too_large', 'too_large'), 'window');
   assert.equal(kind('rate_limited', 'rate_limited', 'rate_limited'), 'limited');
+  // Replies that came back and could not be read: an answer on the wire, a failure for the caller (#463).
+  assert.equal(kind('unparsed', 'unparsed', 'unparsed'), 'unparsed');
+  assert.equal(engineTrouble(run('local_api', 'unparsed', 'unparsed', 'ok')), null);
   // A model that writes nothing usable, a crash, a timeout: nothing more specific to say than "it fails".
   assert.equal(kind('empty', 'cut_off', 'error'), 'failing');
   assert.equal(kind('timeout', 'timeout', 'timeout'), 'failing');

@@ -398,8 +398,30 @@ revisited:
   where the change is made. Saving a search whose filter fields changed
   (`filter.ts:filterChanged`), or one that starts to run, and unmuting a
   company add a sentence when switched-on folders of rows hold files already
-  read (`source-file-store.ts:foldersReadOnce`): how many, and where the
-  button is. Nothing is read again by that.
+  read: how many, and where the button is. Nothing is read again by that.
+  *Amended 2026-10-18 (#448):* it is done by itself now, where it can
+  change something. The ledger keeps, per file, how many rows the base
+  filter or a mute turned away (`turnedAway`), how many the re-apply window
+  did and when the soonest such window closes (`windowTurnedAway`,
+  `windowEndsAt`), and the key of the rules they were judged under
+  (`folder-scan.ts:rulesKey`: the filter fields of the searches that score,
+  the muted employers and the window's length). The pipeline counts them by
+  the file a row came from (`process-jobs.ts`,
+  `folder-ledger.ts:withTurnedAway`). A look plans a `done` file again,
+  from its first row, when rows of it were turned away and the key differs
+  — a search edited, started or stopped, a company muted or unmuted, the
+  window changed — or when a window that turned rows of it away has closed
+  (`folder-scan.ts:judgedAgain`); such files go behind new ones, inside the
+  look's ceilings. A file read on across looks keeps the key of the rules
+  that turned its first rows away, so one finished under other rules is
+  read again whole. Nothing is read again where nothing was turned away, or
+  when the rules did not change. Files read before carry no count and no
+  key: the first look after the upgrade stamps the key it judges under, so
+  no folder is read again on that day, and a later change reads them again,
+  since rows of them may have been turned away. Every row the new rules
+  admit is scored, as a feed's would be; the save and the unmute say in how
+  many folders (`source-file-store.ts:foldersToReadAgain`). The button
+  stays, for reading a whole folder again at will.
 - **A row's date.** A stated date was held against the *file's* time, so a
   file stamped 1980 (out of an archive) turned every later date away as "in
   the future" and gave all its rows 1980. It is held against the clock. A
@@ -419,6 +441,33 @@ to answer in; a look whose folder does not answer fails as unreachable
 call that was left behind cannot be cancelled and holds a thread, so while
 it is out the folder is asked nothing more: the next looks fail at once,
 and the folder is read again when the disk comes back.
+
+*Amended 2026-10-18 (#478).* **A folder moves, and its ledger is kept to
+what it holds.**
+
+- The path is the source's identity, so a folder moved or renamed failed as
+  "Folder not found" until it was deleted — with every job and application
+  it brought — and added again, everything read and scored again. The Files
+  page now takes a new path ("The folder moved", linked from the card while
+  the folder is not found), checked by the rules Add checks one by. The row,
+  its jobs, its switch and its ledger stay: the ledger is keyed by a file's
+  path inside the folder, so the files that moved with it stay read. The
+  source's health is cleared, since it spoke of the old path.
+- A file the last look did not list is marked gone (`source_file.goneAt`),
+  and its row is deleted 30 days later when no job names the file
+  (`Job.sourceFile`); a row whose file brought jobs stays, as their record.
+  Before, every file a tool ever wrote stayed a row, and every look loaded
+  them all.
+- The Files page reads three jobs a file, and how many there are, in one
+  query. A file of 30,000 rows took 0.8 s and 244 MB to show its three.
+- The folder's card counts the files the last check set aside ("1 set
+  aside", linked to the Files page): JSON cut short and a quote never closed
+  were said on the Files page only. The quiet-source line a chat gets names
+  a folder's trouble in a folder's words, as the dashboard does.
+- Not changed: Check and Add read the files on the dashboard's event loop,
+  and the reads already give the loop back between files. Measured, another
+  request waits at most one file's parse (about 110 ms for a 4.5 MB CSV, 25
+  ms for JSON), with or without an explicit yield.
 
 **ApplyPack never writes into the folder.** No "processed" subfolder, no
 rename, no delete. `datasets/folder-io.ts` is the one module that touches
@@ -668,3 +717,32 @@ the last: the id over the text as it was read before, form and all
 (`SavedPage.former`), under both earlier rules. A page saved again is the
 job it was, and no model is asked. Stored rows are never rewritten: a job
 read before keeps the text it has.
+
+*Amended 2026-10-18 (#451).* **The call that reads a saved posting is shown
+the page's own `<title>`** (`SavedPage.pageTitle`), fenced as a block of its
+own beside the text. It is the best line on a single-file save, which never
+carries the structured block, and on a page whose block names no company.
+Measured with the scoring task's engine (the Claude Code CLI's Haiku) on
+twelve pages built from stored public postings — six `.mhtml`, six `.html`
+whose block names no company: the company was found on 5 before and 9
+after; the four it gained are named in the title alone. None answered a
+company the page does not name. One answered the job board in its title
+("… – Remote | Himalayas") on a page that names no company anywhere: the
+model did not know the name for a board's, and a sentence more in the
+prompt did not change that. One title names a recruiter whose text says
+"our client", and that page stays without a company, as the rule asks.
+
+*Amended 2026-10-18 (#451).* **A page that is no posting is kept, and not
+scored.** The same call answers `is_job_posting`; only a stated `false`
+counts. Such a page still becomes its job — setting it aside would lose a
+posting on a wrong "no", and the user saved the file by hand — but it is
+stored **Saved** and unscored, with the red flag `not-a-posting`
+(`posting-file.ts:NOT_A_POSTING_FLAG`): the scoring call is skipped, and the
+job page and the Files line say it may not be a posting. Re-classify scores
+it as any job and the flag goes; the status stays Saved, the person's own
+list. Measured on six pages that are no posting (a sign-in page, a cookie
+wall, a list of results, a 404, an "About us", a newsletter) and eighteen
+real ones (the twelve above, and six short or oddly laid out: a vacancy
+notice in fields, a table, a Spanish posting, a page in its board's chrome,
+a short text over an application form, a 300-character teaser): six of six
+caught, none of the eighteen called no posting.

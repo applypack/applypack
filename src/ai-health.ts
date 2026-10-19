@@ -22,9 +22,11 @@ export interface RecentAttempt {
  * What the failures have in common, as far as the advice differs:
  * `signin` a refused key or sign-in · `unreachable` no server answered ·
  * `window` the prompt was larger than the model's context window ·
- * `limited` a rate limit or a spent allowance · `failing` anything else.
+ * `limited` a rate limit or a spent allowance · `unparsed` replies came back
+ * but did not hold what was asked for — the model's doing, and the one case
+ * where another model is the answer (#463) · `failing` anything else.
  */
-export type TroubleKind = 'signin' | 'unreachable' | 'window' | 'limited' | 'failing';
+export type TroubleKind = 'signin' | 'unreachable' | 'window' | 'limited' | 'unparsed' | 'failing';
 
 export interface EngineTrouble {
   engine: string;
@@ -43,6 +45,7 @@ const KIND_OF: Record<string, TroubleKind> = {
   unreachable: 'unreachable',
   too_large: 'window',
   rate_limited: 'limited',
+  unparsed: 'unparsed',
 };
 
 /** The commonest outcome of a run; the newest breaks a tie, being the likeliest to describe the next call. */

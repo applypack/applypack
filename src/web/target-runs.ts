@@ -27,7 +27,8 @@ export type RunStep =
   | 'review'
   | 'score'
   | 'compare'
-  | 'import';
+  | 'import'
+  | 'trial';
 export type RunStage = RunStep | 'done' | 'error';
 
 /** The comparison step a mode runs as: the quick check or the full report (ADR 0029). */

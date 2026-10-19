@@ -30,6 +30,8 @@ import { WELCOME_STEPS, type WelcomeStep } from '../welcome-steps';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 import type { PackOffer } from '../pack-offers';
 import { LanguageMenu } from '../language-menu';
+import { PROFILE_WORKPLACES, type WorkplaceCode } from '../../location';
+import { workplaceName } from '../../i18n/places';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
@@ -104,6 +106,8 @@ export interface WelcomeProps {
     aggregators: number;
     /** The primary search's countries, as the chip editor shows them. */
     countries: string[];
+    /** The arrangements it accepts: a fresh install's search starts at remote only, and says so here. */
+    workplace: WorkplaceCode[];
   };
   profile: {
     id: number;
@@ -466,6 +470,19 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
                 rows={1}
                 picker="countries"
               />
+              <fieldset class="mt-3">
+                <legend class="text-label text-ink">{t('welcome.search.how')}</legend>
+                <Hint>{t('welcome.search.how.hint')}</Hint>
+                {/* Tells the route the pills were on the form: "Search again" posts none and changes nothing. */}
+                <input type="hidden" name="arrangements" value="1" />
+                <div class="mt-1.5 flex flex-wrap gap-1.5">
+                  {PROFILE_WORKPLACES.map((w) => (
+                    <PillCheckbox name="workplace" value={w} checked={search.workplace.includes(w)}>
+                      {workplaceName(w)}
+                    </PillCheckbox>
+                  ))}
+                </div>
+              </fieldset>
               <Button class="mt-3">{t('welcome.search.run')}</Button>
             </form>
           )}

@@ -81,8 +81,11 @@ const KEYWORDS_MAX = 80;
  *     sentences; the bullet rules never governed it. A resume with no summary
  *     gets one as an addition, and a posting's "X and/or Y" names only the one
  *     this resume has (a summary that mirrored "PHP/Java" was refused whole).
+ * v17: "present" is a word the resume spells, however thinly — the doubt goes
+ *     in "note" — so the model no longer contradicts the text the anchoring
+ *     reads it off (ADR 0045, issue #205).
  */
-export const PROMPT_VERSION = 16;
+export const PROMPT_VERSION = 17;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -608,11 +611,11 @@ const RULE_REQUIREMENT = `For every keyword set "requirement" — how hard the p
    - "nice": a plus / bonus / nice to have / helpful / advantage
    - "context": "we use X" / "our stack includes X" / mentioned only descriptively — carries no score weight, listed only so the candidate sees it`;
 
-const RULE_STATUS = `For every keyword decide one status:
-   - "present": it is already in the resume. Say where.
-   - "add": the resume's own facts ALREADY evidence it — the same technology under another name ("Golang" when the resume says Go), an unavoidable part of work already described (REST when the resume describes building HTTP APIs), a CANDIDATE-CONFIRMED FACT from the user prompt (note must quote the user's context), or a skill named in OTHER RESUMES of this candidate (note must name that resume). A SIBLING technology is never "add": React is not evidenced by Vue, Node.js is not evidenced by PHP/Laravel, Rails is not evidenced by Django, Angular is not evidenced by React.
-   - "ask_user": the posting wants it, this resume does not evidence it, but a candidate with this background could plausibly have it (adjacent tooling, common practice for the role). The app will ask the candidate to confirm — use it sparingly, only where a yes would genuinely change the application. Never for a CANDIDATE-DENIED term.
-   - "cannot_claim": nothing supports it, or the user denied it. Never invent experience — when unsure between "add" and a lower status, choose the lower.
+const RULE_STATUS = `For every keyword decide one status. The first question is only whether the resume SPELLS it; how well the resume backs it is a separate question, and its answer goes in "note":
+   - "present": the resume spells it — the term itself or a spelling you list in "aliases" ("Postgres" for PostgreSQL, "Go" for Golang) — anywhere: the title line, the summary, a skills line, a bullet. Say where. However thin the mention looks — named only on a skills line, hedged as basic, on the title line alone — it is still "present", and the doubt goes in "note" ("skills line only", "hedged as basic", "no role shows it"). The application reads the word off the text and counts a spelled term as present whatever status you give it, so a lower status here only contradicts the resume.
+   - "add": the resume does NOT spell it, but its own facts ALREADY evidence it — an unavoidable part of work already described (REST when the resume describes building HTTP APIs), a CANDIDATE-CONFIRMED FACT from the user prompt (note must quote the user's context), or a skill named in OTHER RESUMES of this candidate (note must name that resume). A SIBLING technology is never "add": React is not evidenced by Vue, Node.js is not evidenced by PHP/Laravel, Rails is not evidenced by Django, Angular is not evidenced by React.
+   - "ask_user": the resume does not spell it and does not evidence it, but a candidate with this background could plausibly have it (adjacent tooling, common practice for the role). The app will ask the candidate to confirm — use it sparingly, only where a yes would genuinely change the application. Never for a CANDIDATE-DENIED term.
+   - "cannot_claim": the resume does not spell it and nothing supports it, or the user denied it. Never invent experience — when unsure between "add" and a lower status, choose the lower.
    Also list "aliases": other spellings for the same keyword ("Golang" → ["go"], "PostgreSQL" → ["postgres"], "CI/CD" → ["continuous integration", "continuous delivery"], "Node.js" → ["node", "nodejs"]). Before finalising, scan the RESUME text and include the exact spellings IT uses for this keyword — the live matcher searches term + aliases, and a missing alias shows a present skill as missing. Leave the array empty only when no alternative spelling exists.`;
 
 /** What "primary stack" means — read by the brief (which finds it) and the match (which judges coverage of it). */
@@ -1188,7 +1191,7 @@ function factLines(context: Pick<MatchContext, 'confirmedFacts' | 'deniedTerms'>
   }
   if (denied.length > 0) {
     lines.push(
-      'CANDIDATE-DENIED (the user said they do NOT have these; always "cannot_claim", never "ask_user"):',
+      'CANDIDATE-DENIED (the user said they do NOT have these; "cannot_claim" unless this resume spells them, never "ask_user"):',
       ...denied.map((t) => `- ${t}`),
       '',
     );

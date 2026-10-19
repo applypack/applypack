@@ -18,6 +18,7 @@ import { mainAdvice, readyToApply } from '../score-lines';
 import type { OrientationRow } from '../../resume/posting-orientation';
 import type { SummaryGuide } from '../../resume/summary-guide';
 import type { DomainNotice } from '../../resume/domain';
+import type { TailorEdits } from '../../pack/view';
 import {
   ActionsBlock,
   ChangeSheetButton,
@@ -81,6 +82,8 @@ export interface TargetPageProps {
   fileVerdict: string;
   /** Where the clean re-render lives, when this file is one a Save cannot fully write (ADR 0039). */
   cleanHref?: string | null;
+  /** A pack's edits, opened from its tab: the draft and the applied cards the page starts with (pack/view.ts:tailorSeed). */
+  seed?: { text: string; edits: TailorEdits } | null;
 }
 
 /* Side by side is first and default (user pref); Suggestions keeps its
@@ -126,6 +129,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   verification,
   fileVerdict,
   cleanHref,
+  seed = null,
   flash,
 }) => {
   // The panes, the chips and the live score work from the effective list: the
@@ -152,6 +156,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   const clientData = {
     matchId: match.id,
     resumeText,
+    seed,
     jobText: job.description,
     keywords: scored,
     // So a chip can tell the user's own "I don't" / "Not sure" from a term the model could not back.

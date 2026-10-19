@@ -17,7 +17,8 @@ does the rest:
 ## Giving each engine its tasks
 
 Every engine card has a row of boxes, **Used for** (under **Models and
-tasks**), all ticked at first:
+tasks**), all ticked at first — except on a model on this computer chosen
+with **Use it** in `/welcome`, which starts with **Scoring postings** alone:
 
 | Task | What it covers |
 | --- | --- |
@@ -43,6 +44,24 @@ A task that no usable engine takes is still answered, by every engine in
 the list in order, and the tab says which tasks are in that state. Nothing
 here says which model is good enough for which task; a small local model
 can read a posting and still write a poor letter (ADR 0060).
+
+### Trying an engine on your postings
+
+Before you give an engine the scoring, press **Try it on my postings** under
+its tasks. Up to 20 of your scored postings, spread across the fit range, are
+scored again on that engine and the model its classifier slot names — on
+that engine alone, so a failure is not quietly answered by the one behind
+it. Nothing about the postings changes. The result says how often it kept
+or turned away a posting as the scores on record did, the false matches (it
+would keep, the record did not), the missed ones, how far apart the scores
+are on average, the seconds per posting and the replies that were no score
+at all. The scores on record are the reference, not the truth: try the engine
+that wrote them to see how much it disagrees with itself, and a search you
+edited after they were written moves them too (the result counts those). The
+last result per engine and model stays on the card, and AI usage quotes it.
+On a local model the try is free; elsewhere the line under the button says
+what twenty scoring calls usually cost here. It needs at least five scored
+postings, and only Scoring postings can be tried this way.
 
 Every engine card has a **Test** button — it sends one tiny live request
 through that engine and reports success or the exact failure. Use it after
@@ -218,8 +237,10 @@ llama.cpp's server or vLLM, three things are by hand:
   of the speed each and time out together.
 - **The model.** A small model scores postings less reliably than a hosted
   one, and a resume comparison or a letter asks more of it than scoring
-  does. Which local models clear the bar is not measured here yet, and a
-  reply that does not parse is asked again of the same engine, once.
+  does. Whether yours clears the bar for scoring, **Try it on my postings**
+  on its card measures (above); a reply that does not parse is asked again
+  of the same engine, once. **Use it** in step 1 of `/welcome` gives it
+  **Scoring postings** only, as for Ollama below.
 
 **Docker:** the containers reach your machine as `host.docker.internal`,
 so LM Studio's address is `http://host.docker.internal:1234/v1`. Docker
@@ -236,12 +257,30 @@ network — ADR 0057. No key, no bill, and the text never leaves.
   (default `http://127.0.0.1:11434`, `OLLAMA_URL` in `.env`), Enable, a model
   in each field (**Test** lists what Ollama has pulled; `LOCAL_MODEL` in
   `.env` fills an empty field).
+- **What Use it gives the model:** first place in the list, its name in
+  every model field, and **Scoring postings** (which includes reading a
+  posting you paste) as its one task. Measured on `gemma4:e4b` (#411), a
+  small local model missed no match while scoring, though it let more
+  through than Claude Haiku; it read resumes, analysed them and wrote
+  letters clearly worse, so those tasks stay with the engines behind it.
+  To hand them over too, tick them under **Used for** on its card. With no
+  other engine that can run, it answers every task anyway. An engine
+  enabled on the AI tab by hand takes every task, as any other does.
+- **Thinking is off.** A model that can think first (Ollama lists
+  `thinking` among its capabilities, as it does for `gemma4`) is asked not
+  to: on the classifier's prompt `gemma4:e4b` answered in 1.5 s instead of
+  8.2 s, with every reply still valid. ApplyPack asks Ollama once per model
+  what it can do (`/api/show`); a model that cannot think, or a server that
+  does not say, is sent no such field.
 - **Context window** (8k / 16k / 32k / 64k tokens, 16k by default) is sent
   with every call, so the server's own default does not matter. A call
   whose prompt would not fit is refused before it is sent, with the size it
   needed, and the engine behind this one in the list takes it. A resume
   comparison wants 16k or more; each step up takes more memory on the
-  machine running Ollama.
+  machine running Ollama. When a task ticked on the card did not fit in the
+  last 30 days, the card says so under **Used for**: how many times, and
+  whether the engine behind it answered or the call failed — untick that
+  task or choose a larger window.
 - **JSON mode** holds the model to valid JSON on every call that parses one.
 - **One call at a time:** the rest wait their turn, so `AI_CONCURRENCY`
   keeps meaning hosted calls. Its calls get three times the usual time.
@@ -283,6 +322,13 @@ Every engine's failure is read the same way (`ai-provider-parse.ts:failureKind`)
   on the same engine, after the wait the server asks for when it is ten
   seconds or less (two seconds when it names none), and only while the
   call's time budget has room. A longer wait goes to the next engine.
+- **A reply that comes back but cannot be read** (not the JSON that was
+  asked for) is asked again once, and the ledger records it as `unparsed`:
+  AI usage counts it as answered but not readable, apart from the calls
+  that got no answer. When an engine's
+  calls keep ending that way, its card and AI usage say to try another
+  model in its slot — Test asks for one word, which such a model still
+  writes.
 
 When the worker or the dashboard stops, a CLI call in flight is ended with
 it instead of running on to its timeout on your plan.

@@ -2,15 +2,16 @@
 import { Hono } from 'hono';
 import { AI_PROVIDER_IDS, resolveAiEngine, type AiProviderId } from '../../ai-engine';
 import { engineTroubles } from '../../ai-health';
-import { billedThisMonth, loadRecentAttempts, loadSpendGroups } from '../../ai-ledger';
+import { billedThisMonth, loadPackSpend, loadRecentAttempts, loadSpendGroups } from '../../ai-ledger';
 import { billingFacts, getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
-import { isSpendPeriod, periodRange, spendView, usageByModel, type SpendPeriod } from '../../ai-spend';
+import { isSpendPeriod, packSpendText, periodRange, spendView, usageByModel, type SpendPeriod } from '../../ai-spend';
 import { AI_TASKS } from '../../ai-tasks';
 import { billingOf } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { getAiKeys, getSettings } from '../../settings';
 import { aiPlanRows } from '../ai-plan';
+import { currentTrials } from '../engine-trial-run';
 import { clearFlashCookie, parseFlashCookie } from '../flash';
 import { AiUsagePage } from '../pages/ai-usage';
 import { usageHints } from '../usage-hints';
@@ -32,22 +33,25 @@ aiUsageRoute.get('/ai', async (c) => {
   const range = periodRange(period, now);
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const keys = await getAiKeys();
-  const [settings, statuses, groups, billedMonth, recent] = await Promise.all([
+  const [settings, statuses, groups, billedMonth, recent, packs] = await Promise.all([
     getSettings(),
     probeAiProviders(keys),
     loadSpendGroups(range.from, range.to),
     billedThisMonth(now),
     loadRecentAttempts(now),
+    loadPackSpend(range.from, range.to),
   ]);
   const billing = billingFacts(keys, settings.openAiBaseUrl);
   const billingFor = (id: AiProviderId) => billingOf(id, billing);
   const engine = resolveAiEngine(settings.aiEngine, getAiEngineEnv(keys, settings.openAiBaseUrl));
   const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const view = spendView(groups);
+  const trials = await currentTrials((id) => engine.modelFor(id, 'classifier'));
   return c.html(
     <AiUsagePage
       period={period}
       view={view}
+      packs={packSpendText(packs)}
       models={usageByModel(view.rows)}
       hints={usageHints({
         groups,
@@ -61,6 +65,7 @@ aiUsageRoute.get('/ai', async (c) => {
           takes: AI_TASKS.filter((task) => engine.takes(id, task)),
         })),
         first: Object.fromEntries(plan.map((p) => [p.task, p.engines[0]?.id])),
+        trials,
         budgetCents: settings.aiBudgetCents,
         billedMonthMicro: billedMonth,
         now,

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FETCH_STATUSES, describeStatus } from '../fetchers/source-health';
 import { withLocale } from '../i18n/locale';
-import { healthLabel, healthStreak } from './health-label';
+import { healthLabel, healthStreak, statusBranch } from './health-label';
 
 // Every status there is, so one added later is held to the same two rules without an edit here.
 const STATUSES = [...FETCH_STATUSES, null, 'never-heard-of'];
@@ -26,4 +26,12 @@ test('healthStreak is the label, lowercased in English, and the streak — for e
         `${atsType} ${status}`,
       );
   assert.equal(healthStreak('slug_gone', 'GREENHOUSE', 1), 'slug not found — 1 tick in a row');
+});
+
+test('statusBranch: a folder’s own branch where it has words, `other` for none or an unknown one (#478)', () => {
+  assert.equal(statusBranch('slug_gone', 'FOLDER'), 'folder_slug_gone');
+  assert.equal(statusBranch('slug_gone', 'GREENHOUSE'), 'slug_gone');
+  assert.equal(statusBranch('network', 'FOLDER'), 'network');
+  assert.equal(statusBranch(null, 'FOLDER'), 'other');
+  assert.equal(statusBranch('never-heard-of', 'LEVER'), 'other');
 });

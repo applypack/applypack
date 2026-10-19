@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import { dataDirFor, localPaths } from './data-dir';
 import { LocalDatabaseError, commandLineOf, databaseAnswers, pidAlive, portIsFree, startLocalDatabase, type LocalDatabase } from './postgres';
 import { firstLinePid } from './postgres-setup';
-import { MAX_RESTARTS, isLauncherMessage, lockHolder, restartDecision, type LauncherMessage } from './supervise';
+import { MAX_RESTARTS, childExecArgv, isLauncherMessage, lockHolder, restartDecision, type LauncherMessage } from './supervise';
 import { snapshotDay, snapshotPlan, snapshotSkips, snapshotsToKeep } from './snapshots';
 
 /*
@@ -118,7 +118,7 @@ async function run(databaseOnly: boolean, dataDir: string, paths: Paths): Promis
 
   const launch = (child: Child): Promise<void> =>
     new Promise((resolve, reject) => {
-      const proc = fork(path.join(ROOT, child.script), [], { cwd: ROOT, env });
+      const proc = fork(path.join(ROOT, child.script), [], { cwd: ROOT, env, execArgv: childExecArgv(process.execArgv, process.allowedNodeEnvironmentFlags) });
       child.process = proc;
       child.ready = false;
       proc.on('message', (message) => {

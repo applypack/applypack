@@ -24,9 +24,10 @@ import {
  * - `funnel_day` (one row per UTC day, never pruned) carries the matches of
  *   every day the install has lived, so the chart can look back 180 days.
  * - The jobs themselves carry the technologies (`techMatch`), but a dismissed
- *   job is deleted after 30 days (cleanup-job.ts). So anything by technology
- *   — the chart under a `stack` filter, the "by stack" list — reads the last
- *   30 days only, where nothing has been deleted yet.
+ *   job is deleted after 30 days (cleanup-job.ts; only its key stays, #474).
+ *   So anything by technology — the chart under a `stack` filter, the "by
+ *   stack" list — reads the last 30 days only, where nothing has been deleted
+ *   yet.
  */
 
 const DAY_MS = 86_400_000;
