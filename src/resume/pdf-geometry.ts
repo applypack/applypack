@@ -16,7 +16,12 @@ import { getDocumentProxy, getResolvedPDFJS } from 'unpdf';
  *   laid onto the items by walking the two in step, spaces aside.
  * - Weight. The font's real name ("AAAAAK+Arial-BoldMT") is in commonObjs,
  *   and only after getOperatorList() has run (style-infer.ts, measured).
+ *   Since pdf.js 6.4 (unpdf 1.9) the worker sends it only when the document
+ *   is opened with `fontExtraProperties` — `FONT_NAMES` below.
  */
+
+/** Opens a document so that commonObjs carries each font's real `name`. */
+export const FONT_NAMES = { fontExtraProperties: true } as const;
 
 export interface PdfItem {
   str: string;
@@ -85,7 +90,7 @@ export async function readPdfGeometry(bytes: Buffer): Promise<PdfPage[] | null> 
   let doc;
   let ops: OpCodes;
   try {
-    doc = await getDocumentProxy(new Uint8Array(bytes));
+    doc = await getDocumentProxy(new Uint8Array(bytes), FONT_NAMES);
     // The operator table sits in pdf.js itself; its ESM-only entry is out of a CommonJS build's reach.
     ops = (await getResolvedPDFJS()).OPS as unknown as OpCodes;
   } catch {

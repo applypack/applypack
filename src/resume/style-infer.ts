@@ -1,7 +1,7 @@
 import type { Document, Element } from '@xmldom/xmldom';
 import { getDocumentProxy } from 'unpdf';
 import { parseDocumentXml, W_NS } from './docx-text';
-import { readPdfGeometry } from './pdf-geometry';
+import { FONT_NAMES, readPdfGeometry } from './pdf-geometry';
 import { readLayout, type PdfLayout } from './pdf-layout';
 import { readZipEntry } from './zip';
 
@@ -213,7 +213,7 @@ interface TextItem {
 export async function inferFromPdf(bytes: Buffer): Promise<InferredStyle> {
   let doc;
   try {
-    doc = await getDocumentProxy(new Uint8Array(bytes));
+    doc = await getDocumentProxy(new Uint8Array(bytes), FONT_NAMES);
   } catch {
     return blankStyle();
   }
