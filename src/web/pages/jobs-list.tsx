@@ -32,6 +32,7 @@ import { formatUsdPerYear } from '../../currency';
 import type { WorkplaceCode } from '../../location';
 import { placeLine } from '../place-line';
 import { techLabels } from '../tech-label';
+import type { HideBelow } from '../table-hide';
 import {
   activeFilters,
   clearFiltersHref,
@@ -107,6 +108,17 @@ export interface JobsListProps {
 
 /** The tabs in order; '' is every status but Dismissed. Each is named when the page renders (`statusLabel`, `jobs.tab.active`). */
 const STATUS_TABS: (JobStatus | '')[] = ['', 'NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'];
+
+/**
+ * The jobs table's columns (#612). The title takes what the others leave and
+ * truncates; a phone keeps it and the fit (TASKS U7), the company and the
+ * status join from `sm`, the place from `md`, the salary and the time it was
+ * found from `xl`. The fit and the status are as wide as their badges in the
+ * longest language, so nothing scrolls sideways — table-hide.test.ts holds
+ * them to it.
+ */
+export const JOBS_WIDTHS = ['', 'w-[16%]', 'w-[16%]', 'w-[5rem]', 'w-[7rem]', 'w-[8rem]', 'w-[7rem]'];
+export const JOBS_HIDE: HideBelow = ['', 'sm', 'md', '', 'xl', 'sm', 'xl'];
 
 /** The orders the list offers, each with the catalog key of its name. */
 const SORT_OPTIONS: { value: string; label: MessageKey }[] = [
@@ -371,112 +383,102 @@ export const JobsListPage: FC<JobsListProps> = ({
           ) : (
             <>
               <div class="min-h-0 flex-1 overflow-auto">
-                {/* TASKS U7: a phone keeps the title and the fit; the rest joins as the screen widens. */}
-                <div class="lg:min-w-[64rem]">
-                  <Table caption={t('nav.jobs')}
-                    stickyHeader
-                    hideBelow={['', 'sm', 'md', '', 'lg', 'sm', 'md']}
-                    widths={[
-                      'w-[29%]',
-                      'w-[15%]',
-                      'w-[17%]',
-                      'w-[8%]',
-                      'w-[12%]',
-                      'w-[11%]',
-                      'w-[8%]',
-                    ]}
-                    columns={[
-                      t('jobs.column.title'),
-                      t('common.company'),
-                      t('common.location'),
-                      t('jobs.column.fit'),
-                      <span class="block text-right">{t('jobs.column.salary')}</span>,
-                      t('jobs.column.status'),
-                      <span class="block text-right">{t('jobs.column.fetched')}</span>,
-                    ]}
-                  >
-                    {jobs.map((j) => {
-                      const place = placeLine(j, searchPlaces);
-                      return (
-                      <Tr>
-                        <Td>
-                          <a
-                            href={`/jobs/${j.id}`}
-                            class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
-                            title={j.title}
-                            translate="no"
-                          >
-                            {j.title}
-                          </a>
-                          {j.liveness === 'expired' && (
-                            <div class="text-meta text-warn" title={t('jobs.closedTitle')}>
-                              {t('job.closed')}
-                            </div>
-                          )}
-                          {j.techMatch.length > 0 && (
-                            <div class="mt-0.5 truncate text-meta text-ink-faint" translate="no">
-                              {techLabels(j.techMatch).join(' · ')}
-                            </div>
-                          )}
-                        </Td>
-                        <Td class="text-ink-muted">
-                          <div class="truncate">
-                            {j.company.watched && (
-                              <span title={t('jobs.onYourWatchlist')} aria-label={t('job.watchedCompany')}>★ </span>
-                            )}
-                            <CompanyName name={companyOnPage(j.employer, j.company).name} />
-                          </div>
-                          {companyOnPage(j.employer, j.company).via !== null && j.company.atsType !== 'ADZUNA' && j.company.atsType !== 'FRANCETRAVAIL' && (
-                            <div class="truncate text-meta text-ink-faint">
-                              {tRich('job.via', {}, { source: () => <span translate="no">{j.company.name}</span> })}
-                            </div>
-                          )}
-                          {j.company.atsType === 'ADZUNA' && <AdzunaLabel market={j.company.atsToken} class="mt-0.5" />}
-                          {j.company.atsType === 'FRANCETRAVAIL' && <FranceTravailLine updatedAt={j.sourceUpdatedAt} class="mt-0.5" />}
-                        </Td>
-                        <Td class="text-ink-muted">
-                          {/* The place in a few words — "Remote · USA, Canada +3" — never a row of flags; the tooltip has every country. */}
-                          <div class="truncate" title={place.title} translate={place.asPosted ? 'no' : undefined}>
-                            {place.text}
-                          </div>
-                        </Td>
-                        <Td class="whitespace-nowrap">
-                          <FitBadge
-                            score={
-                              filters.profile ? (j.scores?.[0]?.fitScore ?? null) : j.fitScore
-                            }
-                          />
-                        </Td>
-                        <Td
-                          class="overflow-hidden whitespace-nowrap text-right text-note tabular-nums text-ink-muted"
-                          title={salaryTitle(j)}
+                <Table caption={t('nav.jobs')}
+                  stickyHeader
+                  hideBelow={JOBS_HIDE}
+                  widths={JOBS_WIDTHS}
+                  columns={[
+                    t('jobs.column.title'),
+                    t('common.company'),
+                    t('common.location'),
+                    t('jobs.column.fit'),
+                    <span class="block text-right">{t('jobs.column.salary')}</span>,
+                    t('jobs.column.status'),
+                    <span class="block text-right">{t('jobs.column.fetched')}</span>,
+                  ]}
+                >
+                  {jobs.map((j) => {
+                    const place = placeLine(j, searchPlaces);
+                    return (
+                    <Tr>
+                      <Td>
+                        <a
+                          href={`/jobs/${j.id}`}
+                          class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                          title={j.title}
+                          translate="no"
                         >
-                          {formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod)}
-                        </Td>
-                        <Td class="whitespace-nowrap">
-                          <StatusBadge status={j.status} />
-                          {j.verifications[0] && (
-                            <div class="mt-1">
-                              <Badge
-                                tone={VERDICT_TONE[j.verifications[0].verdict] ?? 'neutral'}
-                              >
-                                {/* The verifier's own word (legit / suspicious / fake): what a model wrote, left as written. */}
-                                <span lang="en">{j.verifications[0].verdict}</span>
-                              </Badge>
-                            </div>
+                          {j.title}
+                        </a>
+                        {j.liveness === 'expired' && (
+                          <div class="text-meta text-warn" title={t('jobs.closedTitle')}>
+                            {t('job.closed')}
+                          </div>
+                        )}
+                        {j.techMatch.length > 0 && (
+                          <div class="mt-0.5 truncate text-meta text-ink-faint" translate="no">
+                            {techLabels(j.techMatch).join(' · ')}
+                          </div>
+                        )}
+                      </Td>
+                      <Td class="text-ink-muted">
+                        <div class="truncate">
+                          {j.company.watched && (
+                            <span title={t('jobs.onYourWatchlist')} aria-label={t('job.watchedCompany')}>★ </span>
                           )}
-                        </Td>
-                        <Td
-                          class="whitespace-nowrap text-right text-note text-ink-faint"
-                          title={formatDateShort(j.fetchedAt)}
-                        >
-                          <When at={j.fetchedAt} />
-                        </Td>
-                      </Tr>
-                      );
-                    })}
-                  </Table>
-                </div>
+                          <CompanyName name={companyOnPage(j.employer, j.company).name} />
+                        </div>
+                        {companyOnPage(j.employer, j.company).via !== null && j.company.atsType !== 'ADZUNA' && j.company.atsType !== 'FRANCETRAVAIL' && (
+                          <div class="truncate text-meta text-ink-faint">
+                            {tRich('job.via', {}, { source: () => <span translate="no">{j.company.name}</span> })}
+                          </div>
+                        )}
+                        {j.company.atsType === 'ADZUNA' && <AdzunaLabel market={j.company.atsToken} class="mt-0.5" />}
+                        {j.company.atsType === 'FRANCETRAVAIL' && <FranceTravailLine updatedAt={j.sourceUpdatedAt} class="mt-0.5" />}
+                      </Td>
+                      <Td class="text-ink-muted">
+                        {/* The place in a few words — "Remote · USA, Canada +3" — never a row of flags; the tooltip has every country. */}
+                        <div class="truncate" title={place.title} translate={place.asPosted ? 'no' : undefined}>
+                          {place.text}
+                        </div>
+                      </Td>
+                      <Td class="whitespace-nowrap">
+                        <FitBadge
+                          score={
+                            filters.profile ? (j.scores?.[0]?.fitScore ?? null) : j.fitScore
+                          }
+                        />
+                      </Td>
+                      <Td
+                        class="overflow-hidden whitespace-nowrap text-right text-note tabular-nums text-ink-muted"
+                        title={salaryTitle(j)}
+                      >
+                        {formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod)}
+                      </Td>
+                      <Td>
+                        <StatusBadge status={j.status} wrap />
+                        {j.verifications[0] && (
+                          <div class="mt-1">
+                            <Badge
+                              tone={VERDICT_TONE[j.verifications[0].verdict] ?? 'neutral'}
+                              wrap
+                            >
+                              {/* The verifier's own word (legit / suspicious / fake): what a model wrote, left as written. */}
+                              <span lang="en">{j.verifications[0].verdict}</span>
+                            </Badge>
+                          </div>
+                        )}
+                      </Td>
+                      <Td
+                        class="text-right text-note text-ink-faint"
+                        title={formatDateShort(j.fetchedAt)}
+                      >
+                        <When at={j.fetchedAt} />
+                      </Td>
+                    </Tr>
+                    );
+                  })}
+                </Table>
               </div>
               <nav
                 aria-label={t('jobs.pagination')}

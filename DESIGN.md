@@ -466,11 +466,14 @@ warn, below neutral; null renders an em dash; `worded` adds the floor's word
 - **A place in a row** is a few words — "Remote · USA, Canada +3"
   (`src/web/place-line.ts`), the places the running searches hunt in named
   first, every country in the tooltip — never a row of flags.
-- **Fixed layout:** wide list tables set proportional column widths and a
-  min-width wrapper that scrolls horizontally inside the card.
+- **Fixed layout:** a wide list table fits its card at every width, with no
+  sideways scroll. A column that holds a badge, a time or buttons is as wide
+  as they are in the longest language (`w-[8rem]`); the column that names the
+  row takes what the others leave and truncates; a header word longer than its
+  column is hyphenated. `table-hide.test.ts` holds each control to its column.
 - **On a phone:** a wide list keeps the two or three columns that name a row
-  and say its state (`hideBelow`); the rest join as the screen widens, and the
-  min-width wrapper starts at `md` or `lg`.
+  and say its state (`hideBelow`); the rest join as the screen widens. A state
+  whose column has not joined yet rides under the row's name.
 
 ### Inputs / Fields
 - **Style:** white, control-border 1px, 8px radius, 7×12px padding (36px tall),

@@ -63,6 +63,8 @@ const MONEY_TITLE = {
 } as const satisfies Record<AiBilling, MessageKey>;
 
 const COLUMNS = ['ai.col.feature', 'ai.col.calls', 'ai.col.time', 'ai.col.tokens', 'ai.col.money'] as const satisfies readonly MessageKey[];
+/** Where each column joins: a phone folds them into the feature's line (#415), and the tokens wait for `lg`, so a tablet's table fits its card (#612). */
+const COLUMN_SHOWN = ['', 'hidden text-right sm:table-cell', 'hidden text-right sm:table-cell', 'hidden text-right lg:table-cell', 'hidden text-right sm:table-cell'];
 
 /** A suggestion is a quiet box; only a warning and an all-clear take a tone. */
 const NEUTRAL_HINT = 'rounded-md border border-line bg-surface-overlay/60 px-3.5 py-2.5 text-note leading-5 text-ink';
@@ -134,12 +136,12 @@ export const AiUsagePage: FC<AiUsageProps> = ({ period, view, packs, models, hin
           </Empty>
         ) : (
           <div class="mt-4 overflow-x-auto" tabindex={0} role="region" aria-label={t(BY_MODEL_CAPTION[period])}>
-            <table class="w-full text-sm sm:min-w-[40rem]">
+            <table class="w-full text-sm">
               <caption class="sr-only">{t(BY_MODEL_CAPTION[period])}</caption>
               <thead>
                 <tr class="text-left text-label text-ink-muted">
                   {COLUMNS.map((column, i) => (
-                    <th scope="col" class={`border-b border-line px-4 py-2.5 font-[550] first:pl-0 last:pr-0 ${i === 0 ? '' : 'hidden text-right sm:table-cell'}`}>
+                    <th scope="col" class={`border-b border-line px-4 py-2.5 font-[550] first:pl-0 last:pr-0 ${COLUMN_SHOWN[i]}`}>
                       {t(column)}
                     </th>
                   ))}
@@ -236,7 +238,7 @@ const FeatureRow: FC<{ row: SpendRow }> = ({ row: r }) => {
         {formatDuration(r.medianMs)}
         {tail !== null && <div class="text-meta text-ink-faint">{t('ai.nineInTenUnder', { time: formatDuration(tail) })}</div>}
       </td>
-      <td class="hidden whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink-muted sm:table-cell">
+      <td class="hidden whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-ink-muted lg:table-cell">
         {formatCompact(r.tokensIn)} → {formatCompact(r.tokensOut)}
       </td>
       <td class="hidden whitespace-nowrap py-2.5 pl-4 text-right tabular-nums sm:table-cell" title={t(MONEY_TITLE[r.billing])}>
