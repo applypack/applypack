@@ -16,7 +16,6 @@ import { storedPlace } from './classify-existing';
 import { mergeAiLocation } from './location-merge';
 import { handPickedSource, statusAfterRescore } from './rescore-status';
 import { pickBatch, rankByProfileFit, SCORE_BATCH, type LinkedJob, type ScorableJob } from './score-pick';
-import type { CronStats } from './cron-run';
 import { companyForPrompt, withoutMuted } from '../employer';
 import { mutedKeys } from './employer-store';
 
@@ -37,7 +36,7 @@ export interface ReclassifyOptions {
  * every search rejects them, and never a Saved row or a posting the user
  * pasted or saved as a file (rescore-status.ts).
  */
-export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
+export async function runReclassifyAll() {
   const started = new Date();
   const { stats, firstScoring } = await reclassify({});
   // Postings a paused fetch stored unscored, scored here for the first time: the Overview's chart and /runs's funnel count them (#552).
@@ -67,7 +66,7 @@ async function passScope() {
  */
 export async function runScoreUnscored(
   opts: Pick<ReclassifyOptions, 'onProgress'> & { limit?: number } = {},
-): Promise<{ stats: CronStats }> {
+) {
   const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
   if (profiles.length === 0) return { stats: { aborted: 1, reason: 'no-active-profile' } };
   // The wizard reads the most promising ten, and "promising" needs one
@@ -136,7 +135,7 @@ export async function runScoreUnscored(
   return { stats: out };
 }
 
-async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats; firstScoring: Record<string, number> }> {
+async function reclassify(opts: ReclassifyOptions) {
   const started = Date.now();
   // Issue #50: re-scoring against a blank search would overwrite real scores
   // with vibes-based ones and demote most of the inbox, so blank rows are
@@ -318,7 +317,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats; 
   }
 
   const durationMs = Date.now() - started;
-  const stats: CronStats = {
+  const stats = {
     profile: profiles.map((p) => p.name).join(' · '),
     classifierMode,
     concurrency: config.AI_CONCURRENCY,

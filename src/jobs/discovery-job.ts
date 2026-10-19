@@ -4,7 +4,6 @@ import { logger } from '../logger';
 import { isDeadToken, probeAts } from '../ats-probe';
 import { getSettings } from '../settings';
 import { sleep } from '../http';
-import type { CronStats } from './cron-run';
 
 const POLITE_DELAY_MS = 1_000;
 
@@ -17,7 +16,7 @@ const POLITE_DELAY_MS = 1_000;
  * or never existed). PENDING with jobsSeen=0 stays — the company may
  * simply have no listings this week.
  */
-export async function runDiscoveryJob(): Promise<{ stats: CronStats }> {
+export async function runDiscoveryJob() {
   const started = Date.now();
   const settings = await getSettings();
   if (!settings.discoveryEnabled) {
@@ -72,7 +71,7 @@ export async function runDiscoveryJob(): Promise<{ stats: CronStats }> {
   }
 
   const durationMs = Date.now() - started;
-  const stats: CronStats = {
+  const stats = {
     // What is left for review, as /discovery counts it — not the list the run started from (#542).
     pending: await prisma.companyCandidate.count({ where: { status: CandidateStatus.PENDING } }),
     probed,
