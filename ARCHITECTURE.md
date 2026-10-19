@@ -408,6 +408,7 @@ src/
     render/                    ← the clean single-column re-render (ADR 0039)
       sections.ts              ← pure: planRender, one plan drawn twice
       clean-docx.ts            ← renderDocx: the plan as a .docx in the user's font family
+      no-web-storage.ts        ← imported before docx: Node's localStorage taken away, so no warning (#610)
       clean-pdf.ts             ← renderPdf: the plan as a PDF with Liberation Sans embedded
       knobs.ts                 ← pure: RenderKnobs, prefilled from the file and read from the form
       drawable.ts              ← pure: folds what the bundled face cannot draw
@@ -609,6 +610,7 @@ src/
     applications-export.ts      ← pure: the applications board as CSV and Markdown (TASKS N7)
     welcome-facts.ts            ← loads what the wizard and the Overview chip derive from
     ai-test.ts                  ← one live engine call — Settings Test button + wizard step 1
+    ai-test-report.ts           ← pure: that call's sentence and its ledger time, off one clock (#611)
     fetch-now.ts                ← beginFetchNow: "Fetch now" from /runs, the Overview and the wizard
     fetch-runs.ts               ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts            ← pure one-line verdict of a finished fetch-now run
