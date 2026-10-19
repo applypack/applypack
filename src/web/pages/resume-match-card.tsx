@@ -454,7 +454,10 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
       {unproven.length > 0 && (
         <details id="confirm-unproven" class={`${asks.length > 0 ? 'mt-2 ' : ''}rounded-md border border-line`}>
           <summary class="cursor-pointer px-3 py-2 text-note text-ink-muted transition-colors duration-150 hover:text-ink">
-            {tRich('facts.unproven', { n: unproven.length }, { b: (words) => <span class="font-medium text-ink">{words}</span> })}
+            {/* "13 more" only after the asks above it; alone, the count names what it counts (#587). */}
+            {tRich(asks.length > 0 ? 'facts.unproven' : 'facts.unprovenOnly', { n: unproven.length }, {
+              b: (words) => <span class="font-medium text-ink">{words}</span>,
+            })}
           </summary>
           <ul class="divide-y divide-line border-t border-line">
             {unproven.map((k) => (

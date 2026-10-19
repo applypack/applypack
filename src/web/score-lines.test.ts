@@ -32,7 +32,7 @@ test('the three scored lines say what the number was made of', () => {
     }),
   );
   assert.deepEqual(lines.scored.map((l) => l.label), ['Requirements', 'Core stack', 'First glance']);
-  assert.equal(find(lines.scored, 'Requirements')?.text, '2 of 3 the posting asks for');
+  assert.equal(find(lines.scored, 'Requirements')?.text, 'you have 2 of the 3 it asks for');
   assert.equal(find(lines.scored, 'Core stack')?.text, 'PHP · WordPress — all present');
   assert.equal(find(lines.scored, 'First glance')?.text, 'title, summary and recent role all strong');
 });
@@ -92,7 +92,7 @@ test('gates the score never touched get their own line', () => {
   const open = scoreLines(
     input({ keywords: [kw({ term: 'PHP' })], hard: [gate('fail'), gate('unknown', 'on-site in Austin')] }),
   );
-  const line = find(open.diagnostic, 'To confirm');
+  const line = find(open.diagnostic, 'Hard requirements');
   assert.equal(line?.text, '1 not met · 1 the resume is silent on');
   assert.equal(line?.tone, 'danger');
   assert.match(line?.title ?? '', /on-site in Austin/);
