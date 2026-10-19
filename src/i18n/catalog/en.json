@@ -1492,7 +1492,7 @@
   "settings.targetOption": "{name} · {kind}{active, select, no { (inactive)} other {}}",
   "settings.saveProfile": "Save profile",
   "settings.saveReClassify": "Save & re-classify",
-  "settings.reclassifyConfirm": "Save the profile and re-classify all jobs (except APPLIED)? Takes 2-5 minutes and spends AI credit.",
+  "settings.reclassifyConfirm": "{n, plural, =0 {Save the search? No job is stored yet, so there is nothing to score again.} one {Save the search and read the # job you have not applied to again? If the filter lets it through, AI scores it.} other {Save the search and read the # jobs you have not applied to again? Each one the filter lets through is scored by AI.}}",
   "settings.unsavedChanges": "Unsaved changes",
   "settings.aiEngines": "AI engines",
   "settings.inPriorityOrderTheFirst": "ApplyPack asks the first engine in this list that takes a task, and the next one if it fails or hits a rate limit.",

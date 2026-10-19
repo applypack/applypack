@@ -243,6 +243,8 @@ export interface SettingsProps {
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
+  /** What "Save & re-classify" asks first: how many jobs, and what a call costs (#562). */
+  reclassifyQuestion: string;
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
   /** Employer mode (ADR 0049) and its guardrails (ADR 0048). */
@@ -283,11 +285,6 @@ export interface ScreeningSettings {
 /** A resume in a picker: its name, and what the reader should know about it before choosing it. */
 function resumeOption(r: ResumeListItem, scanned = true): string {
   return t('settings.resumeOption', { name: r.name, isDefault: r.isDefault ? 'yes' : 'no', scanned: scanned ? 'yes' : 'no' });
-}
-
-/** An `onclick` that asks first. The question goes in as a JSON string, so a quote or an apostrophe in a language's wording cannot end it. */
-function confirmScript(question: string): string {
-  return `return confirm(${JSON.stringify(question)})`;
 }
 
 /**
@@ -640,6 +637,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   targets,
   profiles,
   activeProfile,
+  reclassifyQuestion,
   availableTargets,
   resumes,
   screening,
@@ -771,15 +769,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                 </ActionForm>
               )}
               {!p.primary && (
-                <ActionForm action="/settings/profiles/delete" hidden={{ id: p.id }}>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onclick={confirmScript(t('settings.deleteSearchConfirm'))}
-                  >
-                    {t('common.delete')}
-                  </Button>
-                </ActionForm>
+                <ConfirmAction action="/settings/profiles/delete" hidden={{ id: p.id }} label={t('common.delete')} confirm={t('settings.deleteSearchConfirm')} />
               )}
             </li>
           ))}
@@ -867,6 +857,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             resumes={resumes}
             draft={profileDraft}
             sent={profileSent}
+            reclassifyQuestion={reclassifyQuestion}
           />
         ) : (
           <Empty bare title={t('settings.noSearchSelected')}>
@@ -2187,7 +2178,8 @@ const ProfileEditor: FC<{
   resumes: ResumeListItem[];
   draft?: ProfileDraftNotice | null;
   sent?: ProfileSentText | null;
-}> = ({ profile, availableTargets, resumes, draft, sent }) => {
+  reclassifyQuestion: string;
+}> = ({ profile, availableTargets, resumes, draft, sent, reclassifyQuestion }) => {
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
   // Open the advanced block only when free-form content lives in it. The alert
   // destination deliberately doesn't count: one picked target is not something
@@ -2411,15 +2403,14 @@ const ProfileEditor: FC<{
     {/* Sticks to the bottom of the window while the editor scrolls: a long form keeps its Save in reach. */}
     <div class="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center gap-3 border-t border-line bg-surface-raised px-5 py-3">
       <Button size="lg">{t('settings.saveProfile')}</Button>
-      <Button
-        size="lg"
+      <ConfirmAction
+        action={`/settings/profiles/${profile.id}/save`}
+        submit={{ name: 'action', value: 'save-and-reclassify' }}
+        label={t('settings.saveReClassify')}
+        confirm={reclassifyQuestion}
         variant="violet"
-        name="action"
-        value="save-and-reclassify"
-        onclick={confirmScript(t('settings.reclassifyConfirm'))}
-      >
-        {t('settings.saveReClassify')}
-      </Button>
+        size="lg"
+      />
       <span data-dirty-indicator hidden={!draft && !sent} class="text-note font-medium text-warn">
         {t('settings.unsavedChanges')}
       </span>

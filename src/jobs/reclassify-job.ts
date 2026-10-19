@@ -41,6 +41,16 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   return reclassify({});
 }
 
+/** How many jobs `runReclassifyAll` reads — the number "Save & re-classify" asks about (#562). */
+export async function countReclassifyAll(): Promise<number> {
+  return prisma.job.count({ where: await passScope() });
+}
+
+/** Every job a pass reads: none applied to, and none at a muted company — a mute promises no AI on them (ADR 0056). */
+async function passScope() {
+  return { status: { not: JobStatus.APPLIED }, ...withoutMuted(await mutedKeys()) };
+}
+
 /**
  * The wizard's step 4: jobs a paused "Fetch now" stored unscored get their
  * score against the profile that now exists. Rows failing the base filter
@@ -121,10 +131,8 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   }
 
   const { classifierMode } = await getSettings();
-  // A muted company's rows are not scored again: a mute promises no AI on them (ADR 0056).
   const scope = {
-    status: { not: JobStatus.APPLIED },
-    ...withoutMuted(await mutedKeys()),
+    ...(await passScope()),
     ...(opts.ids && { id: { in: opts.ids } }),
   };
   const total = await prisma.job.count({ where: scope });

@@ -1492,7 +1492,7 @@
   "settings.targetOption": "{name} · {kind}{active, select, no { (inactivo)} other {}}",
   "settings.saveProfile": "Guardar perfil",
   "settings.saveReClassify": "Guardar y reclasificar",
-  "settings.reclassifyConfirm": "¿Guardar el perfil y reclasificar todas las ofertas (excepto las solicitadas)? Tarda 2-5 minutos y gasta crédito de IA.",
+  "settings.reclassifyConfirm": "{n, plural, =0 {¿Guardar la búsqueda? Aún no hay ofertas, así que no hay nada que reclasificar.} one {¿Guardar la búsqueda y volver a leer # oferta a la que no te has postulado? Si el filtro la deja pasar, la IA la puntúa.} many {¿Guardar la búsqueda y volver a leer los # de ofertas a las que no te has postulado? La IA puntúa cada una que el filtro deja pasar.} other {¿Guardar la búsqueda y volver a leer las # ofertas a las que no te has postulado? La IA puntúa cada una que el filtro deja pasar.}}",
   "settings.unsavedChanges": "Cambios sin guardar",
   "settings.aiEngines": "Motores de IA",
   "settings.inPriorityOrderTheFirst": "ApplyPack pregunta al primer motor de esta lista que acepta la tarea, y al siguiente si falla o alcanza un límite.",

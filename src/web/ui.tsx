@@ -897,9 +897,25 @@ export const ConfirmAction: FC<{
   /** For a label that needs more than its words ("Delete" on a row). */
   ariaLabel?: string;
   disabled?: boolean;
-}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled }) => {
+  /**
+   * Instead of a form of its own, the real button sends the form this one sits
+   * in (the one posting to `action`) as this name and value: a second way to
+   * send a bigger form ("Save & re-classify", #562).
+   */
+  submit?: { name: string; value: string };
+}> = ({ action, label, confirm, yes, variant = 'danger', size = 'sm', hidden, class: extra, ariaLabel, disabled, submit }) => {
   // The same action with the same fields is the same question, so one id per question on a page.
   const id = `confirm-${hashShortId(`${action}\n${label}\n${JSON.stringify(hidden ?? {})}`)}`;
+  const buttons = (
+    <>
+      <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
+        {t('ui.cancel')}
+      </Button>
+      <Button variant={variant === 'ghost' ? 'danger' : variant} size="sm" name={submit?.name} value={submit?.value}>
+        {yes ?? label}
+      </Button>
+    </>
+  );
   const parts = disabled ? (
     <button type="button" class={buttonClass(variant, size)} disabled>
       {label}
@@ -917,15 +933,15 @@ export const ConfirmAction: FC<{
         class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
         <p>{confirm}</p>
-        <form method="post" action={action} class="mt-3 flex justify-end gap-2">
-          {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
-          <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
-            {t('ui.cancel')}
-          </Button>
-          <Button variant={variant === 'ghost' ? 'danger' : variant} size="sm">
-            {yes ?? label}
-          </Button>
-        </form>
+        {submit ? (
+          // A form inside the form would be dropped by the parser: the buttons belong to the one around them.
+          <div class="mt-3 flex justify-end gap-2">{buttons}</div>
+        ) : (
+          <form method="post" action={action} class="mt-3 flex justify-end gap-2">
+            {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
+            {buttons}
+          </form>
+        )}
       </div>
     </>
   );

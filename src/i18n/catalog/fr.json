@@ -1492,7 +1492,7 @@
   "settings.targetOption": "{name} · {kind}{active, select, no { (inactive)} other {}}",
   "settings.saveProfile": "Enregistrer le profil",
   "settings.saveReClassify": "Enregistrer et reclasser",
-  "settings.reclassifyConfirm": "Enregistrer le profil et reclasser toutes les offres (sauf celles avec candidature envoyée) ? Cela prend 2 à 5 minutes et consomme du crédit d'IA.",
+  "settings.reclassifyConfirm": "{n, plural, =0 {Enregistrer la recherche ? Aucune offre n'est encore enregistrée : il n'y a rien à reclasser.} one {Enregistrer la recherche et relire # offre à laquelle vous n'avez pas postulé ? Si le filtre la laisse passer, l'IA la note.} many {Enregistrer la recherche et relire les # d'offres auxquelles vous n'avez pas postulé ? L'IA note chacune de celles que le filtre laisse passer.} other {Enregistrer la recherche et relire les # offres auxquelles vous n'avez pas postulé ? L'IA note chacune de celles que le filtre laisse passer.}}",
   "settings.unsavedChanges": "Modifications non enregistrées",
   "settings.aiEngines": "Moteurs d'IA",
   "settings.inPriorityOrderTheFirst": "ApplyPack interroge le premier moteur de cette liste qui accepte la tâche, puis le suivant s'il échoue ou atteint une limite.",

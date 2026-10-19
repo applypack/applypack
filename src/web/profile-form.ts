@@ -78,3 +78,12 @@ export function profileFieldLabel(field: string): string | undefined {
   const key = FIELD_LABEL[field];
   return key ? t(key) : undefined;
 }
+
+/**
+ * What "Save & re-classify" asks before it spends anything (#562): how many
+ * jobs it scores again, then what a call costs on the engine that answers
+ * (`web/cost-hint.ts:spendHint`) — nothing about cost when there is no job.
+ */
+export function reclassifyQuestion(jobs: number, cost: string): string {
+  return jobs > 0 && cost ? `${t('settings.reclassifyConfirm', { n: jobs })} ${cost}` : t('settings.reclassifyConfirm', { n: jobs });
+}

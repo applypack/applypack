@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Profile } from '@prisma/client';
-import { profileFieldLabel, sentProfile } from './profile-form';
+import { profileFieldLabel, reclassifyQuestion, sentProfile } from './profile-form';
 
 const STORED = {
   id: 3,
@@ -76,6 +76,16 @@ test('a form that sends nothing for a field empties it, as the save would', () =
   assert.deepEqual(sent.profile.workplace, []);
   assert.equal(sent.profile.relocation, 'no');
   assert.equal(sent.priorityRules, '');
+});
+
+test('"Save & re-classify" asks with the number of jobs and the cost of the engine that answers (#562)', () => {
+  assert.equal(
+    reclassifyQuestion(5, 'Runs on your local model: free.'),
+    'Save the search and read the 5 jobs you have not applied to again? Each one the filter lets through is scored by AI. Runs on your local model: free.',
+  );
+  assert.equal(reclassifyQuestion(1, ''), 'Save the search and read the 1 job you have not applied to again? If the filter lets it through, AI scores it.');
+  assert.equal(reclassifyQuestion(0, 'Your plan covers it.'), 'Save the search? No job is stored yet, so there is nothing to score again.');
+  assert.doesNotMatch(reclassifyQuestion(3, ''), /APPLIED/);
 });
 
 test('a refused field is named by the label the editor shows it under', () => {

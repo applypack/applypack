@@ -131,7 +131,8 @@ import {
   setProfileActive,
   updateProfile,
 } from '../../profiles';
-import { runReclassifyAll } from '../../jobs/reclassify-job';
+import { countReclassifyAll, runReclassifyAll } from '../../jobs/reclassify-job';
+import { spendHint } from '../cost-hint';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
 import { isCountryCode, isRegionCode, resolveCountries } from '../../countries';
@@ -149,7 +150,7 @@ import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SettingsProps, type SourceKeyRow } from '../pages/settings';
-import { profileFieldLabel, sentProfile } from '../profile-form';
+import { profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -385,6 +386,7 @@ async function loadSettingsProps(here: string) {
   }
   const keys = await getSourceKeys();
   const screeningCount = await prisma.screening.count();
+  const [reclassifyJobs, scoringCost] = await Promise.all([countReclassifyAll(), spendHint('classifier')]);
   const screeningEngine = engine.chainFor('screening')[0]!;
   const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const aiStatus = {
@@ -445,6 +447,7 @@ async function loadSettingsProps(here: string) {
       line: profileLine(p),
     })),
     activeProfile: active,
+    reclassifyQuestion: reclassifyQuestion(reclassifyJobs, scoringCost),
     availableTargets: targets.map((target) => ({
       id: target.id,
       name: target.name,
