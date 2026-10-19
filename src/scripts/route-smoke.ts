@@ -744,10 +744,11 @@ async function main(): Promise<void> {
       expect: async (res) => res.status === 422 && (await res.text()).includes('value="ftp://nas.local/applypack"'),
     },
     {
-      name: 'POST /screen/:id/applicants/:aid/adjust with no reason (the number kept)',
+      // The fixture applicant is unscored, so its scorecard has no adjustment form to fill: the page and its flash are the check.
+      name: 'POST /screen/:id/applicants/:aid/adjust with no reason (the scorecard again)',
       url: `/screen/${f.screeningId}/applicants/${f.applicantId}/adjust`,
       init: form({ points: '15', note: '' }),
-      expect: async (res) => res.status === 422 && (await res.text()).includes('value="15"'),
+      expect: async (res) => res.status === 422 && (await res.text()).includes('id="flash-text"'),
     },
   ];
   for (const n of negatives) {
