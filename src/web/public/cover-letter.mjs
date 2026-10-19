@@ -3,8 +3,9 @@
  * card boots init(). Progressive: without JS the Save button is visible and
  * the plain form POST still works, so nothing here is load-bearing.
  *   - the letter autosaves while you type (debounced), the button hides;
+ *   - the fact-check badge follows the check each save returns (#581);
  *   - Copy puts the current text on the clipboard (shared with ./copy.mjs).
- * statusFor and nextDelay are pure — unit-tested from src/web/cover-letter.test.ts.
+ * statusFor, nextDelay and paintGate are pure — unit-tested from src/web/cover-letter.test.ts.
  */
 
 import { wireCopy } from './copy.mjs';
@@ -26,6 +27,15 @@ export function statusFor(state, verdict) {
     default:
       return '';
   }
+}
+
+/**
+ * Shows the badge of the verdict a save's check returned and hides the rest;
+ * a verdict the page does not draw shows pass, as the page does.
+ */
+export function paintGate(badges, verdict) {
+  const shown = verdict === 'warn' || verdict === 'block' ? verdict : 'pass';
+  for (const badge of badges) badge.hidden = badge.dataset.gate !== shown;
 }
 
 /** Retry backoff after a failed autosave; capped so it never sleeps forever. */
@@ -75,6 +85,9 @@ function wireAutosave() {
       saved = text;
       attempt = 0;
       show('saved', data.gateVerdict);
+      paintGate(document.querySelectorAll('[data-gate]'), data.gateVerdict);
+      const edited = document.querySelector('[data-edited]');
+      if (edited) edited.hidden = data.reverted === true;
     } catch {
       attempt += 1;
       show('failed');

@@ -615,6 +615,7 @@
   "letter.noResumes": "No resumes uploaded. <link>Upload one</link> — the letter is written from your resume, never from thin air.",
   "letter.named.prefilled": "Named by the verification: <finding/> — prefilled above; edit or clear it.",
   "letter.named.noName": "Named by the verification: <finding/> — no clear name to prefill; type one if you see it.",
+  "letter.named.found": "Named by the verification: <finding/>.",
   "letter.quickCheck": "The latest comparison with \"<file>{name}</file>\" is a quick check — verdicts and keywords, but no strengths for the letter to draw on.",
   "letter.notesPlaceholder": "e.g. my open-source work matters to me; I can start immediately; I want to mention my blog",
   "letter.howItWorks": "One model call, about half a minute. Every claim is fact-checked against the resume before you see the letter — an invented number or tool is rejected, not shown.",

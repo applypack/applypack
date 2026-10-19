@@ -44,3 +44,13 @@ export function greetingOf(letterText: string): string | null {
   const name = m[1]!.trim();
   return /\bteam\b/i.test(name) || /hiring/i.test(name) ? null : name;
 }
+
+/**
+ * Who a stored letter was written to, for the next Generate and Regenerate
+ * (#581): the name as it was asked for — '' for the team — else, on a letter
+ * from before that was kept, the name its greeting reads. A greeting may carry
+ * the first name alone ("Hi Anna,"), so only the stored one is the whole name.
+ */
+export function letterAddressee(letter: { addressee: string | null; text: string }): string | null {
+  return letter.addressee ?? greetingOf(letter.text);
+}

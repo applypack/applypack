@@ -1,11 +1,19 @@
+import type { LetterHead, Paper } from './letter-head';
 import { buildZip } from './zip-write';
 
 /*
  * Cover letter → minimal .docx (F8.2). Three parts are all Word, Google Docs
  * and LibreOffice need; one paragraph per input line, blank lines become
- * empty paragraphs. Pure: round-trip-tested against our own docx reader in
- * docx-write.test.ts.
+ * empty paragraphs, the sender's name and contacts and the date on top, on
+ * the posting's paper (#581). Pure: round-trip-tested against our own docx
+ * reader in docx-write.test.ts.
  */
+
+/** Page size in twentieths of a point; the margins are an inch all round. */
+const PAGE_SIZE: Record<Paper, { w: number; h: number }> = {
+  letter: { w: 12240, h: 15840 },
+  a4: { w: 11906, h: 16838 },
+};
 
 export const DOCX_MIME =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -24,18 +32,23 @@ export function escapeXml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function buildLetterDocx(text: string): Buffer {
-  const paragraphs = text
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) =>
-      line.trim().length === 0
-        ? '<w:p/>'
-        : `<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`,
-    )
-    .join('');
+const paragraph = (line: string, bold = false): string =>
+  line.trim().length === 0
+    ? '<w:p/>'
+    : `<w:p><w:r>${bold ? '<w:rPr><w:b/></w:rPr>' : ''}<w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`;
+
+/** The sender's name (bold), their contact line and the date, each followed by the gap a letter leaves. */
+function headParagraphs(head: LetterHead | undefined): string[] {
+  if (!head) return [];
+  const sender = [...(head.name ? [paragraph(head.name, true)] : []), ...(head.contact ? [paragraph(head.contact)] : [])];
+  return [...sender, ...(sender.length > 0 ? [paragraph('')] : []), paragraph(head.date), paragraph('')];
+}
+
+export function buildLetterDocx(text: string, { paper = 'letter', head }: { paper?: Paper; head?: LetterHead } = {}): Buffer {
+  const paragraphs = [...headParagraphs(head), ...text.replace(/\r\n/g, '\n').split('\n').map((line) => paragraph(line))].join('');
+  const size = PAGE_SIZE[paper];
   const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`;
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}<w:sectPr><w:pgSz w:w="${size.w}" w:h="${size.h}"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`;
   return buildZip([
     { name: '[Content_Types].xml', data: Buffer.from(CONTENT_TYPES, 'utf8') },
     { name: '_rels/.rels', data: Buffer.from(ROOT_RELS, 'utf8') },

@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import { jobSpend, typicalCost } from '../../ai-ledger';
 import { costHintText, jobSpendText } from '../../ai-spend';
+import { displayZone } from '../display-zone';
 import { idParam, intQuery } from '../params';
 import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -92,6 +93,7 @@ import { termUsage, type TermUsage } from '../../resume/usage';
 import { factCheck } from '../../resume/fact-check';
 import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
 import { buildLetterPdf } from '../../resume/pdf-write';
+import { letterHead, letterPaper } from '../../resume/letter-head';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
@@ -495,9 +497,11 @@ jobsRoute.get('/jobs/:id', async (c) => {
   // preselect (Stage C).
   const appliedPick = preselectAppliedResume(resumes, selected?.resumeId ?? null, suggested);
 
-  // The letter distils the latest comparison with the resume the cover card
-  // preselects; a quick check carries no strengths to distil (#89).
-  const coverMatch = matches.find((m) => m.resumeId === (suggested?.id ?? resumes[0]?.id)) ?? null;
+  // The cover card starts where the letter on show was generated (#581), and
+  // the letter distils the latest comparison with the resume it preselects; a
+  // quick check carries no strengths to distil (#89).
+  const coverResumeId = resumes.find((r) => r.id === selectedLetter?.resumeId)?.id ?? suggested?.id ?? null;
+  const coverMatch = matches.find((m) => m.resumeId === (coverResumeId ?? resumes[0]?.id)) ?? null;
   const quickCheck =
     coverMatch && readMatchMode(coverMatch.breakdown) === 'fast'
       ? { matchId: coverMatch.id, resumeName: coverMatch.resume.name }
@@ -565,7 +569,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       coverLetters={{
         jobId: id,
         resumes: resumeOptions,
-        suggestedResumeId: suggested?.id ?? null,
+        suggestedResumeId: coverResumeId,
         letters,
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
@@ -655,6 +659,8 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
 
 /** A letter is a page; past this it is something else. */
 const MAX_LETTER_CHARS = 20_000;
+/** A name, as the card's Addressed to field takes it. */
+const MAX_ADDRESSEE_CHARS = 80;
 
 jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.param('id')}`, (c) => `/jobs/${c.req.param('id')}`), async (c) => {
   const id = idParam(c.req.param('id'));
@@ -963,7 +969,8 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   // wipes them.
   const fromForm = form.saveAngles === '1';
   // Per letter, never saved with the angles: a regenerate carries the name its letter greeted.
-  const addressee = angle(form.addressee, 80);
+  // An emptied field is kept as '' — the team, chosen — so the next Generate starts from it (#581).
+  const addressee = typeof form.addressee === 'string' ? form.addressee.trim().slice(0, MAX_ADDRESSEE_CHARS) : undefined;
   const angles = fromForm
     ? {
         whyCompany: angle(form.whyCompany),
@@ -1025,17 +1032,23 @@ jobsRoute.get('/jobs/:id/cover/:letterId/file/:fmt', async (c) => {
   if (fmt !== 'pdf' && fmt !== 'docx') return c.text(t('http.badFormat'), 400);
   const letter = await getCoverLetter(letterId);
   if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
-  const job = await prisma.job.findUnique({
-    where: { id },
-    include: { company: { select: { name: true } } },
-  });
+  const [job, resume] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id },
+      include: { company: { select: { name: true } } },
+    }),
+    getResume(letter.resumeId),
+  ]);
   if (!job) return c.text(t('http.notFound'), 404);
 
   const text = letter.editedText ?? letter.text;
   const slug =
     (job.employer ?? job.company.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') ||
     'company';
-  const body = fmt === 'docx' ? buildLetterDocx(text) : buildLetterPdf(text);
+  // The sender and the date on top, on the paper the posting's country prints on (#581).
+  const paper = letterPaper(job.countries);
+  const file = { paper, head: letterHead(resume?.text ?? '', paper, new Date(), displayZone()) };
+  const body = fmt === 'docx' ? buildLetterDocx(text, file) : buildLetterPdf(text, file);
   c.header('Content-Type', fmt === 'docx' ? DOCX_MIME : 'application/pdf');
   c.header('Content-Disposition', `attachment; filename="cover-letter-${slug}.${fmt}"`);
   return c.body(new Uint8Array(body));
@@ -1082,7 +1095,8 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
       description: job.description,
     }, snapshot),
     facts,
-    addressee: job.employer ?? job.company.name,
+    // The greeting's words are not claims: the person it was generated for, and the company (cover-letter.ts).
+    addressee: [letter.addressee, job.employer ?? job.company.name].filter(Boolean).join(' '),
   });
   const reverted = text === letter.text;
   await updateCoverLetterEdit(letter.id, {

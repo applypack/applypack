@@ -30,3 +30,23 @@ test('a very long letter spills onto a second page', () => {
   assert.match(pdf, /\/Count 2/);
   assert.match(pdf, /\(Line 60 of the letter\.\) Tj/);
 });
+
+test('#581: the PDF opens with the sender in bold and the date, on A4 or on Letter', () => {
+  const head = { name: 'Marta Keller', contact: 'marta@example.com · Berlin, Germany', date: '19 October 2026' };
+  const a4 = buildLetterPdf('Hi Acme team,\n\nBest,\nMarta', { paper: 'a4', head }).toString('latin1');
+  assert.match(a4, /\/MediaBox \[0 0 595\.28 841\.89\]/);
+  assert.match(a4, /\/BaseFont \/Helvetica-Bold/);
+  assert.match(a4, /\/F2 11 Tf \(Marta Keller\) Tj/);
+  assert.match(a4, /\/F1 11 Tf \(marta@example\.com \\267 Berlin, Germany\) Tj/);
+  assert.ok(a4.indexOf('(19 October 2026)') < a4.indexOf('(Hi Acme team,)'));
+  const letter = buildLetterPdf('Hi Acme team,', { paper: 'letter', head }).toString('latin1');
+  assert.match(letter, /\/MediaBox \[0 0 612 792\]/);
+});
+
+test('A4 wraps a line at its narrower text width, and a head with no sender still dates the letter', () => {
+  const pdf = buildLetterPdf(`${'x '.repeat(39)}xx`, { paper: 'a4', head: { name: null, contact: null, date: '1 May 2026' } }).toString('latin1');
+  assert.match(pdf, /\(1 May 2026\) Tj/);
+  // 80 characters are one line on Letter and two on A4, whose budget is 77.
+  assert.match(pdf, /\(xx\) Tj/);
+  assert.doesNotMatch(buildLetterPdf(`${'x '.repeat(39)}xx`).toString('latin1'), /\(xx\) Tj/);
+});

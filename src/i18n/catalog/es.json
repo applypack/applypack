@@ -615,6 +615,7 @@
   "letter.noResumes": "No hay currículums subidos. <link>Sube uno</link>: la carta se escribe a partir de tu currículum, nunca de la nada.",
   "letter.named.prefilled": "Nombrado por la verificación: <finding/>; ya está rellenado arriba, edítalo o bórralo.",
   "letter.named.noName": "Nombrado por la verificación: <finding/>; no hay un nombre claro para rellenar, escribe uno si lo ves.",
+  "letter.named.found": "Nombrado por la verificación: <finding/>.",
   "letter.quickCheck": "La última comparación con “<file>{name}</file>” es una comprobación rápida: veredictos y palabras clave, pero sin puntos fuertes en los que pueda apoyarse la carta.",
   "letter.notesPlaceholder": "p. ej., mi trabajo open source es importante para mí; puedo incorporarme de inmediato; quiero mencionar mi blog",
   "letter.howItWorks": "Una llamada al modelo, de unos 30 segundos. Cada afirmación se contrasta con el currículum antes de que veas la carta: una cifra o herramienta inventada se rechaza, no se muestra.",

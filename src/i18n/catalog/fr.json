@@ -615,6 +615,7 @@
   "letter.noResumes": "Aucun CV importé. <link>Importez-en un</link> — la lettre est rédigée à partir de votre CV, jamais à partir de rien.",
   "letter.named.prefilled": "Nommé par la vérification : <finding/> — prérempli ci-dessus ; modifiez-le ou effacez-le.",
   "letter.named.noName": "Nommé par la vérification : <finding/> — aucun nom clair à préremplir ; saisissez-en un si vous le voyez.",
+  "letter.named.found": "Nommé par la vérification : <finding/>.",
   "letter.quickCheck": "La dernière comparaison avec « <file>{name}</file> » est une vérification rapide — verdicts et mots-clés, mais aucun point fort sur lequel la lettre puisse s'appuyer.",
   "letter.notesPlaceholder": "ex. : mon travail open source compte pour moi ; je peux commencer immédiatement ; je veux mentionner mon blog",
   "letter.howItWorks": "Un appel au modèle, environ une demi-minute. Chaque affirmation est vérifiée par rapport au CV avant que vous ne voyiez la lettre — un chiffre ou un outil inventé est rejeté, pas affiché.",
