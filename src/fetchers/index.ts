@@ -79,6 +79,7 @@ export interface FetcherResult {
 /** One source answered — live progress for the dashboard's "Fetch now" page. */
 export interface SourceProgress {
   company: string;
+  atsType: string;
   status: FetchStatus;
   count: number;
   done: number;
@@ -242,7 +243,7 @@ export async function runAllFetchers(
     }
     const durationMs = Date.now() - startedAt;
     await recordFetchHealth(company, status, cachedCount(company.id), now);
-    onSource?.({ company: company.name, status, count, done, total: due.length, durationMs });
+    onSource?.({ company: company.name, atsType: company.atsType, status, count, done, total: due.length, durationMs });
     // Back off in proportion to what we just spent of the board's: a feed we
     // did not download does not earn the same second as one we did.
     await sleep(politeDelayMs(status, company.atsType, company.crawlDelayMs ?? null));

@@ -1,4 +1,4 @@
-import type { CronStats } from '../jobs/cron-run';
+import type { CronStats, RunName } from '../jobs/cron-run';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { runFailure } from './run-failure';
 import type { MessageKey } from '../i18n/catalog';
@@ -11,6 +11,27 @@ import { t } from '../i18n/t';
  * runs-summary.test.ts. What is not a count (a profile name, a mode, the
  * per-source list) stays in the raw block the page folds under "Raw output".
  */
+
+/** What each job is called on /runs and the Overview: the stored name is a code, in every language (#568). */
+const RUN_NAME = {
+  fetch: 'runs.name.fetch',
+  'fetch-now': 'runs.name.fetchNow',
+  'folder-watch': 'runs.name.folderWatch',
+  'hn-hiring': 'runs.name.hnHiring',
+  import: 'runs.name.import',
+  digest: 'runs.name.digest',
+  'stale-applications': 'runs.name.staleApplications',
+  cleanup: 'runs.name.cleanup',
+  discovery: 'runs.name.discovery',
+  pack: 'runs.name.pack',
+  'reclassify-all': 'runs.name.reclassifyAll',
+  'score-unscored': 'runs.name.scoreUnscored',
+} as const satisfies Record<RunName, MessageKey>;
+
+/** A run's job as a reader says it; a name no release writes any more is shown as stored. */
+export function runName(name: string): string {
+  return Object.hasOwn(RUN_NAME, name) ? t(RUN_NAME[name as RunName]) : name;
+}
 
 /** Why a run did nothing, as a sentence. The codes are the ones src/jobs/* write into `reason`. */
 const REASON: Record<string, MessageKey> = {
@@ -197,5 +218,5 @@ const REASON_MAX_CHARS = 160;
 export function failedRunLine(name: string, error: string): string {
   const first = error.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
   const reason = first.length > REASON_MAX_CHARS ? `${first.slice(0, REASON_MAX_CHARS - 1)}…` : first.replace(/[.\s]+$/, '');
-  return runFailure(t('runs.failed', { name }), reason, t(AFTER_FAILURE[name] ?? 'runs.after.other'));
+  return runFailure(t('runs.failed', { name: runName(name) }), reason, t(AFTER_FAILURE[name] ?? 'runs.after.other'));
 }

@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { failedRunLine, summarizeRun, unscoredRun } from './runs-summary';
+import { failedRunLine, runName, summarizeRun, unscoredRun } from './runs-summary';
+import { withLocale } from '../i18n/locale';
 
 describe('summarizeRun', () => {
   it('reads a fetch tick as its facts, in a fixed order', () => {
@@ -16,7 +17,7 @@ describe('summarizeRun', () => {
       profile: 'Senior Software Engineer',
       bySource: [{ name: 'Remotive', status: 'ok', count: 40, ms: 900 }],
     };
-    assert.deepEqual(summarizeRun('fetch', stats), ['594 fetched', '3 new', '55 duplicates', '3 classified', '0 alerted']);
+    assert.deepEqual(summarizeRun('fetch', stats), ['594 fetched', '3 stored', '55 duplicates', '3 classified', '0 alerted']);
   });
 
   it('names the matches, and leaves the filter and dismissal reasons to the funnel card', () => {
@@ -33,20 +34,20 @@ describe('summarizeRun', () => {
       matched: 2,
       alerted: 2,
     };
-    assert.deepEqual(summarizeRun('fetch', stats), ['540 fetched', '40 new', '40 classified', '2 matches', '2 alerted']);
+    assert.deepEqual(summarizeRun('fetch', stats), ['540 fetched', '40 stored', '40 classified', '2 matches', '2 alerted']);
   });
 
   it('an uneventful tick says so in two facts', () => {
     assert.deepEqual(summarizeRun('fetch', { fetched: 25, persisted: 0, duplicate: 0, classified: 0, alerted: 0, sources: 2 }), [
       '25 fetched',
-      '0 new',
+      '0 stored',
     ]);
   });
 
   it('counts speak in the singular, and thousands carry a separator', () => {
     assert.deepEqual(summarizeRun('fetch', { fetched: 1204, persisted: 1, duplicate: 1, alerted: 1, sourcesFailed: 1 }), [
       '1,204 fetched',
-      '1 new',
+      '1 stored',
       '1 duplicate',
       '1 alerted',
       '1 source failed',
@@ -115,7 +116,7 @@ describe('summarizeRun', () => {
   it('humanises a count it has never heard of and leaves zeros and non-numbers to the raw block', () => {
     assert.deepEqual(summarizeRun('fetch', { fetched: 10, persisted: 0, rowsTrimmed: 2, watchedKept: 0, classify: false, classifierMode: 'single' }), [
       '10 fetched',
-      '0 new',
+      '0 stored',
       '2 rows trimmed',
     ]);
   });
@@ -123,14 +124,14 @@ describe('summarizeRun', () => {
   it('leaves the routine counters to the raw block and says a raised flag as a sentence', () => {
     assert.deepEqual(summarizeRun('fetch', { fetched: 567, persisted: 2, classified: 2, alerted: 0, dismissed: 2, filterRejected: 517, preFiltered: 3 }), [
       '567 fetched',
-      '2 new',
+      '2 stored',
       '2 classified',
       '0 alerted',
     ]);
     assert.deepEqual(summarizeRun('fetch', { fetched: 40, persisted: 0, skippedBlankProfile: 1, abortedMidRun: 0, alertFailed: 2 }), [
       'Every running search is empty; nothing scored',
       '40 fetched',
-      '0 new',
+      '0 stored',
       '2 alerts failed to send, held for a retry',
     ]);
   });
@@ -138,7 +139,7 @@ describe('summarizeRun', () => {
   it('says why a match was not sent: the window, the switch, no chat', () => {
     assert.deepEqual(summarizeRun('fetch', { fetched: 9, persisted: 4, alerted: 0, alertHeld: 1, alertsOffHeld: 2, alertNoTarget: 1 }), [
       '9 fetched',
-      '4 new',
+      '4 stored',
       '0 alerted',
       '1 held for the alert window',
       '2 held while Alerts are off',
@@ -165,7 +166,7 @@ describe('summarizeRun', () => {
   it('says a match from a folder with its alerts off in words, not as a humanised counter (#365)', () => {
     const stats = { fetched: 3, persisted: 1, classified: 1, matched: 1, alertSourceOff: 1 };
     // Worded for any source since an import can be stored with no alerts too (#402).
-    assert.deepEqual(summarizeRun('fetch', stats), ['3 fetched', '1 new', '1 classified', '1 match', '1 not alerted: alerts are off for its source']);
+    assert.deepEqual(summarizeRun('fetch', stats), ['3 fetched', '1 stored', '1 classified', '1 match', '1 not alerted: alerts are off for its source']);
     assert.equal(summarizeRun('folder-watch', { ...stats, alertSourceOff: 2 }).at(-1), '2 not alerted: alerts are off for their source');
     // An import's one message lists the best and counts the rest.
     assert.deepEqual(summarizeRun('import', { fetched: 300, persisted: 300, classified: 300, matched: 300, alerted: 20, alertCounted: 280 }).slice(-2), ['20 alerted', '280 more counted in the message']);
@@ -179,11 +180,28 @@ describe('summarizeRun', () => {
     // The count is the rows that are jobs (import-job.ts): a row with no title and a repeat are not among them,
     // so "rows read from the file" named a number the preview had called something else (#404).
     const stats = { source: 'September export', fetched: 250, persisted: 37, duplicate: 112, classified: 37, alerted: 4, filterRejected: 101, rejectedTitle: 101, durationMs: 9_000 };
-    assert.deepEqual(summarizeRun('import', stats), ['250 jobs in the file', '37 new', '112 duplicates', '37 classified', '4 alerted']);
-    assert.deepEqual(summarizeRun('import', { fetched: 1, persisted: 0 }), ['1 job in the file', '0 new']);
+    assert.deepEqual(summarizeRun('import', stats), ['250 jobs in the file', '37 stored', '112 duplicates', '37 classified', '4 alerted']);
+    assert.deepEqual(summarizeRun('import', { fetched: 1, persisted: 0 }), ['1 job in the file', '0 stored']);
     assert.deepEqual(summarizeRun('import', { skipped: 1, reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
     // The shared wording stands for every other job.
     assert.equal(summarizeRun('fetch', { fetched: 250 })[0], '250 fetched');
+  });
+});
+
+describe('runName (#568)', () => {
+  it('names each job in the reader\'s words, in every language, never as its stored code', () => {
+    assert.equal(runName('fetch'), 'Hourly search');
+    assert.equal(runName('fetch-now'), 'Fetch now');
+    assert.equal(runName('reclassify-all'), 'Score everything again');
+    assert.equal(withLocale('uk', () => runName('score-unscored')), 'Оцінити неоцінені вакансії');
+    for (const language of ['uk', 'es', 'fr'] as const) {
+      for (const name of ['fetch', 'fetch-now', 'folder-watch', 'import', 'score-unscored'] as const) {
+        assert.notEqual(withLocale(language, () => runName(name)), name, `${language}: ${name}`);
+      }
+    }
+  });
+  it('a name no release writes any more is shown as stored, not dropped', () => {
+    assert.equal(runName('reclassify'), 'reclassify');
   });
 });
 
@@ -191,18 +209,18 @@ describe('failedRunLine (TASKS U6)', () => {
   it('says what failed, why in one line, and what comes next', () => {
     assert.equal(
       failedRunLine('fetch', 'PrismaClientKnownRequestError: connection refused.\n    at Object.request (node_modules/...)'),
-      'The fetch run failed: PrismaClientKnownRequestError: connection refused. What it stored before the failure stays, and the next tick tries again.',
+      'Hourly search failed: PrismaClientKnownRequestError: connection refused. What it stored before the failure stays, and the next tick tries again.',
     );
-    assert.equal(failedRunLine('digest', 'Telegram 401 Unauthorized'), 'The digest run failed: Telegram 401 Unauthorized. Nothing was sent; the next digest hour tries again.');
+    assert.equal(failedRunLine('digest', 'Telegram 401 Unauthorized'), 'Daily digest failed: Telegram 401 Unauthorized. Nothing was sent; the next digest hour tries again.');
   });
   it('a failed import says the file can be imported again', () => {
     assert.equal(
       failedRunLine('import', 'connection refused'),
-      'The import run failed: connection refused. What it stored before the failure stays; import the same file again and only the rest is added.',
+      'File import failed: connection refused. What it stored before the failure stays; import the same file again and only the rest is added.',
     );
   });
   it('an unknown job still gets a way forward, and an empty error points at the log', () => {
-    assert.equal(failedRunLine('reclassify', ''), 'The reclassify run failed. The next scheduled run tries again. The web log has the detail.');
+    assert.equal(failedRunLine('reclassify', ''), 'reclassify failed. The next scheduled run tries again. The web log has the detail.');
   });
   it('a long reason is cut to one sentence', () => {
     assert.ok(failedRunLine('cleanup', 'x'.repeat(400)).includes('…'));
