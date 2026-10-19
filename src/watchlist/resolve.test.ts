@@ -78,6 +78,8 @@ describe('rung 2 — the URL redirects onto a board', () => {
     const r = await resolveCompanyUrl(paste('https://deno.com/jobs'), stub);
     assert.equal(r.resolution.kind, 'watchOnly');
     assert.match((r.resolution as { reason: string }).reason, /embed-only/);
+    // #544: the row is the company's, not its board vendor's "Ashbyhq".
+    assert.equal(r.name, 'Deno');
   });
 
   it('reads the landed URL (deno.com/jobs → jobs.ashbyhq.com/Deno)', async () => {
