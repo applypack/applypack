@@ -35,7 +35,6 @@ export interface VerdictView {
   standout: { fact: string; quote: string | null }[];
   /** The career as the dated roles give it — a fact, never a penalty (ADR 0047). */
   career: Trajectory;
-  careerLine: string;
 }
 
 export interface VerdictLine {
@@ -168,7 +167,6 @@ export function rowView(a: ApplicantRow & { sameAsNumber?: number | null }, now 
           questions: reply.questions,
           standout: reply.standout,
           career,
-          careerLine: trajectoryLine(career),
         }
       : null;
   return {
@@ -244,7 +242,7 @@ export function exportRows(rows: ApplicantRowView[]): ExportRow[] {
     verdict: r.verdict && !r.stale ? r.verdict.verdictLine.text : null,
     questions: r.verdict && !r.stale ? r.verdict.questions : [],
     standout: r.verdict && !r.stale ? r.verdict.standout.map((f) => f.fact) : [],
-    career: r.verdict && !r.stale && r.verdict.career.roles > 0 ? r.verdict.careerLine : null,
+    career: r.verdict && !r.stale && r.verdict.career.roles > 0 ? trajectoryLine(r.verdict.career) : null,
     decision: r.decision,
   });
   return [...groups.scored, ...groups.pending, ...groups.held, ...groups.unread].map(toRow);

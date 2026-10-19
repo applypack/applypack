@@ -1,6 +1,7 @@
 import { t } from '../i18n/t';
+import type { MessageParams } from '../i18n/message';
 import type { GateStatus } from './prompts';
-import { criterionLabel, type Criterion, type Rubric } from './rubric';
+import { criterionLabel, modelWorded, type Criterion, type Rubric } from './rubric';
 import { answerWords, type GateBucket } from './score';
 
 /*
@@ -65,7 +66,22 @@ export interface Surprise {
   total: number;
   decision: 'interview' | 'declined';
   /** The criteria behind the table's placing, as short phrases. */
-  why: string[];
+  why: WhyLine[];
+}
+
+/**
+ * One criterion behind a surprise, as its message: "{label}: failed". The
+ * criterion's words are the model's when it drafted them, so a page marks
+ * them English (#569); `whyText` is the line as text, for the export.
+ */
+export interface WhyLine {
+  key: 'screening.calibration.gateFailed' | 'screening.calibration.gateUnknown' | 'screening.calibration.answer';
+  params: MessageParams;
+  drafted: boolean;
+}
+
+export function whyText(w: WhyLine): string {
+  return t(w.key, w.params);
 }
 
 export interface Separation {
@@ -138,12 +154,12 @@ export function calibrate(rows: CalibrationRow[], rubric: Rubric): Calibration {
 }
 
 /** What held an interview pick down: a gate not passed, then the heaviest criteria with the least credit. */
-function whyLow(r: CalibrationRow, scored: Criterion[], gates: Criterion[]): string[] {
-  const out: string[] = [];
+function whyLow(r: CalibrationRow, scored: Criterion[], gates: Criterion[]): WhyLine[] {
+  const out: WhyLine[] = [];
   for (const g of gates) {
     const status = r.gates[g.id];
-    if (status === 'fail') out.push(t('screening.calibration.gateFailed', { label: criterionLabel(g) }));
-    else if (status === 'unknown') out.push(t('screening.calibration.gateUnknown', { label: criterionLabel(g) }));
+    if (status === 'fail') out.push({ key: 'screening.calibration.gateFailed', params: { label: criterionLabel(g) }, drafted: modelWorded(g) });
+    else if (status === 'unknown') out.push({ key: 'screening.calibration.gateUnknown', params: { label: criterionLabel(g) }, drafted: modelWorded(g) });
   }
   // The heaviest criterion with the most credit missing first: stars × (1 − credit).
   const weak = scored
@@ -155,7 +171,7 @@ function whyLow(r: CalibrationRow, scored: Criterion[], gates: Criterion[]): str
 }
 
 /** What lifted a declined applicant: the heaviest criteria with the most credit. */
-function whyHigh(r: CalibrationRow, scored: Criterion[]): string[] {
+function whyHigh(r: CalibrationRow, scored: Criterion[]): WhyLine[] {
   return scored
     .map((c) => ({ c, credit: r.credits[c.id] ?? null }))
     .filter((x) => x.credit !== null && x.credit >= 0.8)
@@ -165,8 +181,9 @@ function whyHigh(r: CalibrationRow, scored: Criterion[]): string[] {
 }
 
 /** "Playwright: listed" — the criterion and its stored answer, worded for the page. */
-function answerLine(c: Criterion, answer: string | undefined, fallback: 'screening.calibration.low' | 'screening.calibration.strong'): string {
-  return t('screening.calibration.answer', { label: criterionLabel(c), answer: answer === undefined ? t(fallback) : answerWords(answer) });
+function answerLine(c: Criterion, answer: string | undefined, fallback: 'screening.calibration.low' | 'screening.calibration.strong'): WhyLine {
+  const params = { label: criterionLabel(c), answer: answer === undefined ? t(fallback) : answerWords(answer) };
+  return { key: 'screening.calibration.answer', params, drafted: modelWorded(c) };
 }
 
 /** One sentence for the card's head and the export. */

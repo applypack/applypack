@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calibrate, calibrationLine, type CalibrationRow } from './calibration';
+import { calibrate, calibrationLine, whyText, type CalibrationRow } from './calibration';
 import { RubricSchema, specOf, type Criterion, type Rubric } from './rubric';
 
 const c = (id: string, kind: Criterion['kind'], label: string, mode: Criterion['mode'], weight: number, spec: Partial<Criterion['spec']> = {}): Criterion =>
@@ -51,7 +51,7 @@ test('pairs, the top, the surprises and the separations', () => {
   assert.equal(cal.agreement, 0.63);
   assert.deepEqual(cal.top, { k: 2, hit: 1 });
   assert.deepEqual(
-    cal.surprises.map((s) => [s.number, s.position, s.decision, s.why]),
+    cal.surprises.map((s) => [s.number, s.position, s.decision, s.why.map(whyText)]),
     [
       [2, 2, 'declined', ['PHP: production', 'Vue: production']],
       [4, 4, 'interview', ['EU work permit: unknown', 'PHP: skills list', 'Vue: skills list']],
@@ -81,10 +81,29 @@ test('the why of a low pick names the heaviest missing criterion first', () => {
     row(3, 3, 'interview', { a: 0.3, b: 0, d: 0 }),
   ];
   const cal = calibrate(rows, rubric);
-  assert.deepEqual(cal.surprises.map((s) => [s.number, s.decision, s.why]), [
+  assert.deepEqual(cal.surprises.map((s) => [s.number, s.decision, s.why.map(whyText)]), [
     [2, 'declined', ['A: production', 'D: production', 'B: production']],
     [3, 'interview', ['A: skills list', 'D: skills list', 'B: skills list']],
   ], 'the declined №2 sits inside the top 2 as well; the heaviest criterion leads both lists');
+});
+
+test('a why line says whether the model drafted its criterion, so a page marks those words English (#569)', () => {
+  const rubric: Rubric = RubricSchema.parse({
+    criteria: [
+      { ...c('eu', 'authorization', 'Legally able to work in Ukraine', 'gate', 3, { items: ['UA'] }), source: 'posting' },
+      c('php', 'skill', 'PHP', 'scored', 5, { terms: [{ term: 'PHP', aliases: [] }] }),
+    ],
+  });
+  const rows = [row(1, 1, 'interview', { php: 1 }), row(2, 2, 'declined', { php: 1 }), row(3, 3, 'interview', { php: 0 }, { gates: { eu: 'fail' } })];
+  const low = calibrate(rows, rubric).surprises.find((s) => s.number === 3)!;
+  assert.deepEqual(
+    low.why.map((w) => [w.key, w.params.label, w.drafted]),
+    [
+      ['screening.calibration.gateFailed', 'Legally able to work in Ukraine', true],
+      ['screening.calibration.answer', 'PHP', false],
+    ],
+  );
+  assert.deepEqual(low.why.map(whyText), ['Legally able to work in Ukraine: failed', 'PHP: skills list']);
 });
 
 test('an adjustment that moved a pick into order is counted', () => {

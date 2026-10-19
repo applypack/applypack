@@ -67,13 +67,21 @@ export function trajectoryOf(roles: ScreenRole[], now: Date): Trajectory {
  * The sectors are the vocabulary's labels (sectors.ts), data the criterion matches, so they stay as written.
  */
 export function trajectoryLine(career: Trajectory): string {
-  if (career.roles === 0) return t('screening.career.none');
+  const { words, sectors } = trajectoryParts(career);
+  return sectors === null ? words : `${words} · ${sectors}`;
+}
+
+/**
+ * The career line in two parts: our words, and the sectors as the model
+ * named them — English, which a page marks (#569).
+ */
+export function trajectoryParts(career: Trajectory): { words: string; sectors: string | null } {
+  if (career.roles === 0) return { words: t('screening.career.none'), sectors: null };
   const years = career.yearsTotal ?? 0;
-  const parts = [
+  const words = [
     career.employers > 0 ? t('screening.career.acrossEmployers', { years, n: career.employers }) : t('screening.career.acrossRoles', { years, n: career.roles }),
     career.averageTenure !== null ? t('screening.career.averageStay', { years: career.averageTenure }) : '',
     career.inRoleNow ? t('screening.career.inRoleNow') : t('screening.career.notInRoleNow'),
-    career.sectors.length > 0 ? career.sectors.slice(0, 4).join(', ') : '',
   ];
-  return parts.filter(Boolean).join(' · ');
+  return { words: words.filter(Boolean).join(' · '), sectors: career.sectors.length > 0 ? career.sectors.slice(0, 4).join(', ') : null };
 }

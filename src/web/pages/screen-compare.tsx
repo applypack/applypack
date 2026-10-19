@@ -10,7 +10,7 @@ import { GATE_MARK } from '../../screening/export';
 import { who, type ComparisonView } from '../../screening/comparison';
 import type { SideBySide } from '../screen-compare';
 import { ANSWER_TONE, BUCKET_TONE, confidenceLabel } from '../screen-view';
-import { DetailWords } from './screen-applicant';
+import { CareerLine, DetailWords } from './screen-applicant';
 import { t } from '../../i18n/t';
 
 /*
@@ -110,7 +110,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
               <tr>
                 <th scope="row" class={label}>{t('screen.compare.row.career')}</th>
                 {side.columns.map((c) => (
-                  <td class={`${td} text-ink-muted`}>{c.career ?? '—'}</td>
+                  <td class={`${td} text-ink-muted`}>{c.career ? <CareerLine career={c.career} /> : '—'}</td>
                 ))}
               </tr>
               <tr class="bg-surface-overlay/60">

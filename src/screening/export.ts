@@ -1,6 +1,6 @@
 import { GATE_BUCKET_LABELS, type ConfidenceBand, type GateBucket } from './score';
 import type { GateStatus } from './prompts';
-import { calibrationLine, type Calibration } from './calibration';
+import { calibrationLine, whyText, type Calibration } from './calibration';
 import { csvTable } from '../csv';
 
 /*
@@ -159,7 +159,7 @@ export function toMarkdown(screening: ExportScreening, rows: ExportRow[], calibr
   if (calibration && calibration.enough) {
     out.push('## Your decisions against the order', '', calibrationLine(calibration), '');
     for (const s of calibration.surprises) {
-      out.push(`- №${s.number}: ${s.decision === 'interview' ? 'To interview' : 'Declined'}, ${s.position}${ordinal(s.position)} of ${s.total} in the table${s.why.length > 0 ? ` — ${s.why.join(' · ')}` : ''}`);
+      out.push(`- №${s.number}: ${s.decision === 'interview' ? 'To interview' : 'Declined'}, ${s.position}${ordinal(s.position)} of ${s.total} in the table${s.why.length > 0 ? ` — ${s.why.map(whyText).join(' · ')}` : ''}`);
     }
     if (calibration.surprises.length > 0) out.push('');
   }

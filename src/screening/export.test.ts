@@ -111,7 +111,18 @@ test('toMarkdown adds the decisions section only when the calibration has enough
     pairs: { concordant: 5, discordant: 3, fixedByAdjustment: 0 },
     agreement: 0.63,
     top: { k: 2, hit: 1 },
-    surprises: [{ number: 4, position: 4, total: 6, decision: 'interview', why: ['EU work permit: unknown', 'PHP: skills list'] }],
+    surprises: [
+      {
+        number: 4,
+        position: 4,
+        total: 6,
+        decision: 'interview',
+        why: [
+          { key: 'screening.calibration.gateUnknown', params: { label: 'EU work permit' }, drafted: true },
+          { key: 'screening.calibration.answer', params: { label: 'PHP', answer: 'skills list' }, drafted: false },
+        ],
+      },
+    ],
     separations: [],
   };
   const md = toMarkdown(SCREENING, ROWS, cal);

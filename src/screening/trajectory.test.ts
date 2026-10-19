@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { trajectoryLine, trajectoryOf } from './trajectory';
+import { trajectoryLine, trajectoryOf, trajectoryParts } from './trajectory';
 import type { ScreenRole } from './prompts';
 
 const NOW = new Date('2026-09-09T00:00:00Z');
@@ -25,11 +25,14 @@ test('trajectoryOf reads the career off the dated roles', () => {
   assert.deepEqual(t.sectors, ['IT services', 'fintech', 'e-commerce'], 'one vocabulary (sectors.ts): outsourcing is IT services, banking is fintech');
   assert.deepEqual(t.companyTypes, ['consultancy', 'agency']);
   assert.equal(trajectoryLine(t), '10.8 years across 3 employers · average stay 4.2 years · in a role now · IT services, fintech, e-commerce');
+  // #569: the sectors are the model's words, apart from ours, so a page can mark them English.
+  assert.deepEqual(trajectoryParts(t), { words: '10.8 years across 3 employers · average stay 4.2 years · in a role now', sectors: 'IT services, fintech, e-commerce' });
 });
 
 test('trajectoryLine with dated roles that name no employer counts roles', () => {
   const t = trajectoryOf([role({ start: '2020', end: '2021' }), role({ start: '2022', end: 'now' })], NOW);
   assert.equal(trajectoryLine(t), '6.8 years across 2 roles · average stay 3.4 years · in a role now');
+  assert.equal(trajectoryParts(t).sectors, null);
 });
 
 test('trajectoryOf with nothing dated', () => {
