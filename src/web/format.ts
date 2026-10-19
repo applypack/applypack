@@ -138,6 +138,11 @@ export function formatDuration(ms: number | null | undefined): string {
   return t('duration.minutes', { n: oneDecimal(s / 60) });
 }
 
+/** 1 204 → "1.2K", 3 400 000 → "3.4M", as the reader's language shortens a count ("1,2 тис."). */
+export function formatCompact(n: number): string {
+  return formatNumber(n, { notation: 'compact' });
+}
+
 /** "1.5" in English, "1,5" where the language writes a comma — the digits `toFixed(1)` gives, never regrouped. */
 function oneDecimal(n: number): string {
   return formatNumber(Number(n.toFixed(1)), { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });

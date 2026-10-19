@@ -6,6 +6,7 @@ import {
   FIT_WARN_FLOOR,
   fitTone,
   fitWord,
+  formatCompact,
   formatDate,
   formatDateShort,
   formatDuration,
@@ -160,6 +161,15 @@ describe('in Ukrainian', () => {
   it('writes a duration with the comma Ukrainian uses', () => {
     assert.equal(uk(() => formatDuration(1500)), '1,5 с');
     assert.equal(uk(() => formatDuration(250)), '250 мс');
+  });
+
+  // #569: /ai wrote "7.7k → 8.0k" beside "26,4 с".
+  it('shortens a token count with the comma and the word Ukrainian uses', () => {
+    assert.equal(plain(uk(() => formatCompact(7_700))), '7,7 тис.');
+    assert.equal(plain(uk(() => formatCompact(3_400_000))), '3,4 млн');
+    assert.equal(formatCompact(7_700), '7.7K');
+    assert.equal(formatCompact(12_345), '12K');
+    assert.equal(formatCompact(999), '999');
   });
 
   it('names a status and a fit floor', () => {
