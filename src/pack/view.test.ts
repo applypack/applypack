@@ -29,6 +29,9 @@ test('the edits column reads back whole, and anything else reads as nothing done
   // A pack prepared before the edits were kept reads as none to show, the count intact.
   assert.deepEqual(readPackEdits({ applied: 4 }), { ...NOTHING, applied: 4 });
   assert.deepEqual(readPackEdits({ applied: 1, done: [{ key: 'k1', edit: { start: -1 } }] }).done, []);
+  // A pack stored before the reasons were told apart (#589) still says its one reason.
+  const before = { ...NOTHING, held: [{ section: 'summary', where: 'Summary', reason: 'no-wording' }] };
+  assert.deepEqual(readPackEdits(before), before);
 });
 
 test('a ready pack opens on the Tailor page as Apply all leaves it (#487)', () => {

@@ -16,7 +16,7 @@ import {
   setOpenAiBaseUrl,
   setSetupCompleted,
 } from '../../settings';
-import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
+import { getActiveProfile, listProfiles, updateProfile, type ProfileInput } from '../../profiles';
 import { resolveCountries } from '../../countries';
 import { isProfileWorkplace } from '../../location';
 import { searchPlaces } from '../../fetchers/fetch-context';
@@ -109,7 +109,7 @@ welcomeRoute.get('/welcome', async (c) => {
   const resumeId = idParam(c.req.query('resume'));
   const asNew = c.req.query('mode') === 'new';
   const draftResume = Number.isFinite(resumeId) && profile ? await getResume(resumeId) : null;
-  const draft = draftResume && profile ? draftCard(profile, draftResume, asNew) : null;
+  const draft = draftResume && profile ? draftCard(profile, draftResume, asNew, asNew ? (await listProfiles()).map((p) => p.name) : []) : null;
 
   return c.html(
     <WelcomePage
@@ -453,9 +453,11 @@ function draftCard(
   profile: ProfileForDraft,
   resume: ResumeSummary,
   asNew: boolean,
+  /** The searches' names, which a new one's must not repeat. */
+  taken: readonly string[],
 ): ProfileDraftCard | null {
   if (!resume.scannedAt || resume.hidden) return null;
-  const draft = asNew ? newProfileDraft(resume) : buildProfileDraft(profile, scanFields(resume));
+  const draft = asNew ? newProfileDraft(resume, taken) : buildProfileDraft(profile, scanFields(resume));
   const primary = draft.changes.stackRequired ?? resume.primarySkills;
   return {
     asNew,

@@ -9,6 +9,7 @@ const mod = import('./public/doc-pane.mjs') as Promise<{
   wordsKey: (s: string) => string;
   changedKeys: (base: string, text: string) => Set<string>;
   fitScale: (available: number, pageWidth: number) => number;
+  sheetFit: (available: number, page: { width: number; left: number; right: number }) => { zoom: number; shift: number };
   locateParagraph: (text: string, paragraph: string, occurrence?: number) => At | null;
   rewriteSpan: (text: string, at: At, words: string) => string;
   pageBreaks: (sheetHeight: number, page: Page) => number[];
@@ -54,6 +55,19 @@ test('fitScale fits the sheet, never enlarges it, and stops where it would be un
   assert.equal(fitScale(400, 800), 0.5);
   assert.equal(fitScale(100, 800), 0.35);
   assert.equal(fitScale(0, 800), 1);
+});
+
+test('#589: a pane too narrow for the whole sheet fits its text column, the side margins outside', async () => {
+  const { sheetFit } = await mod;
+  // The clean version's Letter sheet (0.6 in margins at 96 dpi) in the Tailor page's pane at 1280 px, 436 wide: it drew at 0.48.
+  const letter = { width: 816, left: 57.5, right: 57.5 };
+  const narrow = sheetFit(436, letter);
+  assert.equal(narrow.shift, 57.5);
+  assert.equal(narrow.zoom, 436 / (701 + 32));
+  // Wide enough for the whole sheet: nothing moves.
+  assert.deepEqual(sheetFit(900, letter), { zoom: 1, shift: 0 });
+  // A sheet with no margins to leave out is fitted whole.
+  assert.deepEqual(sheetFit(424, { width: 816, left: 0, right: 0 }), { zoom: 0.5, shift: 0 });
 });
 
 test('locateParagraph finds a bullet behind its marker, the n-th of identical ones, and a table cell', async () => {
