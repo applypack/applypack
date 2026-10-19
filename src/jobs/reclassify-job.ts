@@ -15,7 +15,7 @@ import { saveJobScores } from './score-store';
 import { storedPlace } from './classify-existing';
 import { mergeAiLocation } from './location-merge';
 import { handPickedSource, statusAfterRescore } from './rescore-status';
-import { rankByProfileFit, SCORE_BATCH, type ScorableJob } from './score-pick';
+import { pickBatch, rankByProfileFit, SCORE_BATCH, type LinkedJob, type ScorableJob } from './score-pick';
 import type { CronStats } from './cron-run';
 import { companyForPrompt, withoutMuted } from '../employer';
 import { mutedKeys } from './employer-store';
@@ -51,8 +51,9 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
  * are dismissed in one update — no AI spent on them (a saved posting is not
  * filtered here either, ADR 0062); of the rest, the
  * `limit` best matches by rankByProfileFit are classified (the wizard reads
- * the most promising ten, not the ten most recent), and `remaining` says
- * how many a second press would take.
+ * the most promising ten, not the ten most recent), a cross-listed copy
+ * after every other posting (pickBatch), and `remaining` says how many a
+ * second press would take.
  */
 export async function runScoreUnscored(
   opts: Pick<ReclassifyOptions, 'onProgress'> & { limit?: number } = {},
@@ -76,12 +77,13 @@ export async function runScoreUnscored(
       regions: true,
       description: true,
       fetchedAt: true,
+      crossListedOfJobId: true,
       company: { select: { atsType: true, sourceConfig: true } },
     },
   });
   const rejectedIds: number[] = [];
   const rejectedBy = { rejectedTitle: 0, rejectedExcluded: 0, rejectedWorkplace: 0, rejectedPlace: 0 };
-  const passing: ScorableJob[] = [];
+  const passing: (ScorableJob & LinkedJob)[] = [];
   for (const j of unscored) {
     const rejected = handPickedSource(j.company) ? null : anyBaseFilterReason(j, profiles);
     if (rejected === null) {
@@ -99,7 +101,18 @@ export async function runScoreUnscored(
   }
   const started = new Date();
   const ranked = rankByProfileFit(passing, ranker);
-  const ids = ranked.slice(0, opts.limit ?? SCORE_BATCH).map((r) => r.id);
+  // The scored rows a waiting one is a copy of, or that copy one (ADR 0018).
+  const scoredBeside = await prisma.job.findMany({
+    where: {
+      fitScore: { not: null },
+      OR: [
+        { id: { in: passing.flatMap((j) => (j.crossListedOfJobId === null ? [] : [j.crossListedOfJobId])) } },
+        { crossListedOfJobId: { in: passing.map((j) => j.id) } },
+      ],
+    },
+    select: { id: true, crossListedOfJobId: true },
+  });
+  const ids = pickBatch(ranked, [...passing, ...scoredBeside], new Set(scoredBeside.map((j) => j.id)), opts.limit ?? SCORE_BATCH);
   const { stats } = await reclassify({ ids, onProgress: opts.onProgress });
   const out = {
     ...stats,
