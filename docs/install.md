@@ -92,7 +92,9 @@ in one terminal), in another:
 npm run db:import -- applypack-data.sql --yes
 ```
 
-It replaces everything in this install's database, in one transaction —
+This works on a new install too, before ApplyPack has ever started: the
+import first creates the tables, as a first `npm start` would. It replaces
+everything in this install's database, in one transaction —
 a dump that fails half-way leaves the database as it was. Update the
 Docker install first if it is older than this one; a dump from a newer
 ApplyPack stops at the first column this one does not have.

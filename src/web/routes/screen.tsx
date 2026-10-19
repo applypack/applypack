@@ -59,7 +59,7 @@ import {
   type ScreeningWithJob,
 } from '../../screening/store';
 import { requireEmployerMode } from '../employer-mode';
-import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
+import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack, type FlashMessage } from '../flash';
 import { ScreenListPage } from '../pages/screen-list';
 import { ScreenNewPage } from '../pages/screen-new';
 import { ScreenDetailPage } from '../pages/screen-detail';
@@ -564,7 +564,11 @@ screenRoute.post('/screen/:id/applicants/:aid/adjust', async (c) => {
   const back = safeBack(form.back, `/screen/${id}/applicants/${applicant.id}`);
   const points = Math.max(-MAX_ADJUSTMENT, Math.min(MAX_ADJUSTMENT, Math.round(Number(form.points) || 0)));
   const note = typeof form.note === 'string' ? form.note.trim().slice(0, 200) : '';
-  if (points !== 0 && note.length === 0) return flashRedirect(back, 'err', t('screenRoute.adjust.sayWhy'));
+  if (points !== 0 && note.length === 0) {
+    // #549: the scorecard again with the typed number kept and the reason field marked, not a redirect that drops both.
+    const refused = { kind: 'err' as const, text: t('screenRoute.adjust.sayWhy'), field: { form: c.req.path, name: 'note' } };
+    return c.html(await applicantPage(applicant, refused, { points, note }), 422);
+  }
   await setAdjustment(applicant.id, points, note || null);
   logger.info({ screeningId: id, applicantId: applicant.id, number: applicant.number, points, hasNote: note.length > 0 }, 'screening: score adjusted by the user');
   return flashRedirect(
@@ -712,11 +716,20 @@ screenRoute.post('/screen/:id/compare/ai', async (c) => {
 screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
   const applicant = await loadApplicant(idParam(c.req.param('aid')));
   if (!applicant || applicant.screeningId !== idParam(c.req.param('id'))) return flashRedirect('/screen', 'err', t('screenRoute.applicantGone'));
+  return c.html(await applicantPage(applicant, flash(c)), 200, CLEAR);
+});
+
+/** One applicant's scorecard; `sentAdjustment` puts a refused correction back into its form (#549). */
+async function applicantPage(
+  applicant: NonNullable<Awaited<ReturnType<typeof loadApplicant>>>,
+  message: FlashMessage | null,
+  sentAdjustment?: { points: number; note: string },
+) {
   const s = applicant.screening;
   const sameAsNumber = applicant.sameAsId !== null ? ((await getApplicant(applicant.sameAsId))?.number ?? null) : null;
   const reply = applicant.verdict ? readScreenReply(applicant.verdict.facts) : null;
   const breakdown = applicant.verdict ? readScreenBreakdown(applicant.verdict.breakdown) : null;
-  return c.html(
+  return (
     <ScreenApplicantPage
       screening={{ id: s.id, title: s.title, rubricVersion: s.rubricVersion, job: { id: s.job.id, title: s.job.title, companyName: companyForPage(s.job.employer, s.job.company) } }}
       applicant={{
@@ -747,12 +760,11 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
       promptVersion={applicant.verdict?.promptVersion ?? null}
       scoredAt={applicant.verdict?.createdAt ?? null}
       now={new Date()}
-      flash={flash(c)}
-    />,
-    200,
-    CLEAR,
+      flash={message}
+      sentAdjustment={sentAdjustment}
+    />
   );
-});
+}
 
 screenRoute.get('/screen/:id/applicants/:aid/file', async (c) => {
   const aid = idParam(c.req.param('aid'));

@@ -107,16 +107,21 @@ export function contentKey(s: string): string {
  * Every line of `text` whose words a rendered text does not carry, in order.
  * Order-free on purpose: a render may move a line (a role's stack line after
  * its bullets) or split one (a company from its place), and neither loses it.
+ * A line is read part by part between its separators, because the render sets
+ * a contact line in its own order: "email · Berlin" comes out "Berlin · email",
+ * and read whole it sent every such resume to the plainer version (#574).
  */
 function missingLines(text: string, rendered: string): string[] {
   const haystack = contentKey(rendered);
   return text
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => {
-      const words = contentKey(line);
-      return words.length > 0 && !haystack.includes(words);
-    });
+    .filter((line) =>
+      line.split(SEPARATORS).some((part) => {
+        const words = contentKey(part);
+        return words.length > 0 && !haystack.includes(words);
+      }),
+    );
 }
 
 /**

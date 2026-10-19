@@ -7,6 +7,7 @@ import { LETTER_FAILED, UNEXPECTED_FAILURE, type RunStep, type TargetRun } from 
 import { stepBand, type LaneTimes } from '../lane';
 import { t } from '../../i18n/t';
 import { runLandsOn, runNav } from '../run-nav';
+import { LOCAL_WINDOW_HREF } from '../ai-plan';
 
 /** Every step a run can show; its label is `target.step.<step>` and the line under it `target.step.<step>.detail`. */
 const STEPS = [
@@ -85,6 +86,14 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
             <div class="mt-4 space-y-4">
               <Notice tone="danger" role="alert">
                 {runError(run.error)}
+                {run.windowRefused && (
+                  <>
+                    {' '}
+                    <a href={LOCAL_WINDOW_HREF} class="font-medium underline">
+                      {t('target.run.raiseWindow')}
+                    </a>
+                  </>
+                )}
               </Notice>
               <div class="flex flex-wrap gap-2">
                 <Button href={run.backUrl} variant="secondary">

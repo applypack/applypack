@@ -237,6 +237,17 @@ test('a search describes its place as codes only', () => {
   assert.doesNotMatch(line, /Poland|Germany|European Union/);
 });
 
+test('a search names the groups that hold its countries, so "Europe" cannot read as excluding PL (#530)', () => {
+  const plDe = { ...PROFILE, countries: ['PL', 'DE'], regions: [], workplace: ['REMOTE', 'HYBRID'] } as Profile;
+  const prompt = (p: Profile) => buildClassifyPrompt(input('x'), [p]).system;
+  const groups = (p: Profile) => prompt(p).split('\n').find((l) => l.startsWith('- Its countries lie inside:'));
+  assert.equal(groups(plDe), '- Its countries lie inside: EU, EEA, EUROPE, DACH, CEE, EMEA');
+  assert.match(prompt(plDe), /a country inside it, or WORLDWIDE; "Its countries lie inside" names those regions for each search/);
+  // A group the search lists itself is said once; a search without countries has no such line.
+  assert.equal(groups({ ...plDe, regions: ['EU'] } as Profile), '- Its countries lie inside: EEA, EUROPE, DACH, CEE, EMEA');
+  assert.equal(groups({ ...plDe, countries: [], regions: ['EU'] } as Profile), undefined);
+});
+
 test('a bare "Remote" reaches the prompt decided; a place the parser missed does not (#386)', () => {
   const remote = { workplace: 'REMOTE' as const, countries: [], regions: [] };
   const bare = buildClassifyPrompt({ ...input('x'), location: 'Remote', place: remote }, [PROFILE]);
@@ -271,12 +282,13 @@ test('a search that says neither residence nor relocation pays nothing for the e
 test('eight searches keep the system prompt under the budget', () => {
   // The worst case a user actually pays: every search says where its
   // candidate lives, so the eligibility line repeats eight times on top of
-  // the rules block ADR 0033 added (~790 chars, once).
+  // the rules block ADR 0033 added (~790 chars, once), and since #530 the
+  // groups that hold its countries (~50 chars each).
   const eight = Array.from({ length: 8 }, (_, i) =>
     ({ ...PROFILE, id: 20 + i, name: `Search ${i}`, residence: 'UA', relocation: 'sponsorship' }) as Profile,
   );
   const { system } = buildClassifyPrompt(input('x'), eight);
-  assert.ok(system.length < 12_000, `${system.length} chars`);
+  assert.ok(system.length < 12_600, `${system.length} chars`);
 });
 
 test('the parsed place rides in the user prompt outside the fence', () => {

@@ -6,6 +6,7 @@ import { taskLabel, taskOf, type AiTask } from '../ai-tasks';
 import type { AiBilling, AiFeature } from '../ai-usage';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import { LOCAL_WINDOW_HREF } from './ai-plan';
 import type { TrialReport } from './engine-trial';
 
 /*
@@ -49,6 +50,8 @@ export interface HintFacts {
 
 const enginesLink = () => ({ href: '/settings?tab=ai', label: t('ai.aiEngines') });
 const budgetLink = () => ({ href: '/settings?tab=ai#budget', label: t('ai.setABudget') });
+/** A prompt too large for the local engine's window is fixed at its Context window (#523); any other engine's at its card. */
+const windowLink = (engine: string) => (engine === 'local_api' ? { href: LOCAL_WINDOW_HREF, label: t('settings.contextWindow') } : enginesLink());
 
 /** A failure rate is a pattern from this many calls up; under it, it is an anecdote. */
 const MIN_CALLS = 5;
@@ -122,7 +125,9 @@ export function troubleLine(trouble: EngineTrouble): string {
  */
 function troubled(facts: HintFacts): UsageHint[] {
   const asked = new Set<string>([...facts.engines.filter((e) => e.position !== -1).map((e) => e.id), ...Object.values(facts.first)]);
-  return (facts.troubles ?? []).filter((trouble) => asked.has(trouble.engine)).map((trouble) => ({ tone: 'warn', text: troubleLine(trouble), action: enginesLink() }));
+  return (facts.troubles ?? [])
+    .filter((trouble) => asked.has(trouble.engine))
+    .map((trouble) => ({ tone: 'warn', text: troubleLine(trouble), action: trouble.kind === 'window' ? windowLink(trouble.engine) : enginesLink() }));
 }
 
 export function usageHints(facts: HintFacts): UsageHint[] {
@@ -296,7 +301,7 @@ function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | 
           ...(worst.unparsed > 0 ? [t('usage.failed.alsoUnread', { n: worst.unparsed })] : []),
         ];
   const sentences = [...counted, t(worst.billing === 'billed' ? 'usage.failed.costsTimeMoney' : 'usage.failed.costsTime'), advice];
-  return { tone: 'warn', text: sentences.join(' '), action: enginesLink() };
+  return { tone: 'warn', text: sentences.join(' '), action: !limited && ending === 'too_large' ? windowLink(worst.engine) : enginesLink() };
 }
 
 /** Scoring billed on a model several times the price of the cheapest one its engine offers. */

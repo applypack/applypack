@@ -42,7 +42,8 @@ async function refreshPlan() {
   }
 }
 
-function wireForm(form) {
+/** One form: its own controls save it in place. Exported for the test, which hands it a stand-in form. */
+export function wireForm(form) {
   const status = form.querySelector('[data-save-status]');
   const button = form.querySelector('[data-save-button]');
   if (!status) return;
@@ -59,24 +60,31 @@ function wireForm(form) {
     if (state === 'saved') clearTimer = setTimeout(() => (status.textContent = ''), SAVED_CLEAR_MS);
   };
 
+  // What the last save sent: Enter in a model field fires `change` and then `submit`, one save between them.
+  let sent = null;
   const save = async () => {
-    show('saving');
     try {
+      const body = new URLSearchParams(new FormData(form));
+      if (body.toString() === sent) return;
+      sent = body.toString();
+      show('saving');
       const res = await fetch(form.action, {
         method: 'POST',
         headers: { Accept: 'application/json' },
-        body: new URLSearchParams(new FormData(form)),
+        body,
       });
       const data = await res.json().catch(() => ({}));
       // A wrong-family id is a real answer, not a transport failure: show the
       // server's own wording and leave the button out so a retry is one pick.
       if (!res.ok || data.error) {
+        sent = null;
         show('failed', data.error);
         return;
       }
       show('saved');
       void refreshPlan();
     } catch {
+      sent = null;
       show('failed');
       showButton(true);
     }
@@ -86,6 +94,12 @@ function wireForm(form) {
   for (const select of form.querySelectorAll('select')) wireSelectCommit(select, save);
   form.addEventListener('change', (e) => {
     if (e.target.tagName !== 'SELECT') void save();
+  });
+  // Enter in a model field, or the Save button a failed save brings back: saved here, where
+  // "Saved" is read, not by reloading the page at its top with the card folded away (#563).
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void save();
   });
 }
 

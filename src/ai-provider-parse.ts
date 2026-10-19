@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AiProviderId } from './ai-engine';
+import { AI_PROVIDER_LABELS, type AiProviderId } from './ai-engine';
 import { addUsage, count, NO_USAGE, type AiOutcome, type AiSpend, type AiUsage } from './ai-usage';
 import { retryAfterMs } from './http';
 import type { MessageKey } from './i18n/catalog';
@@ -233,6 +233,21 @@ export function cliFailure(
   if (stderr) return { reason: stderr, log };
   if (typeof e.code === 'number') return { reason: t('engine.fail.exitCode', { code: e.code }), log };
   return { reason: t('engine.fail.noOutput'), log };
+}
+
+/** Node's codes for an address where nothing could be reached at all. */
+const NOTHING_THERE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'UND_ERR_CONNECT_TIMEOUT']);
+
+/**
+ * Why a fetch found nothing at its address (`ECONNREFUSED`, `ENOTFOUND` …),
+ * read off the cause Node keeps under its bare "fetch failed"; null for any
+ * other failure. A local server that is not running is a state, not a fault:
+ * its caller logs it in one line, with no stack (#571).
+ */
+export function unreachableCode(err: unknown): string | null {
+  if (!(err instanceof TypeError)) return null;
+  const code = (err.cause as { code?: unknown } | null | undefined)?.code;
+  return typeof code === 'string' && NOTHING_THERE.has(code) ? code : null;
 }
 
 /** The log's word for a CLI that answered with nothing. */
@@ -855,6 +870,8 @@ export function parseOpenAiChatResponse(raw: string): CliOutcome {
 /** The window a local model gets when the AI tab names none; the AI tab offers these. */
 export const DEFAULT_LOCAL_CONTEXT_TOKENS = 16_384;
 export const LOCAL_CONTEXT_CHOICES = [8_192, 16_384, 32_768, 65_536] as const;
+/** The AI tab names a window in thousands of tokens: "32k". */
+const TOKENS_PER_K = 1024;
 /** The chat template's own tokens around the two messages. */
 const CHAT_TEMPLATE_TOKENS = 64;
 /**
@@ -884,6 +901,22 @@ export function estimateTokens(text: string): number {
 /** What a call needs of the window: the prompt, the answer and the template. */
 export function localBudgetTokens(system: string, user: string, maxTokens: number): number {
   return estimateTokens(system) + estimateTokens(user) + maxTokens + CHAT_TEMPLATE_TOKENS;
+}
+
+/**
+ * Why the local engine refused a prompt, as a failed run says it: what the
+ * call needed, the window it met, and the one on the engine's card that takes
+ * it — or that none on offer does (#523).
+ */
+export function contextTooSmall(need: number, window: number): string {
+  const fit = LOCAL_CONTEXT_CHOICES.find((choice) => choice >= need);
+  return t('engine.fail.contextTooSmall', {
+    need,
+    window,
+    engine: AI_PROVIDER_LABELS.local_api,
+    fits: fit === undefined ? 'no' : 'yes',
+    k: (fit ?? Math.max(...LOCAL_CONTEXT_CHOICES)) / TOKENS_PER_K,
+  });
 }
 
 export function buildOllamaChatBody(req: {

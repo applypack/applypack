@@ -139,6 +139,28 @@ describe('titleHasKeyword — word boundaries', () => {
   it('ignores an empty keyword', () => {
     no('Senior PHP Developer', '');
   });
+
+  it('reads a hyphen, a space, a dot or nothing between the parts as one spelling (#528)', () => {
+    // The titles the setup's suggestions turned away on 2026-10-18.
+    yes('Senior back-end engineer', 'backend');
+    yes('Senior Software Engineer – Full Stack', 'full-stack');
+    yes('Senior Fullstack Developer', 'full-stack');
+    yes('Backend Engineer', 'back-end');
+    yes('Senior NodeJS Developer', 'node.js');
+    yes('Senior Node JS Developer', 'node.js');
+    yes('Senior Node.js Developer', 'nodejs');
+    yes('Senior Back End Engineers', 'backend');
+    // The boundaries are still the title's own.
+    no('Fullstackish Developer', 'full-stack');
+    no('Senior Back-Endless Engineer', 'backend');
+    yes('ASP.NET Core Engineer', '.net');
+  });
+
+  it('applies the spelling rule to every list, the exclude list too', () => {
+    const p = { ...phpProfile, stackRequired: ['php'], stackExclude: ['front-end'] };
+    assert.equal(passesBaseFilter(job('Senior Frontend PHP Engineer', 'Remote, US'), p), false);
+    assert.equal(passesBaseFilter(job('Senior Back End PHP Engineer', 'Remote, US'), { ...p, stackRequired: [], roleTypes: ['backend'] }), true);
+  });
 });
 
 describe('passesBaseFilter — location: remote-only profile', () => {

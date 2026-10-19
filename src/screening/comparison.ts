@@ -92,6 +92,7 @@ export interface CriterionComparison {
   label: string;
   kind: Criterion['kind'];
   mode: Criterion['mode'];
+  source: Criterion['source'];
   /** Strongest first, per reading. */
   rankings: [number[], number[]];
   picks: [number | null, number | null];
@@ -137,6 +138,7 @@ export function comparisonView(stored: StoredComparison, rubric: Rubric): Compar
       label: c.label,
       kind: c.kind,
       mode: c.mode,
+      source: c.source,
       rankings: [x?.ranking ?? [], y?.ranking ?? []],
       picks,
       agree: picks[0] !== null && picks[0] === picks[1],

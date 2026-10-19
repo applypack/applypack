@@ -274,6 +274,17 @@ test('a failure hint gives the advice of how most of the calls ended', () => {
   assert.match(find(usageHints(facts({ groups: mixed, engines: [engine('local_api', 'local', 0)] })), /did not answer/)!.text, /raise the window/);
 });
 
+test('a prompt too large for the local window links to its Context window, anything else to the engines (#523)', () => {
+  const local = [engine('local_api', 'local', 0)];
+  const failed = (failedAs: string) =>
+    find(usageHints(facts({ groups: [group({ feature: 'resume-match', engine: 'local_api', billing: 'local', calls: 10, failed: 4, failedAs })], engines: local })), /did not answer/)!.action;
+  assert.deepEqual(failed('too_large'), { href: '/settings?tab=ai#local-context', label: 'Context window' });
+  assert.equal(failed('unreachable')?.href, '/settings?tab=ai');
+  const troubled = (kind: 'window' | 'unreachable') => usageHints(facts({ troubles: [trouble({ engine: 'local_api', kind, failed: 4 })], engines: local }))[0]!.action;
+  assert.equal(troubled('window')?.href, '/settings?tab=ai#local-context');
+  assert.equal(troubled('unreachable')?.href, '/settings?tab=ai');
+});
+
 test('#463: a reply that could not be read is worded as an answer, never as "did not answer"', () => {
   const said = (over: Partial<SpendGroup>) =>
     find(usageHints(facts({ groups: [group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'llama3.1:8b', calls: 10, ...over })], engines: [engine('local_api', 'local', 0)] })), /on Local model/)!.text;

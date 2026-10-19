@@ -121,6 +121,10 @@ model Company {
   // source is the second signal: SmartRecruiters answers 200 + totalFound:0
   // for every id, so `empty` alone never proves a board is alive.
   lastOkAt            DateTime?
+  // When the source was last read, whatever it answered: "Last fetch" on
+  // Companies. The newest stored posting stood in for it, and a board read
+  // fine whose postings the filter turned away read "—" for ever (#547).
+  lastFetchedAt       DateTime?
 
   // §17 stage A — the watchlist (ADR 0036). A company the user chose by
   // hand, checked on its own interval and shown apart from the rest.
@@ -773,6 +777,12 @@ model Resume {
   sourceFilename  String
   mimeType        String
   original        Bytes
+  // The file the person uploaded, once a Save as vN has put a file ApplyPack
+  // wrote in `original` (#590): "Download original" hands this one back. NULL
+  // while `original` is still the upload; the next upload clears it.
+  uploadFile      Bytes?
+  uploadName      String?
+  uploadMime      String?
   text            String         @db.Text
   // Bumped on "Upload new version"; matches record the version they scored.
   version         Int            @default(1)

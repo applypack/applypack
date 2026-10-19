@@ -137,7 +137,7 @@ export function formatSalaryRange(
   return `${range}${suffix}`;
 }
 
-/** "≈ $78k/yr" — the same range as one comparable number, or '' when it cannot be one. */
+/** "≈ $70k-93k/yr", "≈ $150k+/yr", "≈ up to $93k/yr" — the same range in USD a year, or '' when it needs none. */
 export function formatUsdPerYear(
   min: number | null | undefined,
   max: number | null | undefined,
@@ -145,8 +145,8 @@ export function formatUsdPerYear(
   period?: string | null,
 ): string {
   if (currencyOf(code) === 'USD' && periodOf(period) === 'year') return '';
-  const usd = toUsdPerYear(max ?? min, code, period) ?? toUsdPerYear(min, code, period);
-  return usd === null ? '' : `≈ $${round(usd, 'year')}/${t(SHORT_PERIOD.year)}`;
+  const range = formatSalaryRange(toUsdPerYear(min, code, period), toUsdPerYear(max, code, period), 'USD', 'year');
+  return range === '—' ? '' : `≈ ${range}/${t(SHORT_PERIOD.year)}`;
 }
 
 /** "/mo", "/hr": the period a figure is paid per, as the reader's language shortens it. */

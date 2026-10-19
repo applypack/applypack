@@ -330,6 +330,19 @@ describe('extractAtsToken', () => {
     );
     assert.equal(extractAtsToken('https://www.rippling.com/careers'), null);
   });
+
+  it('skips the locale a localised Rippling page puts before the slug (#541)', () => {
+    for (const url of [
+      'https://ats.rippling.com/en-CA/acme/jobs',
+      'https://ats.rippling.com/en-GB/acme/jobs/2f0674e6',
+      'https://ats.rippling.com/en/acme/jobs',
+      'https://ats.rippling.com/en-CA/acme',
+    ]) {
+      assert.deepEqual(extractAtsToken(url), { atsType: 'RIPPLING', atsToken: 'acme' }, url);
+    }
+    // A two-letter slug is still a slug.
+    assert.deepEqual(extractAtsToken('https://ats.rippling.com/hq/jobs'), { atsType: 'RIPPLING', atsToken: 'hq' });
+  });
 });
 
 describe('daysSince', () => {

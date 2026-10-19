@@ -79,11 +79,11 @@ export function folderAllowed(folder: string, rules: FolderRules, p: PathApi = p
   }
   // A home that is the root of the disk (a container's, a service account's) bounds nothing.
   if (p.dirname(rules.home) === rules.home || !insideFolder(rules.home, folder, p)) {
-    return { ok: false, reason: t('datasets.folder.outsideHome', { env: INBOX_ROOTS_ENV }) };
+    return { ok: false, reason: t('datasets.folder.outsideHome', { env: INBOX_ROOTS_ENV, folder }) };
   }
   const parts = p.relative(rules.home, folder).split(p.sep);
   if (parts.some((part) => part.startsWith('.'))) return { ok: false, reason: t('datasets.folder.hidden') };
-  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: t('datasets.folder.system', { env: INBOX_ROOTS_ENV }) };
+  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: t('datasets.folder.system', { env: INBOX_ROOTS_ENV, folder }) };
   if (within(folder, rules.dataDir, p) || within(rules.dataDir, folder, p)) return { ok: false, reason: t('datasets.folder.dataDir') };
   return { ok: true };
 }

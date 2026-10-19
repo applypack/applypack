@@ -96,8 +96,9 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
     }
   }
 
-  if (scan.roleTypes.length > 0 && !sameTags(scan.roleTypes, current.roleTypes)) {
-    changes.roleTypes = scan.roleTypes;
+  const roles = titleRoleWords(scan.roleTypes);
+  if (roles.length > 0 && !sameTags(roles, current.roleTypes)) {
+    changes.roleTypes = roles;
     changed.push(t('profile.draft.changed.roleTypes'));
   }
 
@@ -116,6 +117,16 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
   }
 
   return { changes, changed, warnings };
+}
+
+/**
+ * Role words as a title writes them (#555). A role word is matched against
+ * titles as whole words (filter.ts:titleHasKeyword), and the scan sometimes
+ * joins two with a slash — "qa/test automation" — which no title carries; each
+ * half is a role word of its own.
+ */
+function titleRoleWords(roleTypes: string[]): string[] {
+  return withoutTags(roleTypes.flatMap((role) => role.split('/').map((word) => word.trim())).filter(Boolean), []);
 }
 
 function sameTags(a: string[], b: string[]): boolean {

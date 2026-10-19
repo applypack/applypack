@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ConfigSchema } from './config';
+import { ConfigSchema, setInEnv } from './config';
 
 const MINIMAL = { DATABASE_URL: 'postgresql://u@localhost:5432/db' };
 
@@ -34,4 +34,10 @@ test('the shipped bind default is loopback, not every interface', () => {
 test('rejects an out-of-range concurrency and an unknown provider', () => {
   assert.equal(ConfigSchema.safeParse({ ...MINIMAL, AI_CONCURRENCY: '99' }).success, false);
   assert.equal(ConfigSchema.safeParse({ ...MINIMAL, AI_PROVIDER: 'nope' }).success, false);
+});
+
+test('an address is "from .env" only when the environment names it, not when the schema fills in its default (#563)', () => {
+  assert.equal(setInEnv('OLLAMA_URL', {}), false);
+  assert.equal(setInEnv('OLLAMA_URL', { OLLAMA_URL: ' ' }), false);
+  assert.equal(setInEnv('OLLAMA_URL', { OLLAMA_URL: 'http://host.docker.internal:11434' }), true);
 });

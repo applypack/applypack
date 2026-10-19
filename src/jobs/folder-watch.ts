@@ -82,7 +82,8 @@ export function startFolderWatch(check: FolderCheck): FolderWatch {
       try {
         watcher = watch(path, { persistent: false }, onChange);
       } catch {
-        if (!unwatchable.has(id)) logger.warn({ err, companyId: id }, 'folder-watch: the folder cannot be watched; the hourly check reads it');
+        // A folder moved or deleted is a state, not a fault: one line, no stack trace (#546).
+        if (!unwatchable.has(id)) logger.warn({ companyId: id, reason: String(err) }, 'folder-watch: the folder cannot be watched; the hourly check reads it');
         unwatchable.add(id);
         return;
       }

@@ -262,7 +262,8 @@ function spendNotes(groups: readonly SpendGroup[]): string[] {
     const oneModel = unpriced.length === 1 && unpriced[0]!.model;
     notes.push(t(oneModel ? 'spend.note.unpricedModel' : 'spend.note.unpricedModels', { n: unpricedCalls, models, asOf: PRICES_AS_OF }));
   }
-  const unheard = groups.reduce((n, g) => n + g.noUsage, 0);
+  // A vendor's bill is a hosted engine's: a local call that ended unheard never reached anyone who bills (#563).
+  const unheard = groups.reduce((n, g) => n + (g.billing === 'local' ? 0 : g.noUsage), 0);
   if (unheard > 0) notes.push(t('spend.note.unheard', { n: unheard }));
   return notes;
 }

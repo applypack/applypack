@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { sleep } from '../../http';
-import { firstIssue, flashRedirect, refusedField } from '../flash';
+import { firstIssue, flashRedirect, refusedField, safeBack } from '../flash';
 import { ALERT_POLICIES, CHECK_INTERVALS } from '../../watchlist/interval';
 import { parseCompanyLines } from '../../watchlist/parse-input';
 import { installAiTokens, liveResolveIo, resolveCompanyUrl, type ResolvedCompany } from '../../watchlist/resolve';
@@ -204,35 +204,46 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
 /**
  * "Check now" (TASKS S23): that one company, now, on the progress page every
  * other fetch uses. It shares the fetch lock, so while another fetch runs the
- * row is made due on the next heartbeat instead, as it always was.
+ * row is made due on the next heartbeat instead, as it always was. `back` is
+ * the page the press came from (a folder's Files page, #546), Companies when
+ * none.
  */
 watchlistRoute.post('/companies/:id/check-now', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true, active: true, atsType: true } });
   if (!company) return c.text(t('http.notFound'), 404);
+  const back = safeBack((await c.req.parseBody()).back, '/companies');
   if (!company.active) {
-    return flashRedirect('/companies', 'err', t('watchlist.flash.off', { name: company.name }));
+    return flashRedirect(back, 'err', t('watchlist.flash.off', { name: company.name }));
   }
   if (activeFetchRun() === null) {
-    const run = await beginFetchNow({ backUrl: '/companies', scope: { companyId: id, name: company.name, folder: company.atsType === AtsType.FOLDER } });
+    const run = await beginFetchNow({
+      backUrl: back,
+      scope: { companyId: id, name: company.name, folder: company.atsType === AtsType.FOLDER, changeWatch: company.atsType === AtsType.CAREER_PAGE },
+    });
     return c.redirect(`/runs/fetch-now/${run.id}`, 303);
   }
   await prisma.company.update({ where: { id }, data: { nextCheckAt: null } });
-  return flashRedirect('/companies', 'ok', t('watchlist.flash.fetchRunning', { name: company.name }));
+  return flashRedirect(back, 'ok', t('watchlist.flash.fetchRunning', { name: company.name }));
 });
 
-/** Drop the star, keep the company: it stays a tracked source on the normal rules. */
+/**
+ * Drop the star, keep the company: it stays a tracked source on the normal
+ * rules. A change watch has no other use — its page yields no job — so
+ * unwatching one stops reading the page (#533).
+ */
 watchlistRoute.post('/companies/:id/unwatch', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const company = await prisma.company.findUnique({ where: { id }, select: { name: true } });
+  const company = await prisma.company.findUnique({ where: { id }, select: { name: true, atsType: true } });
   if (!company) return c.text(t('http.notFound'), 404);
+  const changeWatch = company.atsType === AtsType.CAREER_PAGE;
   await prisma.company.update({
     where: { id },
-    data: { watched: false, alertPolicy: 'matches', checkEvery: 'hour' },
+    data: { watched: false, alertPolicy: 'matches', checkEvery: 'hour', ...(changeWatch && { active: false }) },
   });
-  return flashRedirect('/companies', 'ok', t('watchlist.flash.unwatched', { name: company.name }));
+  return flashRedirect('/companies', 'ok', t(changeWatch ? 'watchlist.flash.unwatchedPage' : 'watchlist.flash.unwatched', { name: company.name }));
 });
 
 /**

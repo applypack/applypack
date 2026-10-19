@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import {
   cliFailure,
@@ -18,6 +19,7 @@ import {
   CLI_THINKING_CAP_ENV,
   cliRetryable,
   cliThinkingCap,
+  contextTooSmall,
   describeAiFailure,
   estimateTokens,
   failureKind,
@@ -29,6 +31,7 @@ import {
   parseOllamaStream,
   refusedReason,
   retryWait,
+  unreachableCode,
   webToolsDirectOnly,
   parseCodexCliOutput,
   parseGeminiCliOutput,
@@ -524,6 +527,29 @@ test('cliFailure names the reason without the command line — which is the prom
   }
 });
 
+test('unreachableCode reads why nothing answered at the address, and nothing else (#571)', () => {
+  const fetchFailed = (cause: unknown) => new TypeError('fetch failed', { cause });
+  const refused = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), { code: 'ECONNREFUSED' });
+  assert.equal(unreachableCode(fetchFailed(refused)), 'ECONNREFUSED');
+  // `localhost` is tried as ::1 and as 127.0.0.1; Node keeps the code on the AggregateError.
+  assert.equal(unreachableCode(fetchFailed(Object.assign(new AggregateError([refused, refused], ''), { code: 'ECONNREFUSED' }))), 'ECONNREFUSED');
+  assert.equal(unreachableCode(fetchFailed(Object.assign(new Error('getaddrinfo ENOTFOUND gpu-box'), { code: 'ENOTFOUND' }))), 'ENOTFOUND');
+  // A server that answered and then failed, our own timeout, anything else: an error with its stack, as before.
+  assert.equal(unreachableCode(fetchFailed(Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }))), null);
+  assert.equal(unreachableCode(new DOMException('This operation was aborted', 'AbortError')), null);
+  assert.equal(unreachableCode(fetchFailed(new Error('bad port'))), null);
+  assert.equal(unreachableCode(new Error('fetch failed')), null);
+});
+
+test('unreachableCode reads what fetch really throws at a port nobody listens on', async () => {
+  const server = createServer();
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address() as AddressInfo;
+  await new Promise((done) => server.close(done));
+  const err = await fetch(`http://127.0.0.1:${port}/api/chat`).catch((e: unknown) => e);
+  assert.equal(unreachableCode(err), 'ECONNREFUSED');
+});
+
 test('parseOpenAiChatResponse reads finish_reason and refuses an empty completion', () => {
   const cut = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: '{"a":' }, finish_reason: 'length' }] }));
   assert.equal(cut.text, null);
@@ -691,6 +717,15 @@ test('the token estimate is cautious, more so for text outside Latin script', ()
   assert.equal(estimateTokens('a'.repeat(350)), 100);
   assert.equal(estimateTokens('я'.repeat(150)), 100);
   assert.ok(localBudgetTokens('s'.repeat(3_500), 'u'.repeat(3_500), 1_000) > 3_000);
+});
+
+test('a prompt too large for the local window names the window that takes it, and where it is set (#523)', () => {
+  assert.equal(
+    contextTooSmall(21_872, 16_384),
+    "this call needs about 21,872 tokens and the local model's context window is 16,384; choose 32k or more under Context window on the Local model (Ollama) card in Settings → AI & costs",
+  );
+  assert.match(contextTooSmall(16_385, 8_192), /choose 32k or more/);
+  assert.match(contextTooSmall(80_000, 65_536), /more than the largest window on offer, 64k: give this task to another engine in Settings → AI & costs$/);
 });
 
 test("Ollama's stream: the pieces joined, the counts off the last line, a thinking block dropped", () => {

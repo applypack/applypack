@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createLimiter } from './concurrency';
+import { createLimiter, runTimed } from './concurrency';
 
 const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
 
@@ -48,4 +48,18 @@ test('createLimiter frees the slot when a task rejects or throws', async () => {
 
 test('createLimiter rejects a non-positive max', () => {
   assert.throws(() => createLimiter(0), RangeError);
+});
+
+test('runTimed tells each task how long it waited for its turn, by the clock it is given (#564)', async () => {
+  const limit = createLimiter(1);
+  let clock = 0;
+  const now = () => clock;
+  // Three calls at once on a one-at-a-time server, each taking 1 000 ms of the clock once it runs.
+  const task = async (waited: number) => {
+    await tick();
+    clock += 1_000;
+    return waited;
+  };
+  const waits = await Promise.all([runTimed(limit, task, now), runTimed(limit, task, now), runTimed(limit, task, now)]);
+  assert.deepEqual(waits, [0, 1_000, 2_000]);
 });

@@ -78,6 +78,8 @@ describe('rung 2 — the URL redirects onto a board', () => {
     const r = await resolveCompanyUrl(paste('https://deno.com/jobs'), stub);
     assert.equal(r.resolution.kind, 'watchOnly');
     assert.match((r.resolution as { reason: string }).reason, /embed-only/);
+    // #544: the row is the company's, not its board vendor's "Ashbyhq".
+    assert.equal(r.name, 'Deno');
   });
 
   it('reads the landed URL (deno.com/jobs → jobs.ashbyhq.com/Deno)', async () => {
@@ -327,7 +329,8 @@ describe('refusals', () => {
     const stub = io({});
     const r = await resolveCompanyUrl(paste('https://www.linkedin.com/company/acme/jobs/'), stub);
     assert.equal(r.resolution.kind, 'refused');
-    assert.match((r.resolution as { reason: string }).reason, /ADR 0005/);
+    // The reason is for the person who pasted it: no decision record by number (#544).
+    assert.equal((r.resolution as { reason: string }).reason, 'That site is never fetched here — paste the posting text instead.');
     assert.deepEqual(stub.asked, []);
   });
 

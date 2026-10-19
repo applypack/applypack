@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { docxToText } from './docx-text';
 import { pdfToText } from './pdf-text';
 import { knobsFrom } from './render/knobs';
+import { planRender } from './render/sections';
+import { structureFromText } from './structure-from-text';
 import { cleanDocx, contentDisposition, documentFileName, draftDocx, draftPdf, noticeFor, packFileName, type DraftInput } from './draft-document';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name));
@@ -106,6 +108,30 @@ test('contentDisposition carries a Cyrillic name without breaking the header', (
   // Every byte of the header is ASCII, or Node refuses to send it.
   assert.ok([...header].every((ch) => ch.charCodeAt(0) < 128));
   assert.match(contentDisposition("O'Brien (final).pdf"), /filename\*=UTF-8''O%27Brien%20%28final%29\.pdf$/);
+});
+
+test('the clean version of a Markdown resume opens with the name and prints no Markdown (#574)', async () => {
+  for (const name of ['markdown-headed-roles.md', 'markdown-bold-roles.md']) {
+    const text = fixture(name).toString('utf8').trim();
+    const plan = planRender(structureFromText(text), knobs);
+    assert.ok(plan.header.name && plan.header.contact, name);
+    assert.deepEqual(
+      plan.blocks.filter((b) => b.kind === 'heading').map((b) => b.text),
+      name === 'markdown-headed-roles.md' ? ['Summary', 'Skills', 'Experience', 'Education', 'Languages'] : ['Summary', 'Skills', 'Experience', 'Education'],
+      'every role sits under Experience, none is a section of its own',
+    );
+    // What Save as vN stores, and what the Tailor page's downloads hand out.
+    const saved = await cleanDocx(text, knobs);
+    assert.deepEqual(saved.missing, [], name);
+    const pdf = await pdfToText(await draftPdf(input({ sourceFilename: name, original: null, baseText: text, text })));
+    for (const read of [saved.text, pdf]) {
+      assert.equal(read.split('\n')[0], plan.header.name, 'the name is the first line');
+      assert.doesNotMatch(read, /\*|`|(^|\s)_\w/m, 'no emphasis mark is printed');
+      // The plainer line-by-line version draws a `### role` as a heading, in capitals: the reordered contact line must not send it there.
+      assert.doesNotMatch(read, /ENGINEER —/, 'no role is drawn as a heading');
+      assert.match(read, /March 2021 – Present/);
+    }
+  }
 });
 
 test('a save keeps the symbols the PDF face cannot draw — the .docx names the user’s font', async () => {

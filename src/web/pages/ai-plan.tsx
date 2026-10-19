@@ -19,9 +19,9 @@ const EngineName: FC<{ engine: { id: AiProviderId; label: string } }> = ({ engin
     <span translate="no">{engine.label}</span>
   );
 
-/** A model's id stays as written; "CLI default" (ai-plan.ts, an empty slot) is ours. */
+/** A model's id stays as written; "CLI default" and "no model chosen" (ai-plan.ts, an empty slot) are ours. */
 const ModelName: FC<{ model: string }> = ({ model }) =>
-  model === t('ai.cliDefault') ? <>{model}</> : <span translate="no">{model}</span>;
+  model === t('ai.cliDefault') || model === t('ai.noModel') ? <>{model}</> : <span translate="no">{model}</span>;
 
 export const BILLING_TONE: Record<AiBilling, 'warn' | 'ok' | 'neutral'> = { billed: 'warn', local: 'ok', plan: 'neutral' };
 

@@ -25,8 +25,15 @@ export interface FolderHost {
   roots: string[];
 }
 
-/** Add sources → "A folder on this computer": a path and Check — a browser cannot hand a server a folder. */
-export const AddFolderCard: FC<{ host: FolderHost }> = ({ host }) => {
+/** The form Check posts to; a refusal from it brings the typed path back (#546). */
+export const FOLDER_CHECK = '/companies/folder/check';
+
+/**
+ * Add sources → "A folder on this computer": a path and Check — a browser
+ * cannot hand a server a folder. `refused`: the path Check just turned away
+ * and why, put back into the form beside the reason.
+ */
+export const AddFolderCard: FC<{ host: FolderHost; refused?: { path: string; reason: string } }> = ({ host, refused }) => {
   const closed = !host.launcher && host.roots.length === 0;
   return (
     <Card>
@@ -41,12 +48,18 @@ export const AddFolderCard: FC<{ host: FolderHost }> = ({ host }) => {
         <Notice tone="warn">{t('folders.add.serverClosed', { env: INBOX_ROOTS_ENV })}</Notice>
       ) : (
         <>
-          <form method="post" action="/companies/folder/check" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto]">
+          {refused && (
+            <Notice tone="danger" class="mb-3">
+              {refused.reason}
+            </Notice>
+          )}
+          <form method="post" action={FOLDER_CHECK} class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto]">
+            <input type="hidden" name="add" value="1" />
             <Field
               label={t('folders.add.folder')}
               hint={host.launcher ? t('folders.add.pathHintHome') : t('folders.add.pathHintRoots', { roots: formatList(host.roots, 'disjunction') })}
             >
-              <Input type="text" name="path" required mono placeholder={host.launcher ? '~/ApplyPack/inbox' : (host.roots[0] ?? '/inbox')} translate="no" autocomplete="off" spellcheck="false" />
+              <Input type="text" name="path" required mono value={refused?.path} placeholder={host.launcher ? '~/ApplyPack/inbox' : (host.roots[0] ?? '/inbox')} translate="no" autocomplete="off" spellcheck="false" />
             </Field>
             <Field label={t('companies.name')} hint={t('folders.add.nameHint')}>
               <Input type="text" name="name" maxlength="80" placeholder={t('folders.add.namePlaceholder')} />
@@ -165,6 +178,14 @@ export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folde
                 <ActionForm action={`/companies/${f.id}/check-now`} once>
                   <Button variant="secondary" size="sm" aria-label={t('folders.checkNamedNow', { name: f.name })}>
                     {t('watchlist.checkNow')}
+                  </Button>
+                </ActionForm>
+              )}
+              {/* Switched on here, switched off here (#546): the table's switch is among every other source. */}
+              {f.active && (
+                <ActionForm action={`/companies/${f.id}/toggle-active`}>
+                  <Button variant="ghost" size="sm" aria-label={t('companies.disableNamed', { name: f.name })}>
+                    {t('ui.disable')}
                   </Button>
                 </ActionForm>
               )}
@@ -323,7 +344,7 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
               <ul class="space-y-1 text-sm text-ink">
                 <li>{t('folders.rows.usable', { usable: counts.usable, stored: counts.stored })}</li>
                 <li>{t('import.preview.passing', { fresh, passing: counts.passing, turnedAway: counts.turnedAway })}</li>
-                {counts.passing > 0 && <li>{scoring ? `${t('folders.rows.cost', { n: counts.passing })} ${cost}` : t('folders.rows.paused')}</li>}
+                {counts.passing > 0 && <li>{scoring ? `${t('folders.rows.cost', { n: counts.passing })} ${cost}` : `${t('folders.rows.paused')} ${t('fetchSummary.scoreLater')}`}</li>}
                 {misfits > 0 && <li>{t('folders.rows.misfits', { n: misfits })}</li>}
                 {mapping.employer === null && counts.passing > 0 && <li>{t('import.noCompanyColumn')}</li>}
               </ul>
@@ -459,7 +480,7 @@ const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, ex
             <SectionTitle>{t('folders.nextCheck')}</SectionTitle>
             <ul class="space-y-1 text-sm text-ink">
               <li>{t('folders.postings.oneJob')}</li>
-              <li>{scoring ? `${t('folders.postings.cost', { newest: newest.length, asking })} ${cost}` : t('folders.postings.paused')}</li>
+              <li>{scoring ? `${t('folders.postings.cost', { newest: newest.length, asking })} ${cost}` : `${t('folders.postings.paused')} ${t('fetchSummary.scoreLater')}`}</li>
               <li>{t('folders.postings.readOnce', { textMb: maxBytesOf('html') / (1024 * 1024), docMb: maxBytesOf('pdf') / (1024 * 1024) })}</li>
               <li>{t('folders.postings.privacy')}</li>
             </ul>
@@ -540,6 +561,14 @@ export const FolderFilesPage: FC<{
           titleIsData
           back={{ href: '/companies#folders', label: t('nav.companies') }}
           meta={[folderLine(folder.summary), setAsideLine(folder.summary)].filter((part) => part !== null).join(' · ')}
+          // #546: "Read every file again" waits for the next check, and with fetching paused there is none.
+          actions={
+            folder.active && (
+              <ActionForm action={`/companies/${folder.id}/check-now`} hidden={{ back: `/companies/${folder.id}/files` }} once>
+                <Button variant="secondary">{t('watchlist.checkNow')}</Button>
+              </ActionForm>
+            )
+          }
         >
           {tRich(
             'folders.files.header',
