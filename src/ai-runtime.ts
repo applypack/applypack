@@ -124,7 +124,7 @@ export async function getAiRuntime(): Promise<AiRuntime> {
     logger.warn({ err }, 'ai: settings read failed, using .env engine');
   }
   let resolved = resolveAiEngine(raw, getAiEngineEnv(keys, servers.openAiBaseUrl));
-  if (resolved.chain.includes('openai_api') && (await learnLocalModels(servers.openAiBaseUrl, keys))) {
+  if (resolved.chain.includes('openai_api') && (await askLocalModels(servers.openAiBaseUrl, keys))) {
     resolved = resolveAiEngine(raw, getAiEngineEnv(keys, servers.openAiBaseUrl));
   }
   return {
@@ -137,14 +137,14 @@ export async function getAiRuntime(): Promise<AiRuntime> {
 
 /**
  * A server on this machine is asked what it runs before an empty slot is read
- * (#606): the dashboard's probe and Test ask it in their own process, and a
- * call in this one must ask for the model they named. Once per process — a
- * local request, and a server that is not running refuses at once. True when
- * it learnt something.
+ * (#606), as the engine's Test asks it: a call asks for the model the Test
+ * would, from what the server lists now — a model pulled since is seen, in
+ * the worker too. A local request, and a server that is not running refuses
+ * at once. True when it answered.
  */
-async function learnLocalModels(stored: string | null, keys: AiKeys): Promise<boolean> {
+async function askLocalModels(stored: string | null, keys: AiKeys): Promise<boolean> {
   const base = openAiBase(stored);
-  if (config.OPENAI_MODEL || !isLocalUrl(base) || knownModels(base).length > 0) return false;
+  if (config.OPENAI_MODEL || !isLocalUrl(base)) return false;
   return 'models' in (await listServerModels(base, resolveAiKey('openai_api', keys), LOCAL_LIST_TIMEOUT_MS));
 }
 
