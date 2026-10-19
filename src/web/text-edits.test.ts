@@ -210,6 +210,35 @@ test('insertIntoSkills refuses a term list that is not in a skills section', asy
   assert.equal(err(insertIntoSkills(text, 'Rust', 'Programming')), 'no-skills-list');
 });
 
+test('insertIntoSkills puts a term with no hint on the line it belongs to, never on an unrelated one (#576)', async () => {
+  const { insertIntoSkills } = await edits;
+  const text = [
+    '## Skills',
+    '- Backend: Node.js, TypeScript, NestJS, GraphQL, REST',
+    '- Data: PostgreSQL, Redis, MongoDB',
+    '- Cloud & DevOps: AWS, Docker, Terraform',
+    '- Testing: Jest, Playwright, contract testing (Pact)',
+  ].join('\n');
+  const lineOf = (term: string) => ok(insertIntoSkills(text, term)).text.split('\n').find((l) => l.includes(term));
+  assert.match(lineOf('Kubernetes') ?? '', /^- Cloud & DevOps:/);
+  assert.match(lineOf('NoSQL') ?? '', /^- Data:/);
+  assert.match(lineOf('OAuth2') ?? '', /^- Backend:/);
+  assert.match(lineOf('JSON') ?? '', /^- Backend:/);
+  // A term of no family, and every line named for one: no line is its own.
+  assert.equal(err(insertIntoSkills(text, 'Salesforce')), 'no-fitting-line');
+  // The terms on an unlabelled line say what it is, and an "Others" line takes the rest.
+  const mixed = ['SKILLS', 'Languages: Go, PHP', 'Kafka, RabbitMQ, MySQL', 'Others: Jira, Figma'].join('\n');
+  assert.match(ok(insertIntoSkills(mixed, 'MongoDB')).text, /^Kafka, RabbitMQ, MySQL, MongoDB$/m);
+  assert.match(ok(insertIntoSkills(mixed, 'Salesforce')).text, /^Others: Jira, Figma, Salesforce$/m);
+});
+
+test('insertIntoSkills never splits a list that runs on into the next line', async () => {
+  const { insertIntoSkills } = await edits;
+  const text = ['## Skills', 'TypeScript, Node.js, PostgreSQL, Docker,', 'Terraform, GraphQL, Jest'].join('\n');
+  assert.match(ok(insertIntoSkills(text, 'Kubernetes')).text, /^Terraform, GraphQL, Jest, Kubernetes$/m);
+  assert.match(ok(insertIntoSkills(text, 'Salesforce')).text, /^Terraform, GraphQL, Jest, Salesforce$/m);
+});
+
 test('insertIntoSkills is a no-op for a term the resume already claims', async () => {
   const { insertIntoSkills } = await edits;
   const text = 'KEY SKILLS\nProgramming: Go, PHP, JavaScript';

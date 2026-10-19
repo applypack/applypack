@@ -131,6 +131,28 @@ test('addKeywords gives terms no list line can take a line of their own', async 
   assert.match(addKeywords(tight, [{ term: 'Kafka' }]).text, /stack\.\nAlso: Kafka\nExperience\n/);
 });
 
+test('addKeywords puts each term with no hint on its own family’s line, and the rest on a line of their own (#576)', async () => {
+  const { addKeywords } = await mod;
+  const text = [
+    '## Skills',
+    '- Backend: Node.js, TypeScript, NestJS',
+    '- Data: PostgreSQL, Redis',
+    '- Cloud & DevOps: AWS, Docker',
+    '- Testing: Jest, Playwright, contract testing (Pact)',
+    '',
+    '## Experience',
+    '**Engineer — Acme** · 2020 – Present',
+  ].join('\n');
+  const r = addKeywords(text, ['JSON', 'Kubernetes', 'NoSQL', 'OAuth2', 'Salesforce'].map((term) => ({ term })));
+  assert.deepEqual(r.failed, []);
+  const lines = r.text.split('\n');
+  assert.equal(lines[1], '- Backend: Node.js, TypeScript, NestJS, JSON, OAuth2');
+  assert.equal(lines[2], '- Data: PostgreSQL, Redis, NoSQL');
+  assert.equal(lines[3], '- Cloud & DevOps: AWS, Docker, Kubernetes');
+  assert.equal(lines[4], '- Testing: Jest, Playwright, contract testing (Pact)');
+  assert.equal(lines[5], 'Also: Salesforce');
+});
+
 // Found by the 2026-09-30 review: a bullet or a title with "stack" in it opened a
 // "skills section", and the keyword went into a job's stack line or its dates line.
 const WORK_STACK = [
@@ -159,8 +181,8 @@ test('a role dated any of the usual ways closes the skills section', async () =>
   const { addKeywords } = await mod;
   for (const dates of ['Jan 2020 – Mar 2022', '03/2020 - 05/2022', '2019-Present']) {
     const text = ['Jane Doe', '', 'SKILLS', 'Languages: PHP, Go', 'Where I worked', `Acme Corp, ${dates}`, 'Stack: MySQL, Redis'].join('\n');
-    const line = addKeywords(text, [{ term: 'Kafka' }]).text.split('\n').find((l) => l.includes('Kafka'));
-    assert.equal(line, 'Languages: PHP, Go, Kafka', dates);
+    const line = addKeywords(text, [{ term: 'Rust' }]).text.split('\n').find((l) => l.includes('Rust'));
+    assert.equal(line, 'Languages: PHP, Go, Rust', dates);
   }
 });
 
@@ -179,9 +201,9 @@ test('two last lines cut in a row come back in their own order, whichever is und
     { key: 'refs', kind: 'remove', quote: 'References available on request' },
     { key: 'int', kind: 'remove', quote: 'Interests: chess, hiking' },
   ]);
-  const words = addKeywords(cards.text, [{ term: 'Kafka', where: 'Skills' }]);
+  const words = addKeywords(cards.text, [{ term: 'Rust', where: 'Skills' }]);
   const done = [...cards.done, ...words.done];
-  for (const order of [['refs', 'int', 'kw:Kafka'], ['int', 'refs', 'kw:Kafka'], ['kw:Kafka', 'refs', 'int']]) {
+  for (const order of [['refs', 'int', 'kw:Rust'], ['int', 'refs', 'kw:Rust'], ['kw:Rust', 'refs', 'int']]) {
     let t = words.text;
     for (const key of order) {
       const back = undoEdit(t, done.find((d) => d.key === key)!.edit);
