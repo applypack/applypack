@@ -1,12 +1,13 @@
 /*
  * Demo wiring for the live score — used by /demo/ and, embedded, by the
  * landing page. Connects the vendored pure modules (score.mjs, target.mjs,
- * byte-identical to src/web/public/ and guarded by src/web/site-vendor.test.ts)
- * to the page. Mirrors the dashboard's target-page.mjs render path:
- * scoreKeywords → entriesFromLive → computeScore.
+ * kept-words.mjs, byte-identical to src/web/public/ and guarded by
+ * src/web/site-vendor.test.ts) to the page. Mirrors the dashboard's
+ * target-page.mjs render path: scoreKeywords → entriesFromLive → computeScore.
  */
 import { scoreKeywords, highlightHtml, jobSpans, resumeSpans, orderKeywords, keywordRank, wantsLabel } from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
+import { KEPT_FLOOR, wordsOf, shareKept } from './kept-words.mjs';
 
 const editor = document.getElementById('editor');
 const backdrop = document.getElementById('backdrop');
@@ -37,17 +38,9 @@ const toneColor = (score) => TONE.find(([min]) => score >= min)[1];
 const MUTED = '#667085';
 
 // The alignment part of the score is the AI's reading of the original resume.
-// Once less than this share of its words is left, that reading describes a
+// Once less than KEPT_FLOOR of its words is left, that reading describes a
 // resume that is gone, and the page shows no number rather than a guess.
-const KEPT_FLOOR = 0.6;
 const STALE_NOTE = 'Too little is left of the resume the AI read to score this text. In the app, “Analyse my resume again” reads the new text in one AI call.';
-const wordsOf = (text) => new Set(text.toLowerCase().match(/[\p{L}\p{N}]+/gu));
-function shareKept(original, text) {
-  const now = wordsOf(text);
-  let kept = 0;
-  for (const word of original) if (now.has(word)) kept++;
-  return kept / original.size;
-}
 
 /** What a chip's title says: how hard the posting wants the word, how often, where it would go. */
 const chipWhy = (r) =>
