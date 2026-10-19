@@ -17,7 +17,8 @@ import {
 import { briefForPosting } from './brief';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
-import { gateActions, gateRemovals } from './replacement-gate';
+import { dropNoOps, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
+import { structureFromText } from './structure-from-text';
 import { rewriteRefusedLeads } from './rewrite';
 import { appliedWording, freshActions, rewritesOfApplied } from './applied';
 import { domainMismatch } from './domain';
@@ -87,13 +88,15 @@ export async function suggestForMatch(
     keywords: readKeywords(match.keywords),
     matcher,
   };
-  const gate = gateActions(answer.data.actions, gateSources);
+  const headline = structureFromText(match.resumeText).basics.label;
+  const gate = gateActions(titleOverHeadline(answer.data.actions, match.resumeText, headline), gateSources);
   const cuts = gateRemovals(answer.data.removals, gateSources);
   const churn = rewritesOfApplied(applied, gate.actions, match.resumeText, matcher.locateQuote);
   const fresh = freshActions(gate.actions, applied, gateSources.keywords, match.resumeText, matcher);
+  const edits = dropNoOps(fresh.kept, cuts.removals, gateSources);
   const row = await updateMatchSuggestions(
     match.id,
-    { ...answer.data, actions: fresh.kept, removals: cuts.removals },
+    { ...answer.data, actions: edits.actions, removals: edits.removals },
     verification?.id ?? null,
   );
   logger.info(
@@ -110,6 +113,7 @@ export async function suggestForMatch(
       applied: applied.length,
       rewritesOfApplied: churn.length,
       reworksDropped: fresh.dropped.length,
+      noOpsDropped: edits.dropped,
       model: answer.model,
       chars: answer.chars,
       ms: answer.ms,

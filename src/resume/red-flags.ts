@@ -61,3 +61,28 @@ export function countableFlags(
   }
   return { counted, exempt };
 }
+
+export interface ShownFlags {
+  /** What the red flags list shows: the flags the score charged for. */
+  redFlags: string[];
+  /** Exempt flags that are true and free — shown among the cautions. */
+  cautions: string[];
+}
+
+/**
+ * Where each flag is shown, so the page says what the score did (#591). A
+ * counted flag is a red flag. An exempt one about a term the resume does not
+ * have is true and cost nothing: a caution. An exempt one about a term the text
+ * does spell — on a skills line only, or under another spelling — says "no X
+ * anywhere" about a word the reader can see, and the keyword table already says
+ * where X stands: it is not shown.
+ */
+export function shownFlags(
+  flags: string[],
+  keywords: MatchKeyword[],
+  matcher: Pick<KeywordMatcher, 'findTerm'>,
+): ShownFlags {
+  const { counted, exempt } = countableFlags(flags, keywords, matcher);
+  const spelled = new Set(keywords.filter((k) => k.status === 'present').map((k) => k.term));
+  return { redFlags: counted, cautions: exempt.filter((e) => !spelled.has(e.term)).map((e) => e.flag) };
+}

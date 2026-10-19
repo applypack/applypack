@@ -17,7 +17,8 @@ import {
 import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
 import { countableFlags } from './red-flags';
-import { gateActions, gateRemovals } from './replacement-gate';
+import { dropNoOps, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
+import { structureFromText } from './structure-from-text';
 import { floorDemand, floorGaps, unwrittenMusts } from './suggestion-floor';
 import { suggestForMatch } from './suggestions';
 import { rewriteRefusedLeads } from './rewrite';
@@ -186,12 +187,14 @@ export async function matchResumeToJob(
   // What may be applied with one press is decided here, in code, against
   // the resume, the posting and the facts — never by the model (ADR 0037).
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
-  const gate = gateActions(reply.actions, gateSources);
+  const gate = gateActions(titleOverHeadline(reply.actions, resume.text, structureFromText(resume.text).basics.label), gateSources);
   const cuts = gateRemovals(reply.removals, gateSources);
   // How many reworks of applied wording the model wrote (the metric), and
   // then the rule as code: only one naming a keyword the text lacks stays.
   const churn = rewritesOfApplied(applied, gate.actions, resume.text, matcher.locateQuote);
   const fresh = freshActions(gate.actions, applied, keywords, resume.text, matcher);
+  // A card that asks for nothing is not a suggestion, and the count says so.
+  const edits = dropNoOps(fresh.kept, cuts.removals, gateSources);
   // A flag that only restates a keyword the resume does not have is the same
   // fact billed twice: the keyword pool already charged for it, and whether the
   // model bothers to write the sentence was 80% of a ten-point spread across
@@ -210,7 +213,7 @@ export async function matchResumeToJob(
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
     model: answer.model,
-    result: { ...reply, keywords, actions: fresh.kept, removals: cuts.removals },
+    result: { ...reply, keywords, actions: edits.actions, removals: edits.removals },
     breakdown,
     promptVersion: PROMPT_VERSION,
     mode,
@@ -270,6 +273,7 @@ export async function matchResumeToJob(
       applied: applied.length,
       rewritesOfApplied: churn.length,
       reworksDropped: fresh.dropped.length,
+      noOpsDropped: edits.dropped,
       domain: context.candidateDomains?.verdict,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',

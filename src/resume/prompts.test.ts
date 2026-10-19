@@ -1142,6 +1142,14 @@ test('wording the candidate took from the last report is done, not raw material'
   assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, appliedFromLastRun: lines }).user, /BEGIN UNTRUSTED APPLIED FROM THE LAST RUN/);
 });
 
+test('the title action rewrites the headline there is, and every item changes something, said in plain words (#591, #577)', () => {
+  for (const system of [buildMatchPrompt('resume', JOB, 'full').system, buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system]) {
+    assert.match(system, /gets it REPLACED: "quote" is that title alone, never the contact details after it/);
+    assert.match(system, /An item that changes nothing .* is not an item: leave it out/);
+    assert.match(system, /"why" — of an action and of a removal — is read by the candidate/);
+  }
+});
+
 test("the candidate's domains reach the full analysis and the suggestions, fenced; the gap sentence only when they differ", () => {
   const different = { verdict: 'different' as const, resume: ['fitness e-commerce', 'ai tooling'], posting: 'restaurant technology' };
   const full = buildMatchPrompt('resume', JOB, 'full', { candidateDomains: different }).user;

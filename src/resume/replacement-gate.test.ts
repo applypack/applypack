@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gateActions, gateRemovals, hasCheckNote, instructionIn, splitRefusal, type GateSources } from './replacement-gate';
+import { dropNoOps, gateActions, gateRemovals, hasCheckNote, instructionIn, splitRefusal, titleOverHeadline, type GateSources } from './replacement-gate';
+import { structureFromText } from './structure-from-text';
 import { readKeywords, readRemovals, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 const RESUME = [
@@ -422,4 +423,78 @@ test('a check note is read off a wording the gate let through, and only its own'
   ).actions;
   assert.equal(hasCheckNote(warned!), true);
   assert.equal(hasCheckNote(clean!), false);
+});
+
+// #591: the resume's title opens its contact line, and the title action added a second headline above it.
+const HEADED = [
+  '# Alex Rivera',
+  'Senior Backend Engineer · Austin, TX · alex.rivera@example.com · (512) 555-0147',
+  '',
+  '## Summary',
+  'Backend engineer with 8 years building Node.js services.',
+].join('\n');
+
+test('a title action that adds a headline rewrites the one the resume has instead', async () => {
+  const headline = structureFromText(HEADED).basics.label;
+  assert.equal(headline, 'Senior Backend Engineer');
+  const add = action({
+    section: 'title',
+    what: 'Add a headline naming the posting title',
+    insert_after: '# Alex Rivera',
+    replacement: 'Software Engineer, Backend - Node.js & TypeScript',
+  });
+  const summary = action({ section: 'summary', insert_after: '# Alex Rivera', replacement: 'A summary.' });
+  const [title, other] = titleOverHeadline([add, summary], HEADED, headline);
+  assert.equal(title!.quote, 'Senior Backend Engineer');
+  assert.equal(title!.insert_after, null);
+  assert.equal(other, summary, 'only the title action');
+  // Through the editor: the title words change, the contact details stay where they were.
+  // @ts-expect-error — plain JS with no declaration file.
+  const { applyReplacement } = (await import('../web/public/text-edits.mjs')) as {
+    applyReplacement: (text: string, quote: string, wording: string) => { text: string };
+  };
+  assert.equal(
+    applyReplacement(HEADED, title!.quote!, title!.replacement!).text.split('\n')[1],
+    'Software Engineer, Backend - Node.js & TypeScript · Austin, TX · alex.rivera@example.com · (512) 555-0147',
+  );
+});
+
+test('a title action stays an addition when the resume has no headline to rewrite', () => {
+  const add = action({ section: 'title', insert_after: 'Alex Rivera', replacement: 'Backend Engineer' });
+  const placeOnly = 'Alex Rivera\nAustin, TX\n\nSUMMARY\nEngineer.';
+  assert.deepEqual(titleOverHeadline([add], placeOnly, structureFromText(placeOnly).basics.label), [add]);
+  assert.deepEqual(titleOverHeadline([add], 'Alex Rivera\nalex@example.com', null), [add]);
+  // A headline the text does not carry verbatim is not one to quote.
+  assert.deepEqual(titleOverHeadline([add], HEADED, 'Staff Engineer'), [add]);
+});
+
+test('an edit that asks for nothing is dropped, and the count says how many (#577)', async () => {
+  const src = await sources({
+    keywords: [keyword({ term: 'React', status: 'cannot_claim' }), keyword({ term: 'Laravel' })],
+  });
+  const real = action({ quote: 'Designed Laravel payment workflows', replacement: 'Owned Laravel payment workflows.' });
+  const out = dropNoOps(
+    [
+      real,
+      action({ what: 'Keep refunds-service bullet as is', quote: 'Designed Laravel payment workflows' }),
+      action({ quote: 'Led migration of the monolith', replacement: 'Led migration of the monolith' }),
+      action({ what: 'Remove React since it cannot be claimed' }),
+      // A keep that moves the line is a reorder, and stays.
+      action({ what: 'Keep the payments bullet as is but move it to the top' }),
+      // Taking out a term the resume does carry is a real edit.
+      action({ what: 'Remove Laravel from the summary' }),
+    ],
+    [
+      removal({ what: 'Nothing to remove here — line only contains present/add keywords' }),
+      removal({ what: 'Remove React from the skills line' }),
+      removal({ what: 'Drop MySQL from the skills line', quote: 'MySQL' }),
+    ],
+    src,
+  );
+  assert.deepEqual(
+    out.actions.map((a) => a.what),
+    ['Reword it.', 'Keep the payments bullet as is but move it to the top', 'Remove Laravel from the summary'],
+  );
+  assert.deepEqual(out.removals.map((r) => r.what), ['Drop MySQL from the skills line']);
+  assert.equal(out.dropped, 5);
 });

@@ -89,6 +89,7 @@ import { summaryGuide, type SummaryGuide } from '../../resume/summary-guide';
 import { withTableAliases } from '../../resume/keyword-aliases';
 import { loadKeywordMatcher, type CountedKeyword } from '../../resume/keyword-matcher';
 import { termUsage, type TermUsage } from '../../resume/usage';
+import { shownFlags } from '../../resume/red-flags';
 import { factCheck } from '../../resume/fact-check';
 import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
 import { buildLetterPdf } from '../../resume/pdf-write';
@@ -395,6 +396,16 @@ async function orderedKeywords(
 }
 
 /**
+ * The comparison as its card shows it: the red flags the score charged for,
+ * and the free ones that are true among the cautions (red-flags.ts:shownFlags).
+ * Read on every view, so a row stored before the rule shows the same way.
+ */
+async function withShownFlags<M extends { redFlags: string[]; cautions: string[]; keywords: unknown }>(match: M): Promise<M> {
+  const shown = shownFlags(match.redFlags, readKeywords(match.keywords), await loadKeywordMatcher());
+  return { ...match, redFlags: shown.redFlags, cautions: [...match.cautions, ...shown.cautions] };
+}
+
+/**
  * What the first reader looks for in a summary, held against the text this
  * comparison read (summary-guide.ts) — stored rows only, no AI. A quick check
  * shows no edit list to put it in.
@@ -554,7 +565,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         resumes: resumeOptions,
         suggestedResumeId: suggested?.id ?? null,
         matches,
-        selected,
+        selected: selected && (await withShownFlags(selected)),
         selectedKeywords,
         selectedSummaryGuide,
         job: { title: job.title, companyName: companyForPage(job.employer, job.company) },
@@ -1131,7 +1142,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
       resume={{ id: resume.id, name: match.resume.name, version: resume.version, ephemeral: resume.hidden }}
-      match={match}
+      match={await withShownFlags(match)}
       keywords={await orderedKeywords(match, job.description)}
       matches={matches}
       previous={previousFor(match, matches)}

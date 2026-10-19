@@ -299,3 +299,84 @@ export function gateRemovals(removals: MatchRemoval[], sources: GateSources): Re
 
   return { removals: gated, blocked, warned };
 }
+
+/** A word that makes a line a job title. Only a headline that has one is rewritten in place. */
+const ROLE_WORD =
+  /\b(?:engineer|developer|programmer|architect|manager|designer|analyst|scientist|lead|consultant|specialist|administrator|director|officer|tester|devops|sre|head|founder|cto|researcher|writer|editor|marketer|recruiter|accountant|technician|coordinator|strategist)\b/i;
+/** A title is a few words; a longer line under the name is a sentence. */
+const TITLE_MAX_WORDS = 10;
+
+/**
+ * A title action that adds a headline to a resume that already has one becomes
+ * the rewrite of that headline (#591). Where the title opens the contact line
+ * ("Senior Backend Engineer · Austin, TX · …") the model reads the line as
+ * contact details, inserts its headline after the name, and Apply all left two
+ * titles one over the other. `headline` is the title structure-from-text.ts
+ * reads — the line under the name, or the part that opens the contact line —
+ * and it is used only when the text carries it verbatim and it reads as a title.
+ * Runs before gateActions, so the gate judges the wording against what it replaces.
+ */
+export function titleOverHeadline(actions: MatchAction[], resumeText: string, headline: string | null): MatchAction[] {
+  const title = headline?.trim() ?? '';
+  const isTitle =
+    title !== '' && ROLE_WORD.test(title) && title.split(/\s+/).length <= TITLE_MAX_WORDS && !hasContactDetail(title);
+  if (!isTitle || !resumeText.includes(title)) return actions;
+  return actions.map((a) =>
+    a.section === 'title' && !a.quote && typeof a.replacement === 'string' && a.replacement.trim() !== ''
+      ? { ...a, quote: title, insert_after: null }
+      : a,
+  );
+}
+
+/** "Keep the refunds bullet as is": an edit that says to change nothing. */
+const KEEP_AS_IS = /^\s*(?:keep|leave|retain)\b[^.;]*\b(?:as[ -]is|unchanged|alone|untouched)\b/i;
+/** A removal that says there is nothing to remove. */
+const NOTHING_TO_REMOVE =
+  /\bnothing (?:to|worth) (?:remove|cut|delete|trim|drop)\b|\bno (?:removal|cut|deletion)s? (?:is |are )?(?:needed|required|necessary)\b/i;
+/** An order to take something out. */
+const TAKE_OUT = /\b(?:remove|drop|delete|cut|strip|take out)\b/i;
+/** A keep that moves the line is a reorder, and a reorder changes something. */
+const MOVES = /\b(?:move|reorder|swap|lead|open|first|top|above|below|before|after|up)\b/i;
+
+export interface NoOpReport {
+  actions: MatchAction[];
+  removals: MatchRemoval[];
+  /** How many cards asked for nothing. */
+  dropped: number;
+}
+
+/**
+ * The edits that ask for nothing, taken out after the gates (#577): a rewording
+ * identical to the text it replaces, a "keep … as is" with no wording, a
+ * removal that says there is nothing to remove, and an order to take out terms
+ * the text does not carry ("remove React" where React is nowhere). The prompt
+ * already says every action earns its place; these still came back, and a card
+ * that can only be read and skipped makes the count on the page a lie.
+ */
+export function dropNoOps(
+  actions: MatchAction[],
+  removals: MatchRemoval[],
+  sources: Pick<GateSources, 'resumeText' | 'keywords' | 'matcher'>,
+): NoOpReport {
+  const has = (text: string, k: MatchKeyword) => sources.matcher.findTerm(text, k.term, k.aliases ?? []).length > 0;
+  /** An order to take out terms none of which the resume carries. */
+  const takesOutAbsent = (what: string) => {
+    if (!TAKE_OUT.test(what)) return false;
+    const named = sources.keywords.filter((k) => has(what, k));
+    return named.length > 0 && named.every((k) => !has(sources.resumeText, k));
+  };
+  const noWording = (a: MatchAction) => (a.replacement ?? '').trim() === '' && !a.insert_after;
+  const actionAsksNothing = (a: MatchAction) =>
+    (Boolean(a.quote) && Boolean(a.replacement) && toPlainPunctuation(a.quote ?? '') === toPlainPunctuation(a.replacement ?? '')) ||
+    (noWording(a) && KEEP_AS_IS.test(a.what) && !MOVES.test(a.what)) ||
+    (noWording(a) && !a.quote && takesOutAbsent(a.what));
+  const removalAsksNothing = (r: MatchRemoval) =>
+    NOTHING_TO_REMOVE.test(r.what) || KEEP_AS_IS.test(r.what) || (!r.quote && takesOutAbsent(r.what));
+  const keptActions = actions.filter((a) => !actionAsksNothing(a));
+  const keptRemovals = removals.filter((r) => !removalAsksNothing(r));
+  return {
+    actions: keptActions,
+    removals: keptRemovals,
+    dropped: actions.length - keptActions.length + removals.length - keptRemovals.length,
+  };
+}

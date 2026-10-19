@@ -34,6 +34,8 @@ const MAX_PLACE_CHARS = 60;
 const MAX_PLACE_WORDS = 4;
 const BULLET = /^\s*[-•*·‣▪]\s+/;
 const MD_HEADING = /^\s*#{1,6}\s+(.+?)\s*$/;
+/** The reader's mark for a Title-styled paragraph (docx-text.ts): one "#", not a section's "##". */
+const TITLE_MARK = /^\s*#\s+/;
 /** Contact-ish separators the corpus uses between the parts of one line. */
 const SEPARATORS = /\s*[∙·|•]\s*/;
 const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/;
@@ -143,7 +145,10 @@ function split(lines: string[]): { header: string[]; sections: Section[] } {
   const sections: Section[] = [];
   let current: Section | null = null;
   for (const raw of lines) {
-    const heading = headingOf(raw);
+    // The title a resume opens with is its owner's name: the header, not a
+    // section — read as one, the name, the headline and the contacts were lost (#591).
+    const opensResume = sections.length === 0 && header.every((l) => l.trim() === '');
+    const heading = opensResume && TITLE_MARK.test(raw) ? null : headingOf(raw);
     if (heading !== null) {
       current = { heading, kind: kindOf(heading), lines: [] };
       sections.push(current);
@@ -188,7 +193,7 @@ function basicsFrom(header: string[]): JsonResume['basics'] {
   const lines = header.filter((l) => l.trim().length > 0);
   const basics = emptyResume().basics;
   if (lines.length === 0) return basics;
-  basics.name = (lines[0] ?? '').trim();
+  basics.name = (lines[0] ?? '').replace(TITLE_MARK, '').trim();
   const rest = lines.slice(1);
   // The label is the line after the name, unless that line is already contact
   // details — a resume that opens straight into an email has no label.

@@ -95,6 +95,18 @@ test('the contact line is read into its own fields', () => {
   assert.equal(b.location, 'Austin, Texas, 78758');
 });
 
+test('a name in the Title style opens the header, not a section (#591)', () => {
+  const r = structureFromText(
+    ['# Alex Rivera', 'Senior Backend Engineer · Austin, TX · alex@example.com', '', '## Summary', 'Backend engineer.', '', '# Side notes', 'One.'].join('\n'),
+  );
+  assert.equal(r.basics.name, 'Alex Rivera');
+  assert.equal(r.basics.label, 'Senior Backend Engineer');
+  assert.equal(r.basics.email, 'alex@example.com');
+  assert.equal(r.basics.summary, 'Backend engineer.');
+  // A Title line further down is still a heading.
+  assert.deepEqual(r.extras.map((e) => e.heading), ['Side notes']);
+});
+
 test('a sentence with a comma is not a place', () => {
   // A resume with no headings is all header, and its prose has commas too.
   const flat = `Jane Example — Backend Engineer. Skills: Node.js, PostgreSQL.
