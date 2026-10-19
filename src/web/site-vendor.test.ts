@@ -16,3 +16,19 @@ describe('site demo vendors the real scoring modules', () => {
     });
   }
 });
+
+// The page shows the fixture's AI score beside the live number, so on the
+// untouched resume the two must agree, or the demo opens on a delta nobody made.
+describe('site demo fixture', () => {
+  it("the AI score is what the live formula gives the fixture's own resume", async () => {
+    const fixture = JSON.parse(readFileSync(join(__dirname, '..', '..', 'site', 'public', 'demo', 'fixture.json'), 'utf8'));
+    // @ts-expect-error — plain JS with no declaration file.
+    const { scoreKeywords } = await import('./public/target.mjs');
+    // @ts-expect-error — plain JS with no declaration file.
+    const { computeScore, entriesFromLive } = await import('./public/score.mjs');
+    const { rows } = scoreKeywords(fixture.keywords, fixture.resumeText);
+    const { scoring } = fixture;
+    const { score } = computeScore(entriesFromLive(rows), scoring.alignment, scoring.redFlagCount, scoring.penalty);
+    assert.equal(score, fixture.aiScore);
+  });
+});

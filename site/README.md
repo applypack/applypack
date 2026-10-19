@@ -15,7 +15,10 @@ Static landing for the project. Zero build step, zero dependencies —
   `demo/i18n-en.mjs` are byte copies of `src/web/public/` (enforced by
   `src/web/site-vendor.test.ts` — re-copy when they change; `target.mjs` words
   its lines through `i18n.mjs`); `demo/fixture.json` is the synthetic Fernway /
-  Dana Ruiz comparison exported from a real match run.
+  Dana Ruiz comparison exported from a real match run, its statuses anchored
+  to its own text as `match.ts` stores them since ADR 0045; the same test holds
+  its `aiScore` to what the live formula gives that text. The demo shows no
+  number once less than 60 % of the resume's words are left (`demo.mjs`).
 - `fonts/inter-latin.woff2` is the Inter variable font, latin subset, as
   served by Google Fonts (SIL OFL, `fonts/LICENSE-Inter.txt`). Self-hosted
   so the page does not block on a third-party stylesheet.
