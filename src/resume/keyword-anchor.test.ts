@@ -146,6 +146,12 @@ test('a failed gate that calls a term absent is answered by where the text has i
   assert.deepEqual(absentButWritten(fail('strong Node.js, but no PostgreSQL experience shown anywhere'), keywords, resume, matcher), [
     { term: 'PostgreSQL', listedOnly: false },
   ]);
+  // The phrasings a live v18 report used (2026-10-19): "no X anywhere", "no X in resume", "without X".
+  assert.deepEqual(absentButWritten(fail('TypeScript/JavaScript/Node.js strong, but no React anywhere in resume'), keywords, resume, matcher), [
+    { term: 'React', listedOnly: true },
+  ]);
+  assert.deepEqual(absentButWritten(fail('no React in the resume'), keywords, resume, matcher), [{ term: 'React', listedOnly: true }]);
+  assert.deepEqual(absentButWritten(fail('strong backend, without React'), keywords, resume, matcher), [{ term: 'React', listedOnly: true }]);
   // A term the text does not spell is absent indeed; a gate that passed, or a note that claims nothing, says nothing.
   assert.deepEqual(absentButWritten(fail('GraphQL is missing'), keywords, resume, matcher), []);
   assert.deepEqual(absentButWritten({ status: 'pass', note: 'React is absent' }, keywords, resume, matcher), []);
