@@ -77,13 +77,14 @@ export async function classifyExistingJob(
   }
   if (outcome.results.size === 0) return { kind: 'failed', reason };
 
-  const { verdicts } = buildVerdicts(outcome.results, profiles, job);
+  const place = mergeAiLocation(storedPlace(job), outcome.location);
+  const { verdicts } = buildVerdicts(outcome.results, profiles, job, place);
   const merged = mergeVerdicts(verdicts);
   if (!merged) return { kind: 'failed', reason };
 
   const status = opts.keepStatus ? job.status : statusAfterRescore(job.status, merged.kept, handPickedSource(job.company));
 
-  await saveJobScores(job, merged, verdicts, status, mergeAiLocation(storedPlace(job), outcome.location));
+  await saveJobScores(job, merged, verdicts, status, place);
   logger.info(
     { jobId: job.id, searches: profiles.length, kept: merged.kept, ms: Date.now() - started },
     'classify-existing: scored',

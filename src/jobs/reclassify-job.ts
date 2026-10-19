@@ -245,7 +245,8 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
         continue;
       }
 
-      const { verdicts, boosted } = buildVerdicts(results, profiles, j);
+      const place = mergeAiLocation(storedPlace(j), location);
+      const { verdicts, boosted } = buildVerdicts(results, profiles, j, place);
       const merged = mergeVerdicts(verdicts);
       if (!merged) {
         failed++;
@@ -258,7 +259,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
       if (!merged.kept && merged.winner.dismissReason) dismissedBy[DISMISS_KEY[merged.winner.dismissReason]]++;
       const targetStatus = statusAfterRescore(j.status, merged.kept, chosen);
 
-      await saveJobScores(j, merged, verdicts, targetStatus, mergeAiLocation(storedPlace(j), location));
+      await saveJobScores(j, merged, verdicts, targetStatus, place);
 
       if (targetStatus === j.status) unchanged++;
       else if (targetStatus === JobStatus.NEW) promoted++;

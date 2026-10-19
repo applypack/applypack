@@ -6,6 +6,8 @@ import { getAiEngineEnv } from '../ai-runtime';
 import type { AiBilling } from '../ai-usage';
 import { classifyOnEngine } from '../classifier';
 import { companyForPrompt } from '../employer';
+import { storedPlace } from '../jobs/classify-existing';
+import { mergeAiLocation } from '../jobs/location-merge';
 import { buildVerdicts } from '../jobs/verdict-merge';
 import { isBlankProfile } from '../profile-guards';
 import { listActiveProfiles } from '../profiles';
@@ -169,7 +171,7 @@ async function runTrial(runId: string, provider: AiProviderId, model: string, pr
         ? { kind: 'failed' }
         : !out.parsed
           ? { kind: 'unparsed', ms }
-          : { kind: 'read', ms, pairs: trialPairs(buildVerdicts(out.parsed.results, profiles, job).verdicts, recordedVerdicts(job, job.scores, profiles)) },
+          : { kind: 'read', ms, pairs: trialPairs(buildVerdicts(out.parsed.results, profiles, job, mergeAiLocation(storedPlace(job), out.parsed.location)).verdicts, recordedVerdicts(job, job.scores, profiles)) },
     );
     if (trialGivesUp(readings, GIVE_UP_AFTER)) break;
   }
