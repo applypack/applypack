@@ -103,6 +103,24 @@ Before a line of the feature was written, the pipeline was run dry over those
    spends nothing. A role stored since and never given a pack (the day's
    limit was spent) still gets one through its copy. The tab of the posting
    left without a pack points at the one that has it.
+   *Amended 2026-10-18 (#459).* A board that never publishes dates got no
+   automatic pack at all. A company's own board (the vendor family:
+   Greenhouse … Teamtailor) lists every role it has open, so a posting new
+   to us since its previous successful read went up after that read: the
+   walk carries `Company.lastOkAt`, read before it moves, on each posting as
+   `NormalizedJob.previousRead`, and `trigger.ts:ageCountsFrom` counts an
+   undated posting's age from it there. Anywhere else — an aggregator's
+   window, a feed, a file, a folder of rows, a board's first read — an
+   undated posting still gets none. `lastOkAt` does not move on an empty
+   read, so a board that had no roles for a month and then lists one is a
+   miss, on the side that spends nothing. A search widened since the last
+   read admits postings that were there before it; with no date, those
+   count as new too, held only by the fit and the day's limit.
+   *Amended 2026-10-18 (#458).* The fact is stored now, as
+   `Job.postedAtKnown` (false for an undated posting and a paste; rows
+   stored before it keep true), and the job page calls such a date "First
+   seen". A saved page that states no date is `undated` as well; the
+   trigger still counts it from its file's time (`ageCountsFrom`).
 3. **The row is the queue.** `application_pack`, one per posting: queued →
    running → ready | stopped | failed. The dashboard only inserts the row;
    the worker's runner (`jobs/pack-job.ts`) beats every minute, takes an

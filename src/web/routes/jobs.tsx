@@ -14,7 +14,7 @@ import {
   parsePosted,
   parseWorkplaces,
   placeWhere,
-  postedSince,
+  postedWhere,
   tallyFacets,
 } from '../job-facets';
 import { getSettings } from '../../settings';
@@ -95,6 +95,7 @@ import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
+import { beginScoreUnscored, loadUnscored, PAGE_SCORE_BATCH } from '../score-run';
 import { companyForPage, companyForPrompt, employerKey, hiringName, postingForPrompt, withoutMuted } from '../../employer';
 import { preferredPlaces } from '../place-line';
 import { t } from '../../i18n/t';
@@ -189,9 +190,9 @@ jobsRoute.get('/jobs', async (c) => {
   const now = new Date();
 
   const where: Prisma.JobWhereInput = {};
-  if (status) {
-    where.status = status as JobStatus;
-  }
+  // The first tab is what is still in play; a dismissed posting waits on its own tab (a fresh install's first
+  // look was 461 dismissed rows around 2 matches).
+  where.status = status ? (status as JobStatus) : { not: JobStatus.DISMISSED };
   const minFitNum = intQuery(minFit);
   // With a search selected both filters read that search's own score, not the
   // best-of — a chip that showed rows another search scored would be a lie.
@@ -229,12 +230,12 @@ jobsRoute.get('/jobs', async (c) => {
   const hide: Prisma.JobWhereInput[] = unmuted ? [unmuted] : [];
   if (hide.length > 0) where.AND = hide;
   // The facet counts come from the rows matching everything above; each
-  // facet then applies the others' selections in tallyFacets. Four narrow
+  // facet then applies the others' selections in tallyFacets. Five narrow
   // columns per row — ~1k rows today; past ~50k move the tally into SQL.
   const facetWhere: Prisma.JobWhereInput = { ...where };
-  const since = postedSince(posted, now);
-  if (since) where.postedAt = { gte: since };
   const facetAnd: Prisma.JobWhereInput[] = [...hide];
+  const postedIn = postedWhere(posted, now);
+  if (postedIn) facetAnd.push(postedIn);
   const place = placeWhere(country);
   if (place) facetAnd.push(place);
   if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
@@ -244,7 +245,7 @@ jobsRoute.get('/jobs', async (c) => {
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, facetRows, statusGroups, activeProfile, activeProfiles, mutedHidden] = await Promise.all([
+  const [jobs, facetRows, statusGroups, activeProfile, activeProfiles, mutedHidden, unscored] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -287,18 +288,19 @@ jobsRoute.get('/jobs', async (c) => {
     }),
     prisma.job.findMany({
       where: facetWhere,
-      select: { countries: true, regions: true, workplace: true, postedAt: true },
+      select: { countries: true, regions: true, workplace: true, postedAt: true, postedAtKnown: true },
     }),
     prisma.job.groupBy({ by: ['status'], where: anyStatusWhere, _count: { _all: true } }),
     getActiveProfile(),
     listActiveProfiles(),
     hiddenKeys.length > 0 ? prisma.job.count({ where: { employerKey: { in: hiddenKeys } } }) : 0,
+    loadUnscored(),
   ]);
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
   const statusCounts: Partial<Record<JobStatus, number>> = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
   const total = status
     ? (statusCounts[status as JobStatus] ?? 0)
-    : statusGroups.reduce((sum, g) => sum + g._count._all, 0);
+    : statusGroups.reduce((sum, g) => (g.status === JobStatus.DISMISSED ? sum : sum + g._count._all), 0);
 
   return c.html(
     <JobsListPage
@@ -327,11 +329,25 @@ jobsRoute.get('/jobs', async (c) => {
       searchPlaces={preferredPlaces(activeProfiles)}
       blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}
       mutedHidden={mutedHidden}
+      unscored={unscored}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
+});
+
+/** The notice's one press: the best of the unscored jobs, on the shared progress page, back to Jobs. */
+jobsRoute.post('/jobs/score-unscored', (c) => {
+  const { run } = beginScoreUnscored({
+    limit: PAGE_SCORE_BATCH,
+    heading: { running: t('welcome.scoreRun.running'), failed: t('welcome.scoreRun.failed') },
+    subtitle: t('jobs.scoreRun.subtitle', { n: PAGE_SCORE_BATCH }),
+    backUrl: '/jobs',
+    backLabel: t('jobs.backToJobs'),
+    resultUrl: '/jobs',
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
 });
 
 jobsRoute.get('/jobs/new', (c) =>
@@ -580,11 +596,10 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   // The update below throws on a row that is not there; a missing job is a 404, not a 500.
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
 
+  // `alertedAt` is when an alert went out, and only a delivery writes it: a status set by hand stamped it with
+  // "now", counted an alert nobody sent and overwrote the time of the real one.
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
   let sentPack: ReturnType<typeof packAsShown<PackRow>> = null;
-  if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
-    data.alertedAt = data.alertedAt ?? new Date();
-  }
 
   // When the user marks a job APPLIED and tracking is on, seed the funnel
   // so it shows up on /applications immediately. Don't overwrite existing
@@ -1191,7 +1206,8 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
     case 'fitScore_desc':
       return [{ fitScore: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }];
     case 'postedAt_desc':
-      return [{ postedAt: 'desc' }];
+      // A date nobody gave is when the posting was first seen, not when it went up: those rows follow (#458).
+      return [{ postedAtKnown: 'desc' }, { postedAt: 'desc' }];
     case 'title_asc':
       return [{ title: 'asc' }];
     case 'fetchedAt_desc':

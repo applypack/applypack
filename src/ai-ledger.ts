@@ -8,11 +8,12 @@ import {
   budgetMonth,
   ledgerRow,
   typicalMicro,
+  type AnswerTimes,
   type LedgerInput,
   type PackSpend,
   type SpendGroup,
 } from './ai-spend';
-import type { AiBilling, AiFeature } from './ai-usage';
+import type { AiBilling, AiFeature, AiOutcome } from './ai-usage';
 import type { RecentAttempt } from './ai-health';
 
 /*
@@ -25,17 +26,50 @@ import type { RecentAttempt } from './ai-health';
 const TYPICAL_OF = 20;
 
 /**
- * One attempt into the ledger. Awaited, so a once-script that exits right
- * after its call still has the row, and never thrown: a ledger that cannot
- * write must not fail the AI call it describes.
+ * One attempt into the ledger, and the row's id — null when it was not
+ * written. Awaited, so a once-script that exits right after its call still
+ * has the row, and never thrown: a ledger that cannot write must not fail
+ * the AI call it describes.
  */
-export async function recordAiCall(input: LedgerInput): Promise<void> {
+export async function recordAiCall(input: LedgerInput): Promise<number | null> {
   try {
     const row = ledgerRow(input);
-    await prisma.aiCall.create({ data: row });
+    const { id } = await prisma.aiCall.create({ data: row, select: { id: true } });
     if (row.billing === 'billed' && (row.costMicroUsd ?? row.reportedMicroUsd ?? 0) > 0) await warnOnBudget(input.at);
+    return id;
   } catch (err) {
     logger.warn({ err, feature: input.feature }, 'ai: ledger row not written');
+    return null;
+  }
+}
+
+/*
+ * The ledger's two updates (ADR 0055 addendum 2026-10-18); every other row is
+ * written once. A row is written when the transport answers, so a crash before
+ * the caller has read the reply still leaves it on the record.
+ */
+
+/**
+ * The caller could not read the reply (#463). Only an `ok` row turns: a
+ * call's last row is the answer's, unless the ledger failed to write that one
+ * and the last is a failed attempt before it.
+ */
+export async function markUnparsed(id: number | undefined): Promise<void> {
+  if (id === undefined) return;
+  try {
+    await prisma.aiCall.updateMany({ where: { id, outcome: 'ok' }, data: { outcome: 'unparsed' satisfies AiOutcome } });
+  } catch (err) {
+    logger.warn({ err, id }, 'ai: ledger row not marked unparsed');
+  }
+}
+
+/** The posting a tick scored before its row existed, named on the calls that scored it (#483). */
+export async function attributeCalls(ids: readonly number[], jobId: number): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    await prisma.aiCall.updateMany({ where: { id: { in: [...ids] }, jobId: null }, data: { jobId } });
+  } catch (err) {
+    logger.warn({ err, jobId }, 'ai: scoring calls not named on their posting');
   }
 }
 
@@ -116,6 +150,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
       billing: AiBilling;
       calls: number;
       failed: number;
+      unparsed: number;
       failedAs: string | null;
       noUsage: number;
       unpriced: number;
@@ -132,6 +167,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
     SELECT "feature", "engine", COALESCE("resolvedModel", "model") AS "model", "billing",
       count(*)::int AS "calls",
       count(*) FILTER (WHERE "outcome" <> 'ok')::int AS "failed",
+      count(*) FILTER (WHERE "outcome" = 'unparsed')::int AS "unparsed",
       mode() WITHIN GROUP (ORDER BY "outcome") FILTER (WHERE "outcome" <> 'ok') AS "failedAs",
       count(*) FILTER (WHERE "outcome" <> 'ok' AND "inputTokens" IS NULL AND "outputTokens" IS NULL
         AND "cacheReadTokens" IS NULL AND "cacheWriteTokens" IS NULL AND "cacheWrite1hTokens" IS NULL)::int AS "noUsage",
@@ -158,6 +194,34 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
     p90Ms: r.p90Ms === null ? null : Math.round(r.p90Ms),
     fallbackMicro: Number(r.fallbackMicro),
   }));
+}
+
+/**
+ * How long each feature's last twenty answered calls took on the engines
+ * given, per model asked for: the model the next call will ask for ('' = a
+ * CLI's default), where a spend group is keyed by the one the vendor names.
+ * A page reads it to say how long a step takes here, so it never throws.
+ */
+export async function loadAnswerTimes(engines: readonly string[], features: readonly AiFeature[]): Promise<AnswerTimes[]> {
+  if (engines.length === 0 || features.length === 0) return [];
+  try {
+    const rows = await prisma.$queryRaw<AnswerTimes[]>`
+      SELECT "feature", "engine", "model", count(*)::int AS "answered",
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY "durationMs") AS "medianMs",
+        percentile_cont(0.9) WITHIN GROUP (ORDER BY "durationMs") AS "p90Ms"
+      FROM (
+        SELECT "feature", "engine", "model", "durationMs",
+          row_number() OVER (PARTITION BY "feature", "engine", "model" ORDER BY "at" DESC, "id" DESC) AS "n"
+        FROM "ai_call"
+        WHERE "outcome" = 'ok' AND "engine" = ANY(${[...engines]}) AND "feature" = ANY(${[...features]})
+      ) recent
+      WHERE "n" <= ${TYPICAL_OF}
+      GROUP BY 1, 2, 3`;
+    return rows.map((r) => ({ ...r, medianMs: Math.round(r.medianMs), p90Ms: Math.round(r.p90Ms) }));
+  } catch (err) {
+    logger.warn({ err }, 'ai: answer times not read');
+    return [];
+  }
 }
 
 /** What a kind of call usually costs here: the middle of the last twenty that answered, on the kind of money they spent. */

@@ -6,6 +6,7 @@ import {
   budgetAlertText,
   billingHint,
   costHintText,
+  failureWords,
   featureLabel,
   jobSpendText,
   formatUsd,
@@ -13,6 +14,7 @@ import {
   packCostHint,
   packSpendText,
   periodRange,
+  slowTail,
   spendReportLines,
   spendView,
   usageByModel,
@@ -73,6 +75,7 @@ const group = (over: Partial<SpendGroup>): SpendGroup => ({
   billing: 'billed',
   calls: 1,
   failed: 0,
+  unparsed: 0,
   noUsage: 0,
   unpriced: 0,
   tokensIn: 0,
@@ -229,6 +232,21 @@ test('the rows by the model that answered: the busiest model first, and inside i
 test('a feature reads as words, and one this version does not know reads as itself', () => {
   assert.equal(featureLabel('resume-match'), 'Full analysis');
   assert.equal(featureLabel('something-new'), 'something-new');
+});
+
+test('#463: the table counts a reply that could not be read apart from a call that got no answer', () => {
+  assert.deepEqual(failureWords(0, 0), []);
+  assert.deepEqual(failureWords(3, 0), ['3 did not answer']);
+  assert.deepEqual(failureWords(3, 3), ['3 answered, but could not be read']);
+  assert.deepEqual(failureWords(5, 2), ['3 did not answer', '2 answered, but could not be read']);
+  assert.equal(spendView([group({ calls: 9, failed: 2, unparsed: 2 })]).rows[0]?.unparsed, 2);
+});
+
+test('"9 in 10 under" needs ten answers and a tail slower than the middle — on AI usage and on the run page alike', () => {
+  assert.equal(slowTail(10, 40_000, 95_000), 95_000);
+  assert.equal(slowTail(9, 40_000, 95_000), null);
+  assert.equal(slowTail(20, 40_000, 44_000), null);
+  assert.equal(slowTail(20, null, null), null);
 });
 
 

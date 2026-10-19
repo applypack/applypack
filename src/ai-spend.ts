@@ -71,6 +71,8 @@ export interface SpendGroup {
   calls: number;
   /** Calls that did not end `ok` (a retry, a cut-off, a timeout). */
   failed: number;
+  /** Of those, the ones that answered with a reply the caller could not read (#463) — a reply, so never worded "did not answer". */
+  unparsed: number;
   /** How most of the failed ones ended (`AiOutcome`, as stored); absent when none failed, or on a group built by hand. */
   failedAs?: string | null;
   /** Calls the vendor reported no usage for — a timeout, a crash: it may still have billed. */
@@ -91,6 +93,39 @@ export interface SpendGroup {
   fallbackMicro: number;
 }
 
+/** How long one feature's last answered calls took on one engine and model (ai-ledger.ts:loadAnswerTimes). */
+export interface AnswerTimes {
+  feature: string;
+  engine: string;
+  /** The model asked for — '' = a CLI's default — since that is what the next call will ask for. */
+  model: string;
+  answered: number;
+  medianMs: number;
+  p90Ms: number;
+}
+
+/** A time is stated from this many answered calls: "9 in 10" from two was the slower one, interpolated (#415). */
+export const TIMED_FROM = 10;
+/** The slow tail gets a figure of its own once it is this far from the middle; under it the two say the same. */
+const SLOW_TAIL = 1.1;
+
+/**
+ * The calls that failed, as the table words them: those with no answer, and
+ * apart from them those that answered with a reply that could not be read —
+ * "did not answer" would be untrue of those (#463).
+ */
+export function failureWords(failed: number, unparsed: number): string[] {
+  return [
+    ...(failed > unparsed ? [t('ai.didNotAnswer', { n: failed - unparsed })] : []),
+    ...(unparsed > 0 ? [t('ai.unreadable', { n: unparsed })] : []),
+  ];
+}
+
+/** The "9 in 10 under" time, when there are enough answers for it and the tail is slower than the middle. */
+export function slowTail(answered: number, medianMs: number | null, p90Ms: number | null): number | null {
+  return answered >= TIMED_FROM && medianMs !== null && p90Ms !== null && p90Ms > medianMs * SLOW_TAIL ? p90Ms : null;
+}
+
 export interface SpendTotal {
   calls: number;
   tokens: number;
@@ -104,6 +139,8 @@ export interface SpendRow {
   billing: AiBilling;
   calls: number;
   failed: number;
+  /** Of the failed, the ones that answered with a reply that could not be read. */
+  unparsed: number;
   /** Calls the price table could not price; with no money beside them the cell says so instead of "$0". */
   unpriced: number;
   tokensIn: number;
@@ -134,13 +171,14 @@ export function spendView(groups: readonly SpendGroup[]): SpendView {
     total.micro += g.billing === 'local' ? 0 : g.micro;
   }
   const rows = groups
-    .map(({ feature, engine, model, billing, calls, failed, unpriced, tokensIn, tokensOut, micro, medianMs, p90Ms }) => ({
+    .map(({ feature, engine, model, billing, calls, failed, unparsed, unpriced, tokensIn, tokensOut, micro, medianMs, p90Ms }) => ({
       feature: featureLabel(feature),
       engine: AI_PROVIDER_LABELS[engine as AiProviderId] ?? engine,
       model,
       billing,
       calls,
       failed,
+      unparsed,
       unpriced,
       tokensIn,
       tokensOut,

@@ -8,6 +8,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { filterKey, type FilterProfile } from '../filter';
 import { t } from '../i18n/t';
 import { decodeText } from './decode';
 import { fileDate, findJobRows, mapRows, postingFields, type Mapping } from './map';
@@ -26,7 +27,25 @@ export interface ListedFile {
   mtimeMs: number;
 }
 
-export interface LedgerEntry extends ListedFile {
+/**
+ * What the rules turned away of a file's rows before any model read them,
+ * and under which rules (#448): a file is read once, so this is how a look
+ * knows to read it again when a search, a mute or the re-apply window changes.
+ */
+export interface Judgment {
+  /** By a search's filter or a mute; null for a file read before these were counted. */
+  turnedAway: number | null;
+  /** By the re-apply window, and when the soonest such window closes (ms): the file is read again then. */
+  windowTurnedAway: number;
+  windowEndsAt: number | null;
+  /** The rules they were judged under (`rulesKey`). In the ledger null until its first look after #448; on a change, null is that look's. */
+  rulesKey: string | null;
+}
+
+/** A file whose rows nothing has turned away yet. */
+export const UNJUDGED: Judgment = { turnedAway: 0, windowTurnedAway: 0, windowEndsAt: null, rulesKey: null };
+
+export interface LedgerEntry extends ListedFile, Judgment {
   sha256: string | null;
   status: FileStatus;
   /** Rows of it read so far, and the jobs they gave: where a long file, or one that only grew, is taken up again. */
@@ -35,7 +54,7 @@ export interface LedgerEntry extends ListedFile {
 }
 
 /** What a look learned about one file: the row the ledger keeps for it. */
-export interface FileChange extends ListedFile {
+export interface FileChange extends ListedFile, Judgment {
   kind: FileKind;
   sha256: string | null;
   status: FileStatus;
@@ -328,6 +347,8 @@ export function includeMatcher(pattern: string | null | undefined): (relPath: st
 export interface ScanPlan {
   /** Read now, the oldest change first. */
   read: ListedFile[];
+  /** Of those, the files read again whole because what turned their rows away changed (#448). */
+  rejudged: Set<string>;
   /** Changed seconds ago: possibly still being written. */
   waiting: ListedFile[];
   /** Past the per-look ceiling: the next look takes them. */
@@ -358,6 +379,29 @@ function sameFile(a: ListedFile, b: ListedFile): boolean {
 }
 
 /**
+ * The rules a file's rows are judged under before any model reads them
+ * (#448): what the base filter of the searches that score reads, whom the
+ * user muted, and how long the re-apply window is. Order does not matter.
+ */
+export function rulesKey(searches: readonly FilterProfile[], muted: Iterable<string>, reapplyDays: number | null): string {
+  const filters = [...new Set(searches.map(filterKey))].sort();
+  return createHash('sha256').update(JSON.stringify({ filters, muted: [...muted].sort(), reapplyDays })).digest('hex');
+}
+
+/**
+ * Whether a file read whole is due again (#448): rows of it were turned away
+ * and the rules differ from the ones that did it — a search edited, a company
+ * unmuted — or a re-apply window that turned rows of it away has closed. A
+ * file read before rows were counted may have had some. One whose ledger row
+ * has no key yet was read before keys existed, and is stamped, not read.
+ */
+export function judgedAgain(entry: LedgerEntry, rules: string, now: number): boolean {
+  if (entry.status !== 'done') return false;
+  const away = entry.turnedAway === null || entry.turnedAway + entry.windowTurnedAway > 0;
+  return (away && entry.rulesKey !== null && entry.rulesKey !== rules) || (entry.windowEndsAt !== null && entry.windowEndsAt < now);
+}
+
+/**
  * The files to read now, the oldest change first — new and changed files
  * before the ones looked at again (a file that waited, one the system would
  * not open), so a heap of the latter cannot keep what is new from being read.
@@ -366,6 +410,10 @@ function sameFile(a: ListedFile, b: ListedFile): boolean {
  * settled and read half-written (#396). A file dated a little ahead waits like
  * one just written; one dated far ahead (a clock set wrong) counts as settled,
  * and the read itself measures it twice.
+ *
+ * With `rules`, the key of the rules this look judges rows under, a file
+ * those rules may judge otherwise now (`judgedAgain`) is read again from its
+ * first row, behind every other.
  */
 export function planScan(
   listing: readonly ListedFile[],
@@ -373,12 +421,14 @@ export function planScan(
   now: number,
   include: (relPath: string) => boolean = () => true,
   holds: FolderHolds = 'rows',
+  rules?: string,
 ): ScanPlan {
   const kindOf = kindsFor(holds);
   const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
-  const plan: ScanPlan = { read: [], waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 };
+  const plan: ScanPlan = { read: [], rejudged: new Set(), waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 };
   const fresh: ListedFile[] = [];
   const again: ListedFile[] = [];
+  const rejudge: ListedFile[] = [];
   for (const file of listing) {
     const kind = kindOf(file.relPath);
     if (kind === null || !include(file.relPath)) {
@@ -387,13 +437,15 @@ export function planScan(
     }
     const entry = known.get(file.relPath);
     const age = now - file.mtimeMs;
-    if (entry && sameFile(entry, file) && settled(entry)) plan.unchanged++;
-    else if (file.size > maxBytesOf(kind)) plan.tooLarge.push(file);
+    if (entry && sameFile(entry, file) && settled(entry)) {
+      if (rules !== undefined && judgedAgain(entry, rules, now)) rejudge.push(file);
+      else plan.unchanged++;
+    } else if (file.size > maxBytesOf(kind)) plan.tooLarge.push(file);
     else if (age < SETTLE_MS && age > -CLOCK_SLACK_MS) plan.waiting.push(file);
     else (entry && sameFile(entry, file) ? again : fresh).push(file);
   }
   const oldestFirst = (a: ListedFile, b: ListedFile): number => a.mtimeMs - b.mtimeMs || a.relPath.localeCompare(b.relPath);
-  const due = [...fresh.sort(oldestFirst), ...again.sort(oldestFirst)];
+  const due = [...fresh.sort(oldestFirst), ...again.sort(oldestFirst), ...rejudge.sort(oldestFirst)];
   // In order, up to the look's ceilings; from the first file that does not fit, the rest wait, so none is read out of turn.
   const limits = LOOK_LIMITS[holds];
   let bytes = 0;
@@ -403,6 +455,8 @@ export function planScan(
       bytes += file.size;
     } else plan.later.push(file);
   }
+  const reading = new Set(plan.read);
+  for (const file of rejudge) if (reading.has(file)) plan.rejudged.add(file.relPath);
   return plan;
 }
 
@@ -422,7 +476,7 @@ export function unreachedChanges(files: readonly ListedFile[], ledger: readonly 
 export function unreadChange(file: ListedFile, why: 'fresh' | 'later' | 'tooLarge', kindOf: (relPath: string) => FileKind | null = rowFileKind): FileChange {
   const kind = kindOf(file.relPath)!;
   const detail = why === 'fresh' ? FILE_NOTES.fresh : why === 'later' ? FILE_NOTES.later : tooLargeNote(kind);
-  return { ...file, kind, sha256: null, status: why === 'tooLarge' ? 'skipped' : 'waiting', detail, jobCount: 0, rowsRead: 0 };
+  return { ...file, kind, sha256: null, status: why === 'tooLarge' ? 'skipped' : 'waiting', detail, jobCount: 0, rowsRead: 0, ...UNJUDGED };
 }
 
 /**
@@ -430,7 +484,7 @@ export function unreadChange(file: ListedFile, why: 'fresh' | 'later' | 'tooLarg
  * vanished between the listing and the read. Shared by both kinds of folder.
  */
 export function unreadVerdict(file: ListedFile, kind: FileKind, got: Exclude<FileRead, { ok: true }>): FileChange | null {
-  const note = (status: FileStatus, detail: string): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0 });
+  const note = (status: FileStatus, detail: string): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0, ...UNJUDGED });
   if (got.why === 'gone') return null;
   if (got.why === 'changing') return note('waiting', FILE_NOTES.changing);
   if (got.why === 'refused') return note('failed', FILE_NOTES.refused);
@@ -483,6 +537,16 @@ function resumeAt(known: LedgerEntry | undefined, got: Extract<FileRead, { ok: t
 }
 
 /**
+ * What a file read on from where an earlier look stopped keeps of that look
+ * (#448): the rows turned away so far and — when any were — the rules that
+ * did it, so a file finished under other rules is read again whole.
+ */
+function carriedJudgment(known: LedgerEntry): Judgment {
+  const away = known.turnedAway !== 0 || known.windowTurnedAway > 0;
+  return { turnedAway: known.turnedAway, windowTurnedAway: known.windowTurnedAway, windowEndsAt: known.windowEndsAt, rulesKey: away ? known.rulesKey : null };
+}
+
+/**
  * One planned file after its read: the jobs it gives and what the ledger
  * should say. `readAs` holds the hashes of files already read (hash → path):
  * a copy or a rename brings nothing new. A row that names no date takes the
@@ -508,7 +572,17 @@ export function judgeFile(
   now: number = Date.now(),
 ): FileVerdict {
   const kind = rowFileKind(file.relPath)!;
-  const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, rowsRead: 0, ...extra });
+  const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({
+    ...file,
+    kind,
+    sha256: null,
+    status,
+    detail,
+    jobCount: 0,
+    rowsRead: 0,
+    ...UNJUDGED,
+    ...extra,
+  });
   const none = (change: FileChange | null, notes: string[] = []): FileVerdict => ({ change, jobs: [], rows: 'none', taken: 0, notes });
   if (!got.ok) return none(unreadVerdict(file, kind, got));
   const measured = { size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256 };
@@ -532,6 +606,7 @@ export function judgeFile(
   const lost = lossNotes(reading);
   const notes = [...lost, ...[assumedNote(reading)].filter((n) => n !== null)];
   const before = from > 0 ? known!.jobCount : 0;
+  const carried = from > 0 ? carriedJudgment(known!) : UNJUDGED;
   // The file's last row, when it is among these and may still be written: left where it is for now.
   const held = found.openRow && found.over === 0 && found.rows.length > 0 && now - got.mtimeMs < OPEN_ROW_SETTLE_MS;
   const rows = held ? found.rows.slice(0, -1) : found.rows;
@@ -544,10 +619,10 @@ export function judgeFile(
   if (mapped.jobs.length * 2 < judged) {
     const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: rows.length });
     // What was read before these rows stands: a mapping saved again reads on from there.
-    return { change: note('failed', detail, { ...measured, rowsRead: from, jobCount: before }), jobs: [], rows: 'misfit', taken: 0, notes };
+    return { change: note('failed', detail, { ...measured, rowsRead: from, jobCount: before, ...carried }), jobs: [], rows: 'misfit', taken: 0, notes };
   }
   const rowsRead = from + rows.length;
-  const progress = { ...measured, rowsRead, jobCount: before + mapped.jobs.length };
+  const progress = { ...measured, rowsRead, jobCount: before + mapped.jobs.length, ...carried };
   // Read to the end of what can be read: a file that lost a part is done, and says which part.
   const change =
     found.over > 0

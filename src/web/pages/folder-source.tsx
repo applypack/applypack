@@ -6,12 +6,12 @@ import { MAX_DEPTH, MAX_FILES_PER_LOOK, MAX_ROW_FILES_PER_LOOK, maxBytesOf, type
 import { MAX_INCLUDE_CHARS, usableMapping, type FolderAlerts, type Mapping, type MappingField } from '../../datasets/map';
 import type { PreviewCounts } from '../../datasets/preview';
 import { MAX_BODY_MB, type Row, type RowFormat } from '../../datasets/rows';
-import type { FolderSummary } from '../../jobs/source-file-store';
+import type { FolderSummary, JobsOfFile } from '../../jobs/source-file-store';
 import { formatList, formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import type { NormalizedJob } from '../../types';
 import type { FlashMessage } from '../flash';
-import { fileLine, folderLine, folderTrouble, untitledLine } from '../folder-words';
+import { fileLine, folderLine, folderTrouble, setAsideLine, untitledLine } from '../folder-words';
 import { Layout } from '../layout';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, Code, Empty, Field, Flash, Hint, Input, More, Notice, PageHeader, Radio, SectionTitle, Select, Table, Td, Tr, When } from '../ui';
@@ -85,15 +85,26 @@ export interface FolderSourceRow {
   consecutiveFailures: number;
 }
 
+/** The status a folder fails with when there is nothing at its path: moved, renamed, or deleted. */
+const NOT_FOUND = 'slug_gone';
+
 /** A failing folder says so in its card, as its row in the table does: the ledger's line cannot (#405). */
 const FolderTrouble: FC<{ folder: FolderSourceRow }> = ({ folder }) => {
   const trouble = folderTrouble(folder.lastFetchStatus, folder.consecutiveFailures);
   if (!trouble) return null;
   return (
-    <span title={trouble.title}>
-      <Badge tone={trouble.tone}>{trouble.label}</Badge>
-      {folder.consecutiveFailures > 0 && <span class="sr-only">{t('sources.health.streakAfterLabel', { n: folder.consecutiveFailures })}</span>}
-    </span>
+    <>
+      <span title={trouble.title}>
+        <Badge tone={trouble.tone}>{trouble.label}</Badge>
+        {folder.consecutiveFailures > 0 && <span class="sr-only">{t('sources.health.streakAfterLabel', { n: folder.consecutiveFailures })}</span>}
+      </span>
+      {/* Moved or renamed: the way out keeps the source, its jobs and its files (#478); Delete was the only one. */}
+      {folder.lastFetchStatus === NOT_FOUND && (
+        <a href={`/companies/${folder.id}/files#moved`} class="text-accent hover:underline">
+          {t('folders.moved.link')}
+        </a>
+      )}
+    </>
   );
 };
 
@@ -111,6 +122,14 @@ export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folde
                 <Code>{f.path}</Code>
                 <span>
                   {folderLine(f.summary)}
+                  {setAsideLine(f.summary) && (
+                    <>
+                      {' · '}
+                      <a href={`/companies/${f.id}/files`} class="text-accent hover:underline">
+                        {setAsideLine(f.summary)}
+                      </a>
+                    </>
+                  )}
                   {f.summary?.lastLookAt && (
                     <>
                       {', '}
@@ -477,17 +496,16 @@ export const FolderPreviewPage: FC<FolderPreviewProps> = (props) =>
   props.holds === 'postings' ? <PostingsPreviewPage {...props} /> : <RowsPreviewPage {...props} />;
 
 /** The jobs a file became, linked: one for a saved posting, the first few for a file of rows. */
-const FILE_JOBS_SHOWN = 3;
-const FileJobs: FC<{ jobs: FileJob[] }> = ({ jobs }) =>
-  jobs.length === 0 ? null : (
+const FileJobs: FC<{ jobs: JobsOfFile | undefined }> = ({ jobs }) =>
+  !jobs ? null : (
     <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-note">
-      {jobs.slice(0, FILE_JOBS_SHOWN).map((job) => (
+      {jobs.shown.map((job) => (
         <a href={`/jobs/${job.id}`} class="text-accent hover:underline">
           {job.title}
           {` · ${job.fitScore !== null ? t('folders.files.fit', { score: job.fitScore }) : t('folders.files.notScored')}`}
         </a>
       ))}
-      {jobs.length > FILE_JOBS_SHOWN && <span class="text-ink-faint">{t('folders.files.more', { n: jobs.length - FILE_JOBS_SHOWN })}</span>}
+      {jobs.total > jobs.shown.length && <span class="text-ink-faint">{t('folders.files.more', { n: jobs.total - jobs.shown.length })}</span>}
     </div>
   );
 
@@ -506,23 +524,23 @@ function fileSize(bytes: number): string {
 }
 
 /** One folder's files, each with what became of it — without this list a folder is a black box. */
-/** A job a file became, for the link beside it. */
-export interface FileJob {
-  id: number;
-  title: string;
-  fitScore: number | null;
-  status: string;
-  sourceFile: string | null;
-}
-
-export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[]; jobs: FileJob[]; flash?: FlashMessage | null }> = ({ folder, files, jobs, flash }) => {
-  const lastLook = folder.summary?.lastLookAt?.getTime() ?? null;
-  const byFile = new Map<string, FileJob[]>();
-  for (const job of jobs) if (job.sourceFile) byFile.set(job.sourceFile, [...(byFile.get(job.sourceFile) ?? []), job]);
+export const FolderFilesPage: FC<{
+  folder: FolderSourceRow;
+  files: SourceFile[];
+  jobs: Map<string, JobsOfFile>;
+  flash?: FlashMessage | null;
+}> = ({ folder, files, jobs, flash }) => {
+  // A folder not found at its path opens on the way to point it at the new one.
+  const lost = folder.lastFetchStatus === NOT_FOUND;
   return (
     <Layout title={t('folders.files.title', { name: folder.name })} active="companies">
       <div class="w-full">
-        <PageHeader title={folder.name} titleIsData back={{ href: '/companies#folders', label: t('nav.companies') }} meta={folderLine(folder.summary)}>
+        <PageHeader
+          title={folder.name}
+          titleIsData
+          back={{ href: '/companies#folders', label: t('nav.companies') }}
+          meta={[folderLine(folder.summary), setAsideLine(folder.summary)].filter((part) => part !== null).join(' · ')}
+        >
           {tRich(
             'folders.files.header',
             { filtered: folder.include ? 'yes' : 'no', include: folder.include ?? '' },
@@ -530,6 +548,7 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
           )}
         </PageHeader>
         <Flash flash={flash} />
+        {lost && <MovedFolderCard folder={folder} class="mb-6" />}
         {files.length === 0 ? (
           <Empty title={t('folders.files.empty')}>{t(folder.active ? 'folders.files.emptyActive' : 'folders.files.emptyOff')}</Empty>
         ) : (
@@ -540,7 +559,7 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
               columns={[t('folders.col.file'), t('folders.col.became'), <span class="block text-right">{t('folders.col.size')}</span>, t('folders.col.changed')]}
             >
               {files.map((file) => {
-                const line = fileLine(file, lastLook === null || file.seenAt.getTime() === lastLook);
+                const line = fileLine(file, file.goneAt === null);
                 return (
                   <Tr>
                     <Td class="max-w-[20rem] font-mono text-meta text-ink">
@@ -551,7 +570,7 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
                         <Badge tone={line.tone}>{line.label}</Badge>
                         <span class="text-note text-ink-muted">{line.text}</span>
                       </div>
-                      <FileJobs jobs={byFile.get(file.relPath) ?? []} />
+                      <FileJobs jobs={jobs.get(file.relPath)} />
                     </Td>
                     <Td class="whitespace-nowrap text-right font-mono text-meta tabular-nums text-ink-muted">{fileSize(file.size)}</Td>
                     <Td class="whitespace-nowrap text-note text-ink-faint">
@@ -572,7 +591,22 @@ export const FolderFilesPage: FC<{ folder: FolderSourceRow; files: SourceFile[];
             <Hint class="mt-3">{t('folders.files.rereadHint')}</Hint>
           </Card>
         )}
+        {!lost && <MovedFolderCard folder={folder} class="mt-6" />}
       </div>
     </Layout>
   );
 };
+
+/** "The folder moved" (#478): a new path for this source, checked as Add checks one; its jobs and its ledger stay. */
+const MovedFolderCard: FC<{ folder: FolderSourceRow; class: string }> = ({ folder, class: className }) => (
+  <Card class={className} id="moved">
+    <SectionTitle>{t('folders.moved.title')}</SectionTitle>
+    <Hint>{t('folders.moved.hint')}</Hint>
+    <form method="post" action={`/companies/${folder.id}/folder/move`} class="mt-3 flex flex-wrap items-end gap-3">
+      <Field label={t('folders.moved.path')} class="min-w-0 flex-1">
+        <Input type="text" name="path" required mono value={folder.path} translate="no" autocomplete="off" spellcheck="false" />
+      </Field>
+      <Button>{t('folders.moved.submit')}</Button>
+    </form>
+  </Card>
+);

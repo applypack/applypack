@@ -29,13 +29,19 @@ export async function loadEmployerRules(now = new Date()): Promise<EmployerRules
     getSettings(),
   ]);
   const muted = new Set(mutes.map((m) => m.key));
-  if (reapplyDays === null) return { muted, appliedRecently: new Set() };
-  const applied = await prisma.job.findMany({
+  if (reapplyDays === null) return { muted, appliedUntil: new Map() };
+  const applied = await prisma.job.groupBy({
+    by: ['employerKey'],
     where: { appliedAt: { gte: new Date(now.getTime() - reapplyDays * DAY_MS) }, employerKey: { not: null } },
-    select: { employerKey: true },
-    distinct: ['employerKey'],
+    _max: { appliedAt: true },
   });
-  return { muted, appliedRecently: new Set(applied.flatMap((j) => (j.employerKey === null ? [] : [j.employerKey]))) };
+  // The window runs from the latest application: a folder's file whose rows it turned away is read again once it closes (#448).
+  return {
+    muted,
+    appliedUntil: new Map(
+      applied.flatMap(({ employerKey, _max }) => (employerKey === null || _max.appliedAt === null ? [] : [[employerKey, new Date(_max.appliedAt.getTime() + reapplyDays * DAY_MS)] as const])),
+    ),
+  };
 }
 
 /** The keys /jobs hides by default. */

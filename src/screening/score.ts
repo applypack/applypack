@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
-import { sectorMatches } from './sectors';
+import { sectorMatches } from '../sectors';
 import { monthsSinceLatest, parseRange, parseResumeDate, yearsCovered, type DateRange } from './dates';
 import { answerShape, type ImpactGrade, type OverallGrade, type ScreenAnswer, type ScreenReply, type ScreenRole } from './prompts';
 import { coreCriteria, CRITERION_MODES, EVIDENCE_RUNGS, SCREEN_LEVELS, wordedTable, type Criterion, type EvidenceRung, type Rubric } from './rubric';
