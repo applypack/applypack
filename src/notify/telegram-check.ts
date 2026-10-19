@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { t } from '../i18n/t';
 
 /*
  * What the Bot API's answer to a connection test means for the person typing
@@ -29,4 +30,15 @@ export function telegramReason(status: number, body: string): string {
   } catch {
     return `HTTP ${status}`;
   }
+}
+
+/**
+ * A failed Test on a chat already saved, in words (#607): the field Telegram
+ * refused, as the add form names it (#561). Null when Telegram itself
+ * failed — the caller says so with Telegram's own reason.
+ */
+export function savedChatRefusal(failed: TelegramFailure | undefined, chat: { name: string; chatId: string; bot?: string }): string | null {
+  if (failed === 'token') return t('settingsRoute.targets.testToken', { name: chat.name });
+  if (failed === 'chat') return t('settingsRoute.targets.testChat', { name: chat.name, bot: chat.bot ?? '?', chat: chat.chatId });
+  return null;
 }

@@ -6,7 +6,7 @@ import { t } from '../i18n/t';
 import { isProfileWorkplace } from '../location';
 import { parsePriorityRulesText } from '../priority-rules';
 import type { ProfileInput } from '../profiles';
-import { parseTagList, toStringArray } from '../text-utils';
+import { parseLineList, parseTagList, toStringArray } from '../text-utils';
 
 /*
  * The search editor's body read back for the editor (#549): a save the route
@@ -44,7 +44,7 @@ export function sentProfile(stored: Profile, form: Readonly<Record<string, unkno
     workplace: toStringArray(form.workplace).filter(isProfileWorkplace),
     residence: parseResidence(form.residence, isCountryCode),
     relocation: isRelocation(form.relocation) ? form.relocation : 'no',
-    onsiteCities: tags('onsiteCities'),
+    onsiteCities: parseLineList(text('onsiteCities')),
     minSalaryUsd: wholeNumber(text('minSalaryUsd')) ?? stored.minSalaryUsd,
     minFitScore: wholeNumber(text('minFitScore')) ?? stored.minFitScore,
     notificationTargetId: rowId(text('notificationTargetId')),

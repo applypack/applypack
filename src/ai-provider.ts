@@ -46,7 +46,7 @@ import {
   webToolsDirectOnly,
   type CliOutcome,
 } from './ai-provider-parse';
-import type { AiProviderId } from './ai-engine';
+import { OPENAI_DEFAULT_MODEL, type AiProviderId } from './ai-engine';
 import { AI_KEY_ENV_VARS } from './ai-keys';
 import { createLimiter, runTimed, type Limiter } from './concurrency';
 import { windowRefused } from './window-refusal';
@@ -135,7 +135,6 @@ const CLI_MAX_BUFFER = 1024 * 1024;
 // low effort + headroom keeps small-maxTokens JSON calls from truncating.
 const OPENAI_REASONING_MODEL = /^(gpt-5|o\d)/;
 const OPENAI_REASONING_HEADROOM_TOKENS = 2_048;
-const OPENAI_FALLBACK_MODEL = 'gpt-5-mini';
 /** Calls one local server runs at a time; the rest wait their turn (ADR 0057). */
 const LOCAL_CALLS_AT_ONCE = 1;
 /** A local call that got its turn with less than this left is not worth starting. */
@@ -300,7 +299,7 @@ class OpenAiApiProvider implements AiProvider {
       req.onError?.(t('engine.fail.noKey'));
       return failed('error');
     }
-    const model = req.model || config.OPENAI_MODEL || OPENAI_FALLBACK_MODEL;
+    const model = req.model || config.OPENAI_MODEL || OPENAI_DEFAULT_MODEL;
     // api.openai.com rejects max_tokens for reasoning models; most
     // compatible servers (OpenRouter, Groq, local) only know max_tokens.
     const isOpenAi = baseUrl.includes('api.openai.com');

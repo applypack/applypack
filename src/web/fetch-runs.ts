@@ -38,6 +38,20 @@ export function isSetupSearch(run: Pick<FetchRun, 'scope' | 'backUrl'>): boolean
   return run.scope === 'aggregators' && run.backUrl === '/welcome';
 }
 
+/** The line under the progress page's heading: what the run asks, and what becomes of what it finds — one source on a Check now (#606). */
+export function fetchRunSubtitle(run: Pick<FetchRun, 'classify' | 'scope' | 'backUrl'>): MessageKey {
+  if (typeof run.scope === 'object') return run.classify ? 'fetch.oneSourceThenThe' : 'fetch.oneSourceNewJobs';
+  if (run.classify) return 'fetch.everyEnabledSourceThenThe';
+  return isSetupSearch(run) ? 'fetch.setupSearchSubtitle' : 'fetch.everyEnabledSourceNewJobs';
+}
+
+/** A failed run's way back, worded for the page it goes to: Check now comes from Companies or a folder's files (#606). */
+export function fetchRunBackLabel(backUrl: string): MessageKey {
+  if (backUrl === '/welcome') return 'fetch.backToSetup';
+  if (/^\/companies\/\d+\/files$/.test(backUrl)) return 'fetch.backToFiles';
+  return backUrl.startsWith('/companies') ? 'fetch.backToCompanies' : 'fetch.backToRuns';
+}
+
 /** The tick threw: what is safe (stored jobs stay) and where to look, then the way forward. A key: the page words it when it is read. */
 export const FETCH_FAILED = 'fetch.stoppedOnError' satisfies MessageKey;
 

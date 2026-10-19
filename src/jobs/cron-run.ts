@@ -27,7 +27,8 @@ export type SourceStat = {
   kind?: string;
 };
 
-export type CronStats = Record<string, number | string | boolean | null | SourceStat[]>;
+/** A run's facts as stored. `undefined` is a key one of a job's returns leaves out: JSON drops it. */
+export type CronStats = Record<string, number | string | boolean | null | undefined | SourceStat[]>;
 
 interface RunResult<T> {
   result: T;

@@ -55,8 +55,8 @@ export function beginPageChangeTick(): void {
 }
 
 /** What the walk found on the watched pages, as run stats: a count only where one happened (#533). */
-export function pageStats(changes: readonly PageChange[]): Record<string, number> {
+export function pageStats(changes: readonly PageChange[]): { pagesFirstRead?: number; pageChangesFound?: number; pageChangesHeld?: number } {
   const count = (kind: PageChange['kind']): number => changes.filter((c) => c.kind === kind).length;
-  const stats = { pagesFirstRead: count('first'), pageChangesFound: count('changed'), pageChangesHeld: count('held') };
-  return Object.fromEntries(Object.entries(stats).filter(([, n]) => n > 0));
+  const [first, changed, held] = [count('first'), count('changed'), count('held')];
+  return { ...(first > 0 && { pagesFirstRead: first }), ...(changed > 0 && { pageChangesFound: changed }), ...(held > 0 && { pageChangesHeld: held }) };
 }

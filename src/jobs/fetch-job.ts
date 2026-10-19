@@ -25,7 +25,7 @@ import { makeFetchPauseProbe } from './fetch-pause';
 import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
 import { tryFetchLock, type FetchLock } from './fetch-lock';
 import { addToFunnel } from './funnel-store';
-import type { CronStats, SourceStat } from './cron-run';
+import type { SourceStat } from './cron-run';
 
 export interface FetchJobOptions {
   /**
@@ -53,7 +53,7 @@ export interface FetchJobOptions {
  * share the lock (`fetch-lock.ts`), and the one that cannot take it records
  * `overlap` and does nothing — no source read, no alert sent, no AI spent.
  */
-export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: CronStats }> {
+export async function runFetchJob(opts: FetchJobOptions = {}) {
   const lock = opts.lock ?? (await tryFetchLock());
   if (!lock) {
     logger.warn({ manual: opts.manual === true }, 'fetch-job: another fetch is running; skipped');
@@ -70,7 +70,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   }
 }
 
-async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats }> {
+async function fetchUnderLock(opts: FetchJobOptions) {
   const started = Date.now();
   logger.info({ manual: opts.manual === true }, 'fetch-job: start');
 
@@ -93,7 +93,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   const held = await deliverHeldAlerts(new Date(), schedule);
   // Careers-page changes seen earlier and not reported yet, under the same rules.
   const pagesWaiting = await deliverPageChanges(new Date(), schedule);
-  const delivery: CronStats = {
+  const delivery = {
     ...(held.delivered > 0 && { heldDelivered: held.delivered, heldMessages: held.messages }),
     ...(pagesWaiting.alerted > 0 && { pagesChanged: pagesWaiting.alerted }),
   };
@@ -248,7 +248,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   );
 
   const durationMs = Date.now() - started;
-  const stats: CronStats = {
+  const stats = {
     // A walk that read nothing says why, instead of a bare "0 fetched" (#557).
     ...(idle !== null && { reason: idle }),
     profile: searchNames(profiles),
@@ -291,7 +291,7 @@ async function lastFetchAt(): Promise<Date | null> {
  * so a quiet tick stays readable. `ftExpired` is the one to watch: it counts
  * offers withdrawn because nobody could ask the board about them in time.
  */
-function mirrorStats(m: MirrorStats): CronStats {
+function mirrorStats(m: MirrorStats) {
   return {
     ...(m.checked > 0 && { ftChecked: m.checked }),
     ...(m.deleted > 0 && { ftDeleted: m.deleted }),

@@ -1,7 +1,6 @@
 import { CronRunStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import type { CronStats } from './cron-run';
 import { deleteDismissed, forgetOldDismissals } from './dismissed-store';
 import { checkForUpdate } from '../update-check';
 
@@ -21,7 +20,7 @@ const AI_CALL_RETENTION_DAYS = 400;
 const RUN_RETENTION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export async function runCleanupJob(): Promise<{ stats: CronStats }> {
+export async function runCleanupJob() {
   const started = Date.now();
   const cutoff = new Date(Date.now() - RETENTION_DAYS * DAY_MS);
   logger.info({ cutoff: cutoff.toISOString() }, 'cleanup-job: start');

@@ -18,6 +18,7 @@ import {
   missingCredentials,
   adoptFoundEngine,
   withEngineTasks,
+  OPENAI_DEFAULT_MODEL,
   type AiEngineEnv,
 } from './ai-engine';
 import { AI_TASKS } from './ai-tasks';
@@ -124,6 +125,19 @@ describe('resolveAiEngine', () => {
     );
     assert.deepEqual(out.chain, ['openai_api']);
     assert.equal(out.modelFor('openai_api', 'resume'), 'llama-3.3-70b');
+  });
+
+  it('an empty openai slot asks for one model, whoever asks: OPENAI_MODEL, a local server\'s own, else gpt-5-mini (#606)', () => {
+    const empty = { order: ['openai_api'], models: {} } as const;
+    const local = { ...ENV, openAiLocal: true, openAiServerModel: 'qwen2.5-14b-instruct' };
+    // A server on this machine has no gpt-5-mini: the call and the Test both take the first chat model it lists.
+    assert.equal(resolveAiEngine(empty, local).modelFor('openai_api', 'classifier'), 'qwen2.5-14b-instruct');
+    assert.equal(resolveAiEngine(empty, { ...local, openAiModel: 'llama-3.3-70b' }).modelFor('openai_api', 'cover'), 'llama-3.3-70b');
+    // A server on the internet, or a local one not asked yet: the engine's own default — never '' and a CLI's words.
+    assert.equal(resolveAiEngine(empty, { ...ENV, hasOpenAiKey: true }).modelFor('openai_api', 'resume'), OPENAI_DEFAULT_MODEL);
+    assert.equal(resolveAiEngine(empty, { ...local, openAiServerModel: null }).modelFor('openai_api', 'resume'), 'gpt-5-mini');
+    // A slot the user filled wins over all of it.
+    assert.equal(resolveAiEngine({ ...empty, models: { openai_api: { classifier: 'phi-4' } } }, local).modelFor('openai_api', 'classifier'), 'phi-4');
   });
 });
 

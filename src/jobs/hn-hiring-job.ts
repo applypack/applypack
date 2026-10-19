@@ -10,7 +10,6 @@ import { makeFetchPauseProbe } from './fetch-pause';
 import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
 import { tryFetchLock } from './fetch-lock';
 import { addToFunnel } from './funnel-store';
-import type { CronStats } from './cron-run';
 
 const HN_COMPANY_NAME = 'HN Who is Hiring';
 const HN_ATS_TOKEN = 'hn-hiring';
@@ -21,7 +20,7 @@ const HN_CAREER_URL = 'https://news.ycombinator.com/from?site=ycombinator.com';
  * thread, parse them into job-shaped records, run them through the same
  * filter / classify / alert pipeline as ATS-fetched jobs.
  */
-export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
+export async function runHnHiringJob() {
   // The same lock as the fetch tick: the hourly walk reads this thread too.
   const lock = await tryFetchLock();
   if (!lock) {
@@ -38,7 +37,7 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
   }
 }
 
-async function pullHnThread(): Promise<{ stats: CronStats }> {
+async function pullHnThread() {
   const started = Date.now();
   logger.info('hn-hiring: start');
 
@@ -121,7 +120,7 @@ async function pullHnThread(): Promise<{ stats: CronStats }> {
   });
 
   const durationMs = Date.now() - started;
-  const stats: CronStats = {
+  const stats = {
     profile: profiles.map((p) => p.name).join(' · '),
     classifierMode: settings.classifierMode,
     fetched: fetched.length,

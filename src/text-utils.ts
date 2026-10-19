@@ -127,6 +127,17 @@ export function parseTagList(input: string): string[] {
 }
 
 /**
+ * A textarea of places, one per line: a comma stays inside a place
+ * ("Austin, TX"), where `parseTagList` would store two (#607).
+ */
+export function parseLineList(input: string): string[] {
+  return input
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
  * Form fields that may arrive as undefined / single string / string[] —
  * normalise to a string[].
  */

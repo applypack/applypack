@@ -50,11 +50,16 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
       unlistable = t('aiTest.modelsUnlistable', { reason: listed.reason });
     } else {
       offered = listed.models;
-      // No slot filled and nothing in .env: the provider would ask for a model no local server has.
-      const first = preferredModel(offered);
-      if (first !== null && model.trim() === '') {
-        model = first;
-        pickedForTest = true;
+      if (provider === 'openai_api') {
+        // The list just taken is the one every call reads: an empty slot asks for the model a call would (#606).
+        model = resolveAiEngine(settings.aiEngine, getAiEngineEnv(keys, settings.openAiBaseUrl)).modelFor(provider, 'classifier');
+      } else {
+        // The local engine with no model chosen runs nothing: the test borrows the first the server has.
+        const first = preferredModel(offered);
+        if (first !== null && model.trim() === '') {
+          model = first;
+          pickedForTest = true;
+        }
       }
     }
   }

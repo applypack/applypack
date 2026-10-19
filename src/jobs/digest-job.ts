@@ -7,13 +7,13 @@ import { sourceLine } from '../web/pages/attribution';
 import { alertsOff } from '../datasets/map';
 import { QUIET_STREAK } from '../fetchers/source-health';
 import { getSettings, pausedFamilies } from '../settings';
-import { lastSuccessfulRunAt, type CronStats } from './cron-run';
+import { lastSuccessfulRunAt } from './cron-run';
 import type { AlertJob } from '../types';
 
 /** The reach of the very first recap, before there is a previous one to measure from. */
 const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export async function runDigestJob(): Promise<{ stats: CronStats }> {
+export async function runDigestJob() {
   const started = Date.now();
   // The recap covers what arrived since the last recap, not a fixed day. The
   // digest hours are the user's now (TASKS §16) and there may be several: with

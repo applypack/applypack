@@ -1,7 +1,48 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { failedRunLine, runName, runSummaryLine, summarizeRun, unscoredRun } from './runs-summary';
-import { withLocale } from '../i18n/locale';
+import { failedRunLine, runName, runSummaryLine, summarizeRun, unscoredRun, type WordedCount } from './runs-summary';
+import { PSEUDO_LOCALE, withLocale } from '../i18n/locale';
+import { hardcodedText } from '../i18n/pseudo';
+import type { RunName } from '../jobs/cron-run';
+import type { runCleanupJob } from '../jobs/cleanup-job';
+import type { runDigestJob } from '../jobs/digest-job';
+import type { runDiscoveryJob } from '../jobs/discovery-job';
+import type { runFetchJob } from '../jobs/fetch-job';
+import type { runHnHiringJob } from '../jobs/hn-hiring-job';
+import type { runImportJob } from '../jobs/import-job';
+import type { runPackJob } from '../jobs/pack-job';
+import type { runReclassifyAll, runScoreUnscored } from '../jobs/reclassify-job';
+import type { runStaleApplicationsJob } from '../jobs/stale-applications-job';
+
+/*
+ * #606: every count a job writes on its run row has words on /runs, or a
+ * reason to stay in the raw block. The counts are read off the jobs' own
+ * return types, so a new one that no table in runs-summary.ts names fails
+ * `tsc` (and CI) with the job and the count in the message — before any page
+ * shows it humanised, in English, in every language.
+ */
+type StatsOf<F extends (...args: never[]) => Promise<{ stats: object }>> = Awaited<ReturnType<F>>['stats'];
+/** What each job writes: a run name the table misses does not compile. */
+type Written = {
+  fetch: StatsOf<typeof runFetchJob>;
+  'fetch-now': StatsOf<typeof runFetchJob>;
+  'folder-watch': StatsOf<typeof runFetchJob>;
+  'hn-hiring': StatsOf<typeof runHnHiringJob>;
+  import: StatsOf<typeof runImportJob>;
+  digest: StatsOf<typeof runDigestJob>;
+  'stale-applications': StatsOf<typeof runStaleApplicationsJob>;
+  cleanup: StatsOf<typeof runCleanupJob>;
+  discovery: StatsOf<typeof runDiscoveryJob>;
+  pack: StatsOf<typeof runPackJob>;
+  'reclassify-all': StatsOf<typeof runReclassifyAll>;
+  'score-unscored': StatsOf<typeof runScoreUnscored>;
+};
+/** The keys of a stats shape whose value is a number, over every shape a job returns. */
+type CountsOf<T> = T extends unknown ? { [K in keyof T]-?: [NonNullable<T[K]>] extends [never] ? never : NonNullable<T[K]> extends number ? K : never }[keyof T] : never;
+type Unworded = { [J in RunName]: `${J}: ${Exclude<CountsOf<Written[J]>, WordedCount<J>> & string}` }[RunName];
+/** A job whose stats were typed as a plain `Record<string, …>` would have no keys to check. */
+type Unread = { [J in RunName]: string extends CountsOf<Written[J]> ? J : never }[RunName];
+const unworded: Record<Unworded | Unread, never> = {};
 
 describe('summarizeRun', () => {
   it('reads a fetch tick as its facts, in a fixed order', () => {
@@ -69,14 +110,46 @@ describe('summarizeRun', () => {
   });
 
   it('a discovery run leads with what is left for review, the count /discovery shows (#542)', () => {
-    assert.deepEqual(summarizeRun('discovery', { pending: 31, probed: 28, alive: 27, dead: 1, jobsCountUpdated: 0, durationMs: 40_000 }), [
+    // #606: the probe's counts in words, never the stat names humanised.
+    assert.deepEqual(summarizeRun('discovery', { pending: 31, probed: 28, alive: 27, dead: 1, jobsCountUpdated: 2, durationMs: 40_000 }), [
       '31 pending review',
-      '28 probed',
-      '27 alive',
-      '1 dead',
+      '28 candidates checked',
+      '27 still answer',
+      '1 gone, marked dead',
+      '2 job counts updated',
     ]);
     // Another job's "pending" is not a review list.
     assert.deepEqual(summarizeRun('x', { pending: 2 }), ['2 pending']);
+  });
+
+  it('words what the top of a fetch tick did before it searched (#606)', () => {
+    const stats = { fetched: 12, persisted: 1, heldDelivered: 3, heldMessages: 1, pagesChanged: 2, ftChecked: 40, ftDeleted: 2, ftAnonymised: 1, ftExpired: 1 };
+    assert.deepEqual(summarizeRun('fetch', stats), [
+      '12 fetched',
+      '1 stored',
+      '3 held matches sent',
+      '2 careers page changes reported',
+      '40 France Travail offers checked again',
+      '2 withdrawn France Travail offers deleted',
+      '1 withdrawn France Travail offer anonymised, kept for your applications',
+      '1 of them withdrawn because it could not be checked in time',
+    ]);
+    assert.deepEqual(summarizeRun('hn-hiring', { fetched: 90, persisted: 4, matched: 1, watchedKept: 1, skippedByPause: 3, abortedMidRun: 1 }), [
+      'Paused mid-run; the rest was skipped',
+      '90 fetched',
+      '4 stored',
+      '3 left unscored by the pause',
+      '1 match',
+      '1 kept by “Every posting” on a watched company',
+    ]);
+  });
+
+  it('leaves no English outside the catalog in those counts, as the route smoke reads a page (#606)', () => {
+    const page = (facts: string[]): string => `<ul>${facts.map((fact) => `<li>${fact}</li>`).join('')}</ul>`;
+    const discovery = withLocale(PSEUDO_LOCALE, () => summarizeRun('discovery', { pending: 1, probed: 2, alive: 1, dead: 1, jobsCountUpdated: 1 }));
+    assert.deepEqual(hardcodedText(page(discovery)), []);
+    // What the pass catches: a count read off its stat name.
+    assert.deepEqual(hardcodedText(page(withLocale(PSEUDO_LOCALE, () => summarizeRun('x', { rowsTrimmed: 2 })))), ['rows trimmed']);
   });
 
   it('keeps the facts after a mid-run pause', () => {
@@ -276,4 +349,8 @@ it('a run that scored nothing it tried to is not an OK to the reader', () => {
   // A run that failed or is still running says so itself.
   assert.equal(unscoredRun('FAILED', { classifyFailed: 3 }), false);
   assert.equal(unscoredRun('RUNNING', { classifyFailed: 3 }), false);
+});
+
+it('every count a job writes on its run row is worded on /runs (held by tsc, #606)', () => {
+  assert.deepEqual(unworded, {});
 });

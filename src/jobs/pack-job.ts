@@ -23,7 +23,6 @@ import { getActiveProfile } from '../profiles';
 import { readCoverAngles } from '../resume/prompts';
 import { getPackSettings, getSchedule, getSettings } from '../settings';
 import { shouldDeliverHeld } from '../user-schedule';
-import type { CronStats } from './cron-run';
 import { mutedKeys } from './employer-store';
 import { tryAdvisoryLock } from './fetch-lock';
 import { t } from '../i18n/t';
@@ -71,7 +70,7 @@ async function noticesDue(): Promise<(PackNotice & { id: number })[]> {
   return (await alertChannel()) === 'alerts-off' ? [] : waiting;
 }
 
-export async function runPackJob(): Promise<{ stats: CronStats }> {
+export async function runPackJob() {
   const stats = { ready: 0, stopped: 0, failed: 0, requeued: 0, dropped: 0, notified: 0 };
   // One runner at a time, across processes: a pack is minutes of AI, and two
   // runners would each take the "oldest" and could only race for the limit.
