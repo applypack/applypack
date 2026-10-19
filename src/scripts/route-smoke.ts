@@ -28,7 +28,7 @@ import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
 import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
 import { blankProfileInput, listActiveProfiles } from '../profiles';
-import { recordAiCall } from '../ai-ledger';
+import { attributeCalls, markUnparsed, recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
 import { draftRubric } from '../screening/rubric';
@@ -37,7 +37,9 @@ import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { autoPacksToday, listUnnotifiedPacks } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
-import { getRun } from '../web/target-runs';
+import { claimRun, getRun } from '../web/target-runs';
+import { getAiRuntime } from '../ai-runtime';
+import { TIMED_FROM } from '../ai-spend';
 import { parseFlashCookie } from '../web/flash';
 import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
@@ -66,6 +68,8 @@ const MAY_404 = new Set([
 const QUERY_VARIANTS = [
   // Every /jobs filter at once, the panel open: the where-clause, the facet tally and the status counts together.
   '/jobs?panel=1&status=NEW&q=node&minFit=10&sort=fitScore_desc&verified=1&watched=1&open=1&muted=1&country=DE,EU,unknown&workplace=remote,unknown&posted=30d',
+  // The jobs no source dated (#458), ordered by date: they sort after every dated one.
+  '/jobs?panel=1&posted=unknown&sort=postedAt_desc',
   // The job page's three other tabs, and a tab nobody offers — that one must fall back, not fail.
   '/jobs/:id?tab=match',
   '/jobs/:id?tab=letter',
@@ -381,6 +385,13 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=match`,
     },
     {
+      // `alertedAt` is when an alert went out: Applied by hand counted an alert nobody sent.
+      name: 'POST /jobs/:id/status APPLIED (no alert stamped)',
+      init: form({ status: 'APPLIED' }),
+      expect: async (res) =>
+        res.status === 303 && (await prisma.job.findUniqueOrThrow({ where: { id: f.jobId }, select: { alertedAt: true } })).alertedAt === null,
+    },
+    {
       name: 'POST /jobs/:id/status with a made-up tab (back to the posting)',
       init: form({ status: 'NEW', tab: 'https://evil.example' }),
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}`,
@@ -427,6 +438,12 @@ async function main(): Promise<void> {
       name: 'POST /settings/reapply',
       init: form({ days: '90' }),
       expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=applications#reapply',
+    },
+    {
+      // Kept for the pages after it: Notifications then renders a stored address (#487).
+      name: 'POST /settings/dashboard-url',
+      init: form({ url: 'http://127.0.0.1:4747/' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=notifications#links',
     },
     {
       // The schedule is three forms on three tabs: each saves its own part and keeps the stored rest.
@@ -636,6 +653,7 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
+    `/jobs/${f.jobId}/status`,
     '/facts',
     '/settings/ai/budget',
     '/settings/ai/trial',
@@ -644,6 +662,7 @@ async function main(): Promise<void> {
     '/jobs',
     '/companies/mutes/delete',
     '/settings/reapply',
+    '/settings/dashboard-url',
     '/settings/schedule',
     '/settings/schedule',
     '/settings/schedule',
@@ -765,6 +784,8 @@ async function main(): Promise<void> {
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
   rows.push(...(await engineTroubleChecks()));
+  rows.push(await ledgerUpdateCheck(f.jobId));
+  rows.push(await recordedBandCheck());
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -850,6 +871,61 @@ async function engineTroubleChecks(): Promise<Check[]> {
     { route: 'GET /ai with an engine whose last calls all failed (said first, no all-clear)', url: '/ai', status: usage.status, ok: usageHtml.includes('found no server answering') && !usageHtml.includes('Nothing was billed') },
     { route: 'GET /settings?tab=ai with that engine (its card says calls failing)', url: '/settings?tab=ai', status: tab.status, ok: tabHtml.includes('calls failing') && tabHtml.includes('found no server answering') },
   ];
+}
+
+/** An engine's whole window of recent attempts, as `ai-ledger.ts:loadRecentAttempts` reads it. */
+const RECENT_WINDOW = 20;
+
+/**
+ * The ledger's two updates on a real database (#463, #483): scoring calls
+ * written before their posting had a row are named on the fixture job, and
+ * replies the caller could not read turn `unparsed` — a window of them, so
+ * the engine's trouble on AI usage is that, whatever the run before wrote.
+ */
+async function ledgerUpdateCheck(jobId: number): Promise<Check> {
+  const ids: number[] = [];
+  for (let i = 0; i < RECENT_WINDOW; i++) {
+    const id = await recordAiCall({ at: new Date(), durationMs: 1, feature: 'classifier', viaFallback: false, engine: 'claude_code', model: '', outcome: 'ok', billing: 'plan', spend: null });
+    if (id !== null) ids.push(id);
+  }
+  await attributeCalls(ids, jobId);
+  for (const id of ids) await markUnparsed(id);
+  const rows = await prisma.aiCall.findMany({ where: { id: { in: ids } }, select: { jobId: true, outcome: true } });
+  const usage = await app.request('/ai', { headers: ORIGIN });
+  const html = usage.status === 200 ? await usage.text() : '';
+  return {
+    route: 'GET /ai after scoring replies named on their posting and marked unparsed (try another model)',
+    url: '/ai',
+    status: usage.status,
+    ok:
+      rows.length === RECENT_WINDOW &&
+      rows.every((r) => r.jobId === jobId && r.outcome === 'unparsed') &&
+      html.includes('ApplyPack could not read') &&
+      html.includes(`${RECENT_WINDOW} answered, but could not be read`),
+  };
+}
+
+/**
+ * #483: the run page states this install's own time for a step once ten
+ * calls answered on the engine and model that will take it. The run is
+ * claimed and never started, so it waits on its first step while the page
+ * is read.
+ */
+async function recordedBandCheck(): Promise<Check> {
+  const runtime = await getAiRuntime();
+  const engine = runtime.chainFor('resume-read')[0];
+  for (let i = 0; engine && i < TIMED_FROM; i++) {
+    await recordAiCall({ at: new Date(), durationMs: 12_000, feature: 'resume-scan', viaFallback: false, engine, model: runtime.modelFor(engine, 'resume'), outcome: 'ok', billing: 'plan', spend: null });
+  }
+  const { run } = claimRun('smoke:recorded-band', { steps: ['scan'], jobTitle: 'Smoke band', resumeName: 'Smoke band' });
+  const res = await app.request(`/target/runs/${run.id}`, { headers: ORIGIN });
+  const html = res.status === 200 ? await res.text() : '';
+  return {
+    route: 'GET /target/runs/:id with ten answered scans on record (their own time, not the generic words)',
+    url: '/target/runs/:id',
+    status: res.status,
+    ok: html.includes('about 12.0s on') && html.includes('going by your last 10 calls'),
+  };
 }
 
 /**
@@ -1069,7 +1145,7 @@ async function folderChecks(): Promise<Check[]> {
       'GET /companies with a folder that is off and failing (its card: the switch, the failure)',
       '/companies',
       offPage,
-      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row'),
+      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row') && card.includes(`/companies/${folder.id}/files#moved`),
     );
     await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: null, consecutiveFailures: 0 } });
 
@@ -1087,6 +1163,7 @@ async function folderChecks(): Promise<Check[]> {
     const second = await checkNow(folder.id);
     const after = await prisma.company.findUnique({ where: { id: folder.id }, select: { lastFetchStatus: true } });
     check('POST /companies/:id/check-now again (nothing read, nothing new)', `/companies/${folder.id}/check-now`, second, second.status === 303 && (await stored()) === 2 && after?.lastFetchStatus === 'empty');
+    out.push(...(await movedFolderChecks(folder.id, inbox, checkNow, stored)));
     const files = await app.request(`/companies/${folder.id}/files`, { headers: ORIGIN });
     check('GET /companies/:id/files (the per-file list)', `/companies/${folder.id}/files`, files, files.status === 200 && (await files.text()).includes('2 rows read as jobs'));
     const list = await app.request('/companies', { headers: ORIGIN });
@@ -1109,6 +1186,40 @@ async function folderChecks(): Promise<Check[]> {
   } finally {
     await setFetchingEnabled(wasFetching);
     await fs.rm(inbox, { recursive: true, force: true });
+  }
+  return out;
+}
+
+/**
+ * #478: "The folder moved". A path outside the root is refused; a folder of
+ * its own inside it is taken, the source keeping its jobs; the check there
+ * marks the file it does not list gone; moved back, the file is seen again
+ * and not read twice.
+ */
+async function movedFolderChecks(id: number, inbox: string, checkNow: (id: number) => Promise<Response>, stored: () => Promise<number>): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, res: Response, ok: boolean): void => {
+    out.push({ route, url: `/companies/${id}/folder/move`, status: res.status, ok });
+  };
+  const elsewhere = path.join(inbox, 'elsewhere');
+  await fs.mkdir(elsewhere);
+  // A source keeps the folder's real path: the temp directory is a link on some systems.
+  const token = async (): Promise<string | undefined> => (await prisma.company.findUnique({ where: { id }, select: { atsToken: true } }))?.atsToken;
+  try {
+    const refused = await app.request(`/companies/${id}/folder/move`, form({ path: path.dirname(inbox) }));
+    check('POST /companies/:id/folder/move outside the named root (refused)', refused, refused.status === 303 && (await token()) === (await fs.realpath(inbox)));
+    const moved = await app.request(`/companies/${id}/folder/move`, form({ path: elsewhere }));
+    check('POST /companies/:id/folder/move (the source reads the new folder, its jobs stay)', moved, moved.status === 303 && (await token()) === (await fs.realpath(elsewhere)) && (await stored()) === 2);
+    await checkNow(id);
+    const gone = await prisma.sourceFile.findFirst({ where: { companyId: id } });
+    const page = await app.request(`/companies/${id}/files`, { headers: ORIGIN });
+    check('GET /companies/:id/files after the move (the file the folder no longer holds is gone, kept with its jobs)', page, page.status === 200 && gone?.goneAt !== null && (await page.text()).includes('The last check did not find it'));
+    const back = await app.request(`/companies/${id}/folder/move`, form({ path: inbox }));
+    await checkNow(id);
+    const found = await prisma.sourceFile.findFirst({ where: { companyId: id } });
+    check('POST /companies/:id/folder/move back (the file is seen again, not read twice)', back, back.status === 303 && found?.goneAt === null && found.status === 'done' && (await stored()) === 2);
+  } finally {
+    await fs.rm(elsewhere, { recursive: true, force: true });
   }
   return out;
 }

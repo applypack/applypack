@@ -95,6 +95,7 @@ export async function deliverHeldAlerts(
     id: j.id,
     targetId: j.scores[0]?.profile.notificationTargetId ?? null,
     alert: {
+      jobId: j.id,
       title: j.title,
       // The ★ is on the row, not on the send: a held posting from a watched
       // company must read the same as one sent on the spot (ADR 0036).

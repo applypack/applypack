@@ -62,7 +62,8 @@ const REUSE_CANDIDATES = 4;
  * `mode` picks the prompt variant (ADR 0029): the quick check (default)
  * returns the score-complete subset, "full" also writes the suggestions.
  * `rebuild` throws away the keyword frame this posting has been carrying and
- * lets the model read the terms out of the description again (issue #79).
+ * lets the model read the terms out of the description again (issue #79) —
+ * the posting's brief included, which is where the frame comes from (#410).
  */
 export async function matchResumeToJob(
   /** `name` is stored with the row: the name of the text judged (match-name.ts). */
@@ -89,7 +90,8 @@ export async function matchResumeToJob(
   // requirement groups come from here, and the second comparison of an edited
   // resume reuses the stored reading instead of paying for it again. A failure
   // is not fatal — without it the call derives the frame itself, as before.
-  const briefed = opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError });
+  const briefed =
+    opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError, rebuild: opts.rebuild });
   const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt, industries] = await Promise.all([
     judgedOn === 'own' ? listFacts() : [],
     judgedOn === 'own' ? listOtherResumeSkills(resume.id) : [],

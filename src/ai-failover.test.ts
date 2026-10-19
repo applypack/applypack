@@ -30,7 +30,10 @@ const answer = (text: string): AiAttempt => ({ text, outcome: 'ok', spend: null 
 const failure = (outcome: AiOutcome): AiAttempt => ({ text: null, outcome, spend: null });
 
 /** Backends that answer from a script, one entry per call, and remember what they were asked. */
-function harness(script: Partial<Record<AiProviderId, AiAttempt[]>>, opts: { now?: () => number; keys?: Partial<Record<AiProviderId, string>> } = {}) {
+function harness(
+  script: Partial<Record<AiProviderId, AiAttempt[]>>,
+  opts: { now?: () => number; keys?: Partial<Record<AiProviderId, string>>; unwritten?: readonly number[] } = {},
+) {
   const asked: { id: AiProviderId; req: AiRequest }[] = [];
   const rows: LedgerInput[] = [];
   const cooldowns = createCooldownTracker({ threshold: 3, cooldownMs: 60_000, refusedMs: 600_000, now: opts.now ?? (() => 0) });
@@ -42,8 +45,10 @@ function harness(script: Partial<Record<AiProviderId, AiAttempt[]>>, opts: { now
         return script[id]?.shift() ?? failure('error');
       },
     }),
+    // Ids from 101 on, in the order written; an attempt listed in `unwritten` (1-based) is a row the ledger lost.
     record: async (row) => {
       rows.push(row);
+      return opts.unwritten?.includes(rows.length) ? null : 100 + rows.length;
     },
     cooldowns,
     now: opts.now ?? (() => 0),
@@ -71,6 +76,20 @@ test('the first engine that answers wins, and every attempt is on the ledger', a
     ['anthropic_api', 'timeout', 'billed', false],
     ['claude_code', 'ok', 'plan', true],
   ]);
+});
+
+test('the answer carries its ledger rows, the failed attempts first and the answer last (#463, #483)', async () => {
+  const engine = resolveAiEngine({ order: ['anthropic_api', 'claude_code', 'gemini_cli'], models: {} }, ENV);
+  const script = () => ({ anthropic_api: [failure('timeout')], claude_code: [failure('rate_limited')], gemini_cli: [answer('{}')] });
+  const h = harness(script());
+  assert.deepEqual((await runChain(engine, { ...REQ, subject: { jobId: 7 } }, h.ctx, h.deps))?.ledgerIds, [101, 102, 103]);
+  assert.deepEqual(h.rows.map((r) => r.jobId), [7, 7, 7], 'a call that knows its posting names it on every attempt');
+  // A row the ledger could not write is left out — the answer's too, which is why ai-ledger.ts:markUnparsed turns an `ok` row only.
+  const lost = harness(script(), { unwritten: [3] });
+  assert.deepEqual((await runChain(engine, REQ, lost.ctx, lost.deps))?.ledgerIds, [101, 102]);
+  // No engine answered: nothing to hand back, and the caller has no reply to judge.
+  const none = harness({ anthropic_api: [failure('timeout')], claude_code: [failure('error')] });
+  assert.equal(await runChain(resolveAiEngine({ order: ['anthropic_api', 'claude_code'], models: {} }, ENV), REQ, none.ctx, none.deps), null);
 });
 
 test('each engine gets its own key and model, and the OpenAI-compatible one its server', async () => {

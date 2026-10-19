@@ -1,20 +1,28 @@
-import { AtsType, JobStatus } from '@prisma/client';
+import { AtsType, JobStatus, Prisma } from '@prisma/client';
 import { prisma } from '../db';
-import { addCounts, funnelView, readCounts, runCounts, sumDays, utcDay, type FunnelView } from '../funnel';
+import { addCounts, funnelView, readCounts, runCounts, sumDays, utcDay, type FunnelCounts, type FunnelView } from '../funnel';
 import type { CronStats } from './cron-run';
 
 /**
  * Where the search funnel (src/funnel.ts) is kept and read. The writers are
- * the fetch tick and the HN pull, both under the fetch lock, so one day's
- * row is never written twice at once.
+ * the fetch tick, the HN pull and the first scoring of what a paused fetch
+ * stored; the last runs outside the fetch lock, so a day's row is read and
+ * written under a lock of its own.
  */
+
+const FUNNEL_LOCK_KEY = 0x41504b55; // "APKU" — the fetch lock's neighbour (fetch-lock.ts)
 
 /** One run's counters into its day's row; a run that counted nothing (a skipped beat) writes nothing. */
 export async function addToFunnel(startedAt: Date, stats: CronStats): Promise<void> {
-  const counts = runCounts(stats);
+  await addCountsToDay(startedAt, runCounts(stats));
+}
+
+/** Counters already shaped for the funnel (`funnel.ts:scorePassCounts`) into their day's row. */
+export async function addCountsToDay(startedAt: Date, counts: FunnelCounts): Promise<void> {
   if (Object.keys(counts).length === 0) return;
   const day = utcDay(startedAt);
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(Prisma.sql`SELECT 1 AS locked FROM pg_advisory_xact_lock(${FUNNEL_LOCK_KEY}::bigint)`);
     const row = await tx.funnelDay.findUnique({ where: { day } });
     const next = addCounts(readCounts(row?.counts), counts);
     await tx.funnelDay.upsert({ where: { day }, create: { day, counts: next }, update: { counts: next } });

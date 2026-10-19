@@ -1,5 +1,5 @@
 import { normaliseForAnchor } from '../resume/structure-anchor';
-import { isTermList, lineAt, segmentAt } from '../resume/evidence';
+import { isMeasured, isTermList, lineAt, segmentAt } from '../resume/evidence';
 import type { KeywordMatcher } from '../resume/keyword-matcher';
 import { EVIDENCE_RUNGS, type Criterion, type EvidenceRung, type Rubric } from './rubric';
 import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
@@ -26,7 +26,11 @@ import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
  *   bullet with an outcome, never a word in a list. Measured 2026-09-09:
  *   the same resume as .docx and .pdf scored 78 and 69 because the model
  *   called the same stack lines "production" in one run and "role" in the
- *   other, and a .docx skills table flattened to one line read as prose;
+ *   other, and a .docx skills table flattened to one line read as prose.
+ *   And "production" needs a number in its quote, else it is "role": on a
+ *   sentence with no outcome the two were the model's coin flip — measured
+ *   2026-10-18 (#218), every rung that differed between three runs of the
+ *   gold set was one bullet read both ways;
  * - status (a gate-shaped question): pass, partial and fail need a located
  *   quote, else unknown — a mark with no quote is a claim the person cannot
  *   check;
@@ -70,7 +74,7 @@ export function rank(rung: EvidenceRung): number {
  * What the text alone says about a term (or any of its alternatives):
  * absent, on a list of terms, or inside a sentence — and that sentence, as
  * the quote. "production" is the model's call (ownership, outcome), never
- * read off the text.
+ * read off the text — and kept only on a quote that carries a number.
  */
 export function textEvidence(
   terms: { term: string; aliases: string[] }[],
@@ -241,6 +245,10 @@ function anchorAnswer(
       } else if (rank(rung) > rank('listed') && q === null) {
         // A "how much" question in the person's words: no term to search for, so an unquoted rung is at most "listed".
         rung = 'listed';
+        report.rungsLowered++;
+      }
+      if (rung === 'production' && q !== null && !isMeasured(q)) {
+        rung = 'role';
         report.rungsLowered++;
       }
       return { ...a, rung, quote: q, last_used: inText(hay, a.last_used) ? a.last_used : null, status: null };

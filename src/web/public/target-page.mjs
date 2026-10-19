@@ -171,6 +171,17 @@ function reason(error, fallback = 'browser.edit.failed') {
   return t(REASON[error] ?? fallback);
 }
 
+/**
+ * What the page opens with when a pack's edits come along (#487): the pack's
+ * text as the draft and its edits as applied cards, as Apply all leaves them —
+ * unless this comparison already holds a draft or edits of the person's own,
+ * which are never replaced. `stored` is what localStorage holds (null = none).
+ */
+export function openWithPack(seed, stored) {
+  if (!seed || stored.draft !== null || stored.edits !== null) return null;
+  return { draft: seed.text, edits: { applied: seed.edits.applied, skipped: [], order: seed.edits.order } };
+}
+
 /** The key an added keyword is remembered under — cards own the plain keys. */
 const keywordKey = (term) => 'kw:' + term;
 
@@ -954,8 +965,24 @@ export function init(data) {
   const fold = document.querySelector('details.kw-fold');
   if (fold) fold.open = window.matchMedia('(min-width: 1024px)').matches;
 
-  editor.value = load() ?? data.resumeText;
-  loadEdits();
+  let storedEdits = null;
+  try { storedEdits = localStorage.getItem(editsKey); } catch {}
+  const opened = openWithPack(data.seed, { draft: load(), edits: storedEdits });
+  if (opened) {
+    editor.value = opened.draft;
+    edits = opened.edits;
+    store(editor.value);
+    storeEdits();
+  } else {
+    editor.value = load() ?? data.resumeText;
+    loadEdits();
+  }
+  // Seeded once: a reload after Undo all must not bring the pack's edits back.
+  if (data.seed) {
+    const url = new URL(location.href);
+    url.searchParams.delete('from');
+    history.replaceState(history.state, '', url);
+  }
   let stored = null;
   try { stored = localStorage.getItem(viewKey); } catch {}
   showView(stored === 'text' ? 'text' : 'doc');

@@ -11,6 +11,7 @@ const group = (over: Partial<SpendGroup>): SpendGroup => ({
   billing: 'plan',
   calls: 1,
   failed: 0,
+  unparsed: 0,
   noUsage: 0,
   unpriced: 0,
   tokensIn: 0,
@@ -243,6 +244,9 @@ test('each kind of trouble says what to do about that kind, and none blames the 
   assert.match(said('failing'), /its last 4 calls failed\. Press Test on its card/);
   assert.match(said('failing', 1), /its last call failed/);
   for (const kind of ['unreachable', 'window', 'limited', 'signin'] as const) assert.doesNotMatch(said(kind), /another model/);
+  // Replies that came back unreadable are the one case for another model — and Test, one word long, would pass (#463).
+  assert.match(said('unparsed'), /its last 4 calls came back with a reply ApplyPack could not read.*Try another model in its slot/);
+  assert.doesNotMatch(said('unparsed'), /Press Test/);
 });
 
 test('an engine the person has disabled since is not theirs to fix, and a last resort that answers is', () => {
@@ -268,6 +272,26 @@ test('a failure hint gives the advice of how most of the calls ended', () => {
     group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'b', calls: 6, failed: 1, failedAs: 'empty' }),
   ];
   assert.match(find(usageHints(facts({ groups: mixed, engines: [engine('local_api', 'local', 0)] })), /did not answer/)!.text, /raise the window/);
+});
+
+test('#463: a reply that could not be read is worded as an answer, never as "did not answer"', () => {
+  const said = (over: Partial<SpendGroup>) =>
+    find(usageHints(facts({ groups: [group({ feature: 'resume-match', engine: 'local_api', billing: 'local', model: 'llama3.1:8b', calls: 10, ...over })], engines: [engine('local_api', 'local', 0)] })), /on Local model/)!.text;
+  // Every failure an unreadable reply: one sentence for them, and the advice that fits them.
+  const unread = said({ failed: 4, unparsed: 4, failedAs: 'unparsed' });
+  assert.match(
+    unread,
+    /^Full analysis on Local model \(Ollama\) · llama3\.1:8b: 4 of 10 calls answered in the last 7 days, but the reply could not be read\. .* try another model in that slot\.$/,
+  );
+  assert.doesNotMatch(unread, /did not answer/);
+  // Some with no answer, some unreadable: each counted as what it was.
+  assert.match(
+    said({ failed: 5, unparsed: 2, failedAs: 'timeout' }),
+    /: 3 of 10 calls did not answer in the last 7 days\. 2 more calls answered, but the reply could not be read\. /,
+  );
+  assert.match(said({ failed: 2, unparsed: 1, failedAs: 'timeout' }), /: 1 of 10 calls did not answer in the last 7 days\. 1 more call answered, but the reply could not be read\. /);
+  // None unreadable: the sentence stays what it was.
+  assert.doesNotMatch(said({ failed: 4, failedAs: 'timeout' }), /could not be read/);
 });
 
 test('a hint that offers the scoring to a local model quotes its last trial instead of "not measured" (#412)', () => {

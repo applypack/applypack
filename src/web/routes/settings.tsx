@@ -31,6 +31,7 @@ import {
   setOpenAiBaseUrl,
   setPackSettings,
   setReapplyDays,
+  setDashboardUrl,
   setUpdateCheck,
   setTelegramEnabled,
   testTelegramTarget,
@@ -89,6 +90,7 @@ import { isNewer } from '../../versions';
 import { isReapplyChoice } from '../../employer';
 import { forgetUpdateNotice } from '../update-notice';
 import { billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
+import { checkDashboardUrl } from '../../notify/dashboard-link';
 import { billingNotes } from '../../ai-spend';
 import { engineTroubles } from '../../ai-health';
 import { troubleLine } from '../usage-hints';
@@ -143,7 +145,7 @@ import {
 import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
-import { foldersReadOnceHint } from '../folder-words-io';
+import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
@@ -256,7 +258,8 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
   return e.lastResort ? AI_PROVIDER_IDS.length : AI_PROVIDER_IDS.length + 1;
 }
 
-async function loadSettingsProps() {
+/** `here` is the address this page was asked at: the example the dashboard address field offers. */
+async function loadSettingsProps(here: string) {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
@@ -399,6 +402,7 @@ async function loadSettingsProps() {
     })),
     staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
     reapplyDays: settings.reapplyDays,
+    dashboard: { url: settings.dashboardUrl, here },
     pack: parsePackSettings(settings.pack),
     loginItem: loginItemState(),
     updates: {
@@ -467,7 +471,7 @@ async function loadSettingsProps() {
 }
 
 settingsRoute.get('/settings', async (c) => {
-  const props = await loadSettingsProps();
+  const props = await loadSettingsProps(new URL(c.req.url).origin);
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
   // ?profile= points the editor at a specific (possibly inactive) profile.
@@ -1078,6 +1082,24 @@ settingsRoute.post('/settings/pack', async (c) => {
   );
 });
 
+/** #487: the dashboard's address for links in messages; an empty field takes the links out again. */
+settingsRoute.post('/settings/dashboard-url', async (c) => {
+  const form = await c.req.parseBody();
+  const typed = typeof form.url === 'string' ? form.url.trim() : '';
+  const back = '/settings?tab=notifications#links';
+  if (typed === '') {
+    await setDashboardUrl(null);
+    return flashRedirect(back, 'ok', t('settingsRoute.dashboardUrl.cleared'));
+  }
+  const checked = checkDashboardUrl(typed);
+  if (!checked.ok) {
+    const field = { form: '/settings/dashboard-url', name: 'url' };
+    return flashRedirect(back, 'err', t('settingsRoute.dashboardUrl.notSaved', { reason: checked.reason }), { field });
+  }
+  await setDashboardUrl(checked.url);
+  return flashRedirect(back, 'ok', t('settingsRoute.dashboardUrl.saved', { url: checked.url }));
+});
+
 /** ADR 0056: the re-apply window — one of the listed choices, or off. */
 settingsRoute.post('/settings/reapply', async (c) => {
   const body = await c.req.parseBody();
@@ -1164,6 +1186,7 @@ settingsRoute.post('/settings/sources', async (c) => {
 settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/settings?tab=notifications'), async (c) => {
   const form = await c.req.parseBody();
   const back = '/settings?tab=notifications';
+  const first = (await listNotificationTargets()).length === 0;
   if (form.kind === 'discord') {
     const parsed = DiscordTargetSchema.safeParse({ name: form.name, webhookUrl: form.webhookUrl });
     if (!parsed.success) {
@@ -1180,7 +1203,7 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
     if (!added) {
       return flashRedirect(back, 'err', t('settingsRoute.targets.webhookRace'));
     }
-    return flashRedirect(back, 'ok', t('settingsRoute.targets.discordAdded', { name: parsed.data.name }));
+    return flashRedirect(back, 'ok', `${t('settingsRoute.targets.discordAdded', { name: parsed.data.name })}${await alertsOnForFirst(first)}`);
   }
   const parsed = TelegramTargetSchema.safeParse({
     name: form.name,
@@ -1200,8 +1223,18 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   if (!added) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.telegramRace'));
   }
-  return flashRedirect(back, 'ok', t('settingsRoute.targets.telegramAdded', { name: parsed.data.name, bot: test.botUsername ?? '?' }));
+  return flashRedirect(back, 'ok', `${t('settingsRoute.targets.telegramAdded', { name: parsed.data.name, bot: test.botUsername ?? '?' })}${await alertsOnForFirst(first)}`);
 });
+
+/**
+ * The first chat turns Alerts on, as a chat read from `.env` does at first boot (init.ts): a fresh install starts
+ * with them off, and a person whose test message arrived was then never sent a match. The sentence that says so.
+ */
+async function alertsOnForFirst(first: boolean): Promise<string> {
+  if (!first || (await getSettings()).telegramEnabled) return '';
+  await setTelegramEnabled(true);
+  return ` ${t('settingsRoute.targets.alertsOn')}`;
+}
 
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = idParam(c.req.param('id'));
@@ -1431,9 +1464,9 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // Plan §4.3: a running search that names Ukraine, Germany or the UK has
   // feeds waiting on /companies — say so on the save, where the countries were picked.
   const sourcesHint = isActive ? await sourcesWaiting(saved) : '';
-  // A feed serves a posting again on its next tick; a file of rows was read once. When what the filter admits
-  // has changed — its fields, or the search starting to run — the save says which folders that leaves behind (#448).
-  const foldersHint = isActive && (activated || filterChanged(before, saved)) ? await foldersReadOnceHint() : '';
+  // When what the filter admits has changed — its fields, or the search starting to run — the next check reads
+  // again the folders' files whose rows the old search turned away, and the save says so (#448).
+  const foldersHint = isActive && (activated || filterChanged(before, saved)) ? await foldersReadAgainHint() : '';
 
   if (f.action === 'save-and-reclassify') {
     if (!isActive) {
@@ -1538,7 +1571,7 @@ settingsRoute.post(
     );
   }
 
-  const props = await loadSettingsProps();
+  const props = await loadSettingsProps(new URL(c.req.url).origin);
   return c.html(
     <SettingsPage
       {...props}

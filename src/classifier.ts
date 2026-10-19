@@ -4,11 +4,12 @@ import { currencyOf, isCurrencyCode, isSalaryPeriod } from './currency';
 import { RELOCATION_PROMPT, isRelocation } from './eligibility';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
-import { getAiRuntime } from './ai-runtime';
+import { getAiRuntime, type AiRuntime } from './ai-runtime';
 import type { AiProviderId } from './ai-engine';
-import { preClassify } from './classifier-prefilter';
+import { preClassify, prefilterMayJudge } from './classifier-prefilter';
 import { capFitForMissingStack } from './profile-guards';
 import { isCountryCode, isRegionCode } from './countries';
+import { arrangementOnly } from './location';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
@@ -23,7 +24,14 @@ const MAX_DESC_CHARS = 4000;
 // Bump on any material change to buildClassifyPrompt (rules, rubric, format,
 // fencing) — cross-engine quality comparisons are meaningless across versions.
 // v3: one call scores every active search (ADR 0028).
-const CLASSIFIER_PROMPT_VERSION = 4;
+// v5: a bare "Remote" is decided in code — unknown, not a mismatch (#386).
+const CLASSIFIER_PROMPT_VERSION = 5;
+// The parsed line's words for a bare "Remote"; the location rules quote them.
+const NO_PLACE_NAMED = 'no country named';
+// #386: left to the rules, one posting scored 92 nine times and 45 once on a
+// bare "Remote", and the model called it a mismatch whenever the stack failed
+// too (measured) — so the parsed line decides it, per posting.
+const BARE_REMOTE_LINE = `${NO_PLACE_NAMED} — decided: location_match true for every search that accepts remote, whatever its stack or seniority verdict, unless the description overrides it`;
 
 /**
  * Salary is hoisted out of the per-search entries on purpose: it is a fact of
@@ -88,9 +96,31 @@ export interface ClassifyOutcome extends Classifications {
   preFiltered: boolean;
   /** The prefilter's own one-line reason, when it rejected. */
   prefilterReason?: string;
+  /** The ledger rows the scoring wrote: a posting the tick stores afterwards is named on them (#483). */
+  ledgerIds: number[];
 }
 
-const EMPTY: ClassifyOutcome = { results: new Map(), location: null, preFiltered: false };
+const EMPTY: ClassifyOutcome = { results: new Map(), location: null, preFiltered: false, ledgerIds: [] };
+
+/**
+ * One posting's scoring as the ledger sees it: the runtime both stages ask,
+ * the stored row the calls are for when there is one, and the rows the calls
+ * wrote, gathered as they answer.
+ */
+export interface ScoringCall {
+  ai: Pick<AiRuntime, 'complete' | 'unparsed'>;
+  subject?: { jobId: number };
+  ledgerIds: number[];
+}
+
+interface ClassifyOptions {
+  /** The posting's row, when it is stored before it is scored (a re-classify): the ledger names it at once. */
+  jobId?: number;
+  /** The last engine's one-line reason when no engine answered. */
+  onError?: (reason: string) => void;
+  /** A test hands its own runtime; everyone else asks the one the settings make. */
+  ai?: Pick<AiRuntime, 'complete' | 'unparsed'>;
+}
 
 /**
  * Score one posting against every active search in a single call (ADR 0028).
@@ -104,10 +134,10 @@ export async function classifyJob(
   input: ClassifyInput,
   profiles: Profile[],
   mode: ClassifierMode,
-  onError?: (reason: string) => void,
+  opts: ClassifyOptions = {},
 ): Promise<ClassifyOutcome> {
   try {
-    return await runStages(input, profiles, mode, onError);
+    return await runStages(input, profiles, mode, opts);
   } catch (err) {
     // Callers queue several classifications and await them in order, so a
     // rejection here would become an unhandled rejection in the meantime.
@@ -120,17 +150,22 @@ async function runStages(
   input: ClassifyInput,
   profiles: Profile[],
   mode: ClassifierMode,
-  onError?: (reason: string) => void,
+  opts: ClassifyOptions,
 ): Promise<ClassifyOutcome> {
   if (profiles.length === 0) return EMPTY;
-  if (mode === 'two_stage') {
-    const pre = await preClassify(input, profiles);
+  const call: ScoringCall = {
+    ai: opts.ai ?? (await getAiRuntime()),
+    subject: opts.jobId === undefined ? undefined : { jobId: opts.jobId },
+    ledgerIds: [],
+  };
+  if (mode === 'two_stage' && prefilterMayJudge(input, profiles)) {
+    const pre = await preClassify(input, profiles, call);
     if (pre && pre.relevant === false) {
       logger.debug(
         { title: input.title, reason: pre.reason },
         'classifier: stage1 not-relevant, skipping stage2',
       );
-      return { results: new Map(), location: null, preFiltered: true, prefilterReason: pre.reason };
+      return { results: new Map(), location: null, preFiltered: true, prefilterReason: pre.reason, ledgerIds: call.ledgerIds };
     }
     if (pre === null) {
       logger.warn(
@@ -139,7 +174,7 @@ async function runStages(
       );
     }
   }
-  return { ...(await classifyWithClaude(input, profiles, onError)), preFiltered: false };
+  return { ...(await classifyWithClaude(input, profiles, call, opts.onError)), preFiltered: false, ledgerIds: call.ledgerIds };
 }
 
 function unique(list: string[]): string[] {
@@ -159,10 +194,15 @@ export function buildClassifyPrompt(
   profiles: Profile[],
 ): { system: string; user: string } {
   const place = input.place;
+  const bareRemote =
+    place?.workplace === 'REMOTE' &&
+    place.countries.length === 0 &&
+    place.regions.length === 0 &&
+    arrangementOnly(input.location);
   const parsedLine = place
     ? `Location as parsed from the source: ${place.workplace}${
         place.countries.length > 0 ? ` · countries ${place.countries.join(', ')}` : ''
-      }${place.regions.length > 0 ? ` · regions ${place.regions.join(', ')}` : ''}`
+      }${place.regions.length > 0 ? ` · regions ${place.regions.join(', ')}` : ''}${bareRemote ? ` · ${BARE_REMOTE_LINE}` : ''}`
     : null;
   return {
     system: buildSystemPrompt(profiles),
@@ -237,23 +277,25 @@ export function parseClassifications(
 async function classifyWithClaude(
   input: ClassifyInput,
   profiles: Profile[],
+  call: ScoringCall,
   onError?: (reason: string) => void,
 ): Promise<Classifications> {
   const { system: systemPrompt, user: userText } = buildClassifyPrompt(input, profiles);
 
-  const ai = await getAiRuntime();
   // One retry on a malformed reply: small models occasionally wrap or truncate JSON.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const out = await ai.complete({
+    const out = await call.ai.complete({
       json: true,
       system: systemPrompt,
       user: userText,
       maxTokens: classifyMaxTokens(profiles.length),
       label: 'classifier',
       role: 'classifier',
+      subject: call.subject,
       onError,
     });
     if (out === null) return { results: new Map(), location: null };
+    call.ledgerIds.push(...out.ledgerIds);
 
     const parsed = parseClassifications(out.text, profiles);
     if (parsed) {
@@ -265,6 +307,7 @@ async function classifyWithClaude(
       }
       return parsed;
     }
+    await call.ai.unparsed(out);
     logger.warn(
       {
         raw: out.text.slice(0, 500),
@@ -353,7 +396,7 @@ Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and gro
 - Country-locked remote ("Remote · Germany", "must reside in Poland", a national flag, local-payroll wording) → true only for a search that lists that country or a group containing it.
 - Region-locked remote ("EU only", "Europe", "EMEA", "US time zones") → true only for a search that lists that region, a country inside it, or WORLDWIDE. EU is law and EUROPE is geography: an EU work-right requirement fails a GB or UA search even when that search lists EUROPE.
 - Worldwide / "anywhere" / "we hire globally" with no restriction → true for every search that accepts remote.
-- A bare "Remote" with no country anywhere in the posting → true only for a search that accepts any place; otherwise false.
+- Parsed "${NO_PLACE_NAMED}" (a bare "Remote") is not doubt: true for every search accepting remote unless the description overrides it; fit_score not lowered; the summary says "country unconfirmed".
 - Hybrid / on-site roles → true only for a search that accepts that arrangement AND lists the office's city, its country, or a group containing it (a listed city adds to the countries, it never narrows them). Never infer remote eligibility from an office address.
 - Several offices or arrangements → judge by the softest one named.
 - When in doubt, default to location_match = false.

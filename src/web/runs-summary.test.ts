@@ -87,7 +87,13 @@ describe('summarizeRun', () => {
     assert.ok(summarizeRun('fetch', { fetched: 10, persisted: 1, packsQueued: 1 }).includes('1 pack queued'));
     assert.ok(summarizeRun('import', { fetched: 10, persisted: 2, packsQueued: 2 }).includes('2 packs queued'));
     // Another job's "failed" is still its own word.
-    assert.deepEqual(summarizeRun('reclassify-all', { failed: 2 }), ['2 failed']);
+    assert.deepEqual(summarizeRun('reclassify-all', { failed: 2 }), ['2 could not be scored']);
+  });
+
+  it("says what a scoring pass found, not its machinery", () => {
+    // The wizard's first scoring on a fresh install (2026-10-18) read "8 demoted · 10 scanned · 511 unscored · 2 unchanged · 3 concurrency".
+    const stats = { scanned: 10, reclassified: 10, matched: 2, unchanged: 2, demoted: 8, dismissedLowFit: 8, failed: 0, filterDismissed: 453, rejectedTitle: 453, remaining: 48, unscored: 511, concurrency: 3, durationMs: 22_300 };
+    assert.deepEqual(summarizeRun('score-unscored', stats), ['10 scored', '2 matches', '8 moved to Dismissed', '453 set aside by the filter, no AI', '48 still waiting to be scored']);
   });
 
   it('words a bare count for the job that writes it, and humanises it for any other', () => {
@@ -100,14 +106,17 @@ describe('summarizeRun', () => {
       summarizeRun('cleanup', { deleted: 12, screeningsDeleted: 1, runsDeleted: 240, durationMs: 40 }),
       ['12 old jobs deleted', '1 screening deleted', '240 old runs deleted'],
     );
+    // #474: the keys of deleted dismissals, forgotten once they are kept no longer.
+    assert.deepEqual(summarizeRun('cleanup', { deleted: 0, dismissalsForgotten: 3, durationMs: 40 }), ['0 old jobs deleted', '3 dismissed postings forgotten']);
+    assert.deepEqual(summarizeRun('cleanup', { deleted: 4, dismissalsForgotten: 0 }), ['4 old jobs deleted']);
     assert.deepEqual(summarizeRun('some-new-job', { count: 3 }), ['3 count']);
   });
 
   it('humanises a count it has never heard of and leaves zeros and non-numbers to the raw block', () => {
-    assert.deepEqual(summarizeRun('fetch', { fetched: 10, persisted: 0, priorityBoosted: 2, watchedKept: 0, classify: false, classifierMode: 'single' }), [
+    assert.deepEqual(summarizeRun('fetch', { fetched: 10, persisted: 0, rowsTrimmed: 2, watchedKept: 0, classify: false, classifierMode: 'single' }), [
       '10 fetched',
       '0 new',
-      '2 priority boosted',
+      '2 rows trimmed',
     ]);
   });
 

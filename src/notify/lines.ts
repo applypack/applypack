@@ -4,6 +4,9 @@ import { workplaceName } from '../i18n/places';
 import { t } from '../i18n/t';
 import type { AlertJob } from '../types';
 import { safeHref } from '../web/format';
+import { statusBranch } from '../web/health-label';
+import { jobHref } from '../web/job-tabs';
+import { dashboardLink } from './dashboard-link';
 
 /*
  * The words every channel says the same way, before its own markup goes on
@@ -22,6 +25,17 @@ import { safeHref } from '../web/format';
  */
 export function hasApplyLink(job: Pick<AlertJob, 'url'>): boolean {
   return safeHref(job.url) !== null;
+}
+
+/** The alert's posting on the dashboard; null with no address set, or for a message that names no stored posting. */
+export function jobPageLink(job: Pick<AlertJob, 'jobId'>, address: string | null): string | null {
+  return job.jobId === undefined ? null : dashboardLink(address, jobHref(job.jobId));
+}
+
+/** A line of a plain message, and the page of the dashboard it points at when the address is set (#487). */
+export interface MessageLine {
+  text: string;
+  link: string | null;
 }
 
 /** Arrangement words a location string may already carry. */
@@ -79,8 +93,8 @@ export interface QuietSourceAlert {
 export function quietSourceList(sources: readonly QuietSourceAlert[]): string {
   const named = sources
     .slice(0, MAX_QUIET_NAMED)
-    // A status the build does not know, or none yet, reads as "not fetched yet" (the select's `other`).
-    .map((s) => t('sourceHealth.item', { name: s.name, ats: s.atsType, status: s.status ?? 'none', streak: s.streak }));
+    // A status the build does not know, or none yet, reads as "not fetched yet"; a folder's in a folder's words (#478).
+    .map((s) => t('sourceHealth.item', { name: s.name, ats: s.atsType, status: statusBranch(s.status, s.atsType), streak: s.streak }));
   const hidden = sources.length - named.length;
   return [...named, ...(hidden > 0 ? [t('sourceHealth.more', { n: hidden })] : [])].join(', ');
 }

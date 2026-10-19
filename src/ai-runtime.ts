@@ -15,7 +15,8 @@ import { cliCommand } from './cli-command';
 import { SETTINGS_ID } from './settings';
 import { aiKeySource, parseAiKeys, resolveAiKey, type AiKeys, type AiKeySource } from './ai-keys';
 import { createCooldownTracker } from './ai-cooldown';
-import { recordAiCall } from './ai-ledger';
+import { markUnparsed, recordAiCall } from './ai-ledger';
+import { currentPack } from './ai-subject';
 import { listOllamaModels, listServerModels, LOCAL_LIST_TIMEOUT_MS } from './server-models';
 import { billingOf, isLocalUrl, type AiFeature, type BillingFacts } from './ai-usage';
 import type { AiTask } from './ai-tasks';
@@ -60,8 +61,12 @@ export interface AiCallRequest {
   maxTokens: number;
   /** What the call is for — its log tag and its ledger feature, a closed set (ai-usage.ts, ADR 0055). */
   label: AiFeature;
-  /** The posting and the resume the call serves, where the caller knows — so a page can say what they cost. */
-  subject?: { jobId?: number; resumeId?: number };
+  /**
+   * The posting and the resume the call serves, where the caller knows — so a
+   * page can say what they cost. `packId` is filled in here from the pack
+   * being prepared (ai-subject.ts), never by a caller.
+   */
+  subject?: { jobId?: number; resumeId?: number; packId?: number };
   /** Picks the per-engine model slot (classifier vs resume calls). */
   role: AiRole;
   timeoutMs?: number;
@@ -81,6 +86,8 @@ export interface AiCallResult {
   model: string;
   /** True when an engine other than the first one this call would ask served it. */
   viaFallback: boolean;
+  /** The ledger rows the call wrote, oldest first: the failed attempts, then the answer's. Missing a row the ledger could not write. */
+  ledgerIds: number[];
 }
 
 export interface AiRuntime {
@@ -89,6 +96,8 @@ export interface AiRuntime {
   modelFor(id: AiProviderId, role: AiRole): string;
   /** Runs the chain: first engine that answers wins; null when all fail. */
   complete(req: AiCallRequest): Promise<AiCallResult | null>;
+  /** The caller could not read this reply: its ledger row says `unparsed`, not `ok` (#463). Never throws. */
+  unparsed(result: AiCallResult): Promise<void>;
 }
 
 /**
@@ -116,6 +125,7 @@ export async function getAiRuntime(): Promise<AiRuntime> {
     chainFor: resolved.chainFor,
     modelFor: resolved.modelFor,
     complete: (req) => completeWithFailover(resolved, keys, servers, req),
+    unparsed: (result) => markUnparsed(result.ledgerIds.at(-1)),
   };
 }
 
@@ -146,9 +156,10 @@ async function completeWithFailover(
   req: AiCallRequest,
 ): Promise<AiCallResult | null> {
   const billing = billingFacts(keys, servers.openAiBaseUrl);
+  const packId = currentPack();
   return runChain(
     engine,
-    req,
+    packId === undefined ? req : { ...req, subject: { ...req.subject, packId } },
     {
       keyFor: (id) => resolveAiKey(id, keys),
       openAiBase: openAiBase(servers.openAiBaseUrl),

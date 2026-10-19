@@ -122,9 +122,9 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   const { jobId, job, resume, text, mode, rebuild } = req;
   // The posting read on its own, cached against its text (ADR 0044): on every
   // run but the first for this posting this step costs a lookup, which is what
-  // makes re-checking an edited resume quick.
+  // makes re-checking an edited resume quick. A rebuild reads it again (#410).
   updateRun(runId, { stage: 'brief' });
-  const briefed = await briefForPosting(job);
+  const briefed = await briefForPosting(job, { rebuild });
   // updateRun replaces `results`, so the lines are gathered here and the done step keeps the reading's.
   const results: Record<string, string> = {};
   if (briefed) {
