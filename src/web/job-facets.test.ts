@@ -10,6 +10,7 @@ import {
   parsePlaces,
   parsePosted,
   parseWorkplaces,
+  pastEndPage,
   placeWhere,
   postedWhere,
   rowPlaces,
@@ -195,6 +196,20 @@ describe('jobsHref', () => {
   it('carries panel=1 only when asked', () => {
     assert.equal(query(jobsHref(NONE)).panel, undefined);
     assert.equal(query(jobsHref({ ...NONE, posted: '7d' }, { panel: true })).panel, '1');
+  });
+});
+
+describe('pastEndPage (#540)', () => {
+  it('sends a page past the end to the last page that holds rows', () => {
+    assert.equal(pastEndPage(99, 419, 50), 9);
+    assert.equal(pastEndPage(10, 450, 50), 9);
+  });
+
+  it('leaves a page in range, and a list with nothing in it, alone', () => {
+    assert.equal(pastEndPage(9, 419, 50), null);
+    assert.equal(pastEndPage(1, 419, 50), null);
+    // Nothing matches: the empty state says so on page 1 as on page 99.
+    assert.equal(pastEndPage(99, 0, 50), null);
   });
 });
 
