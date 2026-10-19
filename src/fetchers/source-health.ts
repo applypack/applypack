@@ -158,6 +158,25 @@ export function nextStreak(status: FetchStatus, current: number): number {
 }
 
 /**
+ * What one attempt writes on its source's row. Every attempt stamps when it
+ * read the source, a failed one too; `lastOkAt` moves only when the answer
+ * proves the source still posts (`advancesLastOk`).
+ */
+export function healthUpdate(
+  status: FetchStatus,
+  streak: number,
+  cachedCount: number | null,
+  readAt: Date,
+): { lastFetchStatus: FetchStatus; consecutiveFailures: number; lastFetchedAt: Date; lastOkAt?: Date } {
+  return {
+    lastFetchStatus: status,
+    consecutiveFailures: nextStreak(status, streak),
+    lastFetchedAt: readAt,
+    ...(advancesLastOk(status, cachedCount) ? { lastOkAt: readAt } : {}),
+  };
+}
+
+/**
  * Sources that never yield a posting by design, so ageing them into "silent"
  * would be reporting the design as a fault. A change watch (ADR 0036) reports
  * that a page moved and stores no Job; a MANUAL, BROWSER_PAGE or IMPORT row is

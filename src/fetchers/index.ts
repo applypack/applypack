@@ -8,10 +8,9 @@ import { isBlankProfile } from '../profile-guards';
 import { EMPTY_CONTEXT, searchPlaces, type FetchContext } from './fetch-context';
 import {
   QUIET_STREAK,
-  advancesLastOk,
   classifyFetchCount,
   classifyFetchError,
-  nextStreak,
+  healthUpdate,
   type FetchStatus,
 } from './source-health';
 import { cachedCount } from './conditional';
@@ -298,18 +297,17 @@ async function recordFetchHealth(
    */
   tickStartedAt: Date,
 ): Promise<void> {
-  const streak = nextStreak(status, company.consecutiveFailures);
+  const health = healthUpdate(status, company.consecutiveFailures, lastFullCount, new Date());
+  const streak = health.consecutiveFailures;
   try {
     await prisma.company.update({
       where: { id: company.id },
       data: {
-        lastFetchStatus: status,
-        consecutiveFailures: streak,
+        ...health,
         // Stamped after EVERY attempt, failures included: a board that throws
         // has to wait its interval like a healthy one, or a broken feed is
         // retried every heartbeat while a working one waits an hour.
         nextCheckAt: nextCheckAfter(company, tickStartedAt),
-        ...(advancesLastOk(status, lastFullCount) ? { lastOkAt: new Date() } : {}),
       },
     });
   } catch (err) {

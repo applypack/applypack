@@ -9,6 +9,7 @@ import {
   classifyFetchCount,
   classifyFetchError,
   describeStatus,
+  healthUpdate,
   isFailing,
   isFailureStatus,
   isSilent,
@@ -170,6 +171,28 @@ describe('nextStreak — the inversion', () => {
 
   it('a corrupt negative counter cannot make the streak go backwards', () => {
     assert.equal(nextStreak('server', -4), 1);
+  });
+});
+
+describe('healthUpdate — what one attempt writes', () => {
+  const at = new Date('2026-10-19T10:00:00Z');
+
+  it('every attempt stamps when the source was read, an empty answer and a failure too (#547)', () => {
+    // "Last fetch" read the newest stored posting, so a board read fine whose postings the filter turned away showed "—".
+    for (const status of FETCH_STATUSES) assert.equal(healthUpdate(status, 0, null, at).lastFetchedAt, at, status);
+  });
+
+  it('moves lastOkAt only on an answer that proves the source still posts', () => {
+    assert.equal(healthUpdate('ok', 0, null, at).lastOkAt, at);
+    assert.equal(healthUpdate('not_modified', 0, 12, at).lastOkAt, at);
+    assert.equal('lastOkAt' in healthUpdate('not_modified', 0, 0, at), false);
+    assert.equal('lastOkAt' in healthUpdate('empty', 0, null, at), false);
+    assert.equal('lastOkAt' in healthUpdate('network', 2, null, at), false);
+  });
+
+  it('carries the status and the streak', () => {
+    assert.deepEqual(healthUpdate('network', 2, null, at), { lastFetchStatus: 'network', consecutiveFailures: 3, lastFetchedAt: at });
+    assert.equal(healthUpdate('empty', 7, null, at).consecutiveFailures, 0);
   });
 });
 
