@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { getAiRuntime } from '../../ai-runtime';
 import { loadAnswerTimes } from '../../ai-ledger';
 import { laneTimes, TIMED_FEATURES } from '../lane';
@@ -8,9 +8,9 @@ import { prisma } from '../../db';
 import { postingForPrompt } from '../../employer';
 import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
-import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { createManualJob, findJobByText, findJobByUrl, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { parseMatchMode } from '../../resume/match-mode';
+import { parseMatchMode, type MatchMode } from '../../resume/match-mode';
 import { runComparison, startComparison } from '../comparison-run';
 import { listPickableJobs } from '../job-pick';
 import { idParam } from '../params';
@@ -18,7 +18,7 @@ import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage, type RunLanes } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
-import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
+import { listResumeOptions, resolveResumeSource, ResumeSourceFields, type ResolvedResume } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
 import { t } from '../../i18n/t';
 
@@ -110,28 +110,14 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   if (!parsed.success) return flashRedirect('/target', 'err', t('target.flash.pickBoth'));
   const f = parsed.data;
 
-  // One of the stored jobs: nothing to detect and nothing to create, so this is
-  // the job page's own Compare — the same memo, the same run, the same result
-  // page — with the resume chosen here, a file or a paste included.
   if (f.jobMode === 'existing') {
     if (!f.jobId) return flashRedirect('/target', 'err', t('target.flash.pickJob'));
     const back = `/target?job=${f.jobId}`;
-    const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true, atsType: true } } } });
+    const job = await storedJob(f.jobId);
     if (!job) return flashRedirect('/target', 'err', t('target.flash.jobGone'));
     const resume = await resolveResumeSource(form, f);
     if ('error' in resume) return flashRedirect(back, 'err', resume.error);
-    return startComparison(c, {
-      jobId: job.id,
-      job: postingForPrompt(job),
-      resume,
-      text: resume.text,
-      mode: f.mode,
-      evidence: resume.evidence,
-      rebuild: false,
-      force: false,
-      resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
-      label: `"${resume.name}"`,
-    }, { url: back, label: t('target.run.backToTarget') });
+    return compareStored(c, job, resume, f.mode, back);
   }
 
   if (f.description.length < MIN_DESCRIPTION_CHARS) {
@@ -152,6 +138,12 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   // comparison and never adds rows to the user's Resumes.
   const resume = await resolveResumeSource(form, f);
   if ('error' in resume) return flashRedirect('/target', 'err', resume.error);
+
+  // A posting the dashboard stores already is that job (#609, as Cover letter
+  // does since #579): its link, else its text. No second copy, no second reading.
+  const storedId = (f.url ? (await findJobByUrl(f.url))?.id : undefined) ?? (await findJobByText(f.description, f.title));
+  const stored = storedId === null ? null : await storedJob(storedId);
+  if (stored) return compareStored(c, stored, resume, f.mode, '/target');
 
   // The posting is read as its own visible step (ADR 0044) — it is what the
   // comparison is judged against, and on a second run it finishes instantly.
@@ -229,3 +221,27 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
 
   return c.redirect(`/target/runs/${run.id}`, 303);
 });
+
+function storedJob(id: number) {
+  return prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
+}
+
+/**
+ * A stored job: nothing to detect and nothing to create, so this is the job
+ * page's own Compare — the same memo, the same run, the same result page —
+ * with the resume chosen here, a file or a paste included.
+ */
+function compareStored(c: Context, job: NonNullable<Awaited<ReturnType<typeof storedJob>>>, resume: ResolvedResume, mode: MatchMode, back: string): Promise<Response> {
+  return startComparison(c, {
+    jobId: job.id,
+    job: postingForPrompt(job),
+    resume,
+    text: resume.text,
+    mode,
+    evidence: resume.evidence,
+    rebuild: false,
+    force: false,
+    resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
+    label: `"${resume.name}"`,
+  }, { url: back, label: t('target.run.backToTarget') });
+}
