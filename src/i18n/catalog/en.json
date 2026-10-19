@@ -1407,7 +1407,7 @@
   "settings.fillFromAResume": "Fill from a resume",
   "settings.aiDraftsTheFieldsBelow": "AI drafts the fields below from a resume; nothing is saved until you press \"Save profile\".",
   "settings.fillMoreRescanned": "The resume's primary stack goes to required, its other skills to nice-to-have, plus role types and seniority. The resume is scanned again when its scan is out of date.",
-  "settings.fillMoreLandsInResumes": "The resume's primary stack goes to required, its other skills to nice-to-have, plus role types and seniority. The file also lands in Resumes.",
+  "settings.fillMoreFileNotKept": "The resume's primary stack goes to required, its other skills to nice-to-have, plus role types and seniority. The file is read for the draft only: it is not added to Resumes.",
   "settings.resumeToFillTheProfile": "Resume to fill the profile from",
   "settings.fillFromResume": "Fill from resume",
   "settings.resumeOption": "{name}{isDefault, select, yes { (default)} other {}}{scanned, select, no { (not scanned yet)} other {}}",

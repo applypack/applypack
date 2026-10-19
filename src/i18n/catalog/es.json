@@ -1407,7 +1407,7 @@
   "settings.fillFromAResume": "Rellenar desde un currículum",
   "settings.aiDraftsTheFieldsBelow": "La IA redacta los campos de abajo a partir de un currículum; no se guarda nada hasta que pulses “Guardar perfil”.",
   "settings.fillMoreRescanned": "El stack principal del currículum va a obligatorio, sus otras habilidades a deseable, además de los tipos de puesto y el nivel. El currículum se vuelve a analizar si su análisis está desactualizado.",
-  "settings.fillMoreLandsInResumes": "El stack principal del currículum va a obligatorio, sus otras habilidades a deseable, además de los tipos de puesto y el nivel. El archivo también se guarda en Currículums.",
+  "settings.fillMoreFileNotKept": "El stack principal del currículum va a obligatorio, sus otras habilidades a deseable, además de los tipos de puesto y el nivel. El archivo solo se lee para el borrador: no se añade a Currículums.",
   "settings.resumeToFillTheProfile": "Currículum con el que rellenar el perfil",
   "settings.fillFromResume": "Rellenar desde el currículum",
   "settings.resumeOption": "{name}{isDefault, select, yes { (predeterminado)} other {}}{scanned, select, no { (aún sin analizar)} other {}}",

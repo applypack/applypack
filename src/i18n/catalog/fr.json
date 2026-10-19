@@ -1407,7 +1407,7 @@
   "settings.fillFromAResume": "Remplir depuis un CV",
   "settings.aiDraftsTheFieldsBelow": "L'IA pré-remplit les champs ci-dessous à partir d'un CV ; rien n'est enregistré tant que vous n'appuyez pas sur « Enregistrer le profil ».",
   "settings.fillMoreRescanned": "La stack principale du CV passe en requise, ses autres compétences en souhaitées, ainsi que les types de poste et le niveau. Le CV est réanalysé si son analyse est périmée.",
-  "settings.fillMoreLandsInResumes": "La stack principale du CV passe en requise, ses autres compétences en souhaitées, ainsi que les types de poste et le niveau. Le fichier est aussi ajouté aux CV.",
+  "settings.fillMoreFileNotKept": "La stack principale du CV passe en requise, ses autres compétences en souhaitées, ainsi que les types de poste et le niveau. Le fichier sert seulement au brouillon : il n'est pas ajouté aux CV.",
   "settings.resumeToFillTheProfile": "CV à partir duquel remplir le profil",
   "settings.fillFromResume": "Remplir depuis le CV",
   "settings.resumeOption": "{name}{isDefault, select, yes { (par défaut)} other {}}{scanned, select, no { (pas encore analysé)} other {}}",

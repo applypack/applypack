@@ -27,6 +27,7 @@ import {
   Radio,
   SectionTitle,
   Select,
+  SUBMIT_ONCE,
   Table,
   Tag,
   TagListInput,
@@ -251,7 +252,7 @@ export interface SettingsProps {
   screening: ScreeningSettings;
   activeTab: SettingsTab;
   flash?: FlashMessage | null;
-  /** Set by the fill-from-resume POST: the editor shows draft values. */
+  /** Set by `?draft=`, where "Fill from a resume" lands: the editor shows draft values. */
   profileDraft?: ProfileDraftNotice | null;
   /** A refused save, sent back (#549): the countries and score adjustments as they were typed. */
   profileSent?: ProfileSentText | null;
@@ -803,10 +804,12 @@ export const SettingsPage: FC<SettingsProps> = ({
                 <More class="mb-3 mt-1">
                   {t('settings.fillMoreRescanned')}
                 </More>
+                {/* The scan can take half a minute: the button goes quiet at once, so a second press sends nothing (#555). */}
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
                   class="flex flex-wrap items-center gap-2"
+                  onsubmit={SUBMIT_ONCE}
                 >
                   <Select
                     name="resumeId"
@@ -828,13 +831,14 @@ export const SettingsPage: FC<SettingsProps> = ({
                   {t('settings.fillPickAFile', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}
                 </Hint>
                 <More class="mb-3 mt-1">
-                  {t('settings.fillMoreLandsInResumes')}
+                  {t('settings.fillMoreFileNotKept')}
                 </More>
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
                   enctype="multipart/form-data"
                   class="flex flex-wrap items-center gap-2"
+                  onsubmit={SUBMIT_ONCE}
                 >
                   <Input
                     type="file"

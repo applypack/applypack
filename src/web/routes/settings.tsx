@@ -149,7 +149,7 @@ import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage, type EngineServer, type SettingsProps, type SourceKeyRow } from '../pages/settings';
+import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SourceKeyRow } from '../pages/settings';
 import { profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
@@ -162,7 +162,7 @@ import { t } from '../../i18n/t';
 import { describeDestination } from '../../notify/targets';
 import { isDiscordWebhookUrl, testDiscordWebhook } from '../../notify/discord';
 import { missingLinkMessage } from '../profile-links';
-import { createResume, getResume, listResumes } from '../../resume/store';
+import { getResume, listResumes, upsertScratchResume, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft } from '../../resume/profile-draft';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
@@ -489,10 +489,23 @@ settingsRoute.get('/settings', async (c) => {
   }
   const fill = idParam(c.req.query('fill'));
   const keys = c.req.query('keys');
+  // `?draft=` is where "Fill from a resume" lands (#555): the draft read again off the resume's stored scan, no AI on a view.
+  const draftFrom = idParam(c.req.query('draft'));
+  const scanned = Number.isFinite(draftFrom) ? await getResume(draftFrom) : null;
+  const draft = scanned?.scannedAt && props.activeProfile ? fillDraft(props.activeProfile, scanned) : null;
   const flash = parseFlashCookie(c.req.header('cookie'));
-  return c.html(<SettingsPage {...props} fillResumeId={Number.isFinite(fill) ? fill : undefined} openSourceKeys={isKeyedSource(keys) ? keys : undefined} activeTab={activeTab} flash={flash} />, 200, {
-    'Set-Cookie': clearFlashCookie(),
-  });
+  return c.html(
+    <SettingsPage
+      {...props}
+      {...(draft && !draft.empty ? { activeProfile: draft.activeProfile, profileDraft: draft.notice } : {})}
+      fillResumeId={Number.isFinite(fill) ? fill : undefined}
+      openSourceKeys={isKeyedSource(keys) ? keys : undefined}
+      activeTab={activeTab}
+      flash={flash}
+    />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
+  );
 });
 
 /**
@@ -1544,10 +1557,11 @@ async function sourcesWaiting(search: Profile): Promise<string> {
   return waiting === 0 ? '' : t('settingsRoute.search.sourcesWaiting', { n: waiting });
 }
 
-// Prefill the editor from a resume's AI scan. Renders the draft directly —
-// nothing is saved until the user submits the profile form. With no resumes
-// yet the card sends a file instead of a resumeId: the upload becomes a real
-// Resume row (first one turns default in createResume), then the same flow.
+// Prefill the editor from a resume's AI scan, then send the browser to the
+// editor with the draft in it (`?draft=`) — nothing is saved until the user
+// submits the profile form. With no resumes yet the card sends a file instead
+// of a resumeId: it is read on the hidden scratch row the Tailor page uses,
+// so the draft saves no resume either (#555).
 settingsRoute.post(
   '/settings/profiles/:id/fill-from-resume',
   resumeUploadLimit('/settings?tab=profile'),
@@ -1562,15 +1576,16 @@ settingsRoute.post(
   if (form.file instanceof File && form.file.size > 0) {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return flashRedirect('/settings?tab=profile', 'err', upload.error);
-    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+    resume = await upsertScratchResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
     const resumeId = idParam(form.resumeId);
     if (!Number.isFinite(resumeId)) {
       return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.pickResume'));
     }
     resume = await getResume(resumeId);
+    if (resume?.hidden) resume = null;
   }
-  if (!resume || resume.hidden) {
+  if (!resume) {
     return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.resumeGone'));
   }
 
@@ -1587,41 +1602,39 @@ settingsRoute.post(
     resume = (await getResume(resume.id)) ?? resume;
   }
 
-  const draft = buildProfileDraft(profile, {
-    title: resume.title,
-    seniority: resume.seniority,
-    skills: resume.skills,
-    primarySkills: resume.primarySkills,
-    roleTypes: resume.roleTypes,
-  });
-  // Filling from a resume also proposes it as the search's resume — same
-  // review-then-save contract (ADR 0015): the select below carries it.
-  const linking = profile.resumeId !== resume.id;
-  if (draft.changed.length === 0 && !linking) {
+  const fill = fillDraft(profile, resume);
+  if (fill.empty) {
     const names = { profile: profile.name, resume: resume.name };
-    const note = draft.warnings[0];
+    const note = fill.notice.warnings[0];
     return flashRedirect(
       '/settings?tab=profile',
       'ok',
       note ? t('settingsRoute.fill.alreadyMatchesNote', { ...names, note }) : t('settingsRoute.fill.alreadyMatches', names),
     );
   }
-
-  const props = await loadSettingsProps(new URL(c.req.url).origin);
-  return c.html(
-    <SettingsPage
-      {...props}
-      activeTab="profile"
-      flash={null}
-      activeProfile={{ ...profile, ...draft.changes, resumeId: resume.id }}
-      profileDraft={{
-        resumeName: resume.name,
-        changed: linking ? [...draft.changed, t('profile.draft.changed.resume')] : draft.changed,
-        warnings: draft.warnings,
-      }}
-    />,
-  );
+  // A redirect, not the page itself: the address is the editor's, and a reload reads the draft again without a POST.
+  return c.redirect(`/settings?tab=profile&profile=${profile.id}&draft=${resume.id}#edit`, 303);
 });
+
+/**
+ * What filling `profile` from a scanned resume puts in the editor (ADR 0015):
+ * its fields, and the notice that names them. A saved resume is proposed as
+ * the search's own as well; the file read on the hidden scratch row never is
+ * — it is no resume of the user's (#555).
+ */
+function fillDraft(profile: Profile, resume: ResumeSummary): { activeProfile: Profile; notice: ProfileDraftNotice; empty: boolean } {
+  const draft = buildProfileDraft(profile, resume);
+  const linking = !resume.hidden && profile.resumeId !== resume.id;
+  return {
+    activeProfile: { ...profile, ...draft.changes, ...(linking ? { resumeId: resume.id } : {}) },
+    notice: {
+      resumeName: resume.name,
+      changed: linking ? [...draft.changed, t('profile.draft.changed.resume')] : draft.changed,
+      warnings: draft.warnings,
+    },
+    empty: draft.changed.length === 0 && !linking,
+  };
+}
 
 // --- Re-classify ------------------------------------------------------------
 // Reached only through "Save & re-classify" in the profile editor — the
