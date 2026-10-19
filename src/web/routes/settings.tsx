@@ -138,7 +138,7 @@ import {
 import { countReclassifyAll, runReclassifyAll } from '../../jobs/reclassify-job';
 import { spendHint } from '../cost-hint';
 import { recordCronRun } from '../../jobs/cron-run';
-import { parseTagList, toStringArray } from '../../text-utils';
+import { parseLineList, parseTagList, toStringArray } from '../../text-utils';
 import { isCountryCode, isRegionCode, resolveCountries } from '../../countries';
 import { isRelocation, parseResidence } from '../../eligibility';
 import { isProfileWorkplace } from '../../location';
@@ -1488,7 +1488,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     workplace: toStringArray(f.workplace).filter(isProfileWorkplace),
     residence: parseResidence(f.residence, isCountryCode),
     relocation: isRelocation(f.relocation) ? f.relocation : 'no',
-    onsiteCities: parseTagList(f.onsiteCities),
+    onsiteCities: parseLineList(f.onsiteCities),
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
     notificationTargetId,

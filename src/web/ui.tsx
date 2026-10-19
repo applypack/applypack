@@ -1109,9 +1109,11 @@ export const TagListInput: FC<{
   placeholder?: string;
   /** "countries": countries.mjs adds gazetteer suggestions to the chip input (ADR 0032). */
   picker?: 'countries';
-}> = ({ label, hint, more, name, values, rows = 3, placeholder, picker }) => (
+  /** "lines": a field of places, split on new lines alone — the save reads it with `parseLineList` (#607). */
+  split?: 'lines';
+}> = ({ label, hint, more, name, values, rows = 3, placeholder, picker, split }) => (
   <Field label={label} hint={hint} more={more}>
-    <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker}>
+    <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker} data-split={split}>
       <Textarea name={name} rows={rows} mono placeholder={placeholder}>
         {values.join('\n')}
       </Textarea>

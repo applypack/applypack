@@ -38,6 +38,7 @@ test('a refused save comes back as it was typed, not as it was stored (#549)', (
     workplace: ['REMOTE', 'HYBRID', 'moon'],
     residence: 'ua',
     relocation: 'yes',
+    onsiteCities: 'Austin, TX\r\nBerlin',
     minFitScore: '80',
     minSalaryUsd: '',
     resumeId: '',
@@ -57,6 +58,7 @@ test('a refused save comes back as it was typed, not as it was stored (#549)', (
   assert.deepEqual(p.workplace, ['REMOTE', 'HYBRID']);
   assert.equal(p.residence, 'UA');
   assert.equal(p.relocation, 'yes');
+  assert.deepEqual(p.onsiteCities, ['Austin, TX', 'Berlin'], 'a city keeps its state (#607)');
   assert.equal(p.minFitScore, 80);
   assert.equal(p.minSalaryUsd, 90000, 'a number it cannot read keeps the stored one');
   assert.equal(p.resumeId, null, 'the "pick by overlap" option');

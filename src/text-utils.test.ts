@@ -13,9 +13,17 @@ import {
   extractJson,
   jsonFailure,
   maskToken,
+  parseLineList,
   parseTagList,
   toStringArray,
 } from './text-utils';
+
+describe('parseLineList', () => {
+  it('keeps a comma inside a place: one per line (#607)', () => {
+    assert.deepEqual(parseLineList('Austin, TX\r\n  Berlin \n\nSan José, CA'), ['Austin, TX', 'Berlin', 'San José, CA']);
+    assert.deepEqual(parseLineList(' \n '), []);
+  });
+});
 
 describe('parseTagList', () => {
   it('splits by newline', () => {

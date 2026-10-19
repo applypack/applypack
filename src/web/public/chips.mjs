@@ -6,9 +6,13 @@
  */
 import { t } from './i18n.mjs';
 
-/** What was typed or pasted, as the items the save stores: commas and new lines both separate (text-utils.ts:parseTagList). */
-export function chipValues(text) {
-  return text.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+/**
+ * What was typed or pasted, as the items the save stores: commas and new lines
+ * both separate (text-utils.ts:parseTagList) — in a field of places new lines
+ * alone, so "Austin, TX" stays one (parseLineList, #607).
+ */
+export function chipValues(text, linesOnly = false) {
+  return text.split(linesOnly ? '\n' : /[\n,]+/).map((s) => s.trim()).filter(Boolean);
 }
 
 /** The list with the new items after it, each once. */
@@ -21,6 +25,7 @@ export function withChips(list, values) {
 function enhance(host) {
   var ta = host.querySelector('textarea');
   if (!ta) return;
+  var linesOnly = host.dataset.split === 'lines';
   var box = document.createElement('div');
   box.className = 'flex min-h-[38px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 shadow-sm transition-colors duration-150 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 has-[[aria-invalid=true]]:border-danger has-[[aria-invalid=true]]:ring-2 has-[[aria-invalid=true]]:ring-danger/20';
   var input = document.createElement('input');
@@ -76,7 +81,7 @@ function enhance(host) {
     });
   }
   function commit() {
-    var values = chipValues(input.value);
+    var values = chipValues(input.value, linesOnly);
     var refusedValues = values.filter(function (v) { return typeof host.refuse === 'function' && host.refuse(v); });
     // What the picker refuses stays in the box with its reason; the rest become chips.
     refused(refusedValues[0] || '');
@@ -98,7 +103,7 @@ function enhance(host) {
     if (data && data.indexOf('\n') !== -1) {
       e.preventDefault();
       var first = '';
-      var kept = chipValues(data).filter(function (v) {
+      var kept = chipValues(data, linesOnly).filter(function (v) {
         if (typeof host.refuse === 'function' && host.refuse(v)) { first = first || v; return false; }
         return true;
       });

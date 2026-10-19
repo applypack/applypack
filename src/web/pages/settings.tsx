@@ -2418,6 +2418,7 @@ const ProfileEditor: FC<{
           name="onsiteCities"
           values={profile.onsiteCities}
           rows={2}
+          split="lines"
         />
 
         <PriorityRulesEditor profile={profile} typed={sent?.priorityRules} />
