@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { failedRunLine, runName, runSummaryLine, summarizeRun, unscoredRun, type WordedCount } from './runs-summary';
 import { PSEUDO_LOCALE, withLocale } from '../i18n/locale';
 import { hardcodedText } from '../i18n/pseudo';
-import type { RunName } from '../jobs/cron-run';
+import type { CountsOf, recordCronRun, RunName } from '../jobs/cron-run';
 import type { runCleanupJob } from '../jobs/cleanup-job';
 import type { runDigestJob } from '../jobs/digest-job';
 import type { runDiscoveryJob } from '../jobs/discovery-job';
@@ -37,12 +37,22 @@ type Written = {
   'reclassify-all': StatsOf<typeof runReclassifyAll>;
   'score-unscored': StatsOf<typeof runScoreUnscored>;
 };
-/** The keys of a stats shape whose value is a number, over every shape a job returns. */
-type CountsOf<T> = T extends unknown ? { [K in keyof T]-?: [NonNullable<T[K]>] extends [never] ? never : NonNullable<T[K]> extends number ? K : never }[keyof T] : never;
 type Unworded = { [J in RunName]: `${J}: ${Exclude<CountsOf<Written[J]>, WordedCount<J>> & string}` }[RunName];
 /** A job whose stats were typed as a plain `Record<string, …>` would have no keys to check. */
 type Unread = { [J in RunName]: string extends CountsOf<Written[J]> ? J : never }[RunName];
 const unworded: Record<Unworded | Unread, never> = {};
+
+/*
+ * #622: stats written inline at `recordCronRun` pass through no job's return
+ * type, so the run name and the task carry the check themselves. Read by
+ * `tsc`, never run: the wrapper writes to the database.
+ */
+declare const recordRun: typeof recordCronRun;
+const inlineStats = async (): Promise<void> => {
+  await recordRun('fetch', async () => ({ stats: { skipped: 1, reason: 'overlap' } }));
+  // @ts-expect-error — `overlapped` has no words on /runs, so the row would show it in English in every language.
+  await recordRun('fetch', async () => ({ stats: { skipped: 1, overlapped: 1 } }));
+};
 
 describe('summarizeRun', () => {
   it('reads a fetch tick as its facts, in a fixed order', () => {
@@ -351,6 +361,7 @@ it('a run that scored nothing it tried to is not an OK to the reader', () => {
   assert.equal(unscoredRun('RUNNING', { classifyFailed: 3 }), false);
 });
 
-it('every count a job writes on its run row is worded on /runs (held by tsc, #606)', () => {
+it('every count a job writes on its run row is worded on /runs (held by tsc, #606, #622)', () => {
   assert.deepEqual(unworded, {});
+  assert.equal(typeof inlineStats, 'function');
 });
