@@ -915,6 +915,7 @@ erDiagram
     String lastFetchStatus "source health (ADR 0019)"
     Int consecutiveFailures
     DateTime lastOkAt
+    DateTime lastFetchedAt "every read, a failed one too: Last fetch on Companies"
     Boolean watched "the watchlist (ADR 0036)"
     String checkEvery "hour, day or week"
     DateTime nextCheckAt

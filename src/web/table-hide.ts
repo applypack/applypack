@@ -22,9 +22,9 @@ const ORDER: readonly (Breakpoint | '')[] = ['', 'sm', 'md', 'lg', 'xl'];
 /**
  * A fixed-layout table's columns at a screen width from `at` up to the next
  * breakpoint, as fractions of the table: the percentage width of each column
- * shown, scaled over the shown ones, as the browser gives a hidden column's share
- * to the rest. Null for a hidden column. What a test holds a column to when
- * a control in it has a width of its own (#537).
+ * shown, scaled over the shown ones, as the browser gives a hidden column's
+ * share to the rest. Null for a hidden column. What a test holds a column to
+ * when a control in it has a width of its own (#537).
  */
 export function shownShares(widths: readonly string[], hideBelow: HideBelow | undefined, at: Breakpoint | ''): (number | null)[] {
   const shown = widths.map((w, i) => {
