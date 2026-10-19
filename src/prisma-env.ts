@@ -4,6 +4,7 @@
  * command to checkpoint.prisma.io — its update check and usage telemetry — on
  * every start, and nothing is meant to leave the machine but the calls to the
  * AI engine and the user's own chats. The Dockerfile sets the same in every
- * stage (`prisma-env.test.ts`).
+ * stage, and the npm scripts run the CLI through `scripts/prisma.cjs`, which
+ * does too (`prisma-env.test.ts`).
  */
 export const PRISMA_CLI_ENV = { CHECKPOINT_DISABLE: '1' } as const;
