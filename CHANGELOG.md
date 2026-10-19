@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.61.1] — 2026-10-18
+
+### Changed
+- When a saved job page doesn't state its company, ApplyPack also reads it
+  from the page's title, so more saved postings show who is hiring ("Senior
+  Backend Engineer at Fennel Works | Careers").
+
+### Fixed
+- A page saved into a postings folder by mistake (a sign-in page, a cookie
+  notice, a list of search results) is no longer scored as a job: it stays
+  under Saved with a note that it may not be a job posting, and Re-classify
+  scores it if it is one.
+
 ## [2.61.0] — 2026-10-18
 
 ### Added
@@ -6262,6 +6275,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.61.1]: https://github.com/applypack/applypack/compare/v2.61.0...v2.61.1
 [2.61.0]: https://github.com/applypack/applypack/compare/v2.60.0...v2.61.0
 [2.60.0]: https://github.com/applypack/applypack/compare/v2.59.4...v2.60.0
 [2.59.4]: https://github.com/applypack/applypack/compare/v2.59.3...v2.59.4
