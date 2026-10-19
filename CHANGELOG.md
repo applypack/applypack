@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.9] — 2026-10-18
+
+### Fixed
+- A cover letter's header names your city and the ways to reach you, in your
+  resume's order, and no longer puts your job title among them, even a title
+  with a comma ("Software Engineer, Backend").
+- AI usage counts the cost and timing of older calls on the
+  OpenAI-compatible engine that were saved without a model name: they read
+  as gpt-5-mini, the model they asked for, instead of "not priced".
+- On a phone, the "Which engine answers each task" table and the
+  starter-pack tables fit the screen with no sideways scroll; a pack's board
+  shows under the company's name.
+- In employer mode, words the AI wrote inside the interface's sentences
+  (criteria in the calibration card, sectors in the career line, the Remove
+  checkbox's name) are marked as English, so a screen reader reads them with
+  English rules.
+
 ## [2.63.8] — 2026-10-18
 
 ### Fixed
@@ -6695,6 +6712,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.9]: https://github.com/applypack/applypack/compare/v2.63.8...v2.63.9
 [2.63.8]: https://github.com/applypack/applypack/compare/v2.63.7...v2.63.8
 [2.63.7]: https://github.com/applypack/applypack/compare/v2.63.6...v2.63.7
 [2.63.6]: https://github.com/applypack/applypack/compare/v2.63.5...v2.63.6

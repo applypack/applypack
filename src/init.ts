@@ -10,6 +10,7 @@ import { PRISMA_CLI_ENV } from './prisma-env';
 import { runSeed } from './seed';
 import { fillEmployerKeys } from './jobs/employer-store';
 import { unlinkOtherRoles } from './jobs/cross-listing-store';
+import { fillUnnamedModels } from './ai-ledger';
 import {
   addNotificationTarget,
   getSettings,
@@ -36,6 +37,7 @@ export async function init(): Promise<void> {
   // boot tries again, and the worker starts either way.
   await fillEmployerKeys().catch((err: unknown) => logger.warn({ err }, 'init: employer keys not filled; the next boot tries again'));
   await unlinkOtherRoles().catch((err: unknown) => logger.warn({ err }, 'init: cross-listings not checked; the next boot tries again'));
+  await fillUnnamedModels().catch((err: unknown) => logger.warn({ err }, 'init: unnamed AI calls not filled; the next boot tries again'));
 }
 
 /**

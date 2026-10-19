@@ -1,4 +1,4 @@
-import { AI_PROVIDER_LABELS, type AiProviderId } from './ai-engine';
+import { AI_PROVIDER_LABELS, OPENAI_DEFAULT_MODEL, type AiProviderId } from './ai-engine';
 import { costMicroUsd, PRICES_AS_OF } from './ai-prices';
 import { AI_BILLING, type AiBilling, type AiFeature, type AiOutcome, type AiSpend } from './ai-usage';
 import type { MessageKey } from './i18n/catalog';
@@ -65,6 +65,36 @@ export function ledgerRow(i: LedgerInput) {
     resumeId: i.resumeId ?? null,
     packId: i.packId ?? null,
   };
+}
+
+/** An `ai_call` row as `namedOpenAiRow` reads it. */
+export interface StoredCall {
+  engine: string;
+  model: string;
+  resolvedModel: string | null;
+  billing: string;
+  inputTokens: number | null;
+  cacheWriteTokens: number | null;
+  cacheWrite1hTokens: number | null;
+  cacheReadTokens: number | null;
+  outputTokens: number | null;
+  webSearches: number | null;
+  costMicroUsd: number | null;
+  priceAsOf: string | null;
+}
+
+/**
+ * An OpenAI-compatible row written before v2.63.7 with an empty model
+ * (#621): the call asked for the engine's default — an OPENAI_MODEL would
+ * have been in the column — so it is named that model and priced as
+ * `ledgerRow` prices a call that names it. Null for every other row.
+ */
+export function namedOpenAiRow(row: StoredCall): { model: string; costMicroUsd: number | null; priceAsOf: string | null } | null {
+  if (row.engine !== 'openai_api' || row.model !== '') return null;
+  const model = OPENAI_DEFAULT_MODEL;
+  if (row.costMicroUsd !== null || row.billing === 'local') return { model, costMicroUsd: row.costMicroUsd, priceAsOf: row.priceAsOf };
+  const cost = costMicroUsd(row.resolvedModel ?? model, row);
+  return { model, costMicroUsd: cost, priceAsOf: cost === null ? null : PRICES_AS_OF };
 }
 
 /** One SQL group of the ledger: a feature on a model, on one kind of money. */

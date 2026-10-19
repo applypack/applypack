@@ -19,7 +19,7 @@ export function letterPaper(countries: readonly string[]): Paper {
 export interface LetterHead {
   /** The sender's name, set in bold; null when the resume's first line names nobody. */
   name: string | null;
-  /** The resume's contact parts on one line: "alex@example.com · (512) 555-0147 · Austin, TX". */
+  /** The city and the ways to reach the sender, in the resume's order: "Austin, TX · alex@example.com · (512) 555-0147". */
   contact: string | null;
   /** The day the file is made, the way the paper's country writes a date. */
   date: string;
@@ -36,7 +36,14 @@ const CONTACT_SEPARATOR = ' · ';
 export function letterHead(resumeText: string, paper: Paper, now: Date, timeZone: string): LetterHead {
   // A Markdown resume titles itself with its owner's name ("# Alex Rivera"), which the reader takes for a section.
   const { basics } = structureFromText(resumeText.replace(/^\s*# +/, ''));
-  const contact = [basics.email, basics.phone, basics.location, basics.url].filter((part): part is string => Boolean(part?.trim()));
+  // Never the headline: a letter's head says who sends it and how to reach them (#624).
+  const at = (part: string): number => {
+    const i = resumeText.indexOf(part);
+    return i < 0 ? resumeText.length : i;
+  };
+  const contact = [basics.location, basics.email, basics.phone, basics.url]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .sort((a, b) => at(a) - at(b));
   return {
     name: basics.name?.trim() || null,
     contact: contact.length > 0 ? contact.join(CONTACT_SEPARATOR) : null,

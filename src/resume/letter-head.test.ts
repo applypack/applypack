@@ -17,13 +17,21 @@ test('the sender and their contact line come off the resume header, the date as 
   const md = '# Alex Rivera\nSenior Backend Engineer · Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera\n\n## Summary\nBackend engineer with 8 years.';
   assert.deepEqual(letterHead(md, 'letter', DAY, 'UTC'), {
     name: 'Alex Rivera',
-    contact: 'alex.rivera@example.com · (512) 555-0147 · Austin, TX · github.com/alexrivera',
+    contact: 'Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera',
     date: 'October 19, 2026',
   });
   const berlin = letterHead('Marta Keller\nmarta@example.com | +49 30 1234567 | Berlin, Germany\n\nSUMMARY\nBackend engineer.', 'a4', DAY, 'Europe/Berlin');
   assert.equal(berlin.name, 'Marta Keller');
   assert.equal(berlin.contact, 'marta@example.com · +49 30 1234567 · Berlin, Germany');
   assert.equal(berlin.date, '19 October 2026');
+});
+
+test('#624: the head carries the city and leaves the headline out, even a headline with a comma', () => {
+  const md = '# Alex Rivera\nSoftware Engineer, Backend · Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera\n\n## Summary\nBackend engineer.';
+  assert.equal(letterHead(md, 'letter', DAY, 'UTC').contact, 'Austin, TX · alex.rivera@example.com · (512) 555-0147 · github.com/alexrivera');
+  // A headline on a line of its own stays out too.
+  const own = letterHead('Alex Rivera\nSoftware Engineer, Backend\nalex.rivera@example.com | Austin, TX\n\nSUMMARY\nBackend engineer.', 'a4', DAY, 'UTC');
+  assert.equal(own.contact, 'alex.rivera@example.com · Austin, TX');
 });
 
 test('a resume with no header gives no name and no contact line, only the date', () => {

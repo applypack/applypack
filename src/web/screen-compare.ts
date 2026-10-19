@@ -2,7 +2,7 @@ import type { ApplicantWithVerdict } from '../screening/store';
 import { readScreenReply } from '../screening/prompts';
 import { readScreenBreakdown, type ConfidenceBand, type GateBucket, type ScoreRow } from '../screening/score';
 import type { Criterion, Rubric } from '../screening/rubric';
-import { trajectoryLine, trajectoryOf } from '../screening/trajectory';
+import { trajectoryOf, type Trajectory } from '../screening/trajectory';
 import { adjustedScore, consistentVerdict, type VerdictLine } from './screen-view';
 
 /*
@@ -23,7 +23,8 @@ export interface CompareColumn {
   confidence: ConfidenceBand;
   years: number | null;
   level: string | null;
-  career: string | null;
+  /** The career read off the dated roles; null when none is dated. */
+  career: Trajectory | null;
   standout: string[];
   verdictLine: VerdictLine;
   /** The scorecard row per criterion id. */
@@ -65,7 +66,7 @@ export function sideBySide(rubric: Rubric, applicants: ApplicantWithVerdict[], n
       confidence: bd.confidence.band,
       years: bd.years,
       level: bd.level,
-      career: career.roles > 0 ? trajectoryLine(career) : null,
+      career: career.roles > 0 ? career : null,
       standout: reply.standout.map((f) => f.fact),
       verdictLine: consistentVerdict(reply.summary.verdict, bd),
       rows: new Map(bd.rows.map((r) => [r.id, r])),

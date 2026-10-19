@@ -1,6 +1,7 @@
 import { CronRunStatus, Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
+import type { WordedCount } from '../web/runs-summary';
 
 /** Every job that writes a run row: /runs and the Overview word each through the catalog (`runs-summary.ts:runName`). */
 export type RunName =
@@ -30,21 +31,29 @@ export type SourceStat = {
 /** A run's facts as stored. `undefined` is a key one of a job's returns leaves out: JSON drops it. */
 export type CronStats = Record<string, number | string | boolean | null | undefined | SourceStat[]>;
 
-interface RunResult<T> {
-  result: T;
-  stats?: CronStats;
-}
+/** The keys of a stats shape whose value is a number, over every shape a job returns. */
+export type CountsOf<T> = T extends unknown ? { [K in keyof T]-?: [NonNullable<T[K]>] extends [never] ? never : NonNullable<T[K]> extends number ? K : never }[keyof T] : never;
+
+/** The stats of every shape a task may return. */
+type StatsIn<R> = R extends { stats: infer S } ? S : never;
+
+/**
+ * A task's stats hold no count /runs has no words for: `tsc` names such a
+ * count at the task that writes it — a job's return and a literal written
+ * inline at `recordCronRun` alike (#606, #622).
+ */
+type Worded<N extends RunName, R> = { stats: Partial<Record<Exclude<CountsOf<StatsIn<R>>, WordedCount<N>>, never>> };
 
 /**
  * Wraps a cron task with start/finish bookkeeping in the CronRun table.
  *
- * The wrapped function may either return void (no stats), or return
- * { result, stats } to record structured stats on the row. The stats come
- * back too: a once-script prints them for the terminal that ran it.
+ * The wrapped function returns { stats } to record structured stats on the
+ * row. The stats come back too: a once-script prints them for the terminal
+ * that ran it.
  */
-export async function recordCronRun<T>(
-  name: RunName,
-  fn: () => Promise<T> | Promise<RunResult<T>> | Promise<void>,
+export async function recordCronRun<N extends RunName, R extends { stats: object }>(
+  name: N,
+  fn: () => Promise<R & Worded<N, R>>,
 ): Promise<CronStats | null> {
   const run = await prisma.cronRun.create({
     data: { name, status: CronRunStatus.RUNNING },

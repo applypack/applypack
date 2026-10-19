@@ -21,7 +21,7 @@ import {
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import { formatRange } from '../../screening/dates';
-import { trajectoryLine, trajectoryOf } from '../../screening/trajectory';
+import { trajectoryOf, trajectoryParts, type Trajectory } from '../../screening/trajectory';
 import { STANDOUT_SINCE } from '../../screening/prompts';
 import { criterionLabel, CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, modelWorded, type Rubric } from '../../screening/rubric';
 import type { ScreenReply } from '../../screening/prompts';
@@ -93,6 +93,22 @@ export const DetailWords: FC<{ detail: string }> = ({ detail }) => (
     {detailParts(detail).map((part, i) => [i > 0 ? '; ' : '', 'model' in part ? inEnglish([part.model]) : tRich(part.key, part.params, { en: inEnglish })])}
   </>
 );
+
+/** The career line in the reader's words, the sectors the model named marked English (#569) — the screening table and the compare page show it too. */
+export const CareerLine: FC<{ career: Trajectory }> = ({ career }) => {
+  const { words, sectors } = trajectoryParts(career);
+  return (
+    <>
+      {words}
+      {sectors !== null && (
+        <>
+          {' · '}
+          <span lang="en">{sectors}</span>
+        </>
+      )}
+    </>
+  );
+};
 
 /** One criterion on the scorecard: what was asked, how the text answered, the quote, the points. `drafted`: its words are the model's. */
 const CriterionAnswerRow: FC<{ r: ScoreRow; drafted: boolean }> = ({ r, drafted }) => {
@@ -291,7 +307,9 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
             <Card>
               <h2 class="text-entity text-ink">{t('screening.applicant.roles')}</h2>
-              {career && career.roles > 0 && <p class="mt-1 text-note text-ink-muted">{t('screening.applicant.career', { line: trajectoryLine(career) })}</p>}
+              {career && career.roles > 0 && (
+                <p class="mt-1 text-note text-ink-muted">{tRich('screening.applicant.career', {}, { line: () => <CareerLine career={career} /> })}</p>
+              )}
               {reply.roles.length === 0 ? (
                 <Hint class="mt-1">{t('screening.applicant.noRoles')}</Hint>
               ) : (

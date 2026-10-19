@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import type { FC } from 'hono/jsx';
+import type { Child, FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import {
   ActionForm,
@@ -11,6 +11,7 @@ import {
   FILE_INPUT_CLASS,
   Flash,
   Hint,
+  inEnglish,
   Input,
   More,
   Notice,
@@ -53,6 +54,8 @@ import { calibrationLine, MIN_DECISIONS, type Calibration } from '../../screenin
 import { ordinal } from '../../screening/export';
 import { DECISIONS, type Decision } from '../../screening/store';
 import { BUCKET_TONE, confidenceLabel, groupRows, type ApplicantRowView } from '../screen-view';
+import { trajectoryParts } from '../../screening/trajectory';
+import { CareerLine } from './screen-applicant';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
@@ -512,7 +515,11 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                         {' — '}
                         {t('screen.detail.surprise', { decision: sp.decision, position: sp.position, suffix: ordinal(sp.position), total: sp.total })}
                       </span>
-                      {sp.why.length > 0 && <div class="text-note text-ink-faint">{sp.why.join(' · ')}</div>}
+                      {sp.why.length > 0 && (
+                        <div class="text-note text-ink-faint">
+                          {sp.why.map((w, i) => [i > 0 ? ' · ' : '', tRich(w.key, w.params, { criterion: criterionWords(w.drafted) })])}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -571,6 +578,9 @@ const MAX_CRITERION_CHIPS = 40;
 /** Separation rows the calibration card lists, the widest gap first; and the gap below which a criterion reads as flat. */
 const MAX_SEPARATIONS = 8;
 const FLAT_GAP = 0.1;
+
+/** A criterion's words inside one of our sentences: marked English when the model drafted them (#569). */
+const criterionWords = (drafted: boolean) => (words: Child[]) => (drafted ? inEnglish(words) : <>{words}</>);
 
 /** One criterion as a chip in the closed card: its words, and whether it gates, scores (with the stars) or only notes. */
 const CriterionChip: FC<{ c: Criterion }> = ({ c }) => {
@@ -650,7 +660,10 @@ const CriterionRow: FC<{ c: Criterion }> = ({ c }) => {
       </td>
       <td class="py-2 pr-2 align-top text-meta text-ink-faint">{c.source === 'posting' ? t('screen.detail.fromPosting') : t('screen.detail.fromYou')}</td>
       <td class="py-2 text-right align-top">
-        <input type="checkbox" name={`remove_${c.id}`} value="1" aria-label={t('screen.detail.removeNamed', { label: criterionLabel(c) })} class="h-4 w-4 accent-accent" />
+        <label class="inline-flex">
+          <input type="checkbox" name={`remove_${c.id}`} value="1" class="h-4 w-4 accent-accent" />
+          <span class="sr-only">{tRich('screen.detail.removeNamed', { label: criterionLabel(c) }, { criterion: criterionWords(modelWorded(c)) })}</span>
+        </label>
       </td>
     </tr>
   );
@@ -770,9 +783,14 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: Criter
         {/* Phone width leaves the name cell too narrow for a list; the scorecard has the same facts. */}
         {v && (v.standout.length > 0 || v.career.roles > 0) && (
           <details class="mt-0.5 hidden text-meta sm:block">
-            <summary class="cursor-pointer truncate text-ink-muted" title={v.standout.length > 0 ? v.standout.map((f) => f.fact).join(' · ') : v.careerLine}>
-              {v.standout.length > 0 ? <span lang="en">{v.standout.map((f) => f.fact).join(' · ')}</span> : t('screen.detail.career', { line: v.careerLine })}
-            </summary>
+            {/* The model's facts and their tooltip are English; a career line is in parts, and the list below says it whole. */}
+            {v.standout.length > 0 ? (
+              <summary class="cursor-pointer truncate text-ink-muted" lang="en" title={v.standout.map((f) => f.fact).join(' · ')}>
+                {v.standout.map((f) => f.fact).join(' · ')}
+              </summary>
+            ) : (
+              <summary class="cursor-pointer truncate text-ink-muted">{tRich('screen.detail.career', {}, { line: () => <CareerLine career={v.career} /> })}</summary>
+            )}
             <ul class="mt-1 space-y-0.5 whitespace-normal text-ink-muted">
               {v.standout.map((f) => (
                 <li lang="en">
@@ -785,7 +803,7 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: Criter
                   )}
                 </li>
               ))}
-              {v.career.roles > 0 && <li class="text-ink-faint">{t('screen.detail.careerRead', { line: v.careerLine })}</li>}
+              {v.career.roles > 0 && <li class="text-ink-faint">{tRich('screen.detail.careerRead', {}, { line: () => <CareerLine career={v.career} /> })}</li>}
             </ul>
           </details>
         )}
@@ -798,8 +816,11 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: Criter
               const status = v.gates.find((x) => x.gate.toLowerCase() === g.label.toLowerCase())?.status ?? 'unknown';
               const said = `${criterionLabel(g)}: ${answerBadge(status)}`;
               return (
-                <span title={said} class={status === 'pass' ? 'text-ok' : status === 'fail' ? 'text-danger' : 'text-warn'}>
-                  <span aria-hidden="true">{GATE_MARK[status]}</span>
+                <span class={status === 'pass' ? 'text-ok' : status === 'fail' ? 'text-danger' : 'text-warn'}>
+                  {/* The tooltip is the mouse's; a screen reader reads the marked words below (#569). */}
+                  <span aria-hidden="true" title={said}>
+                    {GATE_MARK[status]}
+                  </span>
                   <span class="sr-only">
                     <span lang={modelWorded(g) ? 'en' : undefined}>{criterionLabel(g)}</span>: {answerBadge(status)}
                   </span>
@@ -848,7 +869,7 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: Criter
           ''
         )}
       </Td>
-      <Td class="text-right tabular-nums" title={v && v.career.roles > 0 ? t('screen.detail.yearsTitle', { line: v.careerLine }) : undefined}>
+      <Td class="text-right tabular-nums" title={v && v.career.roles > 0 ? t('screen.detail.yearsTitle', { line: trajectoryParts(v.career).words }) : undefined}>
         {v ? (v.years ?? '?') : ''}
       </Td>
       <Td class="text-ink-muted">{v ? (v.level ?? '?') : ''}</Td>

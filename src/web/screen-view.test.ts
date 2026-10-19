@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { adjustedScore, calibrationRows, consistentVerdict, exportRows, extendedRetention, groupRows, rowView, scoredBeforePosting } from './screen-view';
 import type { ApplicantWithVerdict } from '../screening/store';
+import { trajectoryLine } from '../screening/trajectory';
 import { formatDateShort } from './format';
 import { offeredLocales, withLocale } from '../i18n/locale';
 import { t } from '../i18n/t';
@@ -144,7 +145,7 @@ test('rowView reads the stored verdict; groupRows orders by the adjusted score a
   ].map((a) => rowView(a, new Date('2026-09-09T00:00:00Z')));
   assert.equal(rows[0]!.verdict?.level, 'senior');
   assert.deepEqual(rows[0]!.verdict?.standout, [{ fact: 'Speaks Polish', quote: 'Polish C1' }]);
-  assert.equal(rows[0]!.verdict?.careerLine, '8.8 years across 2 employers · average stay 4.4 years · in a role now · fintech, retail');
+  assert.equal(trajectoryLine(rows[0]!.verdict!.career), '8.8 years across 2 employers · average stay 4.4 years · in a role now · fintech, retail');
   assert.equal(rows[0]!.verdict?.mustStrong, 2, 'the breakdown counts the skills in a role or in production');
   assert.deepEqual(rows[0]!.verdict?.gates, [{ gate: 'EU', status: 'pass' }], 'gates are the gate-mode rows');
   const g = groupRows(rows);
@@ -165,7 +166,7 @@ test('rowView reads the stored verdict; groupRows orders by the adjusted score a
     [5, null, 'scan'],
   ]);
   assert.deepEqual(ex[0]!.standout, ['Speaks Polish']);
-  assert.equal(ex[0]!.career, rows[0]!.verdict?.careerLine);
+  assert.equal(ex[0]!.career, trajectoryLine(rows[0]!.verdict!.career));
   assert.deepEqual([ex[3]!.standout, ex[3]!.career], [[], null], 'a stale verdict exports neither');
 });
 
