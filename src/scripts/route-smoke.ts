@@ -489,6 +489,26 @@ async function main(): Promise<void> {
       },
     },
     {
+      // #538: saving the hours used to store the browser's zone the page slipped in, and every date moved.
+      name: 'POST /settings/schedule (when to search, with a zone in the body: the zone stays)',
+      init: form({ part: 'fetch', fetchEvery: '2h', fetchFrom: '6', fetchTo: '22', fetchDays: '2', timezone: 'America/Chicago' }),
+      expect: async (res) => res.status === 303 && ((await getSettings()).schedule as { timezone?: string } | null)?.timezone === 'Europe/Kyiv',
+    },
+    {
+      // The browser's zone, offered beside the hours: back to that tab, stored under its current name (#572).
+      name: 'POST /settings/schedule (the browser\'s zone, from Job search)',
+      init: form({ part: 'zone', from: 'fetch', timezone: 'Asia/Calcutta' }),
+      expect: async (res) =>
+        res.status === 303 &&
+        res.headers.get('location') === '/settings?tab=profile#schedule' &&
+        ((await getSettings()).schedule as { timezone?: string } | null)?.timezone === 'Asia/Kolkata',
+    },
+    {
+      name: 'POST /settings/schedule (a city typed into the zone)',
+      init: form({ part: 'zone', timezone: 'kyiv' }),
+      expect: async (res) => res.status === 303 && ((await getSettings()).schedule as { timezone?: string } | null)?.timezone === 'Europe/Kyiv',
+    },
+    {
       // TASKS S1: the OpenAI-compatible engine's server, set here; one on this machine takes no key.
       name: 'POST /settings/ai/openai-base',
       init: form({ baseUrl: 'http://127.0.0.1:9/v1' }),
@@ -663,6 +683,9 @@ async function main(): Promise<void> {
     '/companies/mutes/delete',
     '/settings/reapply',
     '/settings/dashboard-url',
+    '/settings/schedule',
+    '/settings/schedule',
+    '/settings/schedule',
     '/settings/schedule',
     '/settings/schedule',
     '/settings/schedule',

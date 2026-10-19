@@ -57,6 +57,7 @@ import { MAX_UPLOAD_MB } from '../upload';
 import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
+import { RENAMED_ZONES } from '../time-zones';
 import { AiPlan, BILLING_TONE } from './ai-plan';
 import { planSummary, type AiPlanRow } from '../ai-plan';
 import { billingWords, formatUsd } from '../../ai-spend';
@@ -169,14 +170,14 @@ export interface EngineServer {
 /** Everything the Schedule section renders, resolved by the route (TASKS §16). */
 export interface ScheduleView {
   schedule: Schedule;
-  /** IANA zones the runtime knows, for the picker. */
-  zones: string[];
+  /** The zone in force — the stored one, else the install's (`TZ`) — under its current name. */
+  zone: string;
+  /** IANA zones the runtime knows, under current names: the picker's suggestions. */
+  zones: readonly string[];
   /** "today at 14:05" — already formatted in the schedule's own zone. */
   nextFetch: string;
   /** Matches waiting to be sent — for the window, for Alerts, for a chat — or null. */
   held: HeldLine | null;
-  /** No schedule saved yet: the zone is the install's default, and the browser's is the better guess (TASKS S28). */
-  unsaved: boolean;
 }
 
 export interface AiStatusSummary {
@@ -360,33 +361,59 @@ const DayPills: FC<{ name: string; days: readonly number[] }> = ({ name, days })
 );
 
 /**
- * Until a zone is saved the install's default stands, and the browser's is the
- * better guess (TASKS S28): every schedule form carries it, so the first save
- * of any of them stores it — the select under General shows it picked.
+ * The browser's zone is offered, never filled in (#538): until the person
+ * presses "Use …", the hours and every date stay in the zone in force. The
+ * offer shows only when the browser's zone is another one, compared by the
+ * browser's own reading of both names, so Europe/Kiev and Europe/Kyiv are one.
  */
-const BrowserZone: FC<{ view: ScheduleView }> = ({ view }) =>
-  view.unsaved ? <input type="hidden" name="timezone" value={view.schedule.timezone} data-browser-zone="" /> : null;
-
 const BROWSER_ZONE_JS = [
+  `const names = ${JSON.stringify(RENAMED_ZONES)};`,
+  "const id = (z) => { try { return new Intl.DateTimeFormat('en-US', { timeZone: z }).resolvedOptions().timeZone; } catch { return null; } };",
   'const z = Intl.DateTimeFormat().resolvedOptions().timeZone;',
-  "const s = document.querySelector('select[data-browser-zone]');",
-  'if (s && [...s.options].some((o) => o.value === z)) s.value = z;',
-  "const known = typeof Intl.supportedValuesOf === 'function' && Intl.supportedValuesOf('timeZone').includes(z);",
-  "if (z && (known || (s && s.value === z))) document.querySelectorAll('input[data-browser-zone], [data-zone-name]').forEach((n) => { if (n.tagName === 'INPUT') n.value = z; else n.textContent = z; });",
+  "const f = document.getElementById('browser-zone');",
+  'if (f && z && id(z) && id(z) !== id(f.dataset.zone)) {',
+  'f.elements.timezone.value = names[z] ?? z;',
+  "document.querySelectorAll('[data-browser-zone-name]').forEach((n) => { n.textContent = names[z] ?? z; });",
+  "document.querySelectorAll('[data-zone-offer]').forEach((n) => { n.hidden = false; });",
+  '}',
 ].join(' ');
+
+/** Where each tab's schedule part is; the browser's zone, offered there, comes back to it. */
+const ZONE_OFFER_FROM: Partial<Record<SettingsTab, 'fetch' | 'alerts' | 'zone'>> = { profile: 'fetch', notifications: 'alerts', general: 'zone' };
+
+/** The one form every offer posts, from outside the forms it sits in (`form="browser-zone"`); the script fills in the zone. */
+const BrowserZoneForm: FC<{ zone: string; from: 'fetch' | 'alerts' | 'zone' }> = ({ zone, from }) => (
+  <form id="browser-zone" method="post" action="/settings/schedule" data-zone={zone} hidden>
+    <input type="hidden" name="part" value="zone" />
+    <input type="hidden" name="from" value={from} />
+    <input type="hidden" name="timezone" value="" />
+  </form>
+);
+
+/** "Use America/Chicago, your browser's zone" — hidden until the script finds the browser in another zone. */
+const ZoneOffer: FC = () => (
+  <span hidden data-zone-offer="">
+    <Button type="submit" form="browser-zone" variant="secondary">
+      {tRich('settings.useBrowserZone', {}, { zone: () => <span translate="no" data-browser-zone-name="" /> })}
+    </Button>
+  </span>
+);
 
 /** The hours of a schedule are the zone's: said once beside them, with the way to change it. */
 const ZoneLine: FC<{ zone: string }> = ({ zone }) => (
-  <Hint>
-    {tRich('settings.hoursInZone', {}, {
-      zone: () => <span translate="no" data-zone-name="">{zone}</span>,
-      link: (words) => (
-        <a href="/settings?tab=general#timezone" class="font-medium text-accent-strong hover:text-accent-deep">
-          {words}
-        </a>
-      ),
-    })}
-  </Hint>
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+    <Hint>
+      {tRich('settings.hoursInZone', {}, {
+        zone: () => <span translate="no">{zone}</span>,
+        link: (words) => (
+          <a href="/settings?tab=general#timezone" class="font-medium text-accent-strong hover:text-accent-deep">
+            {words}
+          </a>
+        ),
+      })}
+    </Hint>
+    <ZoneOffer />
+  </div>
 );
 
 const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
@@ -394,7 +421,6 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
   return (
     <form method="post" action="/settings/schedule" class="space-y-3">
       <input type="hidden" name="part" value="fetch" />
-      <BrowserZone view={view} />
       <div>
         <div class="text-label text-ink">{t('settings.checkForJobs')}</div>
         <Hint class="mt-0.5">
@@ -415,7 +441,7 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
         <HourSelect name="fetchTo" value={s.fetch.to} label={t('settings.toInclusive')} />
       </div>
       <DayPills name="fetchDays" days={s.fetch.days} />
-      <ZoneLine zone={s.timezone} />
+      <ZoneLine zone={view.zone} />
       <Hint>{t('settings.fetchNowIgnoresTheSchedule')}</Hint>
       <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
     </form>
@@ -463,7 +489,6 @@ const AlertTimingForm: FC<{ view: ScheduleView }> = ({ view }) => {
   return (
     <form method="post" action="/settings/schedule" class="space-y-5">
       <input type="hidden" name="part" value="alerts" />
-      <BrowserZone view={view} />
       <div data-ui="alert-modes">
         {held && (
           <Hint class="mb-2 text-warn">
@@ -509,30 +534,27 @@ const AlertTimingForm: FC<{ view: ScheduleView }> = ({ view }) => {
         </Hint>
         <DigestTimes hours={s.alerts.digestAt} />
       </div>
-      <ZoneLine zone={s.timezone} />
+      <ZoneLine zone={view.zone} />
       <Button type="submit" variant="secondary">{t('settings.saveAlertTiming')}</Button>
     </form>
   );
 };
 
+/** The zone: typed or picked from the runtime's list (#572) — a city alone is read too (`time-zones.ts:readZone`). */
 const TimeZoneForm: FC<{ view: ScheduleView }> = ({ view }) => (
   <form method="post" action="/settings/schedule" class="flex flex-wrap items-end gap-3">
     <input type="hidden" name="part" value="zone" />
-    <Field
-      label={t('settings.timeZone')}
-      hint={view.unsaved ? t('settings.timeZoneHintUnsaved') : t('settings.timeZoneHint')}
-      class="w-full max-w-sm"
-    >
+    <Field label={t('settings.timeZone')} hint={t('settings.timeZoneHint')} class="w-full max-w-sm">
       {/* IANA zone ids: data, in every language. */}
-      <Select name="timezone" translate="no" data-browser-zone={view.unsaved ? '' : undefined}>
+      <Input type="text" name="timezone" value={view.zone} list="time-zones" autocomplete="off" spellcheck="false" translate="no" />
+      <datalist id="time-zones">
         {view.zones.map((z) => (
-          <option value={z} selected={z === view.schedule.timezone}>
-            {z}
-          </option>
+          <option value={z} />
         ))}
-      </Select>
+      </datalist>
     </Field>
     <Button type="submit" variant="secondary">{t('common.save')}</Button>
+    <ZoneOffer />
   </form>
 );
 
@@ -1632,7 +1654,12 @@ export const SettingsPage: FC<SettingsProps> = ({
       </div>
       </div>
     </div>
-    {schedule.unsaved && <script type="module" dangerouslySetInnerHTML={{ __html: BROWSER_ZONE_JS }} />}
+    {ZONE_OFFER_FROM[activeTab] && (
+      <>
+        <BrowserZoneForm zone={schedule.zone} from={ZONE_OFFER_FROM[activeTab]} />
+        <script type="module" dangerouslySetInnerHTML={{ __html: BROWSER_ZONE_JS }} />
+      </>
+    )}
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
     <script type="module" dangerouslySetInnerHTML={{ __html: "import { wireCopy } from '/static/copy.mjs'; wireCopy(document);" }} />
     <script type="module" dangerouslySetInnerHTML={{ __html: MODELS_BOOT }} />
