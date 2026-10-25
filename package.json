@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.63.13",
+  "version": "2.63.14",
   "private": true,
   "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 7 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
   "license": "MIT",
@@ -89,7 +89,7 @@
     "prisma": "^6.1.0",
     "rss-parser": "^3.13.0",
     "unpdf": "^1.9.0",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

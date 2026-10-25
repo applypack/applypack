@@ -13,6 +13,23 @@ test('firstIssue names the field and the reason', () => {
   if (!result.success) assert.equal(firstIssue(result.error.issues), 'name: a name is required');
 });
 
+test('firstIssue words zod’s own sentences, and keeps a sentence the schema wrote', () => {
+  const reason = (schema: z.ZodType, value: unknown) => {
+    const result = schema.safeParse(value);
+    assert.equal(result.success, false);
+    return result.success ? '' : firstIssue(result.error.issues);
+  };
+  const form = z.object({ n: z.number(), name: z.string().min(3), email: z.string().email(), pick: z.enum(['a', 'b']), when: z.number().max(23) });
+  const ok = { n: 1, name: 'abc', email: 'a@b.co', pick: 'a', when: 9 };
+  assert.equal(reason(form, { ...ok, n: undefined }), 'n: Required');
+  assert.equal(reason(form, { ...ok, n: 'x' }), 'n: Expected a number');
+  assert.equal(reason(form, { ...ok, name: 'a' }), 'name: At least 3 characters');
+  assert.equal(reason(form, { ...ok, email: 'nope' }), 'email: Not an email address');
+  assert.equal(reason(form, { ...ok, pick: 'c' }), 'pick: Invalid enum value — pick one of the options offered');
+  assert.equal(reason(form, { ...ok, when: 24 }), 'when: Must be 23 or less');
+  assert.equal(reason(z.object({ n: z.number({ error: 'pick an hour' }) }), {}), 'n: pick an hour');
+});
+
 test('firstIssue names a field by the label its form shows, when it is given one (#549)', () => {
   const label = (field: string) => (field === 'minFitScore' ? 'Min fit score (0-100)' : undefined);
   assert.equal(firstIssue([{ path: ['minFitScore'], message: 'too big' }], label), 'Min fit score (0-100): too big');

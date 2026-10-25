@@ -4,7 +4,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { defaultErrorMap, type ZodIssue } from 'zod';
+import { z } from 'zod';
 import { t } from '../i18n/t';
 
 export type FlashKind = 'ok' | 'warn' | 'err';
@@ -171,31 +171,39 @@ export function firstIssue(issues: readonly Issue[], label?: (field: string) => 
   return text.length > MAX_ISSUE_CHARS ? `${text.slice(0, MAX_ISSUE_CHARS)}…` : text;
 }
 
-/** Never one of zod's own sentences: an issue of a code zod does not word itself keeps its message. */
-const NO_DEFAULT = '\u0000';
+const english = z.locales.en();
+
+/** zod's own English sentence for an issue whose input was `input`: the one a schema's message is told apart from. */
+function zodSentence(issue: z.core.$ZodIssue, input?: unknown): string {
+  const said = english.localeError({ ...issue, input } as z.core.$ZodRawIssue);
+  return typeof said === 'string' ? said : (said?.message ?? '');
+}
 
 /**
- * zod's own sentence ("Required", "Expected number, received nan") in the
- * reader's language (ADR 0061). A message the schema wrote itself is kept as
- * written: it is the schema's to word.
+ * zod's own sentence ("Invalid input: expected number, received undefined")
+ * in the reader's language (ADR 0061). A message the schema wrote itself is
+ * kept as written: it is the schema's to word.
  */
 function issueReason(issue: Issue): string {
   if (issue.code === undefined) return issue.message;
-  const zod = issue as ZodIssue;
-  if (defaultErrorMap(zod, { defaultError: NO_DEFAULT, data: undefined }).message !== issue.message) return issue.message;
+  const zod = issue as z.core.$ZodIssue;
+  if (zod.code === 'invalid_type') {
+    // zod's sentence names what arrived, which a finished issue no longer carries; "undefined" is a missing field.
+    const missing = zodSentence(zod);
+    if (issue.message === missing) return t('flash.issue.required');
+    if (!issue.message.startsWith(missing.slice(0, missing.lastIndexOf(' ')))) return issue.message;
+    return t('flash.issue.type', { expected: zod.expected === 'int' ? 'integer' : zod.expected });
+  }
+  if (zodSentence(zod) !== issue.message) return issue.message;
   switch (zod.code) {
-    case 'invalid_type':
-      return zod.received === 'undefined' ? t('flash.issue.required') : t('flash.issue.type', { expected: zod.expected });
     case 'too_small':
-      return boundReason(zod.type, 'min', Number(zod.minimum), zod.exact === true, zod.inclusive);
+      return boundReason(zod.origin, 'min', Number(zod.minimum), zod.exact === true, zod.inclusive !== false);
     case 'too_big':
-      return boundReason(zod.type, 'max', Number(zod.maximum), zod.exact === true, zod.inclusive);
-    case 'invalid_string':
-      return t('flash.issue.string', { validation: typeof zod.validation === 'string' ? zod.validation : 'other' });
-    case 'invalid_enum_value':
-      return t('flash.issue.enum');
-    case 'invalid_literal':
-      return t('flash.issue.literal');
+      return boundReason(zod.origin, 'max', Number(zod.maximum), zod.exact === true, zod.inclusive !== false);
+    case 'invalid_format':
+      return t('flash.issue.string', { validation: zod.format });
+    case 'invalid_value':
+      return t(zod.values.length > 1 ? 'flash.issue.enum' : 'flash.issue.literal');
     default:
       return t('flash.issue.invalid');
   }

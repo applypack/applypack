@@ -122,8 +122,8 @@ const nullableText = z
 const judgedText = z
   .string()
   .nullable()
-  .optional()
-  .transform((v) => (v === undefined ? undefined : v && v.trim().length > 0 ? v.trim() : null));
+  .transform((v) => (v && v.trim().length > 0 ? v.trim() : null))
+  .optional();
 
 const tagList = z
   .array(z.string())
@@ -197,7 +197,7 @@ export const BriefSchema = z.object({
       audience: nullableText,
       stage: nullableText,
     })
-    .default({}),
+    .prefault({}),
   screening: z
     .object({
       reader: z.string().default(''),
@@ -205,7 +205,7 @@ export const BriefSchema = z.object({
       wow: z.array(z.string()).max(8).default([]),
       dealbreakers: z.array(z.string()).max(8).default([]),
     })
-    .default({}),
+    .prefault({}),
   requirement_groups: z
     .array(
       z.object({
@@ -1617,7 +1617,7 @@ export function coverGateSources(
   return companySnapshot ? [resumeText, posting, companySnapshot] : [resumeText, posting];
 }
 
-function parseWith<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, text: string): ParseResult<T> {
+function parseWith<T>(schema: z.ZodType<T>, text: string): ParseResult<T> {
   const json = extractJson(text);
   if (json === null) return jsonFailure(text);
   const parsed = schema.safeParse(json);
