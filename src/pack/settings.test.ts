@@ -118,18 +118,18 @@ test('the form: a value it does not offer is refused with its field named, never
   assert.equal(refused({ ...FORM, maxBullets: '10' }), 'maxBullets: too_big');
   assert.equal(refused({ ...FORM, minFit: '91.5' }), 'minFit: invalid_type');
   assert.equal(refused({ ...FORM, dailyLimit: '-1' }), 'dailyLimit: too_small');
-  assert.equal(refused({ ...FORM, coverLetter: 'bogus' }), 'coverLetter: invalid_enum_value');
+  assert.equal(refused({ ...FORM, coverLetter: 'bogus' }), 'coverLetter: invalid_value');
   // Text, an emptied field and a field that never arrived are not numbers either.
   assert.equal(refused({ ...FORM, minFit: 'high' }), 'minFit: invalid_type');
   assert.equal(refused({ ...FORM, minFit: '' }), 'minFit: invalid_type');
   assert.equal(refused({ ...FORM, maxAgeDays: undefined }), 'maxAgeDays: invalid_type');
-  assert.equal(refused({ ...FORM, coverLetter: undefined }), 'coverLetter: invalid_type');
+  assert.equal(refused({ ...FORM, coverLetter: undefined }), 'coverLetter: invalid_value');
   assert.equal(refused({}), 'minFit: invalid_type');
   assert.equal(refused({ ...FORM, dailyLimit: 'Infinity' }), 'dailyLimit: invalid_type');
   // A section the form never offered, and a box sent with a value that is not its own.
-  assert.equal(refused({ ...FORM, sections: ['summary', 'education'] }), 'sections: invalid_enum_value');
-  assert.equal(refused({ ...FORM, enabled: 'true' }), 'enabled: invalid_literal');
-  assert.equal(refused({ ...FORM, removals: 'on' }), 'removals: invalid_literal');
+  assert.equal(refused({ ...FORM, sections: ['summary', 'education'] }), 'sections: invalid_value');
+  assert.equal(refused({ ...FORM, enabled: 'true' }), 'enabled: invalid_value');
+  assert.equal(refused({ ...FORM, removals: 'on' }), 'removals: invalid_value');
   // Several at once: the one named is the first a person meets on the page.
   assert.equal(refused({ ...FORM, maxBullets: '10', minFit: '40', dailyLimit: '60' }), 'minFit: too_small');
 });

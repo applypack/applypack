@@ -184,7 +184,7 @@ const SpecSchema = z
     question: z.string().trim().max(MAX_TEXT).nullable().default(null),
     answer: z.enum(['yesno', 'howmuch']).default('yesno'),
   })
-  .default({});
+  .prefault({});
 export type CriterionSpec = z.infer<typeof SpecSchema>;
 /** A spec from a partial — the tests and the presets build criteria by hand. */
 export function specOf(partial: Partial<CriterionSpec> = {}): CriterionSpec {

@@ -26,8 +26,8 @@ const RegionSchema = z.object({
 
 const GazetteerSchema = z.object({
   countries: z.array(CountrySchema).min(1),
-  subdivisions: z.record(z.record(z.array(z.string().min(1)))),
-  groups: z.record(RegionSchema),
+  subdivisions: z.record(z.string(), z.record(z.string(), z.array(z.string().min(1)))),
+  groups: z.record(z.string(), RegionSchema),
 });
 
 export type Country = z.infer<typeof CountrySchema>;

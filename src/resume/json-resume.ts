@@ -62,7 +62,7 @@ export const JsonResumeSchema = z.object({
       /** Header lines that are neither the name, the label nor a contact part ("Fully Work Authorized"). Ours, not the standard's. */
       lines: textList,
     })
-    .default({ profiles: [], lines: [] }),
+    .prefault({ profiles: [], lines: [] }),
   work: entries(
       z.object({
         name: line,
