@@ -7,7 +7,8 @@
  * nothing is written. Every edit is a line diff (the same diffLines the
  * change sheet uses) mapped back to the paragraph that rendered the line;
  * a changed line is written into that paragraph's runs, a deleted line takes
- * its paragraph out, an inserted line clones the paragraph above it. What
+ * its paragraph out, an inserted line clones the paragraph above it — or the
+ * one it replaces, when the diff wrote a rewrite as a delete and an insert. What
  * cannot be mapped honestly — a table row, a line inside a text box, a
  * paragraph whose tab layout the edit changed — is refused with a reason,
  * and in v1 one refusal fails the whole save: a half-patched file is worse
@@ -120,12 +121,19 @@ export async function patchDocx(
     report.skipped.push({ line, reason: inEnglish(() => say(why)) });
   };
 
-  // Every op resolves to a node BEFORE anything is mutated, so a delete above
-  // an insert cannot pull the insert's anchor out from under it.
+  // Every op resolves to a node BEFORE anything is mutated, and paragraphs are
+  // taken out last, so neither a delete above an insert nor the paragraph a
+  // rewrite replaces can pull an insert's anchor out from under it.
   const plan: Array<() => void> = [];
+  const removals: Array<() => void> = [];
   const lastInserted = new Map<Element, Element>();
   let lastOwner: LineOwner = null;
+  // Paragraphs just deleted that the next inserts take the place of: when less
+  // than a third of a line's words survive, diffLines writes the rewrite as a
+  // delete and an insert, and the new line must keep the old line's look (#631).
+  const replaced: Extract<LineOwner, { kind: 'paragraph' }>[] = [];
   for (const op of ops) {
+    if (op.op !== 'delete' && op.op !== 'insert') replaced.length = 0;
     if (op.op === 'keep') {
       expected.push(op.a.text);
       lastOwner = folded.owners[op.a.i] ?? null;
@@ -157,20 +165,25 @@ export async function patchDocx(
       const owner = folded.owners[op.a.i] ?? null;
       const reason = deleteReason(owner);
       if (reason) { skip(op.a.text, reason); expected.push(op.a.text); continue; }
-      const node = (owner as { block: Block }).block.node;
-      plan.push(() => node.parentNode?.removeChild(node));
+      const paragraph = owner as Extract<LineOwner, { kind: 'paragraph' }>;
+      const node = paragraph.block.node;
+      removals.push(() => node.parentNode?.removeChild(node));
+      replaced.push(paragraph);
       report.removed++;
       continue;
     }
     // insert
     const text = toPlainPunctuation(op.b.text);
+    // In place of a line just deleted, that line's paragraph is the anchor and the shape.
+    const rewritten = replaced.shift();
+    if (rewritten) lastOwner = rewritten;
     const anchor = lastOwner?.kind === 'paragraph' ? lastOwner.block : null;
     if (!anchor) { skip(op.b.text, lastOwner?.kind === 'row' ? 'resume.patch.line.addInTable' : 'resume.patch.line.noAnchor'); continue; }
     if (anchor.table) { skip(op.b.text, 'resume.patch.line.addInTable'); continue; }
     if (boxed(anchor.node)) { skip(op.b.text, 'resume.patch.line.addInTextBox'); continue; }
     const cloneAfter = anchor.node;
     plan.push(() => insertAfter(doc, cloneAfter, anchor, text, lastInserted));
-    report.added++;
+    if (rewritten) { report.removed--; report.changed++; } else report.added++;
     const body = insertedBody(anchor, text);
     expected.push(markerFor(anchor.node, body) + body);
     // Later inserts follow this one, not the paragraph above it: keep the
@@ -181,7 +194,7 @@ export async function patchDocx(
     const first: LineRefusal = firstRefused;
     return refusal(() => say('resume.patch.skipped', { n: report.skipped.length, reason: say(first) }), report);
   }
-  for (const step of plan) step();
+  for (const step of [...plan, ...removals]) step();
 
   // Serialise; give the declaration its CRLF back when Word wrote one.
   let out = new XMLSerializer().serializeToString(doc);
