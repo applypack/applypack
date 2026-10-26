@@ -62,6 +62,10 @@ export const ConfigSchema = z.object({
   // container, whose published port is loopback-only; a bare `docker run`
   // needs `-e WEB_HOST=0.0.0.0` for the same reason.
   WEB_HOST: z.string().default('127.0.0.1'),
+  // Names besides localhost and the bound one that the dashboard answers to,
+  // comma-separated (a reverse proxy's public name; `.example.com` covers its
+  // subdomains). Any other name is refused: it is what DNS rebinding looks like.
+  WEB_ALLOWED_HOSTS: z.string().default(''),
   WEB_BASIC_AUTH: z
     .string()
     .optional()

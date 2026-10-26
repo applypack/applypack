@@ -176,6 +176,19 @@ If you put the dashboard behind a reverse proxy, pass the browser's host
 through (`proxy_set_header Host $host` in nginx); a proxy that rewrites
 `Host` to `localhost` makes every form look cross-origin.
 
+The dashboard also answers only to names it knows: `localhost`, an IP
+address, the name in `WEB_HOST`, and the names listed in
+`WEB_ALLOWED_HOSTS` (comma-separated; `.example.com` covers every name
+under it). A request under any other name gets a 403, reads included —
+that is what a DNS-rebinding page, a site whose name its owner points at
+127.0.0.1, would arrive as. Behind a proxy that passes `Host` through, or
+when you open the dashboard by a machine name (`laptop.lan`, a Tailscale
+name), list that name.
+
+A folder under your home directory can be read only while the dashboard
+listens on loopback. Bind it wider and it reads only the folders named in
+`APPLYPACK_INBOX_ROOTS`, as a server does.
+
 CLI engines (claude / gemini / codex) are simpler locally: install them
 globally, log in once in your terminal, and the probe on the AI tab turns
 green. Details per engine in [docs/ai-engines.md](./ai-engines.md).

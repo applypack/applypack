@@ -12,8 +12,9 @@ import { compress } from 'hono/compress';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { config } from '../config';
+import { allowedHostNames } from '../dashboard-host';
 import { logger } from '../logger';
-import { originGuard } from './origin-guard';
+import { hostGuard, originGuard } from './origin-guard';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { packRoute } from './routes/pack';
@@ -75,6 +76,12 @@ app.use(
     referrerPolicy: 'no-referrer',
   }),
 );
+
+// Before anything else answers, and after the secure headers so its refusal
+// carries them: a name nobody configured is what a DNS-rebinding page arrives
+// as, and every page here — resumes, letters, settings — is worth reading to
+// it (dashboard-host.ts).
+app.use('*', hostGuard(allowedHostNames(config.WEB_ALLOWED_HOSTS, config.WEB_HOST)));
 
 if (config.WEB_BASIC_AUTH) {
   const [username, ...rest] = config.WEB_BASIC_AUTH.split(':');

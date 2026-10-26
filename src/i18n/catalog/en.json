@@ -2958,6 +2958,7 @@
   "http.badFact": "Bad fact",
   "http.badAnswer": "Bad answer",
   "http.crossOrigin": "Cross-origin request refused.",
+  "http.unknownHost": "This dashboard does not answer to {host}. To open it under that name, add the name to WEB_ALLOWED_HOSTS in .env and restart ApplyPack.",
   "screen.confidence.high": "high",
   "screen.confidence.medium": "medium",
   "screen.confidence.low": "low",

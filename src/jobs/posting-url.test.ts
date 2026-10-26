@@ -115,6 +115,19 @@ test('isPrivateIp reads every spelling of a private address (audit 2026-09-10)',
   }
 });
 
+test('isPrivateIp decodes the IPv4 inside a transition address (6to4, compatible, NAT64)', () => {
+  for (const ip of [
+    '2002:7f00:1::', '2002:0a00:0001::', '2002:a9fe:a9fe::1', '2002:c0a8:101:5::1', '::127.0.0.1', '::7f00:1', '::a00:1',
+    '0:0:0:0:0:ffff:7f00:1', '64:ff9b::10.0.0.1', '64:ff9b:1::808:808', '2001:0:4136:e378:8000:63bf:3fff:fdd2',
+    '2001:db8::1', '100::1', 'fec0::1', 'ff02::1', '[2002:7f00:1::]',
+  ]) {
+    assert.equal(isPrivateIp(ip), true, `${ip} must be private`);
+  }
+  for (const ip of ['2002:808:808::1', '64:ff9b::8.8.8.8', '2a00:1450:4001:80b::200e', '2001:4860:4860::8888']) {
+    assert.equal(isPrivateIp(ip), false, `${ip} must be public`);
+  }
+});
+
 test('isPrivateHost: a trailing dot, a mapped literal, an intranet name — the three bypasses', () => {
   for (const h of ['localhost.', '[::ffff:a9fe:a9fe]', '::ffff:169.254.169.254', 'intranet', 'db.internal', 'nas.lan', 'router.home.arpa']) {
     assert.equal(isPrivateHost(h), true, `${h} must be private`);
@@ -128,6 +141,7 @@ test('checkPostingUrl refuses the literal bypasses and a URL carrying credential
   assert.equal(checkPostingUrl('http://intranet/x').ok, false);
   assert.equal(checkPostingUrl('http://user:pass@example.com/x').ok, false);
   assert.equal(checkPostingUrl('http://2130706433/').ok, false);
+  assert.equal(checkPostingUrl('http://[2002:7f00:1::]/secret').ok, false);
   // The name still has to resolve somewhere public — that is layer 2, not this one.
   assert.equal(checkPostingUrl('http://127.0.0.1.nip.io/').ok, true);
 });

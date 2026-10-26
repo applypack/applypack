@@ -2958,6 +2958,7 @@
   "http.badFact": "Некоректний факт",
   "http.badAnswer": "Некоректна відповідь",
   "http.crossOrigin": "Запит з іншого сайту відхилено.",
+  "http.unknownHost": "Ця панель не відповідає на ім'я {host}. Щоб відкривати її під цим іменем, додайте його до WEB_ALLOWED_HOSTS у .env і перезапустіть ApplyPack.",
   "screen.confidence.high": "висока",
   "screen.confidence.medium": "середня",
   "screen.confidence.low": "низька",
