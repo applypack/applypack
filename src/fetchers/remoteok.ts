@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
@@ -6,6 +7,18 @@ import type { NormalizedJob } from '../types';
 import { cleanEmployer } from '../employer';
 
 const ENDPOINT = 'https://remoteok.com/api';
+
+/*
+ * RemoteOK ends every description with a paragraph asking the applicant to
+ * quote a word and a tag. The tag is "R" and the base64 of the address that
+ * asked for the feed: this machine's public IP. Kept, it was stored, sent to
+ * the AI engine with every call that reads the description, and shown on the
+ * job page, so it is cut before the posting goes anywhere. A tag that turns up
+ * outside that paragraph is cut when it decodes to an address.
+ */
+const READ_CHECK =
+  /Please mention the word[^()]*\(#R[A-Za-z0-9+/=]+\)\.?(?:\s*This is a beta feature to avoid spam applicants\.)?(?:\s*Companies can search these words to find applicants that read this and see they(?:'|&#39;|&#x27;|’)re human\.)?/g;
+const TAG = /#?R[A-Za-z0-9+/]{6,}={0,2}/g;
 
 // RemoteOK returns an array whose first element is meta:
 //   [{ legal: '...', last_updated: 1234 }, ...jobs]
@@ -74,7 +87,7 @@ function toNormalized(j: RemoteOkJob, companyId: number): NormalizedJob {
     title,
     url,
     location,
-    description: stripHtml(j.description ?? ''),
+    description: stripHtml(withoutAddressTag(j.description ?? '')),
     postedAt,
   };
 }
@@ -98,4 +111,9 @@ function parsePostedAt(epoch?: number, date?: string): Date {
     if (!Number.isNaN(d.getTime())) return d;
   }
   return new Date();
+}
+
+/** The description without RemoteOK's read-check paragraph, or any tag that carries an IP address. */
+export function withoutAddressTag(description: string): string {
+  return description.replace(READ_CHECK, '').replace(TAG, (tag) => (isIP(Buffer.from(tag.replace(/^#?R/, ''), 'base64').toString('latin1')) === 0 ? tag : ''));
 }

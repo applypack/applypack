@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { Hono } from 'hono';
-import { originGuard } from './origin-guard';
+import { hostGuard, originGuard } from './origin-guard';
 
 /*
  * These drive a real Hono app rather than calling the pure check, because the
@@ -75,5 +75,29 @@ describe('originGuard', () => {
       headers: { host: HOST, origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' },
     });
     assert.equal(res.status, 200);
+  });
+});
+
+describe('hostGuard', () => {
+  function guarded(): Hono {
+    const a = new Hono();
+    a.use('*', hostGuard(['jobs.example.com']));
+    a.get('/t', (c) => c.text('get-ok'));
+    a.post('/t', (c) => c.text('post-ok'));
+    return a;
+  }
+
+  it('refuses reads and writes under a name nobody listed — a rebinding page', async () => {
+    const headers = { host: 'attacker.example:4861', origin: 'http://attacker.example:4861', 'sec-fetch-site': 'same-origin' };
+    const read = await guarded().request('/t', { headers });
+    assert.equal(read.status, 403);
+    assert.match(await read.text(), /WEB_ALLOWED_HOSTS/);
+    assert.equal((await guarded().request('/t', { method: 'POST', headers })).status, 403);
+  });
+
+  it('answers localhost, an address and a listed name', async () => {
+    for (const host of ['localhost:4747', '127.0.0.1:4747', '[::1]:4747', 'jobs.example.com']) {
+      assert.equal((await guarded().request('/t', { headers: { host } })).status, 200, host);
+    }
   });
 });

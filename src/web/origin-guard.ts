@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { logger } from '../logger';
 import { t } from '../i18n/t';
+import { hostAllowed } from '../dashboard-host';
 import { guardedMethod, sameOriginPost } from './same-origin';
 
 /*
@@ -31,5 +32,20 @@ export function originGuard(): MiddlewareHandler {
       'web: cross-origin write refused',
     );
     return c.text(t('http.crossOrigin'), 403);
+  };
+}
+
+/**
+ * Every request, read or write, under a name the dashboard answers to
+ * (dashboard-host.ts). A page on someone else's name that resolves to this
+ * machine is same-origin to the browser, so the guard above lets it write and
+ * nothing stops it reading; refusing the name stops both.
+ */
+export function hostGuard(allowed: readonly string[]): MiddlewareHandler {
+  return async (c, next) => {
+    const host = c.req.header('host');
+    if (hostAllowed(host, allowed)) return next();
+    logger.warn({ method: c.req.method, path: c.req.path, host }, 'web: request under an unknown host name refused');
+    return c.text(t('http.unknownHost', { host: host ?? '' }), 403);
   };
 }
