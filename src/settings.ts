@@ -625,13 +625,9 @@ export async function findSameDestination(input: NewTarget): Promise<Notificatio
   });
 }
 
-export async function toggleNotificationTarget(id: number): Promise<void> {
-  const t = await prisma.notificationTarget.findUnique({ where: { id } });
-  if (!t) return;
-  await prisma.notificationTarget.update({
-    where: { id },
-    data: { active: !t.active },
-  });
+/** Sets a destination on or off (#635: never a flip of what is stored); a row already gone is left gone. */
+export async function setNotificationTargetActive(id: number, active: boolean): Promise<void> {
+  await prisma.notificationTarget.updateMany({ where: { id }, data: { active } });
 }
 
 export async function deleteNotificationTarget(id: number): Promise<void> {

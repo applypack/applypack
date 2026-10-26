@@ -115,7 +115,7 @@ AI.
 
 ```bash
 G=src/screening/fixtures/gold/qa-automation
-curl -H "Origin: $B" -X POST "$B/settings/employer-mode-toggle"
+curl -H "Origin: $B" -d on=1 "$B/settings/employer-mode-toggle"
 curl -H "Origin: $B" --data-urlencode jobMode=new --data-urlencode "title=Senior QA Automation Engineer (Playwright / TypeScript)" \
   --data-urlencode "companyName=Northwind Pay" --data-urlencode "location=Kyiv or remote within Ukraine" \
   --data-urlencode "description@$G/posting.txt" "$B/screen"                     # → /screen/1 once its run is done

@@ -2959,6 +2959,7 @@
   "http.badAnswer": "Respuesta no válida",
   "http.crossOrigin": "Petición de otro origen rechazada.",
   "http.unknownHost": "Este panel no responde al nombre {host}. Para abrirlo con ese nombre, añádelo a WEB_ALLOWED_HOSTS en .env y reinicia ApplyPack.",
+  "http.noSwitchState": "La petición no indicaba si activar o desactivar, así que no cambió nada. Recarga la página y vuelve a intentarlo.",
   "screen.confidence.high": "alta",
   "screen.confidence.medium": "media",
   "screen.confidence.low": "baja",

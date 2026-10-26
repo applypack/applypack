@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.16] — 2026-10-25
+
+### Fixed
+- Every on/off switch now says which state it asks for, and the setting is
+  set to it. A switch used to flip whatever was stored, so a double click, a
+  resubmitted form or "Pause" pressed on a tab opened an hour ago did the
+  opposite of its label: fetching resumed, or alerts and employer mode came
+  on. Pressing the same switch twice now changes nothing, and a request that
+  does not say on or off is refused with a line asking to reload the page
+  (#635).
+
 ## [2.63.15] — 2026-10-25
 
 ### Security
@@ -6813,6 +6824,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.16]: https://github.com/applypack/applypack/compare/v2.63.15...v2.63.16
 [2.63.15]: https://github.com/applypack/applypack/compare/v2.63.14...v2.63.15
 [2.63.14]: https://github.com/applypack/applypack/compare/v2.63.13...v2.63.14
 [2.63.13]: https://github.com/applypack/applypack/compare/v2.63.12...v2.63.13

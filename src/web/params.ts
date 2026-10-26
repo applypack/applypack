@@ -1,8 +1,9 @@
 /*
- * Ids and numbers off the request. Prisma throws on a NaN in a where clause
- * and on a fraction in an Int column alike, and `Number.isFinite(Number(x))`
- * lets `1.5`, `1e2` and ` 12 ` through — 500s where a 400 or a 404 belongs
- * (audit 2026-09-10, ROUTE-2). Every route reads ids through here.
+ * Ids, numbers and switch states off the request. Prisma throws on a NaN in
+ * a where clause and on a fraction in an Int column alike, and
+ * `Number.isFinite(Number(x))` lets `1.5`, `1e2` and ` 12 ` through — 500s
+ * where a 400 or a 404 belongs (audit 2026-09-10, ROUTE-2). Every route reads
+ * ids through here.
  */
 
 /** A path, form or query id: a positive integer of at most nine digits, else NaN. */
@@ -13,4 +14,14 @@ export function idParam(raw: unknown): number {
 /** An optional integer off the query string (a score floor), or null when absent or not one. */
 export function intQuery(raw: unknown): number | null {
   return typeof raw === 'string' && /^-?\d{1,9}$/.test(raw) ? Number(raw) : null;
+}
+
+/**
+ * The state an on/off switch asks for (`on=1` / `on=0`), or null when the
+ * request does not say. A switch route SETS what it is told and refuses a
+ * null: one that flipped what was stored did the opposite of its label on a
+ * double click, a resubmit or a tab opened an hour ago (#635).
+ */
+export function switchParam(raw: unknown): boolean | null {
+  return raw === '1' ? true : raw === '0' ? false : null;
 }

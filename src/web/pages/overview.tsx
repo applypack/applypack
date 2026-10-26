@@ -185,6 +185,7 @@ export const OverviewPage: FC<OverviewProps> = ({
             {/* Quick master switch — same toggle as Settings → General. */}
             <form method="post" action="/settings/fetching-toggle" class="flex">
               <input type="hidden" name="back" value="/" />
+              <input type="hidden" name="on" value={fetchingEnabled ? '0' : '1'} />
               <Button variant="secondary">
                 <Icon name={fetchingEnabled ? 'pause' : 'play'} size={16} />
                 {fetchingEnabled ? t('overview.pause') : t('overview.resume')}

@@ -369,9 +369,21 @@ async function main(): Promise<void> {
       },
     },
     {
-      name: 'POST /settings/fetching-toggle',
+      name: 'POST /settings/fetching-toggle on=1',
+      init: form({ on: '1' }),
+      expect: async (res) => res.status === 303 && (await getSettings()).fetchingEnabled,
+    },
+    {
+      // #635: a switch sets the state its page asked for, so the same press again changes nothing.
+      name: 'POST /settings/fetching-toggle on=1 again (still on)',
+      init: form({ on: '1' }),
+      expect: async (res) => res.status === 303 && (await getSettings()).fetchingEnabled,
+    },
+    {
+      // A page rendered before the switch said its state, or a bare curl: refused, never a flip.
+      name: 'POST /settings/fetching-toggle with no state (refused, nothing changes)',
       init: form({}),
-      expect: (res) => res.status === 303,
+      expect: async (res) => res.status === 303 && flashOf(res).includes('nothing changed') && (await getSettings()).fetchingEnabled,
     },
     {
       name: 'POST /jobs/:id/status from another origin (refused)',
@@ -675,6 +687,8 @@ async function main(): Promise<void> {
     '/resumes',
     `/resumes/${f.resumeId}/compare-format`,
     `/screen/${f.screeningId}/applicants`,
+    '/settings/fetching-toggle',
+    '/settings/fetching-toggle',
     '/settings/fetching-toggle',
     `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
@@ -1248,7 +1262,7 @@ async function folderChecks(): Promise<Check[]> {
 
     const off = await app.request(`/companies/${folder.id}/check-now`, form({}));
     check('POST /companies/:id/check-now on a folder that is off (refused)', `/companies/${folder.id}/check-now`, off, off.status === 303 && off.headers.get('location') === '/companies');
-    await app.request(`/companies/${folder.id}/toggle-active`, form({}));
+    await app.request(`/companies/${folder.id}/toggle-active`, form({ on: '1' }));
     const first = await checkNow(folder.id);
     const ledger = await prisma.sourceFile.findMany({ where: { companyId: folder.id } });
     check(
@@ -1397,7 +1411,7 @@ async function savedPostingChecks(dir: string, checkNow: (id: number) => Promise
   const folder = await prisma.company.findFirst({ where: { atsType: 'FOLDER', name: 'Smoke saved' } });
   check('POST /companies/folder (saved postings added, no mapping)', '/companies/folder', added, added.status === 303 && folder?.active === false);
   if (!folder) return out;
-  await app.request(`/companies/${folder.id}/toggle-active`, form({}));
+  await app.request(`/companies/${folder.id}/toggle-active`, form({ on: '1' }));
   const looked = await checkNow(folder.id);
   const job = await prisma.job.findFirst({ where: { companyId: folder.id } });
   const note = await prisma.sourceFile.findFirst({ where: { companyId: folder.id, relPath: 'note.txt' } });

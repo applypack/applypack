@@ -2959,6 +2959,7 @@
   "http.badAnswer": "Réponse non valide",
   "http.crossOrigin": "Requête d'une autre origine refusée.",
   "http.unknownHost": "Ce tableau de bord ne répond pas au nom {host}. Pour l'ouvrir sous ce nom, ajoutez-le à WEB_ALLOWED_HOSTS dans .env et redémarrez ApplyPack.",
+  "http.noSwitchState": "Cette requête n'indiquait pas s'il fallait activer ou désactiver, donc rien n'a changé. Rechargez la page et réessayez.",
   "screen.confidence.high": "élevée",
   "screen.confidence.medium": "moyenne",
   "screen.confidence.low": "faible",
