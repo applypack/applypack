@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.16] — 2026-10-25
+
+### Fixed
+- Every on/off switch now says which state it asks for, and the setting is
+  set to it. A switch used to flip whatever was stored, so a double click, a
+  resubmitted form or "Pause" pressed on a tab opened an hour ago did the
+  opposite of its label: fetching resumed, or alerts and employer mode came
+  on. Pressing the same switch twice now changes nothing, and a request that
+  does not say on or off is refused with a line asking to reload the page
+  (#635).
+
 ## [2.63.14] — 2026-10-24
 
 ### Fixed
