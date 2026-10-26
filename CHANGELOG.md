@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.13] — 2026-10-24
+
+### Security
+- Updated zod from 3.25 to 4.6. zod 3 has no fix for GHSA-mrhx-c7xc-m3w5
+  (memory exhausted while validating an oversized collection); 4.6.6 and
+  later do.
+
+### Changed
+- A form refused for a field it needs now says "pick one of the options
+  offered" for a missing choice, where it said "Required": zod 4 reports a
+  missing option as an invalid one. Every other refusal reads as before.
+
 ## [2.63.12] — 2026-10-19
 
 ### Fixed
@@ -6755,6 +6767,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.13]: https://github.com/applypack/applypack/compare/v2.63.12...v2.63.13
 [2.63.12]: https://github.com/applypack/applypack/compare/v2.63.11...v2.63.12
 [2.63.11]: https://github.com/applypack/applypack/compare/v2.63.10...v2.63.11
 [2.63.10]: https://github.com/applypack/applypack/compare/v2.63.9...v2.63.10
