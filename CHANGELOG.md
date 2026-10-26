@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.15] — 2026-10-25
+
+### Security
+- The dashboard answers only to names it knows: `localhost`, an IP
+  address, the name in `WEB_HOST`, and the names listed in the new
+  `WEB_ALLOWED_HOSTS`. A page on another site whose name its owner points
+  at 127.0.0.1 (DNS rebinding) could read every page of the dashboard and,
+  through a folder source, files under the home directory.
+- A folder under the home directory is read only while the dashboard
+  listens on loopback. With `WEB_HOST=0.0.0.0` under `npm start`, anyone on
+  the network could add one; such an install now reads only the folders in
+  `APPLYPACK_INBOX_ROOTS`, as a server does.
+- The posting guard refuses an IPv6 address that carries a private IPv4
+  one: 6to4 (`2002:7f00:1::` is 127.0.0.1), IPv4-compatible and local NAT64
+  addresses, and Teredo, with the documentation, discard, site-local and
+  multicast ranges.
+- RemoteOK descriptions no longer carry this machine's public IP address.
+  RemoteOK ends every posting with a "mention the word … and tag R…" line
+  whose tag is the base64 of the address that asked for the feed; it was
+  stored, sent to the AI engine with the description and shown on the job
+  page. New rows are stored without it, and a migration takes it out of
+  the rows already stored.
+- The sites ApplyPack never requests (ADR 0005) are refused under a
+  country's domain too (`indeed.co.uk`, `glassdoor.de`, `linkedin.cn`) and
+  under their other names (`lnkd.in`, `angel.co`, `myworkdaysite.com`).
+
+### Changed
+- Behind a reverse proxy that passes `Host` through, or when you open the
+  dashboard by a machine name (`laptop.lan`, a Tailscale name), list that
+  name in `WEB_ALLOWED_HOSTS` (`.example.com` covers every name under it).
+  Until then the dashboard answers 403 and says so.
+
 ## [2.63.14] — 2026-10-24
 
 ### Fixed
@@ -6781,6 +6813,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.15]: https://github.com/applypack/applypack/compare/v2.63.14...v2.63.15
 [2.63.14]: https://github.com/applypack/applypack/compare/v2.63.13...v2.63.14
 [2.63.13]: https://github.com/applypack/applypack/compare/v2.63.12...v2.63.13
 [2.63.12]: https://github.com/applypack/applypack/compare/v2.63.11...v2.63.12
