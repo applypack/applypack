@@ -112,21 +112,38 @@ export function isPrivateIp(ip: string): boolean {
   const family = isIP(addr);
   if (family === 4) return isPrivateV4(addr);
   if (family !== 6) return false;
-  if (addr === '::1' || addr === '::') return true;
-  // IPv4 embedded in IPv6 — mapped (::ffff:a.b.c.d, which the URL parser
-  // writes as ::ffff:a9fe:a9fe) and NAT64's well-known prefix (64:ff9b::/96).
-  const embedded = /^(?:::ffff:|64:ff9b::)(.+)$/.exec(addr)?.[1];
-  if (embedded) {
-    if (isIP(embedded) === 4) return isPrivateV4(embedded);
-    const pair = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(embedded);
-    if (pair) {
-      const hi = parseInt(pair[1]!, 16);
-      const lo = parseInt(pair[2]!, 16);
-      return isPrivateV4(`${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`);
-    }
-  }
-  // Link-local (fe80::/10 → fe80-febf) and unique-local (fc00::/7 → fc00-fdff).
-  return /^(?:fe[89ab][0-9a-f]|f[cd][0-9a-f]{2}):/.test(addr);
+  const h = hextets(addr);
+  const v4 = (hi: number, lo: number): string => `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+  const zero = (from: number, to: number): boolean => h.slice(from, to).every((x) => x === 0);
+  // IPv4 inside IPv6, in every form a host may route: compatible (::a.b.c.d,
+  // which takes in :: and ::1), mapped (::ffff:a.b.c.d, which the URL parser
+  // writes as ::ffff:a9fe:a9fe), NAT64's well-known prefix (64:ff9b::/96) and
+  // 6to4 (2002:aabb:ccdd::/48 carries a.b.c.d after its prefix).
+  if (zero(0, 6) || (zero(0, 5) && h[5] === 0xffff) || (h[0] === 0x64 && h[1] === 0xff9b && zero(2, 6))) return isPrivateV4(v4(h[6]!, h[7]!));
+  if (h[0] === 0x2002) return isPrivateV4(v4(h[1]!, h[2]!));
+  return (
+    (h[0] === 0x64 && h[1] === 0xff9b && h[2] === 1) || // NAT64 for local use (64:ff9b:1::/48)
+    (h[0] === 0x2001 && h[1] === 0) || // Teredo: a tunnel to whatever its client is, never a posting
+    (h[0] === 0x2001 && h[1] === 0xdb8) || // documentation
+    (h[0] === 0x100 && zero(1, 4)) || // discard
+    (h[0]! & 0xffc0) === 0xfe80 || // link-local
+    (h[0]! & 0xffc0) === 0xfec0 || // site-local, deprecated and still routed by some
+    (h[0]! & 0xfe00) === 0xfc00 || // unique-local
+    h[0]! >= 0xff00 // multicast
+  );
+}
+
+/** The eight 16-bit groups of a valid IPv6 address, `::` and a trailing dotted quad written out. */
+function hextets(addr: string): number[] {
+  const quad = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(addr);
+  const text = quad
+    ? addr.slice(0, quad.index) + `${((+quad[1]! << 8) | +quad[2]!).toString(16)}:${((+quad[3]! << 8) | +quad[4]!).toString(16)}`
+    : addr;
+  const [head = '', tail] = text.split('::');
+  const groups = (part: string): number[] => (part ? part.split(':').map((g) => parseInt(g, 16)) : []);
+  const left = groups(head);
+  const right = tail === undefined ? [] : groups(tail);
+  return [...left, ...Array<number>(8 - left.length - right.length).fill(0), ...right];
 }
 
 function isPrivateV4(addr: string): boolean {
