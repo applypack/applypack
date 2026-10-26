@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono, type Context } from 'hono';
-import { idParam } from '../params';
+import { idParam, switchParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
@@ -36,7 +36,7 @@ import {
   setUpdateCheck,
   setTelegramEnabled,
   testTelegramTarget,
-  toggleNotificationTarget,
+  setNotificationTargetActive,
   getSourceKeys,
   setSourceKey,
   setSchedule,
@@ -530,8 +530,8 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
   // The Overview quick control posts back="/" to land where it came from.
   const form = await c.req.parseBody();
   const back = form.back === '/' ? '/' : '/settings?tab=profile';
-  const settings = await getSettings();
-  const enabling = !settings.fetchingEnabled;
+  const enabling = switchParam(form.on);
+  if (enabling === null) return flashRedirect(back, 'err', t('http.noSwitchState'));
   await setFetchingEnabled(enabling);
   if (!enabling) {
     return flashRedirect(back, 'warn', t('settingsRoute.fetching.paused'));
@@ -631,8 +631,8 @@ function pills(value: unknown, fallback: readonly number[]): number[] {
 // --- Telegram toggle / targets ---------------------------------------------
 
 settingsRoute.post('/settings/telegram-toggle', async (c) => {
-  const settings = await getSettings();
-  const enabled = !settings.telegramEnabled;
+  const enabled = switchParam((await c.req.parseBody()).on);
+  if (enabled === null) return flashRedirect('/settings?tab=notifications', 'err', t('http.noSwitchState'));
   await setTelegramEnabled(enabled);
   // Every channel, Discord included (ADR 0041) — the column is just old.
   const targets = (await listActiveNotificationTargets()).length;
@@ -764,8 +764,8 @@ settingsRoute.post('/settings/ai/tasks', async (c) => {
 
 /** TASKS S5 (Q29): start `npm start` at login, or stop — the one button is also the undo. */
 settingsRoute.post('/settings/login-item', async (c) => {
-  const form = await c.req.parseBody();
-  const on = form.on === '1';
+  const on = switchParam((await c.req.parseBody()).on);
+  if (on === null) return flashRedirect('/settings?tab=general#login', 'err', t('http.noSwitchState'));
   const result = await setLoginItem(on);
   if (!result.ok) return flashRedirect('/settings?tab=general#login', 'err', t('settingsRoute.login.notChanged', { reason: result.reason }));
   return flashRedirect('/settings?tab=general#login', 'ok', t(on ? 'settingsRoute.login.on' : 'settingsRoute.login.off'));
@@ -973,13 +973,10 @@ settingsRoute.post('/settings/classifier-mode', async (c) => {
 });
 
 settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
-  const settings = await getSettings();
-  await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
-  return flashRedirect(
-    '/settings?tab=applications',
-    'ok',
-    t(!settings.applicationTrackingEnabled ? 'settingsRoute.tracking.enabled' : 'settingsRoute.tracking.disabled'),
-  );
+  const on = switchParam((await c.req.parseBody()).on);
+  if (on === null) return flashRedirect('/settings?tab=applications', 'err', t('http.noSwitchState'));
+  await setApplicationTrackingEnabled(on);
+  return flashRedirect('/settings?tab=applications', 'ok', t(on ? 'settingsRoute.tracking.enabled' : 'settingsRoute.tracking.disabled'));
 });
 
 // ---- Board columns (ADR 0025) ------------------------------------------
@@ -1068,15 +1065,21 @@ settingsRoute.post('/settings/stages/:key/rename', async (c) => {
   );
 });
 
-/** TASKS N9: turning the check on looks right away — one request — so the answer is on the page now, not on Sunday. */
+/**
+ * TASKS N9: turning the check on looks right away — one request — so the answer is on the page now, not on Sunday.
+ * A second "on" (a double click, a resubmit) asks nothing and words the release the first one saw.
+ */
 settingsRoute.post('/settings/update-check-toggle', async (c) => {
-  const enabling = !(await getSettings()).updateCheck;
+  const back = '/settings?tab=general#updates';
+  const enabling = switchParam((await c.req.parseBody()).on);
+  if (enabling === null) return flashRedirect(back, 'err', t('http.noSwitchState'));
+  const before = await getSettings();
   await setUpdateCheck(enabling);
   forgetUpdateNotice();
-  if (!enabling) return flashRedirect('/settings?tab=general#updates', 'ok', t('settingsRoute.updates.off'));
-  const latest = await checkForUpdate();
+  if (!enabling) return flashRedirect(back, 'ok', t('settingsRoute.updates.off'));
+  const latest = before.updateCheck ? before.latestVersion : await checkForUpdate();
   return flashRedirect(
-    '/settings?tab=general#updates',
+    back,
     'ok',
     latest === null
       ? t('settingsRoute.updates.noAnswer')
@@ -1162,27 +1165,19 @@ settingsRoute.post('/settings/reapply', async (c) => {
 });
 
 settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
-  const settings = await getSettings();
-  await setStaleApplicationsDigestEnabled(
-    !settings.staleApplicationsDigestEnabled,
-  );
-  return flashRedirect(
-    '/settings?tab=notifications#messages',
-    'ok',
-    t(!settings.staleApplicationsDigestEnabled ? 'settingsRoute.staleDigest.enabled' : 'settingsRoute.staleDigest.disabled'),
-  );
+  const back = '/settings?tab=notifications#messages';
+  const on = switchParam((await c.req.parseBody()).on);
+  if (on === null) return flashRedirect(back, 'err', t('http.noSwitchState'));
+  await setStaleApplicationsDigestEnabled(on);
+  return flashRedirect(back, 'ok', t(on ? 'settingsRoute.staleDigest.enabled' : 'settingsRoute.staleDigest.disabled'));
 });
 
 settingsRoute.post('/settings/employer-mode-toggle', async (c) => {
-  const settings = await getSettings();
-  const next = !settings.employerMode;
+  const next = switchParam((await c.req.parseBody()).on);
+  if (next === null) return flashRedirect('/settings?tab=screening', 'err', t('http.noSwitchState'));
   await setEmployerMode(next);
   setEmployerModeCache(next);
-  return flashRedirect(
-    '/settings?tab=screening',
-    'ok',
-    t(next ? 'settingsRoute.employer.on' : 'settingsRoute.employer.off'),
-  );
+  return flashRedirect('/settings?tab=screening', 'ok', t(next ? 'settingsRoute.employer.on' : 'settingsRoute.employer.off'));
 });
 
 settingsRoute.post('/settings/screening-retention', async (c) => {
@@ -1195,13 +1190,10 @@ settingsRoute.post('/settings/screening-retention', async (c) => {
 });
 
 settingsRoute.post('/settings/source-health-toggle', async (c) => {
-  const settings = await getSettings();
-  await setSourceHealthAlerts(!settings.sourceHealthAlerts);
-  return flashRedirect(
-    '/settings?tab=notifications',
-    'ok',
-    t(!settings.sourceHealthAlerts ? 'settingsRoute.sourceHealth.enabled' : 'settingsRoute.sourceHealth.disabled'),
-  );
+  const on = switchParam((await c.req.parseBody()).on);
+  if (on === null) return flashRedirect('/settings?tab=notifications', 'err', t('http.noSwitchState'));
+  await setSourceHealthAlerts(on);
+  return flashRedirect('/settings?tab=notifications', 'ok', t(on ? 'settingsRoute.sourceHealth.enabled' : 'settingsRoute.sourceHealth.disabled'));
 });
 
 settingsRoute.post('/settings/sources', async (c) => {
@@ -1298,7 +1290,9 @@ async function alertsOnForFirst(first: boolean): Promise<string> {
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  await toggleNotificationTarget(id);
+  const active = switchParam((await c.req.parseBody()).on);
+  if (active === null) return flashRedirect('/settings?tab=notifications', 'err', t('http.noSwitchState'));
+  await setNotificationTargetActive(id, active);
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.toggled'));
 });
 

@@ -1041,7 +1041,9 @@ export const ActionForm: FC<
  * right. The switch is a submit button with `role="switch"` in its own form,
  * so it works without a script; the label is wired to it, so a press on the
  * words flips it too, and the state is said in words beside the track, never
- * by its colour alone.
+ * by its colour alone. The form posts the state the press asks for (`on=1` /
+ * `on=0`, read by `params.ts:switchParam`), so a second press of the same page
+ * changes nothing (#635).
  */
 export const ToggleRow: FC<
   PropsWithChildren<{
@@ -1051,13 +1053,11 @@ export const ToggleRow: FC<
     /** The state in words: "On" / "Off" unless the setting has better ones ("Running" / "Paused"). */
     onLabel?: string;
     offLabel?: string;
-    /** Fields the action needs besides the press itself. */
-    hidden?: Record<string, string | number>;
     extra?: Child;
     /** What else is worth knowing, behind "How this works"; `children` stays one sentence. */
     more?: Child;
   }>
-> = ({ label, enabled, action, onLabel = t('ui.on'), offLabel = t('ui.off'), hidden, extra, more, children }) => {
+> = ({ label, enabled, action, onLabel = t('ui.on'), offLabel = t('ui.off'), extra, more, children }) => {
   const id = `switch${action.replace(/[^a-z0-9]+/gi, '-')}`;
   return (
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -1072,7 +1072,7 @@ export const ToggleRow: FC<
           keeps it beside the switch; they wrap only when the card is too narrow for both. */}
       <div class="flex shrink-0 flex-wrap items-center justify-end gap-3">
         {extra}
-        <ActionForm action={action} hidden={hidden}>
+        <ActionForm action={action} hidden={{ on: enabled ? '0' : '1' }}>
           <button
             type="submit"
             id={id}

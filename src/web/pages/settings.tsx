@@ -1059,7 +1059,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                     <When at={target.lastUsed} />
                   </Td>
                   <Td>
-                    <ActionForm action={`/settings/targets/${target.id}/toggle`}>
+                    <ActionForm action={`/settings/targets/${target.id}/toggle`} hidden={{ on: target.active ? '0' : '1' }}>
                       {/* The badge shows the state; the button's name says the action and its
                           object — "Toggle" told a screen reader neither (audit A11Y-4). */}
                       <button
@@ -1543,7 +1543,6 @@ export const SettingsPage: FC<SettingsProps> = ({
           label={t('settings.startApplypackWhenILog')}
           enabled={loginItem.on}
           action="/settings/login-item"
-          hidden={{ on: loginItem.on ? '0' : '1' }}
           onLabel={t('settings.startsAtLogin')}
         >
           {t('settings.applypackSearchesOnlyWhileIt')}

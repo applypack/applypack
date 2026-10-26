@@ -2958,6 +2958,7 @@
   "http.badFact": "Некоректний факт",
   "http.badAnswer": "Некоректна відповідь",
   "http.crossOrigin": "Запит з іншого сайту відхилено.",
+  "http.noSwitchState": "У запиті не сказано, увімкнути чи вимкнути, тож нічого не змінилося. Оновіть сторінку й спробуйте ще раз.",
   "screen.confidence.high": "висока",
   "screen.confidence.medium": "середня",
   "screen.confidence.low": "низька",

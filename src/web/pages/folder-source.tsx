@@ -157,7 +157,7 @@ export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folde
             <div class="flex flex-wrap items-center gap-2">
               {/* Added switched off: the switch is here, not only on its row among every other source (#405). */}
               {!f.active && (
-                <ActionForm action={`/companies/${f.id}/toggle-active`}>
+                <ActionForm action={`/companies/${f.id}/toggle-active`} hidden={{ on: 1 }}>
                   <Button size="sm" aria-label={t('companies.enableNamed', { name: f.name })}>
                     {t('ui.enable')}
                   </Button>
@@ -183,7 +183,7 @@ export const FolderSourcesSection: FC<{ folders: FolderSourceRow[] }> = ({ folde
               )}
               {/* Switched on here, switched off here (#546): the table's switch is among every other source. */}
               {f.active && (
-                <ActionForm action={`/companies/${f.id}/toggle-active`}>
+                <ActionForm action={`/companies/${f.id}/toggle-active`} hidden={{ on: 0 }}>
                   <Button variant="ghost" size="sm" aria-label={t('companies.disableNamed', { name: f.name })}>
                     {t('ui.disable')}
                   </Button>

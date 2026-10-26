@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
-import { idParam } from '../params';
+import { idParam, switchParam } from '../params';
 import { AtsType, JobStatus } from '@prisma/client';
 import { z } from 'zod';
 import { isUniqueViolation, prisma } from '../../db';
@@ -505,9 +505,12 @@ function packOrigin(value: unknown): PackOrigin {
   return toStringArray(value).includes('welcome') ? 'welcome' : undefined;
 }
 
+/** Sets the posted state (`on=1` / `on=0`), never a flip of the stored one (#635). */
 companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const on = switchParam((await c.req.parseBody()).on);
+  if (on === null) return redirectWithFlash('err', t('http.noSwitchState'));
 
   const current = await prisma.company.findUnique({
     where: { id },
@@ -515,19 +518,19 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   });
   if (!current) return c.text(t('http.notFound'), 404);
   // TASKS N8: an active row would put a page nothing can read into every tick.
-  if (!current.active && current.atsType === AtsType.BROWSER_PAGE) {
+  if (on && !current.active && current.atsType === AtsType.BROWSER_PAGE) {
     return redirectWithFlash('err', t('watchlist.flash.browserOnly', { name: current.name }));
   }
   // The same for a file the user imported: its rows are stored already, and the next ones come from the next file.
-  if (!current.active && current.atsType === AtsType.IMPORT) {
+  if (on && !current.active && current.atsType === AtsType.IMPORT) {
     return redirectWithFlash('err', t('companies.importedNoFetch', { name: current.name }));
   }
 
   await prisma.company.update({
     where: { id },
-    data: { active: !current.active },
+    data: { active: on },
   });
-  return redirectWithFlash('ok', t(current.active ? 'companies.flash.disabled' : 'companies.flash.enabled', { name: current.name }));
+  return redirectWithFlash('ok', t(on ? 'companies.flash.enabled' : 'companies.flash.disabled', { name: current.name }));
 });
 
 /**

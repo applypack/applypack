@@ -264,6 +264,7 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[]; packs: PackOffer[]
                 )}
                 {s.state === 'off' && s.companyId !== null && (
                   <form method="post" action={`/companies/${s.companyId}/toggle-active`}>
+                    <input type="hidden" name="on" value="1" />
                     <Button size="sm">{t('ui.enable')}</Button>
                   </form>
                 )}
@@ -409,7 +410,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                 <When at={c.lastFetchedAt} />
               </Td>
               <Td>
-                <ActionForm action={`/companies/${c.id}/toggle-active`}>
+                <ActionForm action={`/companies/${c.id}/toggle-active`} hidden={{ on: c.active ? '0' : '1' }}>
                   {/* The badge shows the state; the button's name says the action and the company (A11Y-4). */}
                   <button
                     type="submit"

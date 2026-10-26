@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
-import { idParam } from '../params';
+import { idParam, switchParam } from '../params';
 import { CandidateStatus } from '@prisma/client';
 import { logger } from '../../logger';
 import {
@@ -47,19 +47,17 @@ discoveryRoute.get('/discovery', async (c) => {
 });
 
 discoveryRoute.post('/discovery/toggle', async (c) => {
-  const settings = await getSettings();
-  await setDiscoveryEnabled(!settings.discoveryEnabled);
-  return flashRedirect('/discovery', 'ok',
-    t(!settings.discoveryEnabled ? 'discovery.flash.autoEnabled' : 'discovery.flash.autoDisabled'),
-  );
+  const on = switchParam((await c.req.parseBody()).on);
+  if (on === null) return flashRedirect('/discovery', 'err', t('http.noSwitchState'));
+  await setDiscoveryEnabled(on);
+  return flashRedirect('/discovery', 'ok', t(on ? 'discovery.flash.autoEnabled' : 'discovery.flash.autoDisabled'));
 });
 
 discoveryRoute.post('/discovery/hn-parser-toggle', async (c) => {
-  const settings = await getSettings();
-  await setHnParserEnabled(!settings.hnParserEnabled);
-  return flashRedirect('/discovery', 'ok',
-    t(!settings.hnParserEnabled ? 'discovery.flash.hnEnabled' : 'discovery.flash.hnDisabled'),
-  );
+  const on = switchParam((await c.req.parseBody()).on);
+  if (on === null) return flashRedirect('/discovery', 'err', t('http.noSwitchState'));
+  await setHnParserEnabled(on);
+  return flashRedirect('/discovery', 'ok', t(on ? 'discovery.flash.hnEnabled' : 'discovery.flash.hnDisabled'));
 });
 
 discoveryRoute.post('/discovery/hn-run', (c) => {
