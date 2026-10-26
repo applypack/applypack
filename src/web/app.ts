@@ -59,11 +59,6 @@ const app = new Hono();
 // files as they are; no route streams a response that must be flushed.
 app.use('*', compress());
 
-// Before anything answers: a name nobody configured is what a DNS-rebinding
-// page arrives as, and every page here — resumes, letters, settings — is
-// worth reading to it (dashboard-host.ts).
-app.use('*', hostGuard(allowedHostNames(config.WEB_ALLOWED_HOSTS, config.WEB_HOST)));
-
 app.use(
   '*',
   secureHeaders({
@@ -81,6 +76,12 @@ app.use(
     referrerPolicy: 'no-referrer',
   }),
 );
+
+// Before anything else answers, and after the secure headers so its refusal
+// carries them: a name nobody configured is what a DNS-rebinding page arrives
+// as, and every page here — resumes, letters, settings — is worth reading to
+// it (dashboard-host.ts).
+app.use('*', hostGuard(allowedHostNames(config.WEB_ALLOWED_HOSTS, config.WEB_HOST)));
 
 if (config.WEB_BASIC_AUTH) {
   const [username, ...rest] = config.WEB_BASIC_AUTH.split(':');
