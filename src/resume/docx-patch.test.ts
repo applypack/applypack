@@ -167,15 +167,42 @@ test('the twin’s fragmented runs take a rewrite and the math objects survive',
   assert.equal((await documentXml(res.docx)).match(/<m:oMath[\s>]/g)?.length, 2);
 });
 
-test('a line replaced by unrelated words is a delete and an insert, and still lands in place', async () => {
+test('a line replaced by unrelated words is a delete and an insert to the diff, and a change in the file', async () => {
   const original = fixture('flow-fragmented');
   const before = docxToText(original);
   const lines = before.split('\n');
   const i = lines.findIndex((l) => l.length > 40 && !/[|#-]/.test(l));
   lines[i] = 'A line rewritten by hand, in plain words.';
   const res = ok(await patchDocx(original, before, lines.join('\n')));
-  assert.deepEqual({ changed: res.report.changed, removed: res.report.removed, added: res.report.added }, { changed: 0, removed: 1, added: 1 });
+  assert.deepEqual({ changed: res.report.changed, removed: res.report.removed, added: res.report.added }, { changed: 1, removed: 0, added: 0 });
   assert.equal(res.text.split('\n')[i], 'A line rewritten by hand, in plain words.', 'same position as the line it replaced');
+});
+
+test('a rewritten line keeps its own look, not the look of the paragraph above it (#631)', async () => {
+  const name = p(r('Dana Ruiz', '<w:b/><w:sz w:val="40"/>'), '<w:jc w:val="center"/>');
+  const title = p(r('Senior Full-Stack Developer', '<w:color w:val="404040"/><w:sz w:val="24"/>'), '<w:jc w:val="center"/>');
+  const heading = p(r('SUMMARY', '<w:b/><w:sz w:val="24"/>'), '<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="1" w:color="404040"/></w:pBdr>');
+  const summary = p(r('Full-stack engineer, six years building TypeScript products end to end.', '<w:sz w:val="21"/>'));
+  const original = docxOf(name + title + heading + summary);
+  const before = docxToText(original);
+  const after = before
+    .replace('Senior Full-Stack Developer', 'Software Engineer, Backend')
+    .replace('Full-stack engineer, six years building TypeScript products end to end.', 'Ships reliable payment services for millions of users.\nOwns them on call.');
+  const res = ok(await patchDocx(original, before, after));
+  assert.equal(res.text, after);
+  assert.deepEqual({ changed: res.report.changed, removed: res.report.removed, added: res.report.added }, { changed: 2, removed: 0, added: 1 });
+  const paragraphs = (await documentXml(res.docx)).match(/<w:p>[\s\S]*?<\/w:p>/g)!;
+  assert.equal(paragraphs.length, 5);
+  assert.equal(paragraphs[1], p(r('Software Engineer, Backend', '<w:color w:val="404040"/><w:sz w:val="24"/>'), '<w:jc w:val="center"/>'), 'the title keeps the title’s look, not the name’s');
+  assert.equal(paragraphs[3], p(r('Ships reliable payment services for millions of users.', '<w:sz w:val="21"/>')), 'the summary keeps body text, not the heading’s bold and rule');
+  assert.equal(paragraphs[4], p(r('Owns them on call.', '<w:sz w:val="21"/>')), 'a line added after the rewrite follows it, in the same look');
+});
+
+test('the first line rewritten outright has its own paragraph to stand in, where an insert alone had no anchor', async () => {
+  const original = docxOf(p(r('Dana Ruiz', '<w:b/>')) + p(r('Body line.')));
+  const res = ok(await patchDocx(original, docxToText(original), 'Jordan Smith\nBody line.'));
+  assert.equal(res.text, 'Jordan Smith\nBody line.');
+  assert.match(await documentXml(res.docx), /<w:body><w:p><w:r><w:rPr><w:b\/><\/w:rPr><w:t xml:space="preserve">Jordan Smith<\/w:t>/);
 });
 
 test('new text is written with plain punctuation; the original keeps its own', async () => {
