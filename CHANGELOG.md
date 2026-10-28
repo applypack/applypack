@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.19] — 2026-10-28
+
+### Fixed
+- A posting read from its own page keeps the posting, not the site around
+  it. "Refresh the description from it" on Is it real? and a cover letter for
+  a pasted link read the whole page, so a company's listing came back with
+  its menus first (Vercel's: 17 137 characters, 4 212 of them the job), and
+  replacing the description would have stored them. The page is now read as
+  a saved posting is: its JobPosting block, else its main content, with the
+  role and the employer in front when the block's description leaves them out.
+
 ## [2.63.18] — 2026-10-28
 
 ### Fixed
@@ -6843,6 +6854,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.19]: https://github.com/applypack/applypack/compare/v2.63.18...v2.63.19
 [2.63.18]: https://github.com/applypack/applypack/compare/v2.63.17...v2.63.18
 [2.63.17]: https://github.com/applypack/applypack/compare/v2.63.16...v2.63.17
 [2.63.16]: https://github.com/applypack/applypack/compare/v2.63.15...v2.63.16

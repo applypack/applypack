@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import { z } from 'zod';
 import { fetchWithRetry, HttpError, stripHtml, type FetchOptions } from '../http';
 import { looksLikeChallengeText } from '../watchlist/scan';
+import { readSavedPage } from '../datasets/saved-page';
 import { MIN_DESCRIPTION_CHARS } from './manual-job';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
@@ -286,8 +287,18 @@ export function checkPostingUrl(raw: string): { ok: true; url: URL } | { ok: fal
   return { ok: true, url };
 }
 
+/**
+ * The posting, not the page around it: read as a saved posting is (its
+ * JobPosting block, else its `<main>` or `<article>` without the menus and the
+ * application form). The page read whole kept the site's navigation: Vercel's
+ * own listing came back as 17 137 characters, the job 4 212 of them. A block's
+ * description names neither the role nor the employer, and the letter reads
+ * both off this text, so they go in front when the text lacks them.
+ */
 export function postingTextFromHtml(html: string): PostingUrlResult {
-  return postingText(stripHtml(html).trim());
+  const page = readSavedPage(html);
+  const named = [page.facts?.title, page.facts?.company].filter((fact): fact is string => !!fact && !page.text.includes(fact));
+  return postingText([...named, page.text].join('\n\n').trim());
 }
 
 function postingText(text: string): PostingUrlResult {
