@@ -150,16 +150,17 @@ test('isPrivateIp decodes the IPv4 inside a transition address (6to4, compatible
     '2002:7f00:1::', '2002:0a00:0001::', '2002:a9fe:a9fe::1', '2002:c0a8:101:5::1', '::127.0.0.1', '::7f00:1', '::a00:1',
     '0:0:0:0:0:ffff:7f00:1', '64:ff9b::10.0.0.1', '64:ff9b:1::808:808', '2001:0:4136:e378:8000:63bf:3fff:fdd2',
     '2001:db8::1', '100::1', 'fec0::1', 'ff02::1', '[2002:7f00:1::]',
+    '::ffff:0:7f00:1', '::ffff:0:127.0.0.1', '::ffff:0:a9fe:a9fe',
   ]) {
     assert.equal(isPrivateIp(ip), true, `${ip} must be private`);
   }
-  for (const ip of ['2002:808:808::1', '64:ff9b::8.8.8.8', '2a00:1450:4001:80b::200e', '2001:4860:4860::8888']) {
+  for (const ip of ['2002:808:808::1', '64:ff9b::8.8.8.8', '::ffff:0:808:808', '2a00:1450:4001:80b::200e', '2001:4860:4860::8888']) {
     assert.equal(isPrivateIp(ip), false, `${ip} must be public`);
   }
 });
 
 test('isPrivateHost: a trailing dot, a mapped literal, an intranet name — the three bypasses', () => {
-  for (const h of ['localhost.', '[::ffff:a9fe:a9fe]', '::ffff:169.254.169.254', 'intranet', 'db.internal', 'nas.lan', 'router.home.arpa']) {
+  for (const h of ['localhost.', 'localhost..', 'intranet..', 'nas.lan..', '[::ffff:a9fe:a9fe]', '::ffff:169.254.169.254', 'intranet', 'db.internal', 'nas.lan', 'router.home.arpa']) {
     assert.equal(isPrivateHost(h), true, `${h} must be private`);
   }
   assert.equal(isPrivateHost('jobs.example.com.'), false);
@@ -167,6 +168,8 @@ test('isPrivateHost: a trailing dot, a mapped literal, an intranet name — the 
 
 test('checkPostingUrl refuses the literal bypasses and a URL carrying credentials', () => {
   assert.equal(checkPostingUrl('http://localhost./x').ok, false);
+  assert.equal(checkPostingUrl('http://localhost../x').ok, false);
+  assert.equal(checkPostingUrl('http://[::ffff:0:7f00:1]/').ok, false);
   assert.equal(checkPostingUrl('http://[::ffff:169.254.169.254]/').ok, false);
   assert.equal(checkPostingUrl('http://intranet/x').ok, false);
   assert.equal(checkPostingUrl('http://user:pass@example.com/x').ok, false);

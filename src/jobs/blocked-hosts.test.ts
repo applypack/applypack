@@ -22,7 +22,7 @@ test('isBlockedPostingHost: a host that only ends in the same letters is another
 test('isBlockedPostingHost: a named site under a country domain or another name of its own', () => {
   for (const host of [
     'www.indeed.co.uk', 'indeed.de', 'au.indeed.com.au', 'www.glassdoor.co.uk', 'www.glassdoor.de', 'glassdoor.co.in',
-    'linkedin.cn', 'br.linkedin.com.br', 'lnkd.in', 'angel.co', 'wd3.myworkdaysite.com', 'www.indeed.co.uk.',
+    'linkedin.cn', 'br.linkedin.com.br', 'lnkd.in', 'angel.co', 'wd3.myworkdaysite.com', 'wd5.myworkday.com', 'www.indeed.co.uk.',
   ]) {
     assert.equal(isBlockedPostingHost(host), true, host);
   }

@@ -13,10 +13,11 @@ export const BLOCKED_POSTING_HOSTS: readonly string[] = [
   'wellfound.com',
   'dice.com',
   // The same sites under another name: LinkedIn's short links, Wellfound's old
-  // domain, Workday's second host.
+  // domain, Workday's other hosts.
   'lnkd.in',
   'angel.co',
   'myworkdaysite.com',
+  'myworkday.com',
 ];
 
 /** Named sites that also answer under a country's domain: indeed.co.uk, glassdoor.de, linkedin.cn. */
