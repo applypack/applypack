@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.17] — 2026-10-28
+
+### Changed
+- Updated dependencies: @anthropic-ai/sdk 1.2.0, docx 9.14.0, dotenv
+  18.0.9, unpdf 1.9.1 and @types/pdfkit 0.17.7. The SDK's major version
+  sends API version 2026-10-21; ApplyPack sends none of the request fields
+  that version refuses (sampling parameters, a document block in an
+  assistant message, citations in a user message).
+
 ## [2.63.16] — 2026-10-25
 
 ### Fixed
@@ -6824,6 +6833,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.17]: https://github.com/applypack/applypack/compare/v2.63.16...v2.63.17
 [2.63.16]: https://github.com/applypack/applypack/compare/v2.63.15...v2.63.16
 [2.63.15]: https://github.com/applypack/applypack/compare/v2.63.14...v2.63.15
 [2.63.14]: https://github.com/applypack/applypack/compare/v2.63.13...v2.63.14
