@@ -344,6 +344,13 @@ test('protectedCharacteristic refuses the wish and names the lawful criterion', 
   assert.equal(protectedCharacteristic({ kind: 'custom', label: 'has led a team of three or more' }), null);
   assert.equal(protectedCharacteristic({ kind: 'authorization', label: 'Ukrainian citizenship or a work permit' }), null, 'the kind is lawful by construction');
   assert.equal(protectedCharacteristic({ kind: 'custom', label: 'a healthy test pyramid' }), null, 'a word inside a phrase is not the person');
+  // Live 2026-10-28: a Cyrillic stem that ends with its word and the comparative age were let through.
+  for (const label of ['вік до 35', 'стать', 'діти', 'дети', 'is younger than 35', 'older than 50']) {
+    assert.ok(protectedCharacteristic({ kind: 'custom', label }), label);
+  }
+  for (const label of ['віковий склад команди', 'older systems in COBOL', 'senior', 'startup experience']) {
+    assert.equal(protectedCharacteristic({ kind: 'custom', label }), null, label);
+  }
   const refused = rubricFromForm({ add_kind: 'custom', add_text: 'must be a woman' }, emptyRubric());
   assert.ok('error' in refused && /read blind/.test(refused.error));
 });
