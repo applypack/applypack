@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.63.16",
+  "version": "2.63.17",
   "private": true,
   "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 7 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
   "license": "MIT",
@@ -73,7 +73,7 @@
     "prisma": true
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
+    "@anthropic-ai/sdk": "^1.2.0",
     "@hono/node-server": "^2.1.5",
     "@prisma/client": "^6.1.0",
     "@xmldom/xmldom": "0.9.12",
