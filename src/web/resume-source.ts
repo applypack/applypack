@@ -20,8 +20,11 @@ export const ResumeSourceFields = {
   resumeText: z.string().optional().default(''),
   uploadName: z.string().optional().default(''),
   pasteName: z.string().optional().default(''),
-  /** R1: "This is my own resume" — a file or a paste then gets the owner's facts and other resumes. */
-  mine: z.unknown().transform((v) => v === '1' || v === 'on'),
+  /**
+   * R1: "This is my own resume" — a file or a paste then gets the owner's facts and other resumes.
+   * An unticked box is absent from the form, and without `.optional()` zod 4 refused the whole launch.
+   */
+  mine: z.unknown().optional().transform((v) => v === '1' || v === 'on'),
 };
 
 const ResumeSourceSchema = z.object(ResumeSourceFields);
