@@ -566,6 +566,15 @@ test('parseCoverResponse accepts the shape and rejects junk', () => {
   assert.equal(parseCoverResponse('{"letter": "   "}').ok, false);
 });
 
+test('a letter is kept when the model lists more gaps than the cap', () => {
+  // Live 2026-10-28: an identity-heavy posting drew eleven gaps, and `.max(10)`
+  // refused the whole reply twice, so no letter was written at all.
+  const gaps = ['LDAP', 'Active Directory', 'SAML', 'SSO', 'OAuth2', 'OpenID Connect', 'RBAC', 'ABAC', 'ReBAC', 'SCIM', 'Terraform'];
+  const r = parseCoverResponse(JSON.stringify({ letter: 'Hi Vercel team,\n\nBody.', keywords_used: [], gaps_acknowledged: ['', ...gaps] }));
+  assert.ok(r.ok);
+  assert.deepEqual(r.data.gaps_acknowledged, gaps.slice(0, 10), 'an empty entry does not take a place');
+});
+
 test('countWords counts body words, not whitespace', () => {
   assert.equal(countWords(''), 0);
   assert.equal(countWords('  \n '), 0);
@@ -1013,6 +1022,13 @@ test('parseBriefResponse fills what a thin reply left out', () => {
   assert.deepEqual(r.data.screening.scan_for, []);
   assert.deepEqual(r.data.keywords, []);
   assert.equal(parseBriefResponse('{"company": {}}').ok, false, 'the role is not optional');
+});
+
+test('parseBriefResponse keeps the first gates when the posting names more than the cap', () => {
+  const gates = Array.from({ length: 11 }, (_, i) => `gate ${i + 1}`);
+  const r = parseBriefResponse(JSON.stringify({ role: { posted_title: 'Dev', family: 'web' }, gates }));
+  assert.ok(r.ok);
+  assert.deepEqual(r.data.gates, gates.slice(0, 8));
 });
 
 test('the match prompt states the brief as the frame and suppresses the older carry', () => {

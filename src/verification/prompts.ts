@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { extractJson, jsonFailure, type ParseResult } from '../text-utils';
+import { extractJson, firstOf, jsonFailure, type ParseResult } from '../text-utils';
 import { fence, untrustedDirective } from '../prompt-fence';
 
 /*
@@ -45,9 +45,9 @@ const VerificationSchema = z.object({
         signal: z.enum(EVIDENCE_SIGNALS),
       }),
     )
-    .max(30)
-    .default([]),
-  red_flags: z.array(z.string()).max(20).default([]),
+    .default([])
+    .transform(firstOf(30)),
+  red_flags: z.array(z.string()).default([]).transform(firstOf(20)),
   company_snapshot: nullableText,
   /** The company's own listing for this role, when the careers-page check found it (#162 stage 3); older rows parse without it. */
   posting_url: nullableText,

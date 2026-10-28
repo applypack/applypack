@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { DomainReport } from './domain';
-import { extractJson, jsonFailure, type ParseResult } from '../text-utils';
+import { extractJson, firstOf, jsonFailure, type ParseResult } from '../text-utils';
 import {
   ALIGNMENT_GRADES,
   KEYWORD_STATUSES,
@@ -155,8 +155,8 @@ const ScanSchema = z.object({
   summary: z.string(),
   issues: z
     .array(z.object({ section: z.string(), issue: z.string(), fix: z.string() }))
-    .max(40)
     .default([])
+    .transform(firstOf(40))
     // Read off stored rows too, so a scan from before the rule shows the same way.
     .transform((arr) => arr.filter((i) => !isNonIssue(i))),
   /*
@@ -201,9 +201,9 @@ export const BriefSchema = z.object({
   screening: z
     .object({
       reader: z.string().default(''),
-      scan_for: z.array(z.string()).max(10).default([]),
-      wow: z.array(z.string()).max(8).default([]),
-      dealbreakers: z.array(z.string()).max(8).default([]),
+      scan_for: z.array(z.string()).default([]).transform(firstOf(10)),
+      wow: z.array(z.string()).default([]).transform(firstOf(8)),
+      dealbreakers: z.array(z.string()).default([]).transform(firstOf(8)),
     })
     .prefault({}),
   requirement_groups: z
@@ -212,11 +212,11 @@ export const BriefSchema = z.object({
         label: z.string(),
         level: z.enum(REQUIREMENT_LEVELS).default('preferred'),
         satisfy: z.enum(SATISFY_MODES).default('any'),
-        options: z.array(z.string()).max(12).default([]),
+        options: z.array(z.string()).default([]).transform(firstOf(12)),
       }),
     )
-    .max(24)
-    .default([]),
+    .default([])
+    .transform(firstOf(24)),
   keywords: z
     .array(
       z.object({
@@ -231,7 +231,7 @@ export const BriefSchema = z.object({
     )
     .default([])
     .transform((arr) => arr.slice(0, KEYWORDS_MAX)),
-  gates: z.array(z.string()).max(8).default([]),
+  gates: z.array(z.string()).default([]).transform(firstOf(8)),
 })
   /*
    * Only an "any" group is an alternative, and only the score's own notion of
@@ -270,10 +270,10 @@ const AlignmentSchema = z.object({
 const MatchSchema = z.object({
   summary: z.string(),
   alignment: AlignmentSchema,
-  strengths: z.array(z.string()).max(20).default([]),
-  red_flags: z.array(z.string()).max(20).default([]),
+  strengths: z.array(z.string()).default([]).transform(firstOf(20)),
+  red_flags: z.array(z.string()).default([]).transform(firstOf(20)),
   // Soft concerns worth knowing — displayed, never scored (v3).
-  cautions: z.array(z.string()).max(10).default([]),
+  cautions: z.array(z.string()).default([]).transform(firstOf(10)),
   hard_requirements: z
     .array(
       z.object({
@@ -282,8 +282,8 @@ const MatchSchema = z.object({
         note: nullableText,
       }),
     )
-    .max(12)
-    .default([]),
+    .default([])
+    .transform(firstOf(12)),
   keywords: z
     .array(
       z.object({
@@ -358,8 +358,8 @@ const MatchSchema = z.object({
         insert_after: judgedText,
       }),
     )
-    .max(40)
-    .default([]),
+    .default([])
+    .transform(firstOf(40)),
   removals: z
     .array(
       z.object({
@@ -370,8 +370,8 @@ const MatchSchema = z.object({
         quote: nullableText,
       }),
     )
-    .max(30)
-    .default([]),
+    .default([])
+    .transform(firstOf(30)),
 });
 export type ResumeMatchResult = z.infer<typeof MatchSchema>;
 /** What the lazy suggestions call returns — the full report minus the verdicts. */
@@ -453,9 +453,9 @@ export const COVER_WORDS_MAX = 200;
 const coverList = (max: number) =>
   z
     .array(z.string())
-    .max(max)
     .default([])
-    .transform((arr) => arr.map((s) => s.trim()).filter(Boolean));
+    .transform((arr) => arr.map((s) => s.trim()).filter(Boolean))
+    .transform(firstOf(max));
 
 const CoverSchema = z.object({
   letter: z
@@ -517,11 +517,11 @@ const ReviewSchema = z.object({
         grade: z.enum(REVIEW_GRADES),
         why: z.string(),
         /** Verbatim lines from the resume that justify the grade — never a paraphrase. */
-        evidence: z.array(z.string()).max(4).default([]),
+        evidence: z.array(z.string()).default([]).transform(firstOf(4)),
       }),
     )
-    .max(REVIEW_DIMENSIONS.length * 2)
-    .default([]),
+    .default([])
+    .transform(firstOf(REVIEW_DIMENSIONS.length * 2)),
   advice: z
     .array(
       z.object({
@@ -538,10 +538,10 @@ const ReviewSchema = z.object({
         quote: nullableText,
       }),
     )
-    .max(20)
-    .default([]),
+    .default([])
+    .transform(firstOf(20)),
   /** What already works — so the user does not edit it away. */
-  strengths: z.array(z.string()).max(10).default([]),
+  strengths: z.array(z.string()).default([]).transform(firstOf(10)),
 });
 export type ResumeReviewResult = z.infer<typeof ReviewSchema>;
 export type ReviewGradeRow = ResumeReviewResult['grades'][number];

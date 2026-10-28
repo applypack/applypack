@@ -196,6 +196,17 @@ export function jsonFailure(text: string): ParseFailure {
 }
 
 /**
+ * A list in a model's reply held to `max` items by keeping the first ones —
+ * a zod transform. A cap that refuses instead throws the whole reply away for
+ * one item too many: a letter for a posting with eleven gaps failed twice on
+ * `gaps_acknowledged` and the user got no letter at all.
+ */
+export const firstOf =
+  (max: number) =>
+  <T>(items: T[]): T[] =>
+    items.slice(0, max);
+
+/**
  * Maps a classifier mode to the stage-1 decision. Trivial but explicit so
  * we can unit-test the toggle semantics in isolation from the API client.
  */

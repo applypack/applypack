@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { SECTORS } from '../sectors';
 import { fence, untrustedDirective } from '../prompt-fence';
-import { extractJson, jsonFailure, type ParseResult } from '../text-utils';
+import { extractJson, firstOf, jsonFailure, type ParseResult } from '../text-utils';
 import type { MatchJobInput } from '../resume/prompts';
 import {
   COMPANY_TYPES,
@@ -139,8 +139,8 @@ export const ScreenReplySchema = z.object({
   summary: z
     .object({ who: z.string().default(''), did: z.string().default(''), verdict: z.string().default('') })
     .default({ who: '', did: '', verdict: '' }),
-  roles: z.array(RoleSchema).max(30).default([]),
-  answers: z.array(AnswerSchema).max(60).default([]),
+  roles: z.array(RoleSchema).default([]).transform(firstOf(30)),
+  answers: z.array(AnswerSchema).default([]).transform(firstOf(60)),
   /** v3; an older stored reply reads as []. */
   standout: z.array(StandoutSchema).default([]).transform((arr) => arr.slice(0, MAX_STANDOUT)),
   questions: lines(6),
@@ -238,9 +238,9 @@ const CompareCriterionSchema = z.object({
 export type CompareCriterion = z.infer<typeof CompareCriterionSchema>;
 
 export const CompareReplySchema = z.object({
-  criteria: z.array(CompareCriterionSchema).max(60).default([]),
+  criteria: z.array(CompareCriterionSchema).default([]).transform(firstOf(60)),
   /** Who to talk to first, with a reason each. */
-  order: z.array(z.object({ applicant: z.number().int(), reason: z.string().default('').transform((v) => v.trim()) })).max(MAX_COMPARE).default([]),
+  order: z.array(z.object({ applicant: z.number().int(), reason: z.string().default('').transform((v) => v.trim()) })).default([]).transform(firstOf(MAX_COMPARE)),
   /** The one question that would decide between the top two. */
   decider: nullableText,
   injection: z.boolean().default(false),
