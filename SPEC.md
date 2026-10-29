@@ -391,7 +391,12 @@ against the live vendor API — a probe hit alone proves a board exists, not
 whose it is (ADR 0017).
 
 Picking segments re-probes every board now and shows a preview split into
-new / already tracked / **unresolved** (listed with a reason, never dropped).
+new / already tracked / **no open jobs right now** (the pinned board answered
+with nothing posted: listed, not added) / **unresolved** (listed with a
+reason read off the vendor's status — gone, refused, no answer — never
+dropped). `node dist/scripts/packs-check-once.js` asks every pinned board once
+and exits 1 when one is gone or refused, so the catalog can be re-checked
+between releases.
 Confirming inserts the boards **inactive**, then an "Enable all" button
 activates them. A board only counts as resolved at ≥ 1 open job, and the
 resolve chain falls back through all twelve per-company vendors

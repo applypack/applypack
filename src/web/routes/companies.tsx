@@ -403,14 +403,15 @@ companiesRoute.post('/companies/starter-pack', async (c) => {
     return redirectWithFlash('err', t('packs.flash.pickSegment'));
   }
 
-  const { resolved, unresolved } = await resolvePack(targets);
-  const preview = buildPreview(resolved, unresolved, await trackedBoardKeys());
+  const preview = buildPreview(await resolvePack(targets), await trackedBoardKeys());
   logger.info(
     {
       segments: chosen,
       toAdd: preview.toAdd.length,
       alreadyAdded: preview.alreadyAdded.length,
-      unresolved: preview.unresolved.length,
+      quiet: preview.quiet.map((e) => e.name),
+      // The probe's own words ride here; the page says the reason in the reader's language.
+      unresolved: preview.unresolved.map((e) => `${e.name}: ${e.reason}${e.detail ? ` (${e.detail})` : ''}`),
     },
     'starter-pack: previewed',
   );

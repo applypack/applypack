@@ -1133,6 +1133,7 @@ Always:
 | Test the launcher on a scratch folder | `APPLYPACK_DATA_DIR=/tmp/ap WEB_PORT=4848 APPLYPACK_NO_OPEN=1 npm start` — never the live data folder |
 | Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`; runs outside the schedule, and while paused stores the jobs unscored); or `docker compose exec app node dist/scripts/fetch-once.js`, which does the same without the dashboard and is recorded as a `fetch-now` run |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
+| Check the starter-pack catalog for boards that died | `node dist/scripts/packs-check-once.js` (one request per pinned board, no table read; exits 1 when one is gone or refused — then read the company's careers page before editing `catalog.json`, ADR 0017) |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
 | Run the application-pack queue now | `docker compose exec app node dist/scripts/pack-once.js` (the worker does this every minute; recorded as a `pack` run) |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |
