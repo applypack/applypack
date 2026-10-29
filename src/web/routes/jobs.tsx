@@ -1039,6 +1039,9 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
     jobTitle: job.title,
     resumeName: resume.name,
     jobId: id,
+    // Started on the job's Cover letter tab, so a failed run leads back there, not to Tailor resume (#673).
+    backUrl: jobHref(id, 'letter'),
+    backLabel: t('job.backToTheJob'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
