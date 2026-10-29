@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.39] — 2026-10-29
+
+### Fixed
+- A PDF resume read back keeps no page-width wrap onto a capital
+  ("GitHub / Actions", "and / Node.js"), and its skills read as one group.
+- A search drafted from a resume fills "I live in" from the country its
+  header names.
+- "Is it real?" judges the posting's age from the date its source gave,
+  instead of calling a dated posting undated.
+- Screening drafts a sector once instead of three times, and a years row
+  says what the dates can and cannot check.
+- Resume pages write technology names as people do (GitHub Actions,
+  TypeScript), the core-stack line no longer says "all present" for a term
+  that is not written yet, an office-days question goes to the recruiter
+  after the edits, the pack card counts a rewrite once, and the no-phone
+  warning reads on its own.
+
+## [2.63.38] — 2026-10-29
+
+### Fixed
+- Starter packs point Webflow, Amplitude and Lemon.io at their current
+  boards and drop five that closed. The preview lists a board with no
+  openings under "No open jobs right now", says why a board failed (no
+  longer exists, refused, no answer), and no longer offers a stranger's
+  board as Remote.
+- A careers URL that now redirects to the site's home page is listed under
+  "Not added" instead of being watched for banner changes.
+- Setup no longer ticks step 4 before a search exists, its step links and
+  arrangement choices say their names, and ending setup keeps your
+  browser's time zone when none was chosen, so dates stop reading in UTC.
+
 ## [2.63.37] — 2026-10-29
 
 ### Fixed
@@ -7056,6 +7087,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.39]: https://github.com/applypack/applypack/compare/v2.63.38...v2.63.39
+[2.63.38]: https://github.com/applypack/applypack/compare/v2.63.37...v2.63.38
 [2.63.37]: https://github.com/applypack/applypack/compare/v2.63.36...v2.63.37
 [2.63.36]: https://github.com/applypack/applypack/compare/v2.63.35...v2.63.36
 [2.63.35]: https://github.com/applypack/applypack/compare/v2.63.34...v2.63.35

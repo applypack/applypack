@@ -213,7 +213,10 @@ refused it), `isDigestHour` decides whether the hourly recap beat does
 anything, and `isFirstDigestHour` whether the stale-application beat does.
 A beat that is not its digest hour writes no run row. An empty
 `AppSettings.schedule` means every hour, around the clock, one message per
-match and a recap at 09:00: the behaviour before v1.47.0.
+match and a recap at 09:00: the behaviour before v1.47.0. Its zone is `TZ`
+until someone picks one; the press that ends setup stores the browser's zone
+instead when the schedule is empty and `TZ` reads UTC
+(`welcome-steps.ts:setupZone`, #643), and the flash says so.
 
 | Cron expr    | Job                | What it does                                   |
 | ------------ | ------------------ | ---------------------------------------------- |
@@ -391,7 +394,12 @@ against the live vendor API — a probe hit alone proves a board exists, not
 whose it is (ADR 0017).
 
 Picking segments re-probes every board now and shows a preview split into
-new / already tracked / **unresolved** (listed with a reason, never dropped).
+new / already tracked / **no open jobs right now** (the pinned board answered
+with nothing posted: listed, not added) / **unresolved** (listed with a
+reason read off the vendor's status — gone, refused, no answer — never
+dropped). `node dist/scripts/packs-check-once.js` asks every pinned board once
+and exits 1 when one is gone or refused, so the catalog can be re-checked
+between releases.
 Confirming inserts the boards **inactive**, then an "Enable all" button
 activates them. A board only counts as resolved at ≥ 1 open job, and the
 resolve chain falls back through all twelve per-company vendors
@@ -449,6 +457,12 @@ hash advances only once the notice is actually sent: a change seen outside
 the alert hours, while Alerts are off, or refused by every chat waits on the
 row (`pendingContentHash`, *notice waiting* on `/companies`) and goes out from
 the top of the first tick that may send it.
+
+A careers URL that now redirects to the site's front page (its root or a
+language's root, `www.monobank.ua/vacancies` → `monobank.ua/`) is refused
+rather than watched: a home page changes with every banner, and its text is
+no careers page (`resolve.ts:redirectedHome`, #639). A board the front page
+links still resolves.
 
 A page with **almost no text** and nothing machine-readable is a loading
 shell: it draws its jobs in the browser, and hashing it would report the

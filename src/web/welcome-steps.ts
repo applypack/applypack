@@ -6,6 +6,7 @@
  */
 import { dismissedReasons, filteredReasons, funnelCounts, reasonsText } from '../funnel';
 import { t } from '../i18n/t';
+import { canonicalZone } from './time-zones';
 
 export const WELCOME_STEPS = ['ai', 'search', 'profile', 'sources', 'matches'] as const;
 export type WelcomeStep = (typeof WELCOME_STEPS)[number];
@@ -32,9 +33,11 @@ export function stepDone(step: WelcomeStep, f: WelcomeFacts): boolean {
     case 'profile':
       return f.profileReady;
     case 'sources':
-      // Skippable: a US search has nothing to add, and a user who went on to
-      // score matches has passed it — neither should be nagged about it.
-      return f.sourcesWaiting === 0 || f.scoredCount > 0;
+      // Not reached before there is a search: with none, nothing waits because
+      // nothing was asked, and a tick there read as "done, skip it" (#643).
+      // Skippable after that: a US search has nothing to add, and a user who
+      // went on to score matches has passed it — neither should be nagged.
+      return (f.profileReady && f.sourcesWaiting === 0) || f.scoredCount > 0;
     case 'matches':
       return f.scoredCount > 0;
   }
@@ -48,6 +51,20 @@ export function currentStep(f: WelcomeFacts): WelcomeStep | null {
 /** `/` sends a fresh install to /welcome until the wizard finishes or is skipped. */
 export function needsWelcome(f: Pick<WelcomeFacts, 'setupCompletedAt'>): boolean {
   return f.setupCompletedAt === null;
+}
+
+/**
+ * The zone setup keeps as it ends (#643): the browser's, when nobody chose
+ * one — no schedule is stored and the install's TZ reads UTC, which the
+ * default and `.env.example` both write. Until then every date, the last
+ * check and the digest's hour read in UTC on a machine that is not. A zone
+ * someone set, in Settings or in TZ, is theirs: null keeps it.
+ */
+export function setupZone(storedSchedule: unknown, installZone: string, browserZone: string): string | null {
+  if (storedSchedule !== null && storedSchedule !== undefined) return null;
+  if (canonicalZone(installZone) !== 'UTC') return null;
+  const zone = canonicalZone(browserZone.trim());
+  return zone === null || zone === 'UTC' ? null : zone;
 }
 
 export function isWelcomeStep(value: unknown): value is WelcomeStep {

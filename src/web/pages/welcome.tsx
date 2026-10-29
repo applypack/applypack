@@ -188,9 +188,12 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
           {/* The language is the first choice of a first run (ADR 0061), on whichever step the wizard opens — an
               install with an engine already connected starts on step 2 (#358); later it lives in the menu and in Settings. */}
           {!p.setupCompleted && <LanguageMenu variant="inline" />}
+          {/* The line beside the heading says where everything lives afterwards, so the button needs no tooltip:
+              a title became its name to some readers (#643). */}
           {!p.setupCompleted && (
             <ActionForm action="/welcome/skip">
-              <Button size="sm" variant="ghost" title={t('welcome.skip.title')}>
+              <BrowserZoneField />
+              <Button size="sm" variant="ghost">
                 {t('welcome.skip')}
               </Button>
             </ActionForm>
@@ -203,10 +206,14 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
     <ol class="mb-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label={t('welcome.stepsLabel')}>
       {p.steps.map((s, i) => {
         const state = s.done ? 'done' : s.key === p.current ? 'active' : 'pending';
+        const title = t(STEP_TITLES[s.key]);
         return (
           <li>
+            {/* The name is said outright, as the menu's links say theirs: a reader that does not walk
+                the spans read these five as links with no name (#643). */}
             <a
               href={`/welcome?step=${s.key}`}
+              aria-label={state === 'done' ? t('welcome.step.doneName', { title }) : title}
               aria-current={state === 'active' ? 'step' : undefined}
               class={`flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm transition-colors duration-150 ${
                 state === 'active'
@@ -228,8 +235,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
               >
                 {state === 'done' ? <MarkIcon kind="check" /> : i + 1}
               </span>
-              <span class="break-words">{t(STEP_TITLES[s.key])}</span>
-              {state === 'done' && <span class="sr-only">{t('welcome.step.doneSr')}</span>}
+              <span class="break-words">{title}</span>
             </a>
           </li>
         );
@@ -243,8 +249,20 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
     {p.current === 'matches' && <MatchesStep {...p} />}
     {p.current === null && <AllDone {...p} />}
     <script type="module" dangerouslySetInnerHTML={{ __html: SEARCH_BOOT }} />
+    <script dangerouslySetInnerHTML={{ __html: BROWSER_ZONE_JS }} />
   </Layout>
 );
+
+/**
+ * The browser's time zone, sent with the press that ends setup (#643): the
+ * route keeps it only when nobody chose a zone (`welcome-steps.ts:setupZone`)
+ * and says so in the flash. Without a script the field stays empty and the
+ * zone in force stays.
+ */
+const BrowserZoneField: FC = () => <input type="hidden" name="timezone" value="" data-browser-zone="" />;
+
+const BROWSER_ZONE_JS =
+  "document.querySelectorAll('input[data-browser-zone]').forEach(function (f) { try { f.value = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {} });";
 
 const StepCard: FC<PropsWithChildren<{ n: number; step: WelcomeStep; done: boolean }>> = ({
   n,
@@ -480,8 +498,9 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
                 {/* Tells the route the pills were on the form: "Search again" posts none and changes nothing. */}
                 <input type="hidden" name="arrangements" value="1" />
                 <div class="mt-1.5 flex flex-wrap gap-1.5">
+                  {/* Named outright: a reader that skips the wrapping label read the stored code, REMOTE (#643). */}
                   {PROFILE_WORKPLACES.map((w) => (
-                    <PillCheckbox name="workplace" value={w} checked={search.workplace.includes(w)}>
+                    <PillCheckbox name="workplace" value={w} checked={search.workplace.includes(w)} aria-label={workplaceName(w)}>
                       {workplaceName(w)}
                     </PillCheckbox>
                   ))}
@@ -881,6 +900,7 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
         </ActionForm>
       ) : null}
       <ActionForm action="/welcome/finish">
+        <BrowserZoneField />
         <Button variant={done || matches.waiting === 0 ? 'primary' : 'secondary'}>
           {fetchingEnabled ? t('welcome.finish') : t('welcome.startWatch')}
         </Button>
@@ -916,6 +936,7 @@ const AllDone: FC<WelcomeProps> = ({ setupCompleted, fetchingEnabled, matches })
         <Button href="/">{t('welcome.done.overview')}</Button>
       ) : (
         <ActionForm action="/welcome/finish">
+          <BrowserZoneField />
           <Button>{fetchingEnabled ? t('welcome.finish') : t('welcome.startWatch')}</Button>
         </ActionForm>
       )}
