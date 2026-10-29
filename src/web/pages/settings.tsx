@@ -71,6 +71,7 @@ import { t } from '../../i18n/t';
 import { LanguageSettings } from '../language-menu';
 import type { ProfileLine } from '../profile-line';
 import { tRich } from '../rich';
+import { techLabel } from '../tech-label';
 
 interface MaskedTarget {
   id: number;
@@ -2287,6 +2288,7 @@ const ProfileEditor: FC<{
         hint={t('settings.coreSkillsHint')}
         name="stackRequired"
         values={profile.stackRequired}
+        chipLabel={techLabel}
         placeholder={t('settings.phpLaravelMysql')}
       />
       <TagListInput
@@ -2294,6 +2296,7 @@ const ProfileEditor: FC<{
         hint={t('settings.raiseTheFitScoreWhen')}
         name="stackNiceToHave"
         values={profile.stackNiceToHave}
+        chipLabel={techLabel}
         placeholder={t('settings.dockerAws')}
       />
     </fieldset>
@@ -2388,6 +2391,7 @@ const ProfileEditor: FC<{
         hint={t('settings.ifTheTitleContainsAny')}
         name="stackExclude"
         values={profile.stackExclude}
+        chipLabel={techLabel}
       />
     </fieldset>
 

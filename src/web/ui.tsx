@@ -1103,7 +1103,8 @@ export const ToggleRow: FC<
 /**
  * Newline-joined list in a textarea — the transport the backend already
  * parses. chips.mjs upgrades it into a chip editor; without JS the plain
- * textarea still works.
+ * textarea still works. `chipLabel` words a stored value on its chip only
+ * ("typescript" → TypeScript, #642): the textarea keeps the value as stored.
  */
 export const TagListInput: FC<{
   label: string;
@@ -1118,9 +1119,17 @@ export const TagListInput: FC<{
   picker?: 'countries';
   /** "lines": a field of places, split on new lines alone — the save reads it with `parseLineList` (#607). */
   split?: 'lines';
-}> = ({ label, hint, more, name, values, rows = 3, placeholder, picker, split }) => (
+  chipLabel?: (value: string) => string;
+}> = ({ label, hint, more, name, values, rows = 3, placeholder, picker, split, chipLabel }) => (
   <Field label={label} hint={hint} more={more}>
-    <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker} data-split={split}>
+    <div
+      data-chips
+      data-label={label}
+      data-placeholder={placeholder}
+      data-picker={picker}
+      data-split={split}
+      data-labels={chipLabel ? JSON.stringify(Object.fromEntries(values.map((v) => [v, chipLabel(v)]))) : undefined}
+    >
       <Textarea name={name} rows={rows} mono placeholder={placeholder}>
         {values.join('\n')}
       </Textarea>
