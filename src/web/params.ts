@@ -25,3 +25,12 @@ export function intQuery(raw: unknown): number | null {
 export function switchParam(raw: unknown): boolean | null {
   return raw === '1' ? true : raw === '0' ? false : null;
 }
+
+/**
+ * One of the values a page offers, or null: a selector refuses anything else
+ * with nothing changed, as a switch does, instead of falling back on a value
+ * nobody chose (#683).
+ */
+export function choiceParam<T extends string>(raw: unknown, choices: readonly T[]): T | null {
+  return typeof raw === 'string' && (choices as readonly string[]).includes(raw) ? (raw as T) : null;
+}

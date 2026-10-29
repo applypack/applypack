@@ -89,7 +89,6 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         notes: angle(form.notes, 500),
       }
     : readCoverAngles((await getSettings()).coverAngles);
-  if (fromForm) await setCoverAngles(angles);
 
   // Resolve the resume inline — bad input fails before anything runs.
   const resume = await resolveResumeSource(form, f);
@@ -124,6 +123,9 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
       return flashRedirect('/letter', 'err', t('letter.flash.postingTooShort', { n: MIN_DESCRIPTION_CHARS }));
     }
   }
+
+  // The angles are remembered once the request stands (#683): a refused one keeps what was stored.
+  if (fromForm) await setCoverAngles(angles);
 
   // Fetch only when there is nothing pasted; a description the user supplied
   // is always the better source than a scraped page.

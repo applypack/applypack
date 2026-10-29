@@ -27,6 +27,8 @@ export type FolderVerdict = { ok: true } | { ok: false; reason: string };
 
 /** Under the home directory, the system's own: application data, never a place a person keeps job files. */
 const SYSTEM_FOLDERS = ['library', 'appdata'];
+/** Where a Mac keeps a cloud drive, under the home folder. */
+const CLOUD_DRIVES = ['library/cloudstorage', 'library/mobile documents'];
 
 export const INBOX_ROOTS_ENV = 'APPLYPACK_INBOX_ROOTS';
 
@@ -86,6 +88,10 @@ export function folderAllowed(folder: string, rules: FolderRules, p: PathApi = p
   }
   const parts = p.relative(rules.home, folder).split(p.sep);
   if (parts.some((part) => part.startsWith('.'))) return { ok: false, reason: t('datasets.folder.hidden') };
-  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: t('datasets.folder.system', { env: INBOX_ROOTS_ENV, folder }) };
+  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) {
+    // The way in is offered for a cloud drive only — never for the keychains or anything else the system keeps there (#683).
+    const cloud = CLOUD_DRIVES.includes(parts.slice(0, 2).join('/').toLowerCase());
+    return { ok: false, reason: cloud ? t('datasets.folder.system', { env: INBOX_ROOTS_ENV, folder }) : t('datasets.folder.systemClosed') };
+  }
   return { ok: true };
 }

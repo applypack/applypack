@@ -88,6 +88,7 @@ export type StageEditError =
   | 'duplicate-label'
   | 'limit'
   | 'unknown-key'
+  | 'fixed-column'
   | 'last-column';
 
 /** Append a new column; the key is a slug, unique against reserved + used. */
@@ -134,6 +135,8 @@ export function renameStage(
 ): StageDef[] | StageEditError {
   const trimmed = label.trim();
   if (!trimmed) return 'empty-label';
+  // Applied, Rejected and Ghosted are not in the editable list, and they are not gone either (#683).
+  if (key === ENTRY_STAGE.key || TERMINAL_KEYS.includes(key)) return 'fixed-column';
   if (!list.some((s) => s.key === key)) return 'unknown-key';
   if (list.some((s) => s.key !== key && s.label.toLowerCase() === trimmed.toLowerCase())) {
     return 'duplicate-label';

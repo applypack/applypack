@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
-import { idParam } from '../params';
+import { choiceParam, idParam } from '../params';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { prisma } from '../../db';
@@ -567,7 +567,10 @@ screenRoute.post('/screen/:id/applicants/:aid/adjust', async (c) => {
   if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', t('screenRoute.applicantGone'));
   const form = await c.req.parseBody();
   const back = safeBack(form.back, `/screen/${id}/applicants/${applicant.id}`);
-  const points = Math.max(-MAX_ADJUSTMENT, Math.min(MAX_ADJUSTMENT, Math.round(Number(form.points) || 0)));
+  // An emptied field removes the adjustment; a value that is not a whole number changes nothing (#683).
+  const typedPoints = typeof form.points === 'string' ? form.points.trim() : '';
+  if (typedPoints !== '' && !/^[-+]?\d{1,3}$/.test(typedPoints)) return flashRedirect(back, 'err', t('screenRoute.adjust.notNumber', { max: MAX_ADJUSTMENT }));
+  const points = Math.max(-MAX_ADJUSTMENT, Math.min(MAX_ADJUSTMENT, typedPoints === '' ? 0 : Number(typedPoints)));
   const note = typeof form.note === 'string' ? form.note.trim().slice(0, 200) : '';
   if (points !== 0 && note.length === 0) {
     // #549: the scorecard again with the typed number kept and the reason field marked, not a redirect that drops both.
@@ -799,8 +802,10 @@ screenRoute.post('/screen/:id/applicants/:aid/decision', async (c) => {
   const id = idParam(c.req.param('id'));
   const aid = idParam(c.req.param('aid'));
   const back = safeBack(form.back, `/screen/${id}`);
-  const raw = typeof form.decision === 'string' ? form.decision : '';
-  const decision = (DECISIONS as readonly string[]).includes(raw) ? (raw as Decision) : null;
+  // "" is the select's "no decision"; anything else the page does not offer changes nothing (#683).
+  const raw = typeof form.decision === 'string' ? form.decision : null;
+  const decision = raw === '' ? null : choiceParam(raw, DECISIONS);
+  if (raw === null || (raw !== '' && decision === null)) return flashRedirect(back, 'err', t('http.noChoice'));
   const applicant = await loadApplicant(aid);
   if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', t('screenRoute.applicantGone'));
   await setDecision(aid, decision);

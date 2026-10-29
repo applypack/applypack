@@ -1007,6 +1007,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                   type="text"
                   inputmode="url"
                   name="url"
+                  maxlength={2_000}
                   autocomplete="off"
                   spellcheck="false"
                   value={dashboard.url ?? ''}
@@ -1977,7 +1978,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
           </Button>
         </ActionForm>
         {e.canToggle && (
-          <ActionForm action="/settings/ai/enable" hidden={{ provider: e.id }}>
+          <ActionForm action="/settings/ai/enable" hidden={{ provider: e.id, on: e.enabled ? '0' : '1' }}>
             <Button size="sm" variant="secondary">
               {e.enabled ? t('ui.disable') : t('ui.enable')}
             </Button>

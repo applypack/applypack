@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono, type Context } from 'hono';
-import { idParam, switchParam } from '../params';
+import { choiceParam, idParam, switchParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
@@ -197,6 +197,13 @@ const TelegramTargetSchema = z.object({
   botToken: z.string().min(20).max(200),
   chatId: z.string().min(1).max(100),
 });
+
+const TELEGRAM_FIELD_LABEL: Record<string, MessageKey> = { name: 'settings.name', botToken: 'settings.botToken', chatId: 'settings.chatId' };
+
+function telegramFieldLabel(field: string): string | undefined {
+  const key = TELEGRAM_FIELD_LABEL[field];
+  return key ? t(key) : undefined;
+}
 
 const DiscordTargetSchema = z.object({
   name: z.string().min(1).max(100),
@@ -616,6 +623,8 @@ function str(value: unknown): string {
 
 /** One hour select; anything unreadable keeps what was stored. */
 function hour(value: unknown, fallback: number): number {
+  // An absent select is not midnight (#683): Number('') is 0.
+  if (str(value) === '') return fallback;
   const n = Number(str(value));
   return Number.isInteger(n) && n >= 0 && n <= 23 ? n : fallback;
 }
@@ -656,8 +665,14 @@ settingsRoute.post('/settings/ai/enable', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
+  // The state the button asks for (#683): a second press, a resubmit or an old tab never undoes the first.
+  const want = switchParam(form.on);
+  if (want === null) return flashRedirect('/settings?tab=ai', 'err', t('http.noSwitchState'));
   const { order, config, envProvider } = await readAiOrder();
   const engine = AI_PROVIDER_LABELS[provider];
+  if (want === order.includes(provider)) {
+    return flashRedirect('/settings?tab=ai', 'ok', t(want ? 'settingsRoute.ai.alreadyOn' : 'settingsRoute.ai.alreadyOff', { engine }));
+  }
   const next = toggleAiEngine(order, provider, envProvider);
   if (next === null) {
     return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.onlyEngine', { engine }));
@@ -709,7 +724,8 @@ settingsRoute.post('/settings/ai/move', async (c) => {
   if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
   const { order, config } = await readAiOrder();
   const idx = order.indexOf(provider);
-  if (idx <= 0) return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.alreadyTop'));
+  if (idx < 0) return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.ai.notInChain', { engine: AI_PROVIDER_LABELS[provider] }));
+  if (idx === 0) return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.alreadyTop'));
   const next = [...order];
   [next[idx - 1], next[idx]] = [next[idx]!, next[idx - 1]!];
   await setAiEngineConfig({ ...config, order: next });
@@ -730,6 +746,8 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   const resume = cleanModelId(form.resume);
   const cover = cleanModelId(form.cover);
   for (const model of [classifier, resume, cover]) {
+    // Cut short it would name another model, saved as if it were this one (#683).
+    if (model && model.length > MAX_MODEL_ID_CHARS) return fail(t('settingsRoute.ai.modelTooLong', { n: MAX_MODEL_ID_CHARS }));
     if (model && !modelFitsProvider(model, provider)) {
       return fail(t('settingsRoute.ai.notModelId', { model, engine }));
     }
@@ -958,16 +976,18 @@ settingsRoute.post('/settings/ai/trial', async (c) => {
   return c.redirect(`/target/runs/${started.runId}`, 303);
 });
 
+const MAX_MODEL_ID_CHARS = 100;
+
 function cleanModelId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed.slice(0, 100) : null;
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 settingsRoute.post('/settings/classifier-mode', async (c) => {
   const form = await c.req.parseBody();
-  const raw = form.mode;
-  const mode = raw === 'two_stage' ? 'two_stage' : 'single';
+  const mode = choiceParam(form.mode, ['single', 'two_stage'] as const);
+  if (mode === null) return flashRedirect('/settings?tab=ai', 'err', t('http.noChoice'));
   await setClassifierMode(mode);
   return flashRedirect('/settings?tab=ai', 'ok', t(mode === 'two_stage' ? 'settingsRoute.classifier.twoStage' : 'settingsRoute.classifier.single'));
 });
@@ -988,6 +1008,7 @@ const STAGE_ERROR_TEXT = {
   'duplicate-label': 'settingsRoute.stages.duplicateLabel',
   limit: 'settingsRoute.stages.limit',
   'unknown-key': 'settingsRoute.stages.unknownKey',
+  'fixed-column': 'settingsRoute.stages.fixedColumn',
   'last-column': 'settingsRoute.stages.lastColumn',
 } as const satisfies Record<StageEditError, MessageKey>;
 
@@ -1051,7 +1072,8 @@ settingsRoute.post('/settings/stages/:key/remove', async (c) => {
 settingsRoute.post('/settings/stages/:key/move', async (c) => {
   const key = c.req.param('key');
   const form = await c.req.parseBody();
-  const dir = form.dir === 'up' ? 'up' : 'down';
+  const dir = choiceParam(form.dir, ['up', 'down'] as const);
+  if (dir === null) return flashRedirect(STAGES_BACK, 'err', t('http.noChoice'));
   return applyStageEdit((work) => moveStage(work, key, dir), t('settingsRoute.stages.orderUpdated'));
 });
 
@@ -1131,6 +1153,8 @@ settingsRoute.post('/settings/pack', async (c) => {
 });
 
 /** #487: the dashboard's address for links in messages; an empty field takes the links out again. */
+const MAX_DASHBOARD_URL_CHARS = 2_000;
+
 settingsRoute.post('/settings/dashboard-url', async (c) => {
   const form = await c.req.parseBody();
   const typed = typeof form.url === 'string' ? form.url.trim() : '';
@@ -1139,9 +1163,10 @@ settingsRoute.post('/settings/dashboard-url', async (c) => {
     await setDashboardUrl(null);
     return flashRedirect(back, 'ok', t('settingsRoute.dashboardUrl.cleared'));
   }
-  const checked = checkDashboardUrl(typed);
+  // The saved flash names the address: past this it outgrows the cookie and no message shows (#683).
+  const checked = typed.length > MAX_DASHBOARD_URL_CHARS ? { ok: false as const, reason: t('flash.issue.maxChars', { n: MAX_DASHBOARD_URL_CHARS }) } : checkDashboardUrl(typed);
   if (!checked.ok) {
-    const dashboard = { url: typed, here: new URL(c.req.url).origin };
+    const dashboard = { url: typed.slice(0, MAX_DASHBOARD_URL_CHARS), here: new URL(c.req.url).origin };
     return settingsAgain(c, { activeTab: 'notifications', dashboard }, t('settingsRoute.dashboardUrl.notSaved', { reason: checked.reason }), 'url');
   }
   await setDashboardUrl(checked.url);
@@ -1257,7 +1282,9 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   const refuse = (text: string, field?: string): Promise<Response> =>
     settingsAgain(c, { activeTab: 'notifications', telegramSent }, text, field);
   if (!parsed.success) {
-    return refuse(t('settingsRoute.targets.invalidTelegram'), refusedField(c.req.path, parsed.error.issues).field?.name);
+    // #683: the field named ("Bot token: At most…"), not "name, token, chat id required" for a short token or a long name.
+    const { issues } = parsed.error;
+    return refuse(t('settingsRoute.targets.notAdded', { issue: firstIssue(issues, telegramFieldLabel) }), refusedField(c.req.path, issues).field?.name);
   }
   const same = await findSameDestination({ kind: 'TELEGRAM', ...parsed.data });
   if (same) return refuse(t('settingsRoute.targets.telegramExists', { name: same.name }), 'chatId');
@@ -1292,7 +1319,7 @@ settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const active = switchParam((await c.req.parseBody()).on);
   if (active === null) return flashRedirect('/settings?tab=notifications', 'err', t('http.noSwitchState'));
-  await setNotificationTargetActive(id, active);
+  if (!(await setNotificationTargetActive(id, active))) return flashRedirect('/settings?tab=notifications', 'err', t('settingsRoute.targets.toggleGone'));
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.toggled'));
 });
 
@@ -1344,8 +1371,9 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
 settingsRoute.post('/settings/profiles/active', async (c) => {
   const form = await c.req.parseBody();
   const id = idParam(form.id);
-  const want = form.active === '1';
+  const want = switchParam(form.active);
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
+  if (want === null) return flashRedirect('/settings?tab=profile', 'err', t('http.noSwitchState'));
   // Server-side half of the gate (issue #50): a search with nothing to match
   // on would admit every posting and score it on vibes.
   const target = await getProfile(id);

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.31] — 2026-10-29
+
+### Fixed
+- A selector posted with a value its page does not offer changes nothing
+  and says so, as a switch has since 2.63.16: a search's run / pause, the
+  classifier mode, a board column's move, a screening decision, a score
+  adjustment that is not a whole number. Enable / Disable on an AI engine
+  sets the state its button names instead of flipping it.
+- A destination that no longer exists, a pasted job's hidden row, an engine
+  that is not in the chain and a fixed board column are answered for what
+  they are; a too-short Telegram token is named as such.
+- Free text is held to the length its input shows (the dashboard address,
+  a mute reason); a model id over 100 characters is refused instead of cut
+  short and saved.
+- A refused cover letter no longer overwrites the remembered angles, and a
+  schedule form without an hour keeps the stored one instead of midnight.
+- A folder in Library other than a cloud drive is refused without the
+  `APPLYPACK_INBOX_ROOTS` line, which no longer points at the keychains.
+
 ## [2.63.30] — 2026-10-29
 
 ### Fixed
@@ -6955,6 +6974,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.31]: https://github.com/applypack/applypack/compare/v2.63.30...v2.63.31
 [2.63.30]: https://github.com/applypack/applypack/compare/v2.63.29...v2.63.30
 [2.63.29]: https://github.com/applypack/applypack/compare/v2.63.28...v2.63.29
 [2.63.28]: https://github.com/applypack/applypack/compare/v2.63.27...v2.63.28

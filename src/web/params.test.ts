@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { idParam, intQuery, switchParam } from './params';
+import { choiceParam, idParam, intQuery, switchParam } from './params';
 
 test('idParam takes a plain positive integer and nothing else', () => {
   assert.equal(idParam('12'), 12);
@@ -21,5 +21,12 @@ test('switchParam reads 1 and 0 and refuses everything else', () => {
   assert.equal(switchParam('0'), false);
   for (const bad of [undefined, null, '', 'on', 'true', ' 1', '01', 1, 0, true, ['1'], new File([], 'x')]) {
     assert.equal(switchParam(bad), null, `${String(bad)} must be null`);
+  }
+});
+
+test('choiceParam takes a value the page offers and nothing else (#683)', () => {
+  assert.equal(choiceParam('two_stage', ['single', 'two_stage']), 'two_stage');
+  for (const bad of [undefined, '', 'garbage', ' up', 'UP', ['up'], 1]) {
+    assert.equal(choiceParam(bad, ['up', 'down']), null, `${String(bad)} must be null`);
   }
 });
