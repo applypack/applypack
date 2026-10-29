@@ -41,7 +41,7 @@ gets a dated addendum at the end of the ADR.
 - [0025 — Work columns are user-defined; fixed entry and exits](./0025-custom-work-stages.md)
 - [0026 — Database tables are snake_case, mapped with `@@map()`](./0026-snake-case-table-names.md)
 - [0027 — Per-engine AI keys live in the database, `.env` as fallback](./0027-ai-keys-in-the-database.md) *(extends 0013 and 0014)*
-- [0028 — Several searches run in parallel, scored by one call per posting](./0028-parallel-searches-one-call-per-posting.md) *(supersedes 0004)*
+- [0028 — Several searches run in parallel, scored by one call per posting](./0028-parallel-searches-one-call-per-posting.md) *(supersedes 0004)* — *amended by 0064*
 - [0029 — A comparison is a quick check by default; suggestions are a second call](./0029-quick-check-and-lazy-suggestions.md) — *amended by 0042, 0043, 0044*
 - [0030 — The strength review grades; the code scores](./0030-resume-strength-review.md)
 - [0031 — A job's location is three columns next to the string, filled by hints and a parser](./0031-structured-location-columns.md)
@@ -77,6 +77,7 @@ gets a dated addendum at the end of the ADR.
 - [0061 — The interface speaks several languages; what a model writes stays English](./0061-the-interface-speaks-several-languages.md) — *addendum 2026-10-06: the worker and the browser modules follow later*
 - [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
 - [0063 — The worker prepares an application pack for a strong new match](./0063-the-worker-prepares-an-application-pack.md) *(amends 0008)*
+- [0064 — The classifier reports facts, and code computes the fit score](./0064-the-fit-score-is-computed-from-facts.md) *(amends 0028)*
 
 ## When to write a new one
 

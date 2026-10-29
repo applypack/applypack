@@ -5,6 +5,7 @@ import { buildClassifyPrompt, classifyJob, parseClassifications } from './classi
 import type { AiCallRequest, AiCallResult } from './ai-runtime';
 import { buildPrefilterPrompt } from './classifier-prefilter';
 import { FORGED_MARKER_PLACEHOLDER, INJECTION_FLAG, fenceClose, fenceOpen } from './prompt-fence';
+import { NO_STACK_FIT_CAP } from './profile-guards';
 
 const PROFILE = {
   id: 3,
@@ -39,6 +40,9 @@ const BLANK_PROFILE = {
   roleTypes: [],
   notes: null,
 } as Profile;
+
+/** A title that names no job category, so the reply's own role types decide (fit-score.ts). */
+const TITLE = 'Senior Engineer';
 
 const input = (description: string) => ({
   title: 'Senior Backend Engineer',
@@ -117,14 +121,23 @@ test('the prefilter prompt stays short — a cheap gate is its whole point', () 
  * ADR 0028 — one call, one verdict per search.                            *
  * ---------------------------------------------------------------------- */
 
-const reply = (scores: unknown[], salary: [number | null, number | null] = [null, null]) =>
-  JSON.stringify({ salary_min: salary[0], salary_max: salary[1], scores });
+const reply = (
+  scores: unknown[],
+  salary: [number | null, number | null] = [null, null],
+  level: { levels: string[]; min_years: number | null } = { levels: ['senior'], min_years: null },
+) => JSON.stringify({ salary_min: salary[0], salary_max: salary[1], ...level, scores });
 
-const entry = (id: number, fit: number, over: Record<string, unknown> = {}) => ({
+/** PROFILE's perfect posting: 94 with no salary, 100 with one that meets its floor (fit-score.ts). */
+const entry = (id: number, over: Record<string, unknown> = {}) => ({
   profile_id: id,
-  fit_score: fit,
+  stack_used: ['php', 'laravel'],
+  stack_role: 'core',
+  role_types: ['backend'],
+  role_type: 'match',
+  nice_used: ['vue'],
+  excluded: [],
+  off_stack: 'none',
   location_match: true,
-  tech_match: ['php'],
   red_flags: [],
   summary: `verdict for ${id}`,
   ...over,
@@ -151,13 +164,14 @@ test('a single search reads as one search, not as a list of one', () => {
 
 test('every search gets its own verdict, salary is shared', () => {
   const out = parseClassifications(
-    reply([entry(3, 87), entry(9, 41, { tech_match: [], summary: 'off-stack' })], [120_000, 150_000]),
+    reply([entry(3), entry(9, { stack_used: [], stack_role: 'none', role_types: ['qa'], summary: 'off-stack' })], [120_000, 150_000]),
     [PROFILE, QA_PROFILE],
+    TITLE,
   );
   assert.ok(out);
   assert.equal(out.results.size, 2);
-  assert.equal(out.results.get(3)!.fit_score, 87);
-  assert.equal(out.results.get(9)!.fit_score, 41);
+  assert.equal(out.results.get(3)!.fit_score, 100);
+  assert.equal(out.results.get(9)!.fit_score, 18, 'none of the stack: the other facts scaled under 35');
   assert.equal(out.results.get(9)!.summary, 'off-stack');
   // Hoisted once, handed to both — two searches can never disagree on it.
   assert.equal(out.results.get(3)!.salary_min, 120_000);
@@ -165,15 +179,15 @@ test('every search gets its own verdict, salary is shared', () => {
 });
 
 test('a verdict for a search we never asked about voids the whole reply', () => {
-  assert.equal(parseClassifications(reply([entry(3, 87), entry(99, 90)]), [PROFILE, QA_PROFILE]), null);
+  assert.equal(parseClassifications(reply([entry(3), entry(99)]), [PROFILE, QA_PROFILE], TITLE), null);
 });
 
 test('a duplicated search voids the reply — the model lost the roster', () => {
-  assert.equal(parseClassifications(reply([entry(3, 87), entry(3, 20)]), [PROFILE, QA_PROFILE]), null);
+  assert.equal(parseClassifications(reply([entry(3), entry(3, { off_stack: 'some' })]), [PROFILE, QA_PROFILE], TITLE), null);
 });
 
 test('a partial reply keeps what came back; the rest stay unscored', () => {
-  const out = parseClassifications(reply([entry(3, 87)]), [PROFILE, QA_PROFILE]);
+  const out = parseClassifications(reply([entry(3)]), [PROFILE, QA_PROFILE], TITLE);
   assert.ok(out);
   assert.equal(out.results.size, 1);
   assert.equal(out.results.has(9), false);
@@ -181,30 +195,90 @@ test('a partial reply keeps what came back; the rest stay unscored', () => {
 
 test('the blank-search cap is applied per search, not per reply (issue #50)', () => {
   const out = parseClassifications(
-    reply([entry(3, 92), entry(12, 92)]),
+    reply([entry(3), entry(12)], [150_000, 180_000]),
     [PROFILE, BLANK_PROFILE],
+    TITLE,
   );
   assert.ok(out);
-  assert.equal(out.results.get(3)!.fit_score, 92, 'a search with a stack is untouched');
-  assert.equal(out.results.get(12)!.fit_score, 50, 'a blank search is capped');
+  assert.equal(out.results.get(3)!.fit_score, 100, 'a search with a stack is untouched');
+  assert.ok(out.results.get(12)!.fit_score <= NO_STACK_FIT_CAP, 'a blank search is capped');
   assert.ok(out.results.get(12)!.red_flags.includes('no-profile-stack'));
   assert.ok(!out.results.get(3)!.red_flags.includes('no-profile-stack'));
 });
 
 test('malformed replies parse to null, not to a score', () => {
-  assert.equal(parseClassifications('not json at all', [PROFILE]), null);
-  assert.equal(parseClassifications(reply([]), [PROFILE]), null);
-  assert.equal(parseClassifications(reply([entry(3, 140)]), [PROFILE]), null, 'fit above 100');
+  assert.equal(parseClassifications('not json at all', [PROFILE], TITLE), null);
+  assert.equal(parseClassifications(reply([]), [PROFILE], TITLE), null);
+  assert.equal(parseClassifications(reply([entry(3, { stack_role: 'primary' })]), [PROFILE], TITLE), null, 'a grade the facts do not have');
   assert.equal(
-    parseClassifications(JSON.stringify({ scores: [entry(3, 80)] }), [PROFILE]),
+    parseClassifications(reply([{ profile_id: 3, fit_score: 92, location_match: true, tech_match: [], red_flags: [], summary: 'x' }]), [PROFILE], TITLE),
+    null,
+    'a number without the facts is the old shape: refused, not believed',
+  );
+  assert.equal(
+    parseClassifications(JSON.stringify({ levels: [], min_years: null, scores: [entry(3)] }), [PROFILE], TITLE),
     null,
     'salary keys are required — their absence means the shape drifted',
+  );
+  assert.equal(
+    parseClassifications(JSON.stringify({ salary_min: null, salary_max: null, scores: [entry(3)] }), [PROFILE], TITLE),
+    null,
+    'so are the level keys',
   );
 });
 
 test('a reply wrapped in a code fence still parses', () => {
-  const out = parseClassifications('```json\n' + reply([entry(3, 80)]) + '\n```', [PROFILE]);
-  assert.equal(out?.results.get(3)?.fit_score, 80);
+  const out = parseClassifications('```json\n' + reply([entry(3)]) + '\n```', [PROFILE], TITLE);
+  assert.equal(out?.results.get(3)?.fit_score, 94);
+});
+
+/* ---------------------------------------------------------------------- *
+ * ADR 0064 — the reply reports facts; the fit score is arithmetic.        *
+ * ---------------------------------------------------------------------- */
+
+test('the fit is computed from the facts, and a fit_score the reply adds is not believed (#634)', () => {
+  const out = parseClassifications(
+    reply([entry(3, { fit_score: 100, stack_used: ['PHP'], nice_used: ['Vue.js'], stack_role: 'CORE' })], [null, null], { levels: [], min_years: null }),
+    [PROFILE],
+    TITLE,
+  );
+  const c = out?.results.get(3);
+  assert.ok(c);
+  // core 40 + half the required list 5 + type 15 + level unstated 10 + no salary 4 + nice 5 + nothing off-stack 5.
+  assert.equal(c.fit_score, 84);
+  // The facts are kept as the reply gave them, with the posting's level, so the row can be scored again.
+  assert.deepEqual(c.fit_facts, {
+    v: 1,
+    stack_used: ['PHP'],
+    stack_role: 'core',
+    role_types: ['backend'],
+    role_type: 'match',
+    nice_used: ['Vue.js'],
+    excluded: [],
+    off_stack: 'none',
+    levels: [],
+    min_years: null,
+  });
+  // The facets' tags are the same facts, in the search's spelling.
+  assert.deepEqual(c.tech_match, ['php', 'vue']);
+});
+
+test('the same facts give the same score on every posting; one fact apart, the scores part', () => {
+  const a = parseClassifications(reply([entry(3)]), [PROFILE], TITLE)?.results.get(3)?.fit_score;
+  const b = parseClassifications(reply([entry(3, { summary: 'worded otherwise', red_flags: ['no-salary-listed'] })]), [PROFILE], TITLE)?.results.get(3)?.fit_score;
+  const c = parseClassifications(reply([entry(3, { off_stack: 'some' })]), [PROFILE], TITLE)?.results.get(3)?.fit_score;
+  assert.equal(a, b);
+  assert.ok(c !== undefined && a !== undefined && c < a);
+});
+
+test('the prompt asks for facts per search and never for a number', () => {
+  const { system } = buildClassifyPrompt(input('x'), [PROFILE, QA_PROFILE]);
+  assert.doesNotMatch(system, /fit_score|SCORING GUIDANCE|90-100/);
+  assert.match(system, /"stack_role": "core" \| "secondary" \| "none"/);
+  assert.match(system, /"levels": the seniority levels the posting names for the role — "intern" \| "junior" \| "mid"/);
+  assert.match(system, /never shade one fact to make up for another/);
+  // Stated once for every search, as the location rules are.
+  assert.equal(system.split('FACTS (per search)').length - 1, 1);
 });
 
 test('the prefilter gate says absence of evidence is not a mismatch', () => {
@@ -287,8 +361,9 @@ test('eight searches keep the system prompt under the budget', () => {
   const eight = Array.from({ length: 8 }, (_, i) =>
     ({ ...PROFILE, id: 20 + i, name: `Search ${i}`, residence: 'UA', relocation: 'sponsorship' }) as Profile,
   );
+  // ADR 0064's fact definitions (~1.2 kB, stated once) replaced the scoring guidance.
   const { system } = buildClassifyPrompt(input('x'), eight);
-  assert.ok(system.length < 12_600, `${system.length} chars`);
+  assert.ok(system.length < 12_800, `${system.length} chars`);
 });
 
 test('the parsed place rides in the user prompt outside the fence', () => {
@@ -305,14 +380,16 @@ test('the location block is read once, codes validated, and optional', () => {
   const withLocation = JSON.stringify({
     salary_min: null,
     salary_max: null,
+    levels: [],
+    min_years: null,
     location: { workplace: 'remote', countries: ['pl', 'XX', 'de', 'pl'], regions: ['eu', 'MARS'], note: '  Poland or Germany residents  ' },
-    scores: [entry(3, 80)],
+    scores: [entry(3)],
   });
-  const out = parseClassifications(withLocation, [PROFILE]);
+  const out = parseClassifications(withLocation, [PROFILE], TITLE);
   assert.deepEqual(out?.location, { workplace: 'REMOTE', countries: ['PL', 'DE'], regions: ['EU'], note: 'Poland or Germany residents' });
-  const odd = parseClassifications(withLocation.replace('"remote"', '"office"'), [PROFILE]);
+  const odd = parseClassifications(withLocation.replace('"remote"', '"office"'), [PROFILE], TITLE);
   assert.equal(odd?.location?.workplace, 'UNKNOWN');
-  assert.equal(parseClassifications(reply([entry(3, 80)]), [PROFILE])?.location, null);
+  assert.equal(parseClassifications(reply([entry(3)]), [PROFILE], TITLE)?.location, null);
 });
 
 /* ---------------------------------------------------------------------- *
@@ -339,9 +416,9 @@ function scriptedRuntime(replies: (string | null)[]) {
 }
 
 test('a scoring reply that does not parse is `unparsed`, and every row comes back with the verdict', async () => {
-  const ai = scriptedRuntime(['Sure! Here is the JSON you asked for.', reply([entry(3, 82)])]);
+  const ai = scriptedRuntime(['Sure! Here is the JSON you asked for.', reply([entry(3)])]);
   const out = await classifyJob(input('Laravel'), [PROFILE], 'single', { ai, jobId: 41 });
-  assert.equal(out.results.get(3)?.fit_score, 82);
+  assert.equal(out.results.get(3)?.fit_score, 94);
   assert.deepEqual(ai.marked, [[1]]);
   assert.deepEqual(out.ledgerIds, [1, 2]);
   // A stored posting is named on its calls as they are written.
@@ -356,7 +433,7 @@ test('the tick scores a posting with no row yet: no subject, and the rows to nam
   assert.equal(turnedAway.asked[0]?.subject, undefined);
   // An unreadable gate falls open to the full classifier; both calls belong to the posting. (A posting that names
   // the search's stack skips the gate, so this one names none of it.)
-  const fellOpen = scriptedRuntime(['relevant: maybe', reply([entry(3, 64)])]);
+  const fellOpen = scriptedRuntime(['relevant: maybe', reply([entry(3)])]);
   const scored = await classifyJob(input('Go'), [PROFILE], 'two_stage', { ai: fellOpen });
   assert.equal(scored.preFiltered, false);
   assert.deepEqual(fellOpen.marked, [[1]]);

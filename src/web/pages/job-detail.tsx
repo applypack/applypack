@@ -15,6 +15,7 @@ import {
   Flash,
   Hint,
   Input,
+  More,
   Notice,
   SectionTitle,
   Select,
@@ -24,6 +25,7 @@ import {
   Textarea,
   type ButtonVariant,
 } from '../ui';
+import type { FitWhy } from '../fit-why';
 import { toCheckInterval } from '../../watchlist/interval';
 import { formatDate, formatPosted, formatRelative, formatSalary, safeHref } from '../format';
 import { displayZone } from '../display-zone';
@@ -145,6 +147,8 @@ export interface ProfileScore {
   /** Why the stored place opens a remote posting to this search (#605): shown beside a summary that may say the opposite. */
   openThrough: string | null;
   summary: string | null;
+  /** How the number came about, from the stored facts (ADR 0064). */
+  why: FitWhy;
 }
 
 export interface JobDetailProps {
@@ -523,6 +527,7 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
             <TagRow label={t('job.flags')} items={flags} tone="danger" modelText />
             <TagRow label={t('job.priorityRules')} items={job.priorityRulesApplied} tone="neutral" />
           </dl>
+          {scores.length === 1 && <FitWhyLines why={scores[0]!.why} class="mt-3" />}
           <ProfileScoreRow scores={scores} />
         </>
       ) : (
@@ -531,6 +536,30 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
     </Card>
   );
 };
+
+/**
+ * How a search's fit came about (ADR 0064). A ceiling, a number the search
+ * has moved away from, and a row with no facts stay in sight (why a score is
+ * capped never folds — docs/ui-redesign-plan.md §8); the facts fold.
+ */
+const FitWhyLines: FC<{ why: FitWhy; class?: string }> = ({ why, class: className = '' }) => (
+  <div class={className}>
+    {why.shown.map((line) => (
+      <p data-ui="hint" class="text-meta text-ink-muted">
+        {line}
+      </p>
+    ))}
+    {why.folded.length > 0 && (
+      <More summary={t('job.fitWhy.summary')}>
+        <ul class="list-disc space-y-0.5 pl-4">
+          {why.folded.map((line) => (
+            <li>{line}</li>
+          ))}
+        </ul>
+      </More>
+    )}
+  </div>
+);
 
 /**
  * What each running search made of this posting. Hidden while only one search
@@ -572,6 +601,7 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
                   {s.summary}
                 </div>
               )}
+              <FitWhyLines why={s.why} class="mt-1" />
             </div>
           </li>
         ))}

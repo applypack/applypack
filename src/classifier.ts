@@ -7,7 +7,7 @@ import { extractJson } from './text-utils';
 import { getAiRuntime, type AiRuntime } from './ai-runtime';
 import type { AiProviderId } from './ai-engine';
 import { preClassify, prefilterMayJudge } from './classifier-prefilter';
-import { capFitForMissingStack } from './profile-guards';
+import { LEVELS, OFF_STACK, ROLE_FITS, STACK_ROLES, verdictFromFacts } from './fit-score';
 import { isCountryCode, isRegionCode, REGIONS } from './countries';
 import { arrangementOnly } from './location';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
@@ -16,17 +16,20 @@ import type { ClassifyInput, ClaudeClassification } from './types';
 export type ClassifierMode = 'single' | 'two_stage';
 
 // One reply carries every search's verdict, so the ceiling has to grow with
-// the number of searches. Measured (ADR 0028): a posting costs ~90 + 100·N
-// output tokens, and 400 + 180·N left headroom at every N through 12.
+// the number of searches. Measured (ADR 0028): a posting cost ~90 + 100·N
+// output tokens, and 400 + 180·N left headroom at every N through 12. The
+// facts of ADR 0064 name the search's own items: one search's reply measured
+// 322 tokens on average and 672 at most (2026-10-29), so a search gets more.
 const BASE_MAX_TOKENS = 400;
-const MAX_TOKENS_PER_PROFILE = 180;
+const MAX_TOKENS_PER_PROFILE = 320;
 const MAX_DESC_CHARS = 4000;
 // Bump on any material change to buildClassifyPrompt (rules, rubric, format,
 // fencing) — cross-engine quality comparisons are meaningless across versions.
 // v3: one call scores every active search (ADR 0028).
 // v5: a bare "Remote" is decided in code — unknown, not a mismatch (#386).
 // v6: each search names the groups that hold its countries (#530).
-const CLASSIFIER_PROMPT_VERSION = 6;
+// v7: facts per search instead of a fit score; code computes it (ADR 0064).
+const CLASSIFIER_PROMPT_VERSION = 7;
 // The parsed line's words for a bare "Remote"; the location rules quote them.
 const NO_PLACE_NAMED = 'no country named';
 // #386: left to the rules, one posting scored 92 nine times and 45 once on a
@@ -62,6 +65,10 @@ const LocationBlockSchema = z
 
 export type AiLocation = z.infer<typeof LocationBlockSchema>;
 
+/** A graded fact: one of its words, whatever the case the model wrote it in. */
+const grade = <T extends readonly [string, ...string[]]>(values: T) =>
+  z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() : v), z.enum(values));
+
 const MultiClassificationSchema = z.object({
   // The posting's own numbers — the model reports, src/currency.ts converts.
   salary_min: z.number().int().nullable(),
@@ -69,13 +76,22 @@ const MultiClassificationSchema = z.object({
   salary_currency: z.string().nullable().optional(),
   salary_period: z.string().nullable().optional(),
   location: LocationBlockSchema.optional(),
+  // ADR 0064: the posting's level, read once like salary; fit-score.ts compares it with each search's.
+  levels: z.array(z.string()),
+  min_years: z.number().nullable(),
   scores: z
     .array(
       z.object({
         profile_id: z.number().int(),
-        fit_score: z.number().int().min(0).max(100),
+        // ADR 0064: what the posting shows; fit-score.ts makes the number.
+        stack_used: z.array(z.string()),
+        stack_role: grade(STACK_ROLES),
+        role_types: z.array(z.string()),
+        role_type: grade(ROLE_FITS),
+        nice_used: z.array(z.string()),
+        excluded: z.array(z.string()),
+        off_stack: grade(OFF_STACK),
         location_match: z.boolean(),
-        tech_match: z.array(z.string()),
         red_flags: z.array(z.string()),
         summary: z.string(),
       }),
@@ -237,10 +253,13 @@ export function buildClassifyPrompt(
  * answer accepted here would silently become a stored score. Missing entries
  * are a softer failure: what came back is kept, and the searches that got no
  * verdict simply stay unscored, exactly as a failed call would leave them.
+ * `title` is the posting's: where it names a job category, it decides the
+ * role type (fit-score.ts).
  */
 export function parseClassifications(
   text: string,
   profiles: Profile[],
+  title: string,
 ): Classifications | null {
   const json = extractJson(text);
   if (json === null) return null;
@@ -248,29 +267,21 @@ export function parseClassifications(
   if (!parsed.success) return null;
 
   const wanted = new Map(profiles.map((p) => [p.id, p]));
+  const salary = {
+    salary_min: parsed.data.salary_min,
+    salary_max: parsed.data.salary_max,
+    salary_currency: isCurrencyCode(parsed.data.salary_currency) ? currencyOf(parsed.data.salary_currency) : null,
+    salary_period: isSalaryPeriod(parsed.data.salary_period) ? parsed.data.salary_period : null,
+  };
   const out: ClassificationsByProfile = new Map();
   for (const entry of parsed.data.scores) {
     const profile = wanted.get(entry.profile_id);
     if (!profile || out.has(entry.profile_id)) return null;
-    // The prompt's stack-mismatch cap is vacuous without a required stack
-    // (issue #50), so the cap is enforced in code — gotcha 11.
-    out.set(
-      entry.profile_id,
-      capFitForMissingStack(
-        {
-          fit_score: entry.fit_score,
-          location_match: entry.location_match,
-          salary_min: parsed.data.salary_min,
-          salary_max: parsed.data.salary_max,
-          salary_currency: isCurrencyCode(parsed.data.salary_currency) ? currencyOf(parsed.data.salary_currency) : null,
-          salary_period: isSalaryPeriod(parsed.data.salary_period) ? parsed.data.salary_period : null,
-          tech_match: entry.tech_match,
-          red_flags: entry.red_flags,
-          summary: entry.summary,
-        },
-        profile,
-      ),
-    );
+    // The model reports facts and the number is arithmetic (ADR 0064); the
+    // facts are kept as the reply gave them, so the row can be scored again.
+    const { profile_id: _id, location_match, red_flags, summary, ...facts } = entry;
+    const stored = { v: 1 as const, ...facts, levels: parsed.data.levels, min_years: parsed.data.min_years };
+    out.set(entry.profile_id, verdictFromFacts({ location_match, ...salary, red_flags, summary }, stored, title, profile));
   }
   return out.size > 0 ? { results: out, location: parsed.data.location ?? null } : null;
 }
@@ -298,8 +309,12 @@ async function classifyWithClaude(
     if (out === null) return { results: new Map(), location: null };
     call.ledgerIds.push(...out.ledgerIds);
 
-    const parsed = parseClassifications(out.text, profiles);
+    const parsed = parseClassifications(out.text, profiles, input.title);
     if (parsed) {
+      logger.debug(
+        { jobId: call.subject?.jobId, title: input.title, verdicts: [...parsed.results].map(([search, c]) => ({ search, fit: c.fit_score, facts: c.fit_facts })) },
+        'classifier: fit from facts',
+      );
       if (parsed.results.size < profiles.length) {
         logger.warn(
           { title: input.title, got: parsed.results.size, want: profiles.length },
@@ -346,7 +361,7 @@ export async function classifyOnEngine(
     engine,
     onError,
   });
-  return out && { parsed: parseClassifications(out.text, profiles) };
+  return out && { parsed: parseClassifications(out.text, profiles, input.title) };
 }
 
 /** One block per search — the only part of the prompt that repeats. */
@@ -357,7 +372,7 @@ function describeProfile(profile: Profile): string {
     values.length > 0 ? values.join(', ') : empty;
   const salaryLine =
     profile.minSalaryUsd > 0
-      ? `Min target salary: $${profile.minSalaryUsd.toLocaleString()} USD/year — lower fit_score for clearly under-market roles.`
+      ? `Min target salary: $${profile.minSalaryUsd.toLocaleString()} USD/year.`
       : 'Salary is not a hard constraint for this search.';
   // Operator text (Profile.notes) stays outside every fence — it is the user's
   // own instruction channel, tier 3 in ADR 0022.
@@ -370,8 +385,8 @@ function describeProfile(profile: Profile): string {
 - Seniority: ${seniority}
 - Required TECH stack (programming languages, frameworks, runtimes — the role must ACTUALLY USE one of these): ${list(profile.stackRequired, '(none specified)')}
 - Acceptable role types (job category, NOT a tech match by themselves): ${list(profile.roleTypes, '(any role type)')}
-- Nice-to-have stack (boost fit_score when present): ${list(profile.stackNiceToHave, '(none specified)')}
-- Auto-reject signals (drastically lower fit_score if these match the role): ${list(profile.stackExclude, '(none)')}
+- Nice-to-have stack: ${list(profile.stackNiceToHave, '(none specified)')}
+- Auto-reject signals: ${list(profile.stackExclude, '(none)')}
 - Location preferences: ${describeLocation(profile)}${describeGroups(profile)}${describeEligibility(profile)}
 - ${salaryLine}${notesLine}`;
 }
@@ -388,8 +403,8 @@ ${profiles.map(describeProfile).join('\n\n')}
 
 CRITICAL — TECH STACK MATCHING (applies to every search on its own):
 - A job title containing only a role-type keyword (e.g. "Full-Stack Engineer" or "Backend Engineer") is NOT a tech match if the actual stack named in the description is something different (e.g. Ruby/Rails when the search wants PHP/Laravel).
-- Read the description carefully for actual languages/frameworks. If none of a search's required tech is in the description, THAT search's fit_score must be ≤ 35 regardless of role-type alignment.
-- The title can mislead — a "Senior Full-Stack Rails Engineer" is a Rails job, not a generic full-stack match. Score it low for a PHP/JS-focused search.
+- Read the description for the languages and frameworks actually used: a role-type keyword alone never puts anything in stack_used.
+- The title can mislead — a "Senior Full-Stack Rails Engineer" is a Rails job, not a generic full-stack match: stack_role "none" for a PHP/JS-focused search.
 
 CRITICAL — LOCATION MATCHING (per search, SET location_match):
 Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and groups — EU = the 27 member states; EUROPE = the continent, which also holds GB, CH, NO, UA; EMEA; AMERICAS; NORTH_AMERICA; LATAM; APAC; DACH; NORDICS; BENELUX; CEE; WORLDWIDE = anywhere — plus the arrangements it accepts. A search that lists no countries and no regions accepts any place.
@@ -397,7 +412,7 @@ Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and gro
 - Country-locked remote ("Remote · Germany", "must reside in Poland", a national flag, local-payroll wording) → true only for a search that lists that country or a group containing it.
 - Region-locked remote ("EU only", "Europe", "EMEA", "US time zones") → true only for a search that lists that region, a country inside it, or WORLDWIDE; "Its countries lie inside" names those regions for each search. EU is law and EUROPE is geography: an EU work-right requirement fails a GB or UA search even when that search lists EUROPE.
 - Worldwide / "anywhere" / "we hire globally" with no restriction → true for every search that accepts remote.
-- Parsed "${NO_PLACE_NAMED}" (a bare "Remote") is not doubt: true for every search accepting remote unless the description overrides it; fit_score not lowered; the summary says "country unconfirmed".
+- Parsed "${NO_PLACE_NAMED}" (a bare "Remote") is not doubt: true for every search accepting remote unless the description overrides it; the summary says "country unconfirmed".
 - Hybrid / on-site roles → true only for a search that accepts that arrangement AND lists the office's city, its country, or a group containing it (a listed city adds to the countries, it never narrows them). Never infer remote eligibility from an office address.
 - Several offices or arrangements → judge by the softest one named.
 - When in doubt, default to location_match = false.
@@ -415,6 +430,8 @@ OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this
   "salary_max": integer or null,
   "salary_currency": ISO-4217 ("USD", "EUR", "PLN") or null,
   "salary_period": "year" | "month" | "week" | "day" | "hour" or null,
+  "levels": the seniority levels the posting names for the role — ${LEVELS.map((l) => `"${l}"`).join(' | ')} ("Regular" is mid; a title and a level line can name two) — or [],
+  "min_years": the fewest years of experience it asks for, or null,
   "location": {
     "workplace": "REMOTE" | "HYBRID" | "ONSITE" | "UNKNOWN",
     "countries": ISO-2 codes — where the candidate may live for a remote role, where the office is otherwise,
@@ -424,9 +441,14 @@ OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this
   "scores": [
     {
       "profile_id": integer,
-      "fit_score": integer 0-100,
+      "stack_used": string[],
+      "stack_role": "core" | "secondary" | "none",
+      "role_types": string[],
+      "role_type": "match" | "adjacent" | "other",
+      "nice_used": string[],
+      "excluded": string[],
+      "off_stack": "none" | "some" | "most",
       "location_match": boolean,
-      "tech_match": string[],
       "red_flags": string[],
       "summary": string
     }
@@ -435,17 +457,18 @@ OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this
 
 "scores" MUST hold EXACTLY ${profiles.length} ${many ? 'entries' : 'entry'} — one per search — using ${many ? 'these ids and no others' : 'this id and no other'}: ${ids}.
 
-Salary and location belong to the posting, not to a search: read each once and report it at the top level — salary null when not disclosed, location with empty arrays and "UNKNOWN" when the posting names no place. Report salary EXACTLY as the posting states it — its own numbers, currency and period ("20 200 - 27 600 PLN/month" → 20200, 27600, "PLN", "month"). Never convert or annualise: that is what the two extra fields are for.
+Salary, location and level belong to the posting, not to a search: read each once and report it at the top level — salary null when not disclosed, location with empty arrays and "UNKNOWN" when the posting names no place. Report salary EXACTLY as the posting states it — its own numbers, currency and period ("20 200 - 27 600 PLN/month" → 20200, 27600, "PLN", "month"). Never convert or annualise: that is what the two extra fields are for.
 
-SCORING GUIDANCE (apply per search):
-- 90-100: that search's required stack present in title or strongly evidenced; seniority matches; location compatible with that search's preferences; salary clear and meets target.
-- 70-89: solid match with minor mismatches (some unfamiliar tech, salary not disclosed but reasonable).
-- 40-69: partial match — wrong seniority, off-stack, fuzzy location policy.
-- 0-39: clear miss — required stack absent, on-site only when remote needed, junior when senior needed, etc.
+FACTS (per search). Report what the posting shows, each fact on its own: the role type never empties the stack facts, and the fit score is computed from them, so never shade one fact to make up for another.
+- stack_used: every one of that search's REQUIRED items the role uses (one is enough to list it), spelled as the search lists them. A technology named only as a plus, in a client list or for another team is not used. [] only when none is.
+- stack_role: "core" — the role's main language or framework is in stack_used (in the title, or most of the work); "secondary" — a required item is used, but the role's main stack is something else; "none" — stack_used is [].
+- role_types: that search's acceptable role types the job is, spelled as the search lists them — judge by that list, never by the search's name (a backend role is backend in a search called "Full-Stack"); [] when it is none of them.
+- role_type: "match" — role_types is not [], or the search accepts any role type; "adjacent" — another engineering category (frontend for a search that lists full-stack and backend); "other" — a different discipline (QA, data, design, management, sales).
+- nice_used: that search's nice-to-have items the role uses, spelled as the search lists them.
+- excluded: that search's auto-reject signals that describe THIS role — a word in a sentence about someone else does not count ("you will mentor juniors" is not a junior role).
+- off_stack: how much of the technology the role requires is in neither of that search's lists — "none", "some" (one or two notable extras), "most" (the role is mainly built on other tech).
 
 location_match = true ONLY when the role is open to that search's candidate per its location preferences above. Default to false when unclear.
-
-tech_match: lowercase tags that intersect what the role uses with THAT search's stack (required + nice-to-have). Empty array if none match.
 
 red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "work-permit-required", "no-visa-sponsorship", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
 

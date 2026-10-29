@@ -407,6 +407,9 @@ model JobScore {
   summary              String?  @db.Text
   // Labels of this profile's priorityRules that lifted the score (phase 7.1).
   priorityRulesApplied String[] @default([])
+  // ADR 0064: what the reply said the posting shows for this search, the fit's
+  // inputs (fit-score.ts:StoredFitFactsSchema). NULL on a row scored before v7.
+  fitFacts             Json?
 
   scoredAt DateTime @default(now())
 
