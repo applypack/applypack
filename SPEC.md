@@ -113,8 +113,12 @@ classifyJob(input, profiles[], mode)   ONE call for every running search, on the
                                        reason as its summary — the next tick meets it as a
                                        duplicate instead of paying the prefilter again
    ↓
-{salary_min, salary_max, salary_currency, salary_period, location,
- scores: [{profile_id, fit_score, location_match, tech_match, …}]}
+{salary_min, salary_max, salary_currency, salary_period, location, levels, min_years,
+ scores: [{profile_id, stack_used, stack_role, role_types, role_type, nice_used,
+           excluded, off_stack, location_match, red_flags, summary}]}
+   ↓
+fitFromFacts()           the facts held to each search's own lists, then the fit score as
+                         arithmetic (ADR 0064) — the model never writes the number
    ↓
 buildVerdicts()          per-search decideDismissReason() against that search's thresholds;
 mergeVerdicts()          the winner's numbers become Job.fitScore, every verdict a JobScore row
