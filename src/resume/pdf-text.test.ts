@@ -47,3 +47,45 @@ test('normalizePdfText keeps a contact line apart from the title above it', () =
     'SUMMARY',
   ]);
 });
+
+test('normalizePdfText joins a wrap whose second half opens with a capital (#637)', () => {
+  // The clean PDF ApplyPack renders, read back: two page-width wraps, both onto a capitalised word.
+  const layer = [
+    'SUMMARY',
+    'Backend-leaning software engineer with six years building scalable services in TypeScript, JavaScript, and',
+    'Node.js. Designed PostgreSQL schemas and SQL migrations that cut a monthly invoicing run from 35 minutes',
+    'to 5, and ran on-call for production systems serving 1.8M requests/day.',
+    'SKILLS',
+    'TypeScript, JavaScript, Node.js (Fastify, Express), React, Next.js, SQL, PostgreSQL, Prisma, Docker, GitHub',
+    'Actions, REST, GraphQL, JSON, Jest, AWS (ECS, RDS, S3)',
+    'EXPERIENCE',
+  ].join('\n');
+  assert.deepEqual(normalizePdfText(layer).split('\n'), [
+    'SUMMARY',
+    'Backend-leaning software engineer with six years building scalable services in TypeScript, JavaScript, and Node.js. Designed PostgreSQL schemas and SQL migrations that cut a monthly invoicing run from 35 minutes to 5, and ran on-call for production systems serving 1.8M requests/day.',
+    'SKILLS',
+    'TypeScript, JavaScript, Node.js (Fastify, Express), React, Next.js, SQL, PostgreSQL, Prisma, Docker, GitHub Actions, REST, GraphQL, JSON, Jest, AWS (ECS, RDS, S3)',
+    'EXPERIENCE',
+  ]);
+});
+
+test('normalizePdfText joins a list cut inside a name it does not know, only at the page width', () => {
+  const layer = [
+    '• Combined Snyk/Dependabot with Claude AI to detect vulnerabilities and prevent security issues in the API',
+    'OpenAI, Claude, AWS Bedrock, Prompt Engineering, RAG, Vector Search, AI Agents, LLM Integrations, Datadog',
+    'Monitoring, Cursor, Windsurf',
+    'Go, PHP, JavaScript, TypeScript, SQL, PGSQL, HTML5, CSS3',
+    'Node.js, Symfony, React, Vue, Laravel, Lumen, Phalcon',
+    'Languages: Go, PHP, JavaScript, TypeScript, SQL, PGSQL, HTML5, CSS3, Python, Ruby, Elixir, Kotlin, Swift',
+    'Frameworks: React, Vue, Laravel',
+  ].join('\n');
+  assert.deepEqual(normalizePdfText(layer).split('\n'), [
+    '• Combined Snyk/Dependabot with Claude AI to detect vulnerabilities and prevent security issues in the API',
+    'OpenAI, Claude, AWS Bedrock, Prompt Engineering, RAG, Vector Search, AI Agents, LLM Integrations, Datadog Monitoring, Cursor, Windsurf',
+    // Short of the margin, a line of terms is a group of its own, and a labelled line always opens one.
+    'Go, PHP, JavaScript, TypeScript, SQL, PGSQL, HTML5, CSS3',
+    'Node.js, Symfony, React, Vue, Laravel, Lumen, Phalcon',
+    'Languages: Go, PHP, JavaScript, TypeScript, SQL, PGSQL, HTML5, CSS3, Python, Ruby, Elixir, Kotlin, Swift',
+    'Frameworks: React, Vue, Laravel',
+  ]);
+});
