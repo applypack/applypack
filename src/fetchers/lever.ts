@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { safeDate } from './dates';
-import { fetchWithRetry } from '../http';
+import { fetchWithRetry, HttpError, type FetchOptions } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
@@ -38,8 +38,7 @@ export interface LeverCompany {
 export async function fetchLever(
   company: LeverCompany,
 ): Promise<NormalizedJob[]> {
-  const url = `https://api.lever.co/v0/postings/${encodeURIComponent(company.atsToken)}?mode=json`;
-  const resp = await fetchWithRetry(url, { init: { headers: conditionalHeaders(company.id, url) } });
+  const { resp, url } = await fetchLeverList(company.atsToken, (url) => ({ init: { headers: conditionalHeaders(company.id, url) } }));
   const data: unknown = await resp.json();
   const parsed = LeverResponseSchema.safeParse(data);
   if (!parsed.success) {
@@ -52,6 +51,32 @@ export async function fetchLever(
   listedInFull(company.id);
   rememberResponse(company.id, url, resp, jobs.length);
   return jobs;
+}
+
+/**
+ * Lever runs a second instance in the EU (`jobs.eu.lever.co`). A token lives
+ * on one of the two, and the other answers 404 "Document not found" — the
+ * answer an unknown token gets from both (#663) — so a 404 from the global
+ * host is asked of the EU one before the board is called dead.
+ */
+const GLOBAL_API = 'https://api.lever.co';
+const EU_API = 'https://api.eu.lever.co';
+
+/** A board's whole list (no `limit`), from whichever instance holds the token. */
+export async function fetchLeverList(
+  token: string,
+  options: (url: string) => FetchOptions = () => ({}),
+  get: typeof fetchWithRetry = fetchWithRetry,
+): Promise<{ resp: Response; url: string }> {
+  const listUrl = (host: string): string => `${host}/v0/postings/${encodeURIComponent(token)}?mode=json`;
+  const global = listUrl(GLOBAL_API);
+  try {
+    return { resp: await get(global, options(global)), url: global };
+  } catch (err) {
+    if (!(err instanceof HttpError && err.status === 404)) throw err;
+    const eu = listUrl(EU_API);
+    return { resp: await get(eu, options(eu)), url: eu };
+  }
 }
 
 /**
