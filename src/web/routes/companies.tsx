@@ -214,7 +214,7 @@ companiesRoute.get('/companies', async (c) => {
 
 const MuteFormSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  reason: z.string().optional().default(''),
+  reason: z.string().max(300).optional().default(''),
   back: z.string().optional().default('/companies#muted'),
 });
 
@@ -524,6 +524,10 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   // The same for a file the user imported: its rows are stored already, and the next ones come from the next file.
   if (on && !current.active && current.atsType === AtsType.IMPORT) {
     return redirectWithFlash('err', t('companies.importedNoFetch', { name: current.name }));
+  }
+  // And for the row a pasted job is filed under (#683): hidden, never fetched — on, it would be a source that reads nothing.
+  if (on && !current.active && current.atsType === AtsType.MANUAL) {
+    return redirectWithFlash('err', t('companies.manualNoFetch', { name: current.name }));
   }
 
   await prisma.company.update({

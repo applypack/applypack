@@ -61,6 +61,15 @@ describe('folderAllowed on a local install', () => {
     assert.equal(allowed('/Users/sam/Library/Mail', { ...local, roots: [drive] }), false);
   });
 
+  it('offers no way into the rest of Library: the keychains are not a folder to name (#683)', () => {
+    for (const folder of ['/Users/sam/Library/Keychains', '/Users/sam/Library/Mail', '/Users/sam/AppData/Roaming']) {
+      const verdict = folderAllowed(folder, local, posix);
+      assert.equal(verdict.ok, false);
+      assert.doesNotMatch(verdict.ok ? '' : verdict.reason, /APPLYPACK_INBOX_ROOTS/, folder);
+    }
+    assert.match(String((folderAllowed('/Users/sam/Library/Mobile Documents/com~apple~CloudDocs/jobs', local, posix) as { reason: string }).reason), /APPLYPACK_INBOX_ROOTS/);
+  });
+
   it('refuses the data folder, a folder inside it and a folder that holds it', () => {
     const moved: FolderRules = { ...local, dataDir: '/Users/sam/apps/applypack-data' };
     assert.equal(allowed('/Users/sam/apps/applypack-data', moved), false);

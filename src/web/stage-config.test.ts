@@ -126,6 +126,8 @@ test('renameStage changes the label and never the key', () => {
   assert.equal(renameStage(W('screen'), 'zzz', 'x'), 'unknown-key');
   assert.equal(renameStage(W('a', 'b'), 'a', 'B'), 'duplicate-label');
   assert.equal(renameStage(W('a'), 'a', '  '), 'empty-label');
+  // #683: a fixed column is not gone, it is fixed.
+  for (const fixed of ['applied', 'rejected', 'ghosted']) assert.equal(renameStage(W('screen'), fixed, 'x'), 'fixed-column');
 });
 
 test('board and full orders wrap the work list with the fixed stages', () => {
