@@ -261,6 +261,15 @@ export function describeSchedule(schedule: Schedule): string {
   return t('schedule.summary', { cadence: describeCadence(every), hours, days: describeDays(days) });
 }
 
+/**
+ * The same line inside a sentence that brings its own full stop: a weekday
+ * the language abbreviates with one ("mar., jeu.") gives it way, so the flash
+ * does not end "jeu.." (#654).
+ */
+export function scheduleInSentence(schedule: Schedule): string {
+  return describeSchedule(schedule).replace(/\.$/, '');
+}
+
 /** "every day" / "Mon–Fri" / "Mon, Wed, Fri" — contiguous runs are named as ranges. */
 export function describeDays(days: readonly number[]): string {
   if (days.length === 7) return t('schedule.days.every');

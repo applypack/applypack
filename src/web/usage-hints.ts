@@ -1,7 +1,7 @@
 import { AI_PROVIDER_LABELS, PROVIDER_MODEL_OPTIONS, isAiProviderId, offeredTasks, type AiProviderId } from '../ai-engine';
 import type { EngineTrouble, TroubleKind } from '../ai-health';
-import { PRICES_AS_OF, priceOf } from '../ai-prices';
-import { featureLabel, formatUsd, joinNames, type SpendGroup } from '../ai-spend';
+import { priceOf } from '../ai-prices';
+import { featureLabel, formatUsd, joinNames, pricesDate, type SpendGroup } from '../ai-spend';
 import { taskLabel, taskOf, type AiTask } from '../ai-tasks';
 import type { AiBilling, AiFeature } from '../ai-usage';
 import type { MessageKey } from '../i18n/catalog';
@@ -324,7 +324,7 @@ function priceyScoring(facts: HintFacts, groups: readonly SpendGroup[]): UsageHi
       period: facts.period,
       cheapest: cheapest.model,
       times: Math.round(used.input / cheapest.price.input),
-      asOf: PRICES_AS_OF,
+      asOf: pricesDate(),
     }),
     action: enginesLink(),
   };

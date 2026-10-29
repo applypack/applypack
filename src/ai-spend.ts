@@ -2,7 +2,7 @@ import { AI_PROVIDER_LABELS, OPENAI_DEFAULT_MODEL, type AiProviderId } from './a
 import { costMicroUsd, PRICES_AS_OF } from './ai-prices';
 import { AI_BILLING, type AiBilling, type AiFeature, type AiOutcome, type AiSpend } from './ai-usage';
 import type { MessageKey } from './i18n/catalog';
-import { formatNumber } from './i18n/format';
+import { formatDateTime, formatNumber } from './i18n/format';
 import { t } from './i18n/t';
 
 /*
@@ -29,6 +29,11 @@ export interface LedgerInput {
   resumeId?: number;
   /** The application pack whose preparation made the call (ai-subject.ts). */
   packId?: number;
+}
+
+/** The day the price table was read, as the reader writes a date: "Oct 3, 2026", «3 жовт. 2026 р.» — never the ISO key (#652). */
+export function pricesDate(): string {
+  return formatDateTime(new Date(`${PRICES_AS_OF}T00:00:00Z`), { dateStyle: 'medium', timeZone: 'UTC' });
 }
 
 /**
@@ -290,7 +295,7 @@ function spendNotes(groups: readonly SpendGroup[]): string[] {
   if (unpricedCalls > 0) {
     const models = [...new Set(unpriced.map((g) => g.model || t('spend.theCliDefault')))].join(', ');
     const oneModel = unpriced.length === 1 && unpriced[0]!.model;
-    notes.push(t(oneModel ? 'spend.note.unpricedModel' : 'spend.note.unpricedModels', { n: unpricedCalls, models, asOf: PRICES_AS_OF }));
+    notes.push(t(oneModel ? 'spend.note.unpricedModel' : 'spend.note.unpricedModels', { n: unpricedCalls, models, asOf: pricesDate() }));
   }
   // A vendor's bill is a hosted engine's: a local call that ended unheard never reached anyone who bills (#563).
   const unheard = groups.reduce((n, g) => n + (g.billing === 'local' ? 0 : g.noUsage), 0);

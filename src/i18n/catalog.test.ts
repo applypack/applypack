@@ -111,3 +111,52 @@ describe('an engine reason', () => {
     }
   });
 });
+
+describe('the English the interface shows (#655)', () => {
+  it('never names the machinery: no worker, no rung of a ladder the reader never sees', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage(SOURCE_LOCALE, key) ?? '', /\b(?:workers?|rungs?)\b/i, key);
+  });
+
+  it('calls the resume against a posting a resume score, never the fit or a "match score"', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage(SOURCE_LOCALE, key) ?? '', /\bmatch score\b|\bResume match ·/i, key);
+  });
+});
+
+describe('uk.json in Ukrainian words (#653)', () => {
+  // Jargon and calques carried over from the English, each with the plain word that replaced it in docs/translating.md's voice.
+  const CARRIED_OVER =
+    /[Вв]оркер|[Пп]ромпт|(?<!\p{L})[Сс]лаг|[Кк]ласифікатор|[Пп]арсер|(?<!\p{L})хост|щаб[е]?л|[Оо]нсайт|(?<!\p{L})[Оо]фер(?!\p{L})|нечитабельн|загостр|вакансія (?:цього )?хоче|яких хоче|Сила резюме|Покриває підписка/u;
+
+  it('says none of the words a native reader flagged', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage('uk', key) ?? '', CARRIED_OVER, key);
+  });
+});
+
+describe('Spanish and French typography (#654)', () => {
+  it('French sets a narrow no-break space before : ; ? ! and inside « »', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage('fr', key) ?? '', /[ \u00a0][:;?!»]|«[ \u00a0]/, key);
+  });
+
+  it('Spanish quotes one way, “as the rest of its catalog does”', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage('es', key) ?? '', /[«»]/, key);
+  });
+});
+
+describe('a message on the page (#652)', () => {
+  it('carries no Markdown: a backtick is drawn as it is, so a command is quoted as the language quotes', () => {
+    for (const locale of LANGUAGES) {
+      for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage(locale, key) ?? '', /`/, `${locale}: ${key}`);
+    }
+  });
+
+  it('agrees with its count after the colon too: one job waiting is stored in the singular', () => {
+    const say = (locale: Locale, n: number): string =>
+      partsToText(formatMessage(parseMessage(ownMessage(locale, 'jobs.unscored')!), { n }, intlTag(locale)));
+    const singular: Partial<Record<Locale, RegExp>> = { uk: /: збережена,/, es: /: guardada con/, fr: /: enregistrée pendant/ };
+    const plural: Partial<Record<Locale, RegExp>> = { uk: /: збережені,/, es: /: guardadas con/, fr: /: enregistrées pendant/ };
+    for (const [locale, words] of Object.entries(singular) as [Locale, RegExp][]) {
+      assert.match(say(locale, 1), words, locale);
+      assert.match(say(locale, 5), plural[locale]!, locale);
+    }
+  });
+});

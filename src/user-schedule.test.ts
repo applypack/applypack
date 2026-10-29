@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { withLocale } from './i18n/locale';
+import { t } from './i18n/t';
 import {
   ALL_DAYS,
   canAlertNow,
@@ -15,6 +17,7 @@ import {
   lastRealFetch,
   nextFetchAt,
   parseSchedule,
+  scheduleInSentence,
   shouldDeliverHeld,
   tickAfter,
   zonedParts,
@@ -236,6 +239,14 @@ describe('the sentences the card and the overview share', () => {
     assert.equal(describeSchedule(defaultSchedule(KYIV)), 'Every hour, around the clock, every day');
     assert.equal(describeSchedule(office({ every: '4h', days: [1, 3, 5] })), 'Every 4 hours, 07:00–23:59, Mon, Wed, Fri');
     assert.equal(describeSchedule(office({ every: 'day', days: [6, 7] })), 'Once a day, 07:00–23:59, weekends');
+  });
+
+  it("gives a weekday's abbreviation point way to the sentence's own full stop (#654)", () => {
+    const tueThu = office({ days: [2, 4] });
+    assert.match(withLocale('fr', () => describeSchedule(tueThu)), /mar\., jeu\.$/);
+    const flash = withLocale('fr', () => t('settingsRoute.schedule.saved', { schedule: scheduleInSentence(tueThu) }));
+    assert.match(flash, /mar\., jeu\.$/);
+    assert.equal(scheduleInSentence(tueThu), describeSchedule(tueThu), 'English has no point to give');
   });
 
   it('names days the way a person would', () => {

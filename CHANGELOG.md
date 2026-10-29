@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.40] — 2026-10-29
+
+### Changed
+- The resume's score against a posting is called "Resume score"
+  everywhere, told apart from the search's fit by name and by a hover, and
+  job-seeker pages no longer say gate, rung, slug or worker. Ukrainian,
+  Spanish and French wording reviewed: calques replaced, French narrow
+  no-break spaces, one Spanish quote style.
+
+### Fixed
+- Translated pages no longer clip, break or scroll sideways on a phone:
+  run names wrap, the fit header fits one line, the sort and model columns
+  are wide enough, and the Ukrainian Overview no longer scrolls sideways.
+- Plurals agree, commands are quoted instead of backticked, the first
+  search and remote-only places are worded in your language, and the
+  dashboard's host and origin refusals follow the browser's language.
+
 ## [2.63.39] — 2026-10-29
 
 ### Fixed
@@ -7087,6 +7104,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.40]: https://github.com/applypack/applypack/compare/v2.63.39...v2.63.40
 [2.63.39]: https://github.com/applypack/applypack/compare/v2.63.38...v2.63.39
 [2.63.38]: https://github.com/applypack/applypack/compare/v2.63.37...v2.63.38
 [2.63.37]: https://github.com/applypack/applypack/compare/v2.63.36...v2.63.37

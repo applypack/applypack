@@ -822,8 +822,9 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
         atsType: job.company.atsType,
         atsToken: job.company.atsToken,
       });
-      // What the free rungs found, in the step's own line and again inside the flash's whole sentence.
-      const found = { how: livenessCodeLabel(live.code) ?? live.code, rung: live.rung };
+      // What the free rungs found, in the step's own line and again inside the flash's whole sentence —
+      // never the rung's number, which is ours and means nothing to the reader (#655).
+      const found = { how: livenessCodeLabel(live.code) ?? live.code };
       updateRun(run.id, { results: { liveness: t('jobRoute.verify.found', found) } });
       if (live.liveness !== 'uncertain') {
         updateRun(run.id, {

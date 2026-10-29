@@ -31,6 +31,14 @@ test('a hidden column gives its room to the columns that show', () => {
   assert.deepEqual(columnWidths(widths, undefined, 'sm', 600), [240, 120, 240]);
 });
 
+test('a column whose width changes from a breakpoint up holds the latest one at or below it, written in any order (#651)', () => {
+  const widths = ['', 'xl:w-[14rem] w-[8rem]'];
+  assert.deepEqual(columnWidths(widths, undefined, '', 400), [272, 128]);
+  assert.deepEqual(columnWidths(widths, undefined, 'lg', 400), [272, 128]);
+  assert.deepEqual(columnWidths(widths, undefined, 'xl', 400), [176, 224]);
+  assert.throws(() => columnWidths(['w-[8rem] lg:w-24'], undefined, 'xl', 400), /lg:w-24/);
+});
+
 test('a column given no width takes what the others leave, and a width it cannot read is an error', () => {
   const widths = ['', 'w-[10%]', 'w-[5rem]'];
   assert.deepEqual(columnWidths(widths, ['', '', 'sm'], '', 400), [360, 40, null]);
@@ -72,6 +80,8 @@ const CHECK_NOW_PX = 140;
  */
 /** The fit badge at 100. */
 const FIT_BADGE_PX = 45;
+/** The fit column's header, which hyphenates rather than overflow: the Spanish "Compat." (#651). */
+const FIT_HEADER_PX = 56;
 /** A job's status badge around its widest word: the French "Candidature" (envoyée). */
 const STATUS_WORD_PX = 91;
 /** A run's badge around its widest word: the Ukrainian "Виконується". */
@@ -90,6 +100,8 @@ const WHAT_HAPPENED_MIN_PX = 120;
 const BOARD_MIN_PX = 64;
 /** The billing badge around its widest word: the Ukrainian "безкоштовно" (#619). */
 const BILLING_WORD_PX = 100;
+/** The longest model id the picker offers, in the mono face at 12 px: "claude-haiku-4-5-20251001" (#651). */
+const MODEL_ID_PX = 180;
 /** The widest word of a task's name: the Spanish "presentación". */
 const TASK_WORD_PX = 87;
 /** The widest vendor tag in a starter pack: "SmartRecruiters". */
@@ -115,6 +127,7 @@ test('the jobs table keeps the title, the fit and the status in its box at every
     const [title, , , fit, , status] = room(JOBS_WIDTHS, JOBS_HIDE, at);
     assert.ok(title! >= TITLE_MIN_PX, `at ${where(at)} width the title gets ${Math.round(title!)} px`);
     assert.ok(fit! >= FIT_BADGE_PX, `at ${where(at)} width the fit gets ${Math.round(fit!)} px`);
+    assert.ok(fit! >= FIT_HEADER_PX, `at ${where(at)} width the fit's header gets ${Math.round(fit!)} px`);
     if (at !== '') assert.ok(status! >= STATUS_WORD_PX, `at ${where(at)} width the status gets ${Math.round(status ?? 0)} px`);
   }
 });
@@ -147,6 +160,8 @@ test('the engine table keeps the billing badge and the task in their columns, on
       const [task, answered] = room(AI_PLAN_WIDTHS, AI_PLAN_HIDE, at, inset);
       assert.ok(answered! >= BILLING_WORD_PX, `at ${where(at)} width the engine that answers gets ${Math.round(answered!)} px`);
       assert.ok(task! >= TASK_WORD_PX, `at ${where(at)} width the task gets ${Math.round(task!)} px`);
+      // Where there is room, a dated model id and the plan badge each keep one line (#651).
+      if (at === 'xl') assert.ok(answered! >= MODEL_ID_PX, `at ${where(at)} width the model id gets ${Math.round(answered!)} px`);
     }
   }
 });

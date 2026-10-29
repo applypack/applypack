@@ -28,11 +28,12 @@ export const BILLING_TONE: Record<AiBilling, 'warn' | 'ok' | 'neutral'> = { bill
 
 /**
  * The table's columns (#619): the engine that answers keeps the width of its
- * billing badge's widest word in every language, the task takes what is
- * left, and what stands behind joins from `sm`. table-hide.test.ts holds them
- * on /ai's card and in the settings section alike.
+ * billing badge's widest word in every language, and from `xl` a dated model
+ * id on one line (#651); the task takes what is left, and what stands behind
+ * joins from `sm`. table-hide.test.ts holds them on /ai's card and in the
+ * settings section alike.
  */
-export const AI_PLAN_WIDTHS = ['', 'w-[8.25rem]', 'w-[30%]'];
+export const AI_PLAN_WIDTHS = ['', 'w-[8.25rem] xl:w-[14rem]', 'w-[30%]'];
 export const AI_PLAN_HIDE: HideBelow = ['', '', 'sm'];
 
 /** Who does what (ADR 0060): one row a task, the engine that answers it first and the ones behind it. */

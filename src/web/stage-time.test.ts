@@ -136,17 +136,15 @@ test('no cards means an empty map, whatever the ledger holds', () => {
   assert.equal(groupEventsByJob([], [1, 2]).size, 0);
 });
 
-test('a column ApplyPack names reads in English as its lowercased label always did', () => {
+test('a column ApplyPack names reads as words of its own, never its lowercased label (#655)', () => {
   for (const s of [...allStages(DEFAULT_WORK_STAGES), UNFILED_STAGE]) {
     assert.ok(wordedStage(s), s.key);
-    for (const days of [0, 5]) {
-      const events = [ev(s.key, days)];
-      assert.equal(
-        stageTimeLine(s.key, null, events, NOW, s.label, true)?.text,
-        stageTimeLine(s.key, null, events, NOW, s.label)?.text,
-        `${s.key} ${days}`,
-      );
-    }
+    for (const days of [0, 5]) assert.ok(stageTimeLine(s.key, null, [ev(s.key, days)], NOW, s.label, true)?.text, `${s.key} ${days}`);
   }
+  const named = (key: string, days: number) => stageTimeLine(key, null, [ev(key, days)], NOW, key, true)?.text;
+  // "in screen today" and "in unfiled today" were a column's name dropped into a sentence.
+  assert.equal(named('screen', 0), 'screening since today');
+  assert.equal(named('unfiled', 5), 'no stage for 5d');
+  assert.equal(named('offer', 2), 'offer received 2d ago');
   assert.equal(wordedStage({ key: 'hr-call', label: 'HR Call' }), false);
 });

@@ -112,7 +112,8 @@ replaces a row here first and the catalog second.
 | resume | резюме | Lebenslauf | currículum | CV | रेज़्यूमे |
 | cover letter | супровідний лист | Anschreiben | carta de presentación | lettre de motivation | कवर लेटर |
 | search (a saved one) | пошук | Suche | búsqueda | recherche | खोज |
-| fit (the score) | відповідність | Passung | compatibilidad | adéquation | फ़िट |
+| fit (a posting's score against your search; "Fits your search") | відповідність (column header: «Оцінка») | Passung | compatibilidad (column header: «Compat.») | adéquation (column header: « Adéq. ») | फ़िट |
+| resume score (your resume against one posting; never "match score") | оцінка резюме | Lebenslauf-Score | puntuación del currículum (tab: «Puntuación del CV») | score du CV | रेज़्यूमे स्कोर |
 | match (a job that fits) | збіг | Treffer | coincidencia | correspondance | मैच |
 | alert | сповіщення | Benachrichtigung | alerta | alerte | अलर्ट |
 | digest | дайджест | Zusammenfassung | resumen | récapitulatif | सारांश |
@@ -137,7 +138,7 @@ replaces a row here first and the catalog second.
 | schedule | розклад | Zeitplan | horario | horaires | शेड्यूल |
 | pipeline (the fetching) | збір вакансій | Abruf | recopilación | collecte | संग्रह |
 | Fetch now | Зібрати зараз | Jetzt abrufen | Obtener ahora | Récupérer maintenant | अभी लाएँ |
-| gate (a requirement that must hold) | обов'язкова умова | Muss-Bedingung | requisito excluyente | condition éliminatoire | अनिवार्य शर्त |
+| must-have condition (a gate: a requirement that must hold; "Gate" only as a screening criterion's mode) | обов'язкова умова | Muss-Bedingung | requisito excluyente | condition éliminatoire | अनिवार्य शर्त |
 | fit threshold | поріг відповідності | Passungsschwelle | umbral de compatibilidad | seuil d'adéquation | फ़िट सीमा |
 | to score / scored / unscored | оцінити / оцінено / без оцінки | bewerten / bewertet / unbewertet | puntuar / puntuada / sin puntuar | noter / notée / non notée | स्कोर करना / स्कोर किया गया / बिना स्कोर |
 | dismissed | відхилено | verworfen | descartada | écartée | खारिज |
@@ -181,7 +182,8 @@ row here first, then every message that uses it.
 | English | Spanish | French |
 | --- | --- | --- |
 | board (a company's list of openings) | portal (de empleo) | job board |
-| setup (the first-run wizard) | configuración inicial | configuration initiale |
+| job boards (the aggregators, as a group) | portales de empleo | sites d'emploi |
+| setup (the first-run wizard) | configuración inicial ("configuración" alone is Settings) | configuration |
 | to upload | subir | importer |
 | to scan (a resume) | analizar | analyser |
 | watched (a company) | en seguimiento | suivie |
@@ -198,7 +200,7 @@ row here first, then every message that uses it.
 | To interview / On hold / Declined | Para entrevista / En espera / Descartado | À convoquer / En attente / Écarté |
 | scorecard | ficha de evaluación | fiche d'évaluation |
 | redaction | anonimización | anonymisation |
-| criterion mode Gate / Scored / Note | Requisito excluyente / Puntuado / Nota | Condition éliminatoire / Noté / Remarque |
+| criterion mode Gate / Scored / Note (a pill) | Excluyente / Puntuado / Nota | Éliminatoire / Noté / Remarque |
 
 Known clashes a native reader may want to settle: Spanish "seguimiento" is a
 watched company, application tracking and the follow-up reminder at once;
