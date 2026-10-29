@@ -77,7 +77,7 @@ import { domainMismatch, domainNoticeMessage } from '../../resume/domain';
 import { postingOrientation } from '../../resume/posting-orientation';
 import { rewriteAction } from '../../resume/rewrite';
 import { readMatchEvidence, parseMatchMode, readMatchMode } from '../../resume/match-mode';
-import { generateCoverLetter } from '../../resume/cover-letter';
+import { generateCoverLetter, letterEvidence } from '../../resume/cover-letter';
 import {
   countWords,
   COVER_TONES,
@@ -1132,9 +1132,11 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
 
   // Manual edits are re-checked but never blocked — the gate polices the
   // model, not the user (ADR 0021). A `block` verdict is stored and shown.
+  // Against the resume's own words, as the generation was (#632).
+  const evidence = await letterEvidence(resume);
   const gate = factCheck({
     text,
-    sources: coverGateSources(resume.text, {
+    sources: coverGateSources(evidence, {
       title: job.title,
       companyName: job.employer ?? job.company.name,
       location: job.location,
@@ -1143,6 +1145,7 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
     facts,
     // The greeting's words are not claims: the person it was generated for, and the company (cover-letter.ts).
     addressee: [letter.addressee, job.employer ?? job.company.name].filter(Boolean).join(' '),
+    resume: evidence,
   });
   const reverted = text === letter.text;
   await updateCoverLetterEdit(letter.id, {

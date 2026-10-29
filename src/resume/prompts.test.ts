@@ -432,6 +432,16 @@ test('suggestions prompt keeps the action and removal rules verbatim (gotcha 11)
   assert.match(system, /"removals"/);
 });
 
+test('a missing keyword goes into one bullet, and a figure stays with its work, in both prompts that write edits (#632, #633)', () => {
+  for (const { system } of [buildMatchPrompt('resume', JOB, 'full'), buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT)]) {
+    assert.match(system, /Each such keyword goes into ONE bullet, not several/);
+    assert.match(system, /"a PostgreSQL SQL database"/);
+    assert.match(system, /A FIGURE STAYS WITH ITS WORK/);
+    // v15's demand for a keyword in every rewrite is what forced the repeats.
+    assert.doesNotMatch(system, /Every "replacement" for an experience bullet or the summary carries at least one keyword/);
+  }
+});
+
 test('suggestions prompt states an ungraded alignment instead of guessing', () => {
   const { user } = buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, alignment: null });
   assert.match(user, /Alignment: not graded/);

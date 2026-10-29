@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canonicalizeAllowEntry, factCheck, normalizeText, TITLE_NOUNS } from './fact-check';
+import { canonicalizeAllowEntry, detachedFigures, factCheck, normalizeText, TITLE_NOUNS } from './fact-check';
 import type { FactLike } from './facts';
 
 /*
@@ -359,4 +359,113 @@ test('an employer run never crosses a sentence boundary', () => {
   });
   assert.equal(r.verdict, 'pass');
   assert.equal(r.claims.find((c) => c.kind === 'employer')?.canonical, 'ogd solutions');
+});
+
+/** The demo resume of the 2026-10-24 live check (#632, #633), verbatim. */
+const DEMO_RESUME = `Dana Ruiz
+Senior Full-Stack Developer
+Lisbon, Portugal · dana.ruiz@example.com · github.com/danaruiz-dev
+## SUMMARY
+Full-stack engineer, six years building TypeScript products end to end. Happiest owning a slice from the Postgres schema up to the React screen, with a preference for boring, observable infrastructure.
+
+## SKILLS
+TypeScript, Node.js (Fastify, Express), React, Next.js, PostgreSQL, Prisma, Docker, GitHub Actions, REST, GraphQL, Jest, AWS (ECS, RDS, S3)
+
+## EXPERIENCE
+Senior Full-Stack Developer - Harborline (remote) | 2022 – present
+- Built the dispatch API in Node.js (Fastify) and TypeScript; 1.8M requests/day at p95 under 140 ms
+- Moved billing off a legacy Rails monolith into Node.js services without downtime; retired 32k lines
+- Designed the PostgreSQL schema and Prisma migrations for invoicing; the monthly run dropped from 35 minutes to 5
+- Added GitHub Actions CI with Docker layer caching; build time halved
+- Reviewed pull requests for a team of five and ran the weekly architecture hour
+
+Full-Stack Developer - Lantern Rail (Lisbon) | 2019 – 2022
+- Shipped the React front end of a crew-scheduling tool used daily by 1,200 staff
+- Built REST and GraphQL APIs in Node.js/Express over PostgreSQL
+- Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes
+- Deployed to AWS ECS with RDS Postgres; wrote the runbooks the on-call rota still uses
+
+## EDUCATION
+BSc Computer Science, University of Lisbon, 2019`;
+
+test('a true figure told about other work warns, and names the line it belongs to (#632)', () => {
+  // The summary Apply all saved as v2: the numbers are real, the on-call rotations never cut anything.
+  const text =
+    'Built a dispatch API handling 1.8M requests/day at p95 under 140ms and ran on-call rotations that cut incident resolution from 90 to 35 minutes.';
+  const r = factCheck({ text, sources: [DEMO_RESUME], resume: DEMO_RESUME });
+  assert.equal(r.verdict, 'warn');
+  assert.equal(r.claims.filter((c) => c.status === 'unsupported').length, 0, 'every number is in the resume');
+  assert.deepEqual(r.detached.map((d) => [d.figure, d.onto]), [['35 minutes', '"on-call"']]);
+  assert.match(r.detached[0]!.line, /^Set up structured logging and alerting/);
+  assert.match(r.reasons.join('\n'), /figure "35 minutes" is told about "on-call"/);
+  // Without the resume to read the lines of, the check is the value check it always was.
+  assert.equal(factCheck({ text, sources: [DEMO_RESUME] }).verdict, 'pass');
+});
+
+test('the letter that repeated it, and the other shapes of the same move, are caught', () => {
+  const caught = [
+    // The letter of the live check, fact-checked "pass" against v2.
+    "I've also run on-call rotations where median incident resolution fell from 90 to 35 minutes.",
+    // A stored summary: the dispatch API's figure on the runbooks bullet's on-call.
+    'Designed PostgreSQL schemas and SQL migrations that cut a monthly invoicing run from 35 minutes to 5, and ran on-call for production systems serving 1.8M requests/day.',
+    // The means named after the figure, from another bullet.
+    'Cut incident resolution from 90 to 35 minutes by introducing the runbooks the on-call rota still uses.',
+  ];
+  for (const text of caught) assert.equal(detachedFigures(text, DEMO_RESUME).length, 1, text);
+});
+
+test("a bullet rewrite may not borrow another bullet's figure (#632)", () => {
+  // A stored rewrite of the APIs bullet: the 1,200 staff are the crew-scheduling front end's.
+  const borrowed = detachedFigures(
+    'Built REST and GraphQL APIs in Node.js/Express, writing SQL queries against PostgreSQL to support a crew-scheduling tool used by 1,200 staff',
+    DEMO_RESUME,
+    'Built REST and GraphQL APIs in Node.js/Express over PostgreSQL',
+  );
+  assert.deepEqual(borrowed.map((d) => d.figure), ['1,200 staff']);
+  assert.match(borrowed[0]!.line, /^Shipped the React front end/);
+  // The bullet's own figure, reworded around, stays its own.
+  const own = detachedFigures(
+    'Wrote SQL schema and queries for the PostgreSQL invoicing database and built Prisma migrations, cutting the monthly billing run from 35 minutes to 5',
+    DEMO_RESUME,
+    'Designed the PostgreSQL schema and Prisma migrations for invoicing; the monthly run dropped from 35 minutes to 5',
+  );
+  assert.deepEqual(own, []);
+});
+
+test('a figure kept with its own work passes, however the sentence is built', () => {
+  const kept = [
+    'Six years building TypeScript products, including a dispatch API that serves 1.8M requests/day at p95 under 140 ms.',
+    'At Harborline I built the dispatch API in Node.js and TypeScript, which now handles 1.8M requests a day at p95 under 140 ms.',
+    'I cut median incident resolution from 90 to 35 minutes by setting up structured logging and alerting.',
+    'Set up structured logging and alerting that cut median incident resolution from 90 to 35 minutes',
+    'At Lantern Rail I shipped a crew-scheduling tool used daily by 1,200 staff, and I moved billing off a Rails monolith without downtime, retiring 32k lines.',
+    'My invoicing work cut the monthly run from 35 minutes to 5, and the CI I added halved build time.',
+    'Wrote SQL schemas and Prisma migrations against PostgreSQL that cut a monthly invoicing run from 35 minutes to 5, and shipped a React crew-scheduling SPA used daily by 1,200 staff.',
+  ];
+  for (const text of kept) assert.deepEqual(detachedFigures(text, DEMO_RESUME), [], text);
+});
+
+test('REAL: paraphrases of the resume Nazar has keep their figures where they were', () => {
+  const kept = [
+    'At V Shred I combined Snyk and Dependabot with Claude AI to catch vulnerabilities, reducing risk by 40%.',
+    'I led a high-load CRM on PostgreSQL, Lumen and Vue.js and cut its response time by 40%.',
+    'At PROBEGIN I mentored four developers and led a CRM whose response time dropped 40%.',
+    'I built a cross-platform notification system that boosted mobile DAU by 200%, and a payment error-handling platform that lifted successful transactions 15-20%.',
+    'Senior full-stack engineer with 10+ years shipping Laravel and React systems, including platforms supporting $10M+ ARR at 99.9% uptime.',
+    'Processed survey data for nearly 200 million registered users at OGD Solutions.',
+    'Mentored four developers on the CRM team, achieving a 40% reduction in response time.',
+  ];
+  for (const text of kept) assert.deepEqual(detachedFigures(text, REAL_RESUME), [], text);
+  // And one that is not: the notification system's 200% on the payment platform.
+  const moved = 'Engineered a multi-gateway payment platform (Braintree, Adyen) that increased successful transactions by 15-20% and boosted mobile DAU by 200%.';
+  assert.deepEqual(
+    detachedFigures(moved, REAL_RESUME, 'Engineered a centralized, multi-gateway payment error-handling platform (Braintree, Adyen), increasing successful transactions by 15–20%.').map((d) => d.figure),
+    ['200%'],
+  );
+  assert.equal(factCheck({ text: REAL_LETTER, sources: [REAL_RESUME], resume: REAL_RESUME }).verdict, 'pass');
+});
+
+test('a resume with no bullets is not read for attachment, so nothing is flagged', () => {
+  const prose = 'Engineer at Acme. Set up alerting; incident resolution fell from 90 to 35 minutes. Wrote the on-call runbooks.';
+  assert.deepEqual(detachedFigures('Ran on-call rotations that cut resolution from 90 to 35 minutes.', prose), []);
 });
