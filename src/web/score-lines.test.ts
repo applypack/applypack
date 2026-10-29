@@ -128,7 +128,7 @@ test('a failed gate outranks everything the wording could fix', () => {
       hard: [gate('fail', 'US work authorization')],
       actions: [act('high', 'rewrite the summary')],
     }),
-    '\u201cUS work authorization\u201d is not met — a gate decides this before any wording does.',
+    '\u201cUS work authorization\u201d is not met — a must-have condition decides this before any wording does.',
   );
 });
 
@@ -166,7 +166,7 @@ test('more missing than fit are counted, never silently dropped', () => {
 test('an unanswered gate comes before any keyword', () => {
   assert.equal(
     advice({ keywords: [kw({ term: 'PHP', primary: true })], hard: [gate('unknown', 'on-site in Atlanta, GA')] }),
-    'The resume is silent on \u201con-site in Atlanta, GA\u201d — a gate the reader checks before the words.',
+    'The resume is silent on \u201con-site in Atlanta, GA\u201d — a must-have condition the reader checks before the words.',
   );
 });
 

@@ -112,6 +112,16 @@ describe('an engine reason', () => {
   });
 });
 
+describe('the English the interface shows (#655)', () => {
+  it('never names the machinery: no worker, no rung of a ladder the reader never sees', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage(SOURCE_LOCALE, key) ?? '', /\b(?:workers?|rungs?)\b/i, key);
+  });
+
+  it('calls the resume against a posting a resume score, never the fit or a "match score"', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage(SOURCE_LOCALE, key) ?? '', /\bmatch score\b|\bResume match ·/i, key);
+  });
+});
+
 describe('a message on the page (#652)', () => {
   it('carries no Markdown: a backtick is drawn as it is, so a command is quoted as the language quotes', () => {
     for (const locale of LANGUAGES) {

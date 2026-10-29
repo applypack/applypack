@@ -81,8 +81,8 @@ test('folderCheckLine: rows that came, an overlap and a run with no source are t
 
 test('folderTrouble: a folder whose last check failed says so, in the folder’s words (#405)', () => {
   // The card's own line is the ledger's: "28 files · 0 new at the last check" for a folder renamed away.
-  assert.deepEqual(folderTrouble('slug_gone', 1), { label: 'Folder not found', tone: 'danger', title: 'Folder not found — 1 tick in a row' });
-  assert.deepEqual(folderTrouble('auth', 3), { label: 'Not allowed to read', tone: 'danger', title: 'Not allowed to read — 3 ticks in a row' });
+  assert.deepEqual(folderTrouble('slug_gone', 1), { label: 'Folder not found', tone: 'danger', title: 'Folder not found — 1 check in a row' });
+  assert.deepEqual(folderTrouble('auth', 3), { label: 'Not allowed to read', tone: 'danger', title: 'Not allowed to read — 3 checks in a row' });
   assert.equal(folderTrouble('bad_payload', 2)?.label, 'Files do not fit the mapping');
   assert.equal(folderTrouble('too_many', 2)?.label, 'Too many entries in the folder');
   // A disk that did not answer is a warning, as an unreachable board is.

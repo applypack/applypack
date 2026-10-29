@@ -65,16 +65,16 @@ test('the tab says what stands behind it', () => {
 });
 
 test('a pack is told by its score and the company verdict', () => {
-  assert.equal(packLine(notice()), 'match 76 → 100 · company legit, apply');
-  assert.equal(packLine(notice({ scoreAfter: 76 })), 'match 76 · company legit, apply');
-  assert.equal(packLine(notice({ scoreAfter: null, verdict: null, recommendation: null })), 'match 76 · company not checked');
+  assert.equal(packLine(notice()), 'resume score 76 → 100 · company legit, apply');
+  assert.equal(packLine(notice({ scoreAfter: 76 })), 'resume score 76 · company legit, apply');
+  assert.equal(packLine(notice({ scoreAfter: null, verdict: null, recommendation: null })), 'resume score 76 · company not checked');
   assert.equal(packLine(notice({ scoreBefore: null, scoreAfter: null })), 'company legit, apply');
 });
 
 test('one message: the ready packs, then the postings to skip', () => {
   assert.deepEqual(texts([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'stopped', stop: 'failed-gate' })]), [
     'An application pack is ready:',
-    '• Senior Laravel Engineer — Acme (match 76 → 100 · company legit, apply)',
+    '• Senior Laravel Engineer — Acme (resume score 76 → 100 · company legit, apply)',
     'Open the job in ApplyPack → Application pack: read the edits, download the resume, apply.',
     '',
     'Not worth your time:',
@@ -92,7 +92,7 @@ test('a pack that could not be prepared is said, not passed over (#381)', () => 
   assert.deepEqual(texts([notice({ status: 'failed' })]), ['One could not be prepared — open the job to see why:', '• Senior Laravel Engineer — Acme']);
   assert.deepEqual(texts([notice(), notice({ title: 'Go Developer', company: 'Bright', status: 'failed' }), notice({ title: 'QA Lead', company: 'Corex', status: 'failed' })]), [
     'An application pack is ready:',
-    '• Senior Laravel Engineer — Acme (match 76 → 100 · company legit, apply)',
+    '• Senior Laravel Engineer — Acme (resume score 76 → 100 · company legit, apply)',
     'Open the job in ApplyPack → Application pack: read the edits, download the resume, apply.',
     '',
     '2 could not be prepared — open each job to see why:',
@@ -122,7 +122,7 @@ test('a long wait lists the first eight and counts the rest', () => {
 });
 
 test('a pack in the queue or in flight says where it is, in one sentence', () => {
-  assert.equal(preparingLine({ status: 'queued', step: null }), 'Queued — the worker starts it within a minute. This page refreshes itself; you can leave it.');
+  assert.equal(preparingLine({ status: 'queued', step: null }), 'Queued — preparing starts within a minute. This page refreshes itself; you can leave it.');
   assert.match(preparingLine({ status: 'running', step: 'verify' }), /… This page refreshes itself; you can leave it\.$/);
   // A step this version does not know is still "Preparing".
   assert.equal(preparingLine({ status: 'running', step: 'something-new' }), 'Preparing… This page refreshes itself; you can leave it.');

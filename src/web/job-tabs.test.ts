@@ -49,13 +49,18 @@ describe('jobTabLabels', () => {
   it('names the five tabs in order, bare while nothing exists', () => {
     assert.deepEqual(
       jobTabLabels({ matchScore: null, letters: 0, verdict: null, pack: null }).map((t) => `${t.tab}=${t.label}`),
-      ['posting=Posting', 'match=Resume match', 'letter=Cover letter', 'verify=Is it real?', 'pack=Application pack'],
+      ['posting=Posting', 'match=Resume score', 'letter=Cover letter', 'verify=Is it real?', 'pack=Application pack'],
     );
   });
 
   it('carries what exists behind each tab', () => {
     const labels = jobTabLabels({ matchScore: 72, letters: 1, verdict: 'legit', pack: 'ready' }).map((t) => t.label);
-    assert.deepEqual(labels, ['Posting', 'Resume match · 72', 'Cover letter · 1', 'Is it real? · legit', 'Application pack · ready']);
+    assert.deepEqual(labels, ['Posting', 'Resume score · 72', 'Cover letter · 1', 'Is it real? · legit', 'Application pack · ready']);
+  });
+
+  it('says on hover that the resume score is not the fit beside the title (#655)', () => {
+    const match = jobTabLabels({ matchScore: 43, letters: 0, verdict: null, pack: null }).find((t) => t.tab === 'match')!;
+    assert.match(match.title ?? '', /^How well your resume answers this posting\..*fits your search\.$/);
   });
 });
 

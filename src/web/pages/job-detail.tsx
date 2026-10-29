@@ -172,7 +172,7 @@ export interface JobDetailProps {
   applicationPack: ApplicationPackProps;
   /** The tab this request means (job-tabs.ts), and the four labels with what exists behind each. */
   tab: JobTab;
-  tabs: { tab: JobTab; label: string }[];
+  tabs: { tab: JobTab; label: string; title?: string }[];
   flash?: FlashMessage | null;
 }
 
@@ -245,7 +245,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     <Tabs
       label={t('job.jobSections')}
       class="mb-4"
-      tabs={tabs.map((entry) => ({ href: jobHref(job.id, entry.tab), label: entry.label, current: entry.tab === tab }))}
+      tabs={tabs.map((entry) => ({ href: jobHref(job.id, entry.tab), label: entry.label, title: entry.title, current: entry.tab === tab }))}
     />
 
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -682,7 +682,7 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
         <PlaceChips job={job} />
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-3">
-        <FitBadge score={job.fitScore} worded />
+        <FitBadge score={job.fitScore} worded title={job.fitScore === null ? undefined : t('job.fitTitle', { score: job.fitScore })} />
         <StatusBadge status={job.status} />
         {/* A whole board listing no longer carries it, or a check found it gone (TASKS S13, ADR 0016). */}
         {job.liveness === 'expired' && (

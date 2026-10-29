@@ -301,7 +301,7 @@ const MatchCell: FC<{ matches: ResumeRow['matches'] }> = ({ matches }) =>
     </span>
   ) : (
     <div class="flex items-center gap-2">
-      <FitBadge score={matches.best} />
+      <FitBadge score={matches.best} label={t('match.scoreLabel')} />
       <span class="hidden text-meta text-ink-faint sm:inline">
         {t('resumes.runs', { n: matches.count })}
       </span>
