@@ -53,7 +53,7 @@ export function statusBranch(status: string | null, atsType: string | undefined)
 
 /**
  * The label inside a sentence, with the failure streak: "slug not found — 3
- * ticks in a row". One message per status — a language declines the words
+ * checks in a row". One message per status — a language declines the words
  * there, so the label is never lowercased into the sentence.
  */
 export function healthStreak(status: string | null, atsType: string | undefined, n: number): string {

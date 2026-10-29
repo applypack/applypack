@@ -1263,7 +1263,7 @@ async function folderChecks(): Promise<Check[]> {
       'GET /companies with a folder that is off and failing (its card: the switch, the failure)',
       '/companies',
       offPage,
-      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row') && card.includes(`/companies/${folder.id}/files#moved`),
+      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 checks in a row') && card.includes(`/companies/${folder.id}/files#moved`),
     );
     await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: null, consecutiveFailures: 0 } });
 
