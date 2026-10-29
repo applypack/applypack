@@ -115,7 +115,7 @@ const RoleSchema = z.object({
   /** The sector the employer was in, in two or three words; null when the text does not say. */
   sector: nullableText,
   /** A type outside the list costs that role its type, never the whole reply (#553). */
-  companyType: z.unknown().transform(readCompanyType),
+  companyType: z.unknown().optional().transform(readCompanyType),
 });
 export type ScreenRole = z.infer<typeof RoleSchema>;
 

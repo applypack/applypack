@@ -35,7 +35,7 @@ const TargetFormSchema = ManualJobSchema.extend({
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   description: z.string().trim().default(''),
   /** The quick check unless "Full analysis" was pressed (ADR 0029). */
-  mode: z.unknown().transform(parseMatchMode),
+  mode: z.unknown().optional().transform(parseMatchMode),
   ...ResumeSourceFields,
 });
 
