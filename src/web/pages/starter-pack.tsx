@@ -18,9 +18,12 @@ import {
 import type { PackSegment } from '../../starter-packs/catalog';
 import type {
   PackPreview,
+  QuietEntry,
   ResolvedEntry,
   UnresolvedEntry,
+  UnresolvedReason,
 } from '../../starter-packs/resolve';
+import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { sourceLabel } from '../source-names';
@@ -58,7 +61,7 @@ export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segme
   </Card>
 );
 
-const BoardCell: FC<{ entry: ResolvedEntry }> = ({ entry }) => (
+const BoardCell: FC<{ entry: ResolvedEntry | QuietEntry }> = ({ entry }) => (
   <>
     <span translate="no">
       <Tag wrap>{sourceLabel(entry.atsType)}</Tag>
@@ -72,7 +75,7 @@ const BoardCell: FC<{ entry: ResolvedEntry }> = ({ entry }) => (
     >
       {entry.atsToken}
     </a>
-    {!entry.pinned && (
+    {'pinned' in entry && !entry.pinned && (
       <>
         {' '}
         <Badge tone="warn">{t('packs.guessed')}</Badge>
@@ -137,6 +140,14 @@ const ResolvedTable: FC<{
   </Table>
 );
 
+/** Each reason in words, read at render in the reader's language. */
+const REASON_WORDS = {
+  gone: 'packs.reason.gone',
+  refused: 'packs.reason.refused',
+  unavailable: 'packs.reason.unavailable',
+  timedOut: 'packs.reason.timedOut',
+} as const satisfies Record<UnresolvedReason, MessageKey>;
+
 const UnresolvedList: FC<{ entries: UnresolvedEntry[] }> = ({ entries }) => (
   <Table widths={UNRESOLVED_WIDTHS} columns={[t('common.company'), t('packs.col.why')]}>
     {entries.map((e) => (
@@ -146,7 +157,25 @@ const UnresolvedList: FC<{ entries: UnresolvedEntry[] }> = ({ entries }) => (
             {e.name}
           </span>
         </Td>
-        <Td class="break-words text-ink-muted">{e.reason}</Td>
+        <Td class="break-words text-ink-muted">{t(REASON_WORDS[e.reason])}</Td>
+      </Tr>
+    ))}
+  </Table>
+);
+
+/** The boards that answered with nothing posted: the company and where to look later. */
+const QuietList: FC<{ entries: QuietEntry[] }> = ({ entries }) => (
+  <Table widths={UNRESOLVED_WIDTHS} columns={[t('common.company'), t('packs.col.board')]}>
+    {entries.map((e) => (
+      <Tr>
+        <Td class="truncate font-medium text-ink">
+          <span translate="no" title={e.name}>
+            {e.name}
+          </span>
+        </Td>
+        <Td>
+          <BoardCell entry={e} />
+        </Td>
       </Tr>
     ))}
   </Table>
@@ -169,7 +198,12 @@ export const StarterPackPreviewPage: FC<{
   <Layout title={t('packs.starterPack')} active="companies">
     <PageHeader
       title={t('packs.starterPackPreview')}
-      meta={t('packs.preview.meta', { add: preview.toAdd.length, tracked: preview.alreadyAdded.length, unresolved: preview.unresolved.length })}
+      meta={t('packs.preview.meta', {
+        add: preview.toAdd.length,
+        tracked: preview.alreadyAdded.length,
+        quiet: preview.quiet.length,
+        unresolved: preview.unresolved.length,
+      })}
       back={backFor(next)}
     >
       <span lang="en">{segmentLabels.join(' · ')}</span>
@@ -197,13 +231,21 @@ export const StarterPackPreviewPage: FC<{
       </Card>
     </form>
 
+    {preview.quiet.length > 0 && (
+      <Card class="mb-4">
+        <SectionTitle>{t('packs.noOpenJobsNow')}</SectionTitle>
+        <Hint class="mb-4">{t('packs.quietHint')}</Hint>
+        <QuietList entries={preview.quiet} />
+      </Card>
+    )}
+
     {preview.unresolved.length > 0 && (
       <Card class="mb-4">
         <SectionTitle>{t('packs.couldNotResolve')}</SectionTitle>
         <Hint class="mb-4">
           {tRich('packs.unresolvedHint', {}, {
             link: (words) => (
-              <a href="/companies" class="font-medium text-accent-strong hover:text-accent-deep">
+              <a href="/companies#add-sources" class="font-medium text-accent-strong hover:text-accent-deep">
                 {words}
               </a>
             ),
