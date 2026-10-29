@@ -58,6 +58,18 @@ describe('techLabel', () => {
     assert.equal(techLabel(' react '), 'React');
   });
 
+  it('knows the names a stored tag carries, spaced or hyphenated (#642)', () => {
+    assert.equal(techLabel('rds'), 'RDS');
+    assert.equal(techLabel('github-actions'), 'GitHub Actions');
+    assert.equal(techLabel('github actions'), 'GitHub Actions');
+    assert.equal(techLabel('json'), 'JSON');
+    // A known name, then the rest of the product: each word takes its capital.
+    assert.equal(techLabel('aws-lambda'), 'AWS Lambda');
+    assert.equal(techLabel('docker-compose'), 'Docker Compose');
+    // A name the table spells otherwise ("node" is Node.js) does not open one.
+    assert.equal(techLabel('node-red'), 'Node-red');
+  });
+
   it('lists a posting\'s tags once each after labelling them (#572)', () => {
     assert.deepEqual(techLabels(['go', 'golang', 'docker', 'Go']), ['Go', 'Docker']);
     assert.deepEqual(techLabels(['node', 'nodejs', 'node.js', '']), ['Node.js']);

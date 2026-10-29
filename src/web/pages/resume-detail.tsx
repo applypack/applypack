@@ -29,6 +29,7 @@ import {
 import { deleteConfirm, type DeleteImpact } from '../delete-confirm';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { techLabels } from '../tech-label';
 import { flagOf } from '../../countries';
 import { placeName } from '../../i18n/places';
 import type { FlashMessage } from '../flash';
@@ -190,7 +191,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
               )}
               <TagRow label={t('resume.domains')} items={resume.industries} tone="info" />
               <TagRow label={t('resume.roles')} items={resume.roleTypes} tone="info" />
-              <TagRow label={t('resume.skills')} items={resume.skills} tone="ok" />
+              <TagRow label={t('resume.skills')} items={techLabels(resume.skills)} tone="ok" />
             </div>
           ) : scanRunId ? (
             <Empty
@@ -458,7 +459,7 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
           {/* The draft is the scan's own words: a name, technologies, roles. */}
           <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm" translate="no">
             <span class="font-medium text-ink">"{draft.changes.name}"</span>
-            {(draft.changes.stackRequired ?? []).map((tag) => (
+            {techLabels(draft.changes.stackRequired ?? []).map((tag) => (
               <Tag tone="ok">{tag}</Tag>
             ))}
             {(draft.changes.roleTypes ?? []).map((tag) => (

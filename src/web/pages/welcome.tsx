@@ -33,6 +33,7 @@ import { LanguageMenu } from '../language-menu';
 import { PROFILE_WORKPLACES, type WorkplaceCode } from '../../location';
 import { placeName, workplaceName } from '../../i18n/places';
 import { flagOf } from '../../countries';
+import { techLabels } from '../tech-label';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
@@ -513,7 +514,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
                 titled: d.title ? 'yes' : 'no',
                 title: d.title ?? '',
                 tools: d.primarySkills.length > 0 ? 'yes' : 'no',
-                skills: d.primarySkills.join(', '),
+                skills: techLabels(d.primarySkills).join(', '),
                 more: d.skillCount,
               },
               { b: bold },
