@@ -45,9 +45,12 @@
  *    SQL database", "Node.js, TypeScript, and JavaScript"), and Apply all took
  *    every one. So a bullet rewrite that writes in a term the resume never
  *    writes (an `add` the candidate did not confirm: implied by the line, as
- *    the model's own note says) and changes nothing else is refused — that
- *    term goes on the skills line, or into a bullet whose new words describe
- *    the work that used it. And a term the resume does not yet show in a
+ *    the model's own note says) is refused when it changes nothing else, or
+ *    lists the term beside another name — that term goes on the skills line,
+ *    or into a bullet whose new words describe the work that used it. The
+ *    live check's "Node.js, JavaScript, and TypeScript, exchanging JSON …
+ *    with p95 latency" had one word of its own and passed the first test
+ *    alone. And a term the resume does not yet show in a
  *    sentence goes into ONE bullet per report: the score reads its best line,
  *    so a second bullet earns nothing and reads as stuffing.
  *
