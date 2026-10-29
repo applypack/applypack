@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.23] — 2026-10-28
+
+### Fixed
+- A screening criterion that names age, sex or children in Ukrainian or
+  Russian ("вік до 35", "стать", "діти", "дети") is refused, as it is in
+  English. Those words were meant to be refused and never matched, because
+  JavaScript reads a word's end only in Latin letters. "Younger than" and
+  "older than" a number are refused too.
+
 ## [2.63.22] — 2026-10-28
 
 ### Security
@@ -6878,6 +6887,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.23]: https://github.com/applypack/applypack/compare/v2.63.22...v2.63.23
 [2.63.22]: https://github.com/applypack/applypack/compare/v2.63.21...v2.63.22
 [2.63.21]: https://github.com/applypack/applypack/compare/v2.63.20...v2.63.21
 [2.63.20]: https://github.com/applypack/applypack/compare/v2.63.19...v2.63.20

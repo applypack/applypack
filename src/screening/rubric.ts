@@ -601,12 +601,17 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
 
 /* ---------- what may not be a criterion ---------- */
 
-/** English words with both edges, Cyrillic stems with a left edge (JS \b is ASCII-only). A stem must not sit inside a job word: "senior", "manager", "startup", "healthcare" all stay. */
+/**
+ * English words with both edges, Cyrillic stems with a left edge. A stem that
+ * must end with its word carries `\b`, read here as a Unicode edge: JS's own
+ * `\b` is ASCII-only, so "вік\b" never matched "вік до 35". A stem must not sit
+ * inside a job word: "senior", "manager", "startup", "healthcare" all stay.
+ */
 const protectedRe = (words: string, stems: string): RegExp =>
-  new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])(?:${stems})`, 'iu');
+  new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])(?:${stems.replaceAll('\\b', '(?![\\p{L}\\p{N}])')})`, 'iu');
 
 const PROTECTED: { re: RegExp; instead: MessageKey }[] = [
-  { re: protectedRe('age|aged|years? old|young|elderly|birth|born|date of birth', 'вік\\b|дата народження|рік народження|возраст|дата рождения'), instead: 'rubric.protected.age' },
+  { re: protectedRe('age|aged|years? old|young|younger|older than|elderly|birth|born|date of birth', 'вік\\b|дата народження|рік народження|возраст|дата рождения'), instead: 'rubric.protected.age' },
   { re: protectedRe('gender|sex|male|female|man|woman|men|women|girl|boy|lady|guy', 'стать\\b|чоловік|жінк|дівчин|хлоп(?:ець|ці|ця)|мужчин|женщин|парен|девушк'), instead: 'rubric.protected.gender' },
   { re: protectedRe('married|unmarried|divorced|widowed|children|kids|pregnan\\w*|family status|marital', 'одруж|неодруж|заміж|дитин|дітей|діти\\b|вагіт|сімейн|семейн|женат|замужем|дети\\b|беремен'), instead: 'rubric.protected.family' },
   { re: protectedRe('nationality|citizen|citizenship|ethnic\\w*|racial|religio\\w*|national origin', 'національн|громадян|релігі|национальн|гражданств|этнич|етніч'), instead: 'rubric.protected.origin' },
