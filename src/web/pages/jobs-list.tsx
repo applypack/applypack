@@ -216,7 +216,8 @@ export const JobsListPage: FC<JobsListProps> = ({
             value={filters.minFit}
             placeholder={t('jobs.minFitPlaceholder')}
             aria-label={t('jobs.minimumFitScore')}
-            class="!w-20 sm:!w-24"
+            // Room on a phone too for the longest placeholder, "Compat. ≥" (#651).
+            class="!w-24"
           />
           {/* Wide enough for "Récupérées récemment" whole (#651). */}
           <Select name="sort" aria-label={t('jobs.sortBy')} class="!w-auto min-w-0 flex-1 sm:!w-52 sm:flex-none">
