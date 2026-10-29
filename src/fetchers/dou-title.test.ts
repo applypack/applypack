@@ -36,6 +36,13 @@ describe('parseDouTitle', () => {
     assert.deepEqual(lisbon.places, ['Лісабон (Португалія)']);
   });
 
+  it('reads a salary with its bound, never as a place (#662)', () => {
+    // Recorded from the bare feed on 2026-10-29, the entity decoded.
+    const t = parseDouTitle('Head of Infrastructure Solutions (Infrastructure Architect / Technical Lead) в ALESTA LLC, від $5000, Київ');
+    assert.deepEqual([t.company, t.salary, t.places], ['ALESTA LLC', 'від $5000', ['Київ']]);
+    assert.deepEqual(parseDouTitle('Go Developer в Acme, до $5000, Львів, віддалено').salary, 'до $5000');
+  });
+
   it('a Cyrillic city the gazetteer lacks is still a place; a Latin tail is the company', () => {
     assert.deepEqual(parseDouTitle('Middle+ PHP Developer (with DevOps) в SendPulse, Чернігів, віддалено').places, ['Чернігів']);
     assert.equal(parseDouTitle('Developer в Acme, LLC').company, 'Acme, LLC');

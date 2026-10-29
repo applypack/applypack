@@ -6,6 +6,7 @@ import { parseLineList, parseTagList } from '../text-utils';
 const chips = import('./public/chips.mjs') as Promise<{
   chipValues: (text: string, linesOnly?: boolean) => string[];
   withChips: (list: string[], values: string[]) => string[];
+  chipText: (labels: Record<string, string>, value: string) => string;
 }>;
 
 test('"rust, elixir" and Enter makes two chips, as the save would store them (#572)', async () => {
@@ -21,4 +22,13 @@ test('a field of places makes "Austin, TX" one chip, as the save stores it (#607
   const { chipValues } = await chips;
   assert.deepEqual(chipValues('Austin, TX', true), ['Austin, TX']);
   for (const typed of ['Austin, TX', 'Austin, TX\nBerlin', ' Denver, CO \n\n']) assert.deepEqual(chipValues(typed, true), parseLineList(typed));
+});
+
+test('a stored stack value is worded on its chip by the label the page sent (#642)', async () => {
+  const { chipText } = await chips;
+  const labels = { typescript: 'TypeScript', 'node.js': 'Node.js' };
+  assert.equal(chipText(labels, 'typescript'), 'TypeScript');
+  assert.equal(chipText(labels, 'react'), 'react', 'a value typed on the page shows as typed');
+  assert.equal(chipText(labels, 'toString'), 'toString', 'an inherited key is no label');
+  assert.equal(chipText({}, 'go'), 'go');
 });

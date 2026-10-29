@@ -5,7 +5,13 @@ import type { NormalizedJob } from '../types';
 /**
  * Personio — the DACH mid-market ATS (stage 3d, plan §4.2). Every customer
  * has a public, documented XML feed at `{slug}.jobs.personio.de/xml`
- * (`.com` serves the same); `?language=en` is what fills the descriptions.
+ * (`.com` serves the same). A position is written in one language or
+ * several, and each feed carries only its language's text: `?language=en`
+ * lists every position but leaves one written only in German without a
+ * word (ottonova 8 of 9, clark 3 of 3, everphone 9 of 9 on 2026-10-29),
+ * and the feed without a language — the company's own — leaves an
+ * English-only one blank (tado). So the English feed is read first and the
+ * own-language feed only when a position is left blank, for those (#658).
  * Verified live 2026-09-03 on holidu (54 positions), ottonova, everphone,
  * personio: a `<workzag-jobs>` root of `<position>` blocks with id,
  * subcompany, office, additionalOffices/office, department, name,
@@ -55,13 +61,46 @@ export async function fetchPersonio(company: PersonioCompany): Promise<Normalize
   });
   const xml = await resp.text();
   if (!isPersonioFeed(xml)) throw new Error(`personio: "${slug}" answered no job feed (expected <workzag-jobs>)`);
-  const jobs = parsePersonioXml(xml).map((p) => mapPersonioPosition(p, company.id, slug));
+  let positions = parsePersonioXml(xml);
+  if (positions.some((p) => !hasText(p))) {
+    // The English feed's validator still guards the whole set: a position
+    // added or removed changes it, whatever language it is written in.
+    const own = await fetchWithRetry(ownLanguageFeedUrl(slug), { timeoutMs: TIMEOUT_MS, init: { redirect: 'error' } });
+    const ownXml = await own.text();
+    if (!isPersonioFeed(ownXml)) throw new Error(`personio: "${slug}" answered no job feed in its own language`);
+    positions = withOwnLanguage(positions, parsePersonioXml(ownXml));
+  }
+  const jobs = positions.map((p) => mapPersonioPosition(p, company.id, slug));
   rememberResponse(company.id, url, resp, jobs.length);
   return jobs;
 }
 
 export function personioFeedUrl(slug: string): string {
   return `https://${slug}.jobs.personio.de/xml?language=en`;
+}
+
+/** The feed in the company's own language: no `language` at all. */
+function ownLanguageFeedUrl(slug: string): string {
+  return `https://${slug}.jobs.personio.de/xml`;
+}
+
+/**
+ * The English feed's positions, each one it left without text given the
+ * text the own-language feed has for it (matched by id). English stays
+ * wherever it was written: the comparison and the letter are written for it.
+ */
+export function withOwnLanguage(english: readonly PersonioPosition[], own: readonly PersonioPosition[]): PersonioPosition[] {
+  const byId = new Map(own.map((p) => [p.id, p]));
+  return english.map((p) => {
+    if (hasText(p)) return p;
+    const other = byId.get(p.id);
+    return other && hasText(other) ? { ...p, sections: other.sections } : p;
+  });
+}
+
+/** Whether a position carries any text of its own, Personio's own sections aside. */
+function hasText(p: PersonioPosition): boolean {
+  return p.sections.some((s) => !SKIPPED_SECTIONS.has(s.name) && stripHtml(s.html).length > 0);
 }
 
 /** The slug of a token given as a slug or as the feed host; anything else refused. */

@@ -15,6 +15,7 @@ import {
   packCostHint,
   packSpendText,
   periodRange,
+  pricesDate,
   slowTail,
   spendReportLines,
   spendView,
@@ -26,6 +27,7 @@ import {
 } from './ai-spend';
 import { NO_USAGE, type AiBilling } from './ai-usage';
 import { PRICES_AS_OF } from './ai-prices';
+import { withLocale } from './i18n/locale';
 
 const attempt = (over: Partial<LedgerInput> = {}): LedgerInput => ({
   at: new Date('2026-09-28T10:00:00Z'),
@@ -139,6 +141,13 @@ test('the three kinds of money are three totals, never one', () => {
   ]);
 });
 
+test('the price table is dated as the reader writes a date, never as its ISO key (#652)', () => {
+  assert.equal(PRICES_AS_OF, '2026-10-03', 'the fixtures below name the day');
+  assert.equal(pricesDate(), 'Oct 3, 2026');
+  assert.equal(withLocale('uk', pricesDate), '3 жовт. 2026 р.');
+  assert.equal(withLocale('fr', pricesDate), '3 oct. 2026');
+});
+
 test('the notes say where the money goes, what is not priced and what ended unheard', () => {
   const view = spendView([
     group({ calls: 92, micro: 11_000 }),
@@ -151,7 +160,7 @@ test('the notes say where the money goes, what is not priced and what ended unhe
   assert.equal(view.rows.find((r) => r.feature === 'Resume scan')?.unpriced, 3);
   assert.deepEqual(view.notes, [
     'Full analysis is 8 % of those calls and 89 % of the billed money.',
-    `3 calls on anthropic/claude-sonnet-5 are not priced — the price table is from ${PRICES_AS_OF} and does not know that model.`,
+    '3 calls on anthropic/claude-sonnet-5 are not priced — the price table is from Oct 3, 2026 and does not know that model.',
     "1 call ended with no usage reported (a timeout or an error). A timed-out call may still be on the vendor's bill.",
   ]);
   assert.deepEqual(spendView([]).notes, []);

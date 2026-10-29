@@ -128,7 +128,7 @@ install, unchanged.
 <img src="docs/screenshots/overview-dashboard.png" alt="The Overview: four status cards with their last two weeks, a chart of 138 matches over 30 days up 45 percent, the search funnel from 11,813 read to 138 alerted, pipeline health, recent activity and jobs by stack" width="900">
 </div>
 
-Underneath: a five-step first run that ends with your first matches, six
+Underneath: a five-step first run that ends with your first matches, seven
 AI engines with automatic failover, untrusted-text markers around every
 posting a model reads (a test fails the build without them), board
 discovery from HN comments, an alert when a board goes quiet, and an

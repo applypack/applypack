@@ -1,5 +1,5 @@
 import type { CoverLetter } from '@prisma/client';
-import { readMatchEvidence, type MatchEvidence } from './match-mode';
+import { readMatchEvidence, readMatchMode, strengthsReport, type MatchEvidence } from './match-mode';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
@@ -19,11 +19,15 @@ import {
   type MatchJobInput,
 } from './prompts';
 import { factCheck } from './fact-check';
+import { withoutSuggestedWording } from './applied';
+import { loadKeywordMatcher } from './keyword-matcher';
 import {
   createCoverLetter,
+  getEarlierStrengths,
   getLatestCompanySnapshot,
   getLatestMatchForResumeAndJob,
   listFacts,
+  listSuggestedActions,
 } from './store';
 
 const COVER_TIMEOUT_MS = 3 * 60_000;
@@ -35,6 +39,16 @@ export type CoverOutcome =
   /** The gate fired twice — nothing was shown, nothing was persisted (ADR 0021). */
   | { kind: 'blocked'; reasons: string[] }
   | { kind: 'failed' };
+
+/**
+ * What a letter about this resume may rest on (#632): its text with every
+ * suggestion's wording put back to the words it replaced. The letter is still
+ * written from the resume as it stands; only the gate reads this.
+ */
+export async function letterEvidence(resume: { id: number; text: string }): Promise<string> {
+  const [actions, matcher] = await Promise.all([listSuggestedActions(resume.id), loadKeywordMatcher()]);
+  return withoutSuggestedWording(resume.text, actions, matcher.locateQuote);
+}
 
 /**
  * One grounded cover letter, persisted as a CoverLetter row. Mirrors
@@ -60,10 +74,14 @@ export async function generateCoverLetter(
   },
 ): Promise<CoverOutcome> {
   const started = Date.now();
-  const [match, companySnapshot] = await Promise.all([
+  const [match, companySnapshot, evidenceText] = await Promise.all([
     getLatestMatchForResumeAndJob(job.id, resume.id, resume.text),
     getLatestCompanySnapshot(job.id),
+    letterEvidence(resume),
   ]);
+  // A quick check of the saved text borrows the strengths of the report the edits came from (#642).
+  const earlier = match && readMatchMode(match.breakdown) === 'fast' ? await getEarlierStrengths(job.id, resume.id, match.id) : null;
+  const lender = match ? strengthsReport(match, earlier ? [earlier] : [], resume.hidden === true) : null;
   const evidence = opts.evidence ?? (resume.hidden ? (match ? readMatchEvidence(match.breakdown) : 'text') : 'own');
   const facts = evidence === 'own' ? await listFacts() : [];
   const context: CoverContext = {
@@ -74,12 +92,13 @@ export async function generateCoverLetter(
       .filter((f) => f.status === 'confirmed')
       .map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
-    // A quick-check row (ADR 0029) carries no strengths, so the shortlist is
-    // then the verdict plus the evidenced keywords — thinner, never wrong.
-    match: match ? distillMatch(match.summary, match.strengths, match.keywords) : undefined,
+    // A quick-check row (ADR 0029) carries no strengths: with no full report
+    // to lend them, the shortlist is the verdict plus the evidenced keywords —
+    // thinner, never wrong.
+    match: match ? distillMatch(match.summary, lender?.strengths ?? [], match.keywords) : undefined,
     companySnapshot,
   };
-  const sources = coverGateSources(resume.text, job, companySnapshot);
+  const sources = coverGateSources(evidenceText, job, companySnapshot);
   const ai = await getAiRuntime();
 
   let regenerated = false;
@@ -101,10 +120,12 @@ export async function generateCoverLetter(
       facts,
       // The greeting's words are not claims about the writer (#162 stage 4).
       addressee: [opts.addressee, job.companyName].filter(Boolean).join(' '),
+      resume: evidenceText,
     });
     const words = countWords(letter);
     const violations = [
-      ...(gate.verdict === 'block' ? gate.reasons : []),
+      // A figure told about other work is asked again too, and kept with a note if it stays (#632).
+      ...(gate.verdict === 'block' ? gate.reasons : gate.detached.map((d) => d.reason)),
       ...(words > COVER_WORDS_MAX
         ? [`the letter runs ${words} words — the cap is ${COVER_WORDS_MAX}`]
         : []),
@@ -149,6 +170,8 @@ export async function generateCoverLetter(
         words,
         verdict: gate.verdict,
         regenerated,
+        matchId: match?.id ?? null,
+        strengthsFrom: lender?.id ?? null,
         promptVersion: COVER_PROMPT_VERSION,
         ms: Date.now() - started,
       },

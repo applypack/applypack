@@ -1,9 +1,45 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapWorkableFeed, workablePage } from './workable';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { mapWorkableFeed, withWorkableText, workablePage, workableTexts } from './workable';
 
 const COMPANY_ID = 13;
 const SLUG = 'acme';
+
+// laravel's list page and its careers widget, recorded on 2026-10-29; the
+// widget lists the job once per country it names. The text trimmed.
+const BOARD = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'workable-board.json'), 'utf8')) as { list: unknown; widget: unknown };
+
+describe('Workable — the recorded posting, whole (#658)', () => {
+  it('takes the text off the widget: the description, the requirements and the benefits', () => {
+    const texts = workableTexts(BOARD.widget);
+    assert.ok(texts);
+    assert.equal(texts.size, 1);
+    const { jobs, missing } = withWorkableText(mapWorkableFeed(BOARD.list, COMPANY_ID, 'laravel'), texts);
+    assert.equal(missing, 0);
+    const [job] = jobs;
+    assert.equal(job?.title, 'Senior Site Reliability Engineer');
+    assert.equal(job?.location, 'Remote · Argentina');
+    assert.match(job?.description ?? '', /^At Laravel, we don’t just build tools/);
+    assert.match(job?.description ?? '', /Requirements - What You Will Bring/);
+    assert.match(job?.description ?? '', /Proficiency with Kubernetes, Docker, and managing infrastructure via Terraform/);
+    assert.match(job?.description ?? '', /Benefits\n+• Small tight-knit team/);
+  });
+
+  it('leaves out a listed job the widget does not describe, and counts it', () => {
+    const listed = mapWorkableFeed({ results: [{ id: 1, shortcode: 'A', title: 'One' }, { id: 2, shortcode: 'B', title: 'Two' }] }, COMPANY_ID, SLUG);
+    const { jobs, missing } = withWorkableText(listed, new Map([['A', 'Text of one.']]));
+    assert.deepEqual(jobs.map((j) => [j.externalId, j.description]), [['A', 'Text of one.']]);
+    assert.equal(missing, 1);
+  });
+
+  it('answers null for a body that is not the widget', () => {
+    assert.equal(workableTexts('Not Found'), null);
+    assert.equal(workableTexts({ name: 'x' }), null);
+    assert.deepEqual(workableTexts({ name: 'Netcompany', description: '', jobs: [] }), new Map());
+  });
+});
 
 describe('mapWorkableFeed', () => {
   it('returns [] for non-object input', () => {

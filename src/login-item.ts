@@ -13,6 +13,8 @@ export interface LoginItemContext {
   platform: NodeJS.Platform;
   home: string;
   env: NodeJS.ProcessEnv;
+  /** What this checkout's `.env` sets: the start at login reads it again. */
+  dotEnv: Readonly<Record<string, string>>;
   /** The Node running ApplyPack now, the launcher script, the checkout it lives in. */
   node: string;
   launcher: string;
@@ -34,10 +36,27 @@ export interface LoginItem {
 const LABEL = 'io.applypack.launcher';
 const UNIT = 'applypack.service';
 
-/** What the launcher is started with: no browser tab at login, the data folder it was told. */
+/**
+ * The launcher's own settings, carried from the environment the entry is
+ * written in (#650): exported in a shell rather than written into `.env`, they
+ * were lost, and the start at login served on another port or read its hours
+ * in UTC. Never a key, a token or a password — those live in `.env` alone —
+ * and never WEB_HOST: an address off this machine is guarded by
+ * WEB_BASIC_AUTH, and the entry would carry the one without the other.
+ */
+const CARRIED_SETTINGS = ['APPLYPACK_DATA_DIR', 'WEB_PORT', 'TZ', 'APPLYPACK_SNAPSHOTS', 'APPLYPACK_INBOX_ROOTS'] as const;
+
+/**
+ * What the launcher is started with: no browser tab at login, the PATH the
+ * CLIs need, and each carried setting set here — unless `.env` sets it the
+ * same way, so a later edit to `.env` is not outranked by the entry.
+ */
 function launchEnv(ctx: LoginItemContext): [string, string][] {
-  const dataDir = ctx.env.APPLYPACK_DATA_DIR?.trim();
-  return [['APPLYPACK_NO_OPEN', '1'], ['PATH', ctx.env.PATH ?? ''], ...(dataDir ? [['APPLYPACK_DATA_DIR', dataDir] as [string, string]] : [])];
+  const carried = CARRIED_SETTINGS.flatMap((key): [string, string][] => {
+    const value = ctx.env[key]?.trim();
+    return value && value !== ctx.dotEnv[key]?.trim() ? [[key, value]] : [];
+  });
+  return [['APPLYPACK_NO_OPEN', '1'], ['PATH', ctx.env.PATH ?? ''], ...carried];
 }
 
 export function loginItemFor(ctx: LoginItemContext): LoginItem | null {

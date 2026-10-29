@@ -29,6 +29,9 @@ import {
 import { deleteConfirm, type DeleteImpact } from '../delete-confirm';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { techLabels } from '../tech-label';
+import { flagOf } from '../../countries';
+import { placeName } from '../../i18n/places';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import type { ResumeReview } from '@prisma/client';
@@ -133,14 +136,15 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         <span class="flex flex-wrap items-center gap-2">
           {/* The name is what every picker, flash and "applied with" line
               says, and it starts as whatever the uploaded file was called. */}
-          <form method="post" action={`/resumes/${resume.id}/rename`} class="flex items-center gap-1.5">
+          {/* The field gives way on a phone, where "Rename" in Ukrainian leaves it less than its 14rem (#651). */}
+          <form method="post" action={`/resumes/${resume.id}/rename`} class="flex min-w-0 max-w-full items-center gap-1.5">
             <Input
               name="name"
               value={resume.name}
               maxlength="120"
               required
               aria-label={t('resume.resumeName')}
-              class="!w-56 !px-2 !py-1 !text-meta"
+              class="!w-56 min-w-0 !px-2 !py-1 !text-meta"
             />
             <Button variant="ghost">
               {t('resume.rename')}
@@ -188,7 +192,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
               )}
               <TagRow label={t('resume.domains')} items={resume.industries} tone="info" />
               <TagRow label={t('resume.roles')} items={resume.roleTypes} tone="info" />
-              <TagRow label={t('resume.skills')} items={resume.skills} tone="ok" />
+              <TagRow label={t('resume.skills')} items={techLabels(resume.skills)} tone="ok" />
             </div>
           ) : scanRunId ? (
             <Empty
@@ -456,7 +460,7 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
           {/* The draft is the scan's own words: a name, technologies, roles. */}
           <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm" translate="no">
             <span class="font-medium text-ink">"{draft.changes.name}"</span>
-            {(draft.changes.stackRequired ?? []).map((tag) => (
+            {techLabels(draft.changes.stackRequired ?? []).map((tag) => (
               <Tag tone="ok">{tag}</Tag>
             ))}
             {(draft.changes.roleTypes ?? []).map((tag) => (
@@ -465,6 +469,7 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
             {(draft.changes.seniority ?? []).map((tag) => (
               <Tag tone="info">{tag}</Tag>
             ))}
+            {draft.changes.residence && <Tag tone="info">{`${flagOf(draft.changes.residence)} ${placeName(draft.changes.residence)}`.trim()}</Tag>}
           </div>
           {draft.warnings.length > 0 && (
             <p class="mt-2 text-note leading-5 text-warn">{t('resume.search.note', { warnings: draft.warnings.join('; ') })}</p>

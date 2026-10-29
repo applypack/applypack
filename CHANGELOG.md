@@ -4,6 +4,148 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.41] — 2026-10-29
+
+### Fixed
+- A cover letter written right after Save as vN uses the strengths of the
+  full comparison the edits came from, instead of asking for suggestions
+  again. The search editor's stack chips read TypeScript and Node.js; what
+  is stored does not change.
+- A screening years criterion that names a kind of work ("5+ years in test
+  automation") counts only the roles whose own lines show that work, and a
+  role that says too little makes the gate a question, not a fail
+  (screening prompt v7; Score again to apply it to older verdicts).
+
+## [2.63.40] — 2026-10-29
+
+### Changed
+- The resume's score against a posting is called "Resume score"
+  everywhere, told apart from the search's fit by name and by a hover, and
+  job-seeker pages no longer say gate, rung, slug or worker. Ukrainian,
+  Spanish and French wording reviewed: calques replaced, French narrow
+  no-break spaces, one Spanish quote style.
+
+### Fixed
+- Translated pages no longer clip, break or scroll sideways on a phone:
+  run names wrap, the fit header fits one line, the sort and model columns
+  are wide enough, and the Ukrainian Overview no longer scrolls sideways.
+- Plurals agree, commands are quoted instead of backticked, the first
+  search and remote-only places are worded in your language, and the
+  dashboard's host and origin refusals follow the browser's language.
+
+## [2.63.39] — 2026-10-29
+
+### Fixed
+- A PDF resume read back keeps no page-width wrap onto a capital
+  ("GitHub / Actions", "and / Node.js"), and its skills read as one group.
+- A search drafted from a resume fills "I live in" from the country its
+  header names.
+- "Is it real?" judges the posting's age from the date its source gave,
+  instead of calling a dated posting undated.
+- Screening drafts a sector once instead of three times, and a years row
+  says what the dates can and cannot check.
+- Resume pages write technology names as people do (GitHub Actions,
+  TypeScript), the core-stack line no longer says "all present" for a term
+  that is not written yet, an office-days question goes to the recruiter
+  after the edits, the pack card counts a rewrite once, and the no-phone
+  warning reads on its own.
+
+## [2.63.38] — 2026-10-29
+
+### Fixed
+- Starter packs point Webflow, Amplitude and Lemon.io at their current
+  boards and drop five that closed. The preview lists a board with no
+  openings under "No open jobs right now", says why a board failed (no
+  longer exists, refused, no answer), and no longer offers a stranger's
+  board as Remote.
+- A careers URL that now redirects to the site's home page is listed under
+  "Not added" instead of being watched for banner changes.
+- Setup no longer ticks step 4 before a search exists, its step links and
+  arrangement choices say their names, and ending setup keeps your
+  browser's time zone when none was chosen, so dates stop reading in UTC.
+
+## [2.63.37] — 2026-10-29
+
+### Fixed
+- A suggestion can no longer move a real number onto work the resume
+  never ties it to ("ran on-call rotations that cut resolution from 90 to
+  35"), and a cover letter is checked against your own wording, not a
+  suggestion's. Bullet rewrites that only add a term the line already
+  implies ("a PostgreSQL SQL database") are refused, and a missing keyword
+  goes into one bullet instead of every one. The next comparison of each
+  posting rebuilds its keyword list once (prompt v19).
+
+## [2.63.36] — 2026-10-29
+
+### Fixed
+- HN "Who is hiring" posts are read by what each header field says, not
+  its position: a title is never a place or "Full Time", the company loses
+  its link and bracket note, and roles listed under the header are found.
+- Himalayas reads back to the previous read (up to ten pages, not one),
+  JobTech reads back to the last good read after the computer slept, and
+  Remotive is read at most four times a day, as its terms ask.
+- Adding a Lever or SmartRecruiters board reports its real job count, and
+  EU Lever and Greenhouse board links are recognised.
+
+## [2.63.35] — 2026-10-29
+
+### Fixed
+- Descriptions and titles no longer show HTML entities as text ("&amp;",
+  "&nbsp;", "&mdash;", "caf&eacute;"), and a bold or linked word no longer
+  leaves a space before the punctuation after it ("AWS ." is "AWS.").
+- RemoteOK text reads as written instead of "youâll"; Golangprojects
+  postings name their company; DOU keeps pay as pay, not as a place;
+  4dayweek names each place once; HN jobs no longer take the YC batch for a
+  location; Greenhouse titles are trimmed. `backfill-descriptions.js`
+  repairs stored rows (`--dry-run` first).
+- A watched careers page does not alert once after the upgrade because the
+  new reader reads it differently: its watch starts again in silence.
+
+## [2.63.34] — 2026-10-29
+
+### Fixed
+- Settings forms refuse what their pages do not offer and say which
+  field: a minimum salary over 10,000,000 (it was a 500), a seniority
+  outside the list, a tag list over 50 entries, a board column named like
+  Applied or Rejected or longer than 40 characters, a retention the list
+  lacks. Repeated skills are kept once; "+ New search" opens the empty
+  search you already have instead of making another.
+- Disabling the engine that would still answer every call is refused,
+  instead of a flash claiming another engine takes over; Enable no longer
+  puts an engine that cannot run here first.
+- A refused schedule, application-pack, mute or watchlist field is named
+  as its page labels it, and focused.
+- Settings tabs no longer wait half a second for the engine check; the
+  Overview, AI usage and setup show the last check at once while a new one
+  runs behind it.
+- "Start with this computer" keeps the port, time zone, data folder,
+  snapshot count and inbox folders exported in your terminal.
+
+## [2.63.33] — 2026-10-29
+
+### Fixed
+- Six sources stored only a stub of each posting, so scoring and the
+  resume comparison judged a title and an intro. Lever, Jobicy, Workable,
+  BambooHR, Personio and Rippling now keep the whole posting, with its
+  requirements and published pay. BambooHR and Rippling keep the real
+  posting date, Rippling lists a posting once instead of once per office,
+  and its titles are trimmed. Postings stored before keep their old text.
+
+## [2.63.32] — 2026-10-29
+
+### Changed
+- The build leaves the compiled tests and the checkout-only tools
+  (benches, variance runs, the exports audit) out of `dist/`, so the Docker
+  image and a fresh `npm start` carry 996 files instead of 1 691. Every
+  script the docs say to run from `dist/scripts/` is still built, and
+  `npm run pack:dry`, documented since v2.48, now exists.
+- The Docker build ignores nested `node_modules` and `.env` files and the
+  `.claude`, `site` and `.github` folders.
+
+### Fixed
+- README, SPEC and the landing page say seven AI engines everywhere; the
+  landing's engine list names Antigravity.
+
 ## [2.63.31] — 2026-10-29
 
 ### Fixed
@@ -6974,6 +7116,16 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.41]: https://github.com/applypack/applypack/compare/v2.63.40...v2.63.41
+[2.63.40]: https://github.com/applypack/applypack/compare/v2.63.39...v2.63.40
+[2.63.39]: https://github.com/applypack/applypack/compare/v2.63.38...v2.63.39
+[2.63.38]: https://github.com/applypack/applypack/compare/v2.63.37...v2.63.38
+[2.63.37]: https://github.com/applypack/applypack/compare/v2.63.36...v2.63.37
+[2.63.36]: https://github.com/applypack/applypack/compare/v2.63.35...v2.63.36
+[2.63.35]: https://github.com/applypack/applypack/compare/v2.63.34...v2.63.35
+[2.63.34]: https://github.com/applypack/applypack/compare/v2.63.33...v2.63.34
+[2.63.33]: https://github.com/applypack/applypack/compare/v2.63.32...v2.63.33
+[2.63.32]: https://github.com/applypack/applypack/compare/v2.63.31...v2.63.32
 [2.63.31]: https://github.com/applypack/applypack/compare/v2.63.30...v2.63.31
 [2.63.30]: https://github.com/applypack/applypack/compare/v2.63.29...v2.63.30
 [2.63.29]: https://github.com/applypack/applypack/compare/v2.63.28...v2.63.29

@@ -76,8 +76,8 @@ import { postingDepth } from '../../resume/brief-depth';
 import { domainMismatch, domainNoticeMessage } from '../../resume/domain';
 import { postingOrientation } from '../../resume/posting-orientation';
 import { rewriteAction } from '../../resume/rewrite';
-import { readMatchEvidence, parseMatchMode, readMatchMode } from '../../resume/match-mode';
-import { generateCoverLetter } from '../../resume/cover-letter';
+import { readMatchEvidence, parseMatchMode, readMatchMode, strengthsReport } from '../../resume/match-mode';
+import { generateCoverLetter, letterEvidence } from '../../resume/cover-letter';
 import {
   countWords,
   COVER_TONES,
@@ -537,11 +537,12 @@ jobsRoute.get('/jobs/:id', async (c) => {
 
   // The cover card starts where the letter on show was generated (#581), and
   // the letter distils the latest comparison with the resume it preselects; a
-  // quick check carries no strengths to distil (#89).
+  // quick check carries no strengths to distil (#89) unless an earlier full
+  // report of the same resume lends them, as after Save as vN (#642).
   const coverResumeId = resumes.find((r) => r.id === selectedLetter?.resumeId)?.id ?? suggested?.id ?? null;
   const coverMatch = matches.find((m) => m.resumeId === (coverResumeId ?? resumes[0]?.id)) ?? null;
   const quickCheck =
-    coverMatch && readMatchMode(coverMatch.breakdown) === 'fast'
+    coverMatch && strengthsReport(coverMatch, matches, coverMatch.resume.hidden) === null
       ? { matchId: coverMatch.id, resumeName: coverMatch.resume.name }
       : null;
 
@@ -822,8 +823,9 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
         atsType: job.company.atsType,
         atsToken: job.company.atsToken,
       });
-      // What the free rungs found, in the step's own line and again inside the flash's whole sentence.
-      const found = { how: livenessCodeLabel(live.code) ?? live.code, rung: live.rung };
+      // What the free rungs found, in the step's own line and again inside the flash's whole sentence —
+      // never the rung's number, which is ours and means nothing to the reader (#655).
+      const found = { how: livenessCodeLabel(live.code) ?? live.code };
       updateRun(run.id, { results: { liveness: t('jobRoute.verify.found', found) } });
       if (live.liveness !== 'uncertain') {
         updateRun(run.id, {
@@ -1132,9 +1134,11 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
 
   // Manual edits are re-checked but never blocked — the gate polices the
   // model, not the user (ADR 0021). A `block` verdict is stored and shown.
+  // Against the resume's own words, as the generation was (#632).
+  const evidence = await letterEvidence(resume);
   const gate = factCheck({
     text,
-    sources: coverGateSources(resume.text, {
+    sources: coverGateSources(evidence, {
       title: job.title,
       companyName: job.employer ?? job.company.name,
       location: job.location,
@@ -1143,6 +1147,7 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
     facts,
     // The greeting's words are not claims: the person it was generated for, and the company (cover-letter.ts).
     addressee: [letter.addressee, job.employer ?? job.company.name].filter(Boolean).join(' '),
+    resume: evidence,
   });
   const reverted = text === letter.text;
   await updateCoverLetterEdit(letter.id, {

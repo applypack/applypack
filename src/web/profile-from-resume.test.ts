@@ -10,6 +10,7 @@ const scanned = {
   skills: ['Node.js', 'PostgreSQL'],
   primarySkills: ['Node.js'],
   roleTypes: ['backend'],
+  text: 'Marta Ruiz\nSenior Backend Engineer\nLisbon, Portugal · marta@example.com\n',
 } as unknown as ResumeSummary;
 
 test('#589: a search drafted from another resume names that resume when its title is taken', () => {
@@ -22,4 +23,8 @@ test('a name nobody has stays as it is, and a long one still fits the editor', (
   // The resume's own name says nothing more about itself.
   assert.equal(distinctName('marta v2', 'marta v2', ['marta v2']), 'marta v2');
   assert.equal(Array.from(distinctName('x'.repeat(90), 'y'.repeat(30), ['x'.repeat(90)])).length, 100);
+});
+
+test('a search drafted from a resume lives where its header says (#640)', () => {
+  assert.equal(newProfileDraft(scanned, []).changes.residence, 'PT');
 });

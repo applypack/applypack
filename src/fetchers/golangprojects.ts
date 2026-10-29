@@ -4,6 +4,7 @@ import { fetchWithRetry, stripHtml } from '../http';
 import { feedEntryId } from '../text-utils';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
+import { cleanEmployer } from '../employer';
 
 const FEED_URL = 'https://www.golangprojects.com/rss.xml';
 const PARSER_TIMEOUT_MS = 10_000;
@@ -51,17 +52,30 @@ export function mapGolangProjectsItem(
   if (!externalId) return null;
   const description =
     item.contentSnippet ?? (item.content ? stripHtml(item.content) : '') ?? '';
+  const { title, employer } = splitGolangTitle(item.title ?? '');
   return {
     companyId,
-    // An aggregator that does not say who hires: the company is a run of slug words nobody can split (ADR 0056).
-    employer: null,
+    employer,
     externalId,
-    title: item.title ?? 'Untitled',
+    title: title || 'Untitled',
     url: link,
-    location: deriveLocation(item.title ?? '', link),
+    location: deriveLocation(title, link),
     description,
     postedAt: safeDate(item.pubDate),
   } satisfies NormalizedJob;
+}
+
+/**
+ * "Senior Backend Engineer @ Rain": the role, an "@" and who hires, the "@"
+ * between two no-break spaces — every title of the feed (15 of 15,
+ * 2026-10-29). Split at the last one; a title without it is all role and
+ * names nobody (ADR 0056).
+ */
+export function splitGolangTitle(raw: string): { title: string; employer: string | null } {
+  const text = raw.replace(/\s+/g, ' ').trim();
+  const at = text.lastIndexOf(' @ ');
+  if (at === -1) return { title: text, employer: null };
+  return { title: text.slice(0, at), employer: cleanEmployer(text.slice(at + ' @ '.length)) };
 }
 
 // ".../golang-go-job-gxf-Remote-Europe-Senior-Software-Engineer-…-Form3-remotework.html"

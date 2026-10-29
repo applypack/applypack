@@ -9,15 +9,21 @@ import { findCountry } from '../countries';
  * "PHP Team Lead в Stape, Inc, за кордоном, віддалено" — the company itself
  * may hold a comma, so the tail is read from the END: salary, the two fixed
  * markers and places are peeled off while they are recognisable; whatever
- * is left in front of them is the company. Pure, no I/O.
+ * is left in front of them is the company. The feed escapes the title's
+ * entities twice; the caller decodes the second layer ("&amp;", "&nbsp;").
+ * Pure, no I/O.
  */
 
 /** " в " — the Ukrainian "at", with the spaces DOU always puts around it. */
 const AT_SEPARATOR = ' в ';
 const REMOTE_MARKER = 'віддалено';
 const ABROAD_MARKER = 'за кордоном';
-/** "$2000–2500", "$800–1300", "€3000" — a currency sign then digits. */
-const SALARY_RE = /^[$€£]\s?\d[\d\s.,–-]*$/u;
+/**
+ * "$2000–2500", "€3000", and "від $5000" / "до $5000" (from / up to) — a
+ * currency sign then digits, after an optional bound. Before the bound was
+ * known, its Cyrillic made the salary a place.
+ */
+const SALARY_RE = /^(?:(?:від|до)\s)?[$€£]\s?\d[\d\s.,–-]*$/u;
 /** A segment written in Cyrillic is a place even when the gazetteer lacks it ("Чернігів"). */
 const CYRILLIC_RE = /\p{Script=Cyrillic}/u;
 
@@ -49,13 +55,18 @@ export function parseDouTitle(raw: string): DouTitle {
     const last = segments[segments.length - 1]!;
     if (last === REMOTE_MARKER) out.remote = true;
     else if (last === ABROAD_MARKER) out.abroad = true;
-    else if (SALARY_RE.test(last)) out.salary = last;
+    else if (isDouSalary(last)) out.salary = last;
     else if (isPlace(last)) out.places.unshift(last);
     else break;
     segments.pop();
   }
   out.company = segments.join(', ') || null;
   return out;
+}
+
+/** "$2000–2500", "від $5000": a segment of the tail that is the pay. */
+export function isDouSalary(segment: string): boolean {
+  return SALARY_RE.test(segment.replace(/\s+/g, ' ').trim());
 }
 
 function isPlace(segment: string): boolean {

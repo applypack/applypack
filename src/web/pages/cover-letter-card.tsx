@@ -34,8 +34,9 @@ export interface CoverLetterCardProps {
   addressee: { suggested: string | null; finding: string | null };
   /**
    * The latest comparison with the preselected resume is a quick check — no
-   * strengths for the letter to draw on (ADR 0029, #89). Null when it is a
-   * full analysis or there is none.
+   * strengths for the letter to draw on (ADR 0029, #89), and no earlier full
+   * report of the same resume lends them (#642). Null when it is a full
+   * analysis, one lends, or there is none.
    */
   quickCheck: { matchId: number; resumeName: string } | null;
   /** What a letter usually costs here (ai-spend.ts:costHintText); null until there are three. */

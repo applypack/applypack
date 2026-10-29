@@ -63,7 +63,7 @@ CHECKS (run in order, stop early only on a hard scam flag)
 1. careers_page — find the company's own site and careers page. Same title + location listed there → strong legit signal. Company site exists but the role appears only on aggregators (LinkedIn / Indeed / ZipRecruiter …) → ghost flag. No company site at all → "unverifiable company". When you find the company's OWN page for THIS role — the listing one would apply on, on the company's site or its own job board — put its URL in "posting_url"; null when there is none or only an aggregator carries it.
 2. linkedin — company page exists? Headcount plausible for the role and claims? Real employees with activity?
 3. reputation — search "<company>" scam, reviews, Glassdoor / Blind mentions, recent news (funding, layoffs, acquisition, shutdown). A hiring freeze or mass layoff right before the posting → ghost flag.
-4. posting_age — posted more than 30-60 days ago or reposted for months → ghost flag. SOFT evidence only (search-result dates are unreliable).
+4. posting_age — the posting's own date is the "Posted" line above it, read against "Today": posted more than 30-60 days ago or reposted for months → ghost flag. When the source stated no date, say the posting is undated and use the first-seen date as the latest it can have gone up. Dates from search results are SOFT evidence only (unreliable).
 5. salary — missing range → weak ghost flag. Absurdly high for the level → scam flag.
 6. named_humans — a named recruiter / hiring manager / team → legit signal; total anonymity → weak ghost flag.
 7. posting_quality — generic copy-paste text, contradictions (remote vs on-site), unrealistic requirement lists.
@@ -94,9 +94,26 @@ export interface VerifyJobInput {
   url: string;
   description: string;
   postedAt: Date;
+  /** False when the source gave no date (#458): `postedAt` is then when the posting was first seen. */
+  postedAtKnown: boolean;
 }
 
-export function buildVerifyPrompt(job: VerifyJobInput): { system: string; user: string } {
+const day = (d: Date): string => d.toISOString().slice(0, 10);
+
+/**
+ * The posting's date as the model has to read it (#644): what the source
+ * said, or that it said nothing, beside today's date. One unlabelled "Seen
+ * on" line read as the day WE saw it, and the age was judged off search
+ * results the checklist itself calls unreliable.
+ */
+function datedLines(job: Pick<VerifyJobInput, 'postedAt' | 'postedAtKnown'>, today: Date): string[] {
+  return [
+    `Today: ${day(today)}`,
+    job.postedAtKnown ? `Posted (per the source): ${day(job.postedAt)}` : `Posted: not stated by the source; first seen ${day(job.postedAt)}`,
+  ];
+}
+
+export function buildVerifyPrompt(job: VerifyJobInput, today: Date = new Date()): { system: string; user: string } {
   const description =
     job.description.length > MAX_JOB_CHARS
       ? `${job.description.slice(0, MAX_JOB_CHARS)}\n[... truncated]`
@@ -104,7 +121,7 @@ export function buildVerifyPrompt(job: VerifyJobInput): { system: string; user: 
   return {
     system: VERIFY_SYSTEM,
     user: [
-      `Seen on: ${job.postedAt.toISOString().slice(0, 10)}`,
+      ...datedLines(job, today),
       '',
       fence(
         'JOB POSTING',

@@ -755,19 +755,20 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: Criter
       </Td>
       <Td class="whitespace-nowrap tabular-nums text-ink-faint">№{r.number}</Td>
       <Td class="w-full max-w-0">
-        <a href={href} class="font-medium text-ink hover:underline">
+        {/* A phone leaves the name the room the decision select does not take: it breaks rather than run under the score (#651). */}
+        <a href={href} class="font-medium text-ink [overflow-wrap:anywhere] hover:underline">
           {r.name ? <span translate="no">{r.name}</span> : <span class="text-ink-muted">{t('screen.detail.noName')}</span>}
         </a>
         {r.sameAs !== null && (
           <span title={t('screen.detail.sameAsTitle')}>
-            <Badge tone="neutral" class="ml-1.5">
+            <Badge tone="neutral" class="ml-1.5" wrap>
               {t('screen.detail.sameAs', { n: r.sameAs })}
             </Badge>
           </span>
         )}
         {v?.injection && (
           <span title={t('screen.detail.injectionTitle')}>
-            <Badge tone="danger" class="ml-1.5">
+            <Badge tone="danger" class="ml-1.5" wrap>
               {t('screen.detail.injection')}
             </Badge>
           </span>

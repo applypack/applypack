@@ -77,9 +77,10 @@ export function mapGreenhouseJob(
   return {
     companyId,
     externalId: String(j.id),
-    title: j.title,
+    // Boards end a title in spaces, or double one inside it ("Recruiter,  Sales").
+    title: j.title.replace(/\s+/g, ' ').trim(),
     url: j.absolute_url,
-    location: primaryLocation,
+    location: primaryLocation.trim(),
     description: stripHtml(j.content ?? ''),
     postedAt: parseDate(j.updated_at),
   } satisfies NormalizedJob;

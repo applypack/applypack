@@ -128,7 +128,7 @@ test('a failed gate outranks everything the wording could fix', () => {
       hard: [gate('fail', 'US work authorization')],
       actions: [act('high', 'rewrite the summary')],
     }),
-    '\u201cUS work authorization\u201d is not met — a gate decides this before any wording does.',
+    '\u201cUS work authorization\u201d is not met — a must-have condition decides this before any wording does.',
   );
 });
 
@@ -165,8 +165,8 @@ test('more missing than fit are counted, never silently dropped', () => {
 
 test('an unanswered gate comes before any keyword', () => {
   assert.equal(
-    advice({ keywords: [kw({ term: 'PHP', primary: true })], hard: [gate('unknown', 'on-site in Atlanta, GA')] }),
-    'The resume is silent on \u201con-site in Atlanta, GA\u201d — a gate the reader checks before the words.',
+    advice({ keywords: [kw({ term: 'PHP', primary: true })], hard: [gate('unknown', 'based in Atlanta, GA')] }),
+    'The resume is silent on \u201cbased in Atlanta, GA\u201d — a must-have condition the reader checks before the words.',
   );
 });
 
@@ -277,4 +277,34 @@ test('the one move never asks to confirm, write or prove the posting\'s own titl
   assert.match(advice({ keywords: [titleKw('cannot_claim'), kw({ term: 'Kubernetes', status: 'cannot_claim' })], postingTitle: title }) ?? '', /^Kubernetes is a must here/);
   // Without the title, the caller gets what it got before.
   assert.match(advice({ keywords: [titleKw('cannot_claim')] }) ?? '', /^Sr\. Software Engineer, Marine is a must here/);
+});
+
+test('the core stack does not call a term present that the text does not spell (#642)', () => {
+  const lines = scoreLines(
+    input({
+      keywords: [
+        kw({ term: 'Node.js', primary: true }),
+        kw({ term: 'TypeScript', primary: true }),
+        kw({ term: 'JavaScript', primary: true, status: 'add' }),
+      ],
+    }),
+  );
+  const core = find(lines.scored, 'Core stack');
+  assert.equal(core?.text, 'Node.js · TypeScript · JavaScript — present, JavaScript backed but not written');
+  assert.equal(core?.tone, 'warn');
+});
+
+test('a gate about office days is asked of the recruiter, after every edit the resume can take (#642)', () => {
+  const office = gate('unknown', 'in-office anchor days Mon/Tue/Fri if within commuting distance of SF');
+  const keywords = [kw({ term: 'Go', primary: true, evidence: 'measured' })];
+  // With an edit on the table, the edit is the move; the office question waits.
+  assert.equal(advice({ keywords, hard: [office], actions: [act('high', 'quantify the API work')] }), 'Quantify the API work.');
+  // With nothing else open, it is a question, not "the resume is silent".
+  const alone = adviceOf({ keywords, hard: [office] });
+  assert.match(alone?.text ?? '', /^Ask the recruiter about \u201cin-office anchor days/);
+  assert.equal(alone?.modelWritten, false);
+  // A permit the resume is silent on is still the resume's to answer, and outranks it.
+  assert.match(advice({ keywords, hard: [office, gate('unknown')] }) ?? '', /^The resume is silent on \u201cUS work authorization\u201d/);
+  // A gate about the office that FAILED still leads: it is not met.
+  assert.match(advice({ keywords, hard: [gate('fail', 'on-site in Kyiv three days a week')] }) ?? '', /is not met/);
 });

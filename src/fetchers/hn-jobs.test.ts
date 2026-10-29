@@ -76,6 +76,14 @@ describe('mapHnJobHit', () => {
     assert.equal(job.location, '');
   });
 
+  it("skips any season's batch, and reads the place a title names after the verb (#662)", () => {
+    // The first as HN listed it on 2026-10-29.
+    assert.equal(mapHnJobHit(baseHit({ title: '9 Mothers (YC P26) Is Hiring in Austin, TX' }), COMPANY_ID).location, 'Austin, TX');
+    assert.equal(mapHnJobHit(baseHit({ title: 'Lumen (YC X25) Is Hiring' }), COMPANY_ID).location, '');
+    assert.equal(mapHnJobHit(baseHit({ title: 'Flexport Is Hiring a Biz Ops Leader in Office of CEO' }), COMPANY_ID).location, '');
+    assert.equal(mapHnJobHit(baseHit({ title: 'Acme Is Hiring in Rust' }), COMPANY_ID).location, '');
+  });
+
   it('strips HTML entities from job_text', () => {
     const job = mapHnJobHit(
       baseHit({

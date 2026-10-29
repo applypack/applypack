@@ -96,7 +96,8 @@ export interface TargetPageProps {
 const TABS = [
   { key: 'both', label: 'target.tab.both' },
   { key: 'changes', label: 'target.tab.changes' },
-  { key: 'job', label: 'target.jobDescription' },
+  // The job page's own word for it: "Description de l'offre" took a phone's row from the other two (#651).
+  { key: 'job', label: 'job.tab.posting' },
 ] as const satisfies readonly { key: string; label: MessageKey }[];
 
 /** How many analysis runs stay visible in the header; the rest fold away. */
@@ -571,7 +572,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               aria-controls="panes"
               aria-selected={tab.key === 'both'}
               tabindex={tab.key === 'both' ? 0 : -1}
-              class="tab cursor-pointer rounded-[5px] px-3 py-1 text-note text-ink-muted transition-colors duration-150 hover:text-ink aria-selected:bg-surface-raised aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-sm"
+              class="tab cursor-pointer whitespace-nowrap rounded-[5px] px-3 py-1 text-note text-ink-muted transition-colors duration-150 hover:text-ink aria-selected:bg-surface-raised aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-sm"
             >
               {t(tab.label)}
             </button>

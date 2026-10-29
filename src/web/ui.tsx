@@ -470,13 +470,14 @@ export const More: FC<PropsWithChildren<{ summary?: string; class?: string }>> =
  */
 export const Tabs: FC<{
   label: string;
-  tabs: { href: string; label: string; count?: number; current: boolean }[];
+  tabs: { href: string; label: string; count?: number; current: boolean; title?: string }[];
   class?: string;
 }> = ({ label, tabs, class: className = '' }) => (
   <nav aria-label={label} class={`flex flex-wrap gap-x-1 border-b border-line ${className}`}>
     {tabs.map((tab) => (
       <a
         href={tab.href}
+        title={tab.title}
         aria-current={tab.current ? 'page' : undefined}
         class={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-note transition-colors duration-150 ${
           tab.current
@@ -646,16 +647,18 @@ export const StatusBadge: FC<{ status: JobStatus; wrap?: boolean }> = ({ status,
  * the floor's word ("72 Good") where there is room for it — a job page's
  * header, not a table cell.
  */
-export const FitBadge: FC<{ score: number | null; label?: string; worded?: boolean }> = ({
+/** `title` replaces the short "fit 92/100" where a page shows two scores and says which is which (#655). */
+export const FitBadge: FC<{ score: number | null; label?: string; worded?: boolean; title?: string }> = ({
   score,
   label = t('fit.label'),
   worded = false,
+  title,
 }) => {
   if (score == null) return <span class="text-ink-faint">—</span>;
   return (
     <span
       class={`inline-flex min-w-[2.25rem] items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-entity tabular-nums ring-1 ring-inset ${TONE_SOFT[fitTone(score)]}`}
-      title={`${label} ${score}/100`}
+      title={title ?? `${label} ${score}/100`}
     >
       {score}
       {worded && <span class="text-label">{fitWord(score)}</span>}
@@ -1103,7 +1106,8 @@ export const ToggleRow: FC<
 /**
  * Newline-joined list in a textarea — the transport the backend already
  * parses. chips.mjs upgrades it into a chip editor; without JS the plain
- * textarea still works.
+ * textarea still works. `chipLabel` words a stored value on its chip only
+ * ("typescript" → TypeScript, #642): the textarea keeps the value as stored.
  */
 export const TagListInput: FC<{
   label: string;
@@ -1118,9 +1122,17 @@ export const TagListInput: FC<{
   picker?: 'countries';
   /** "lines": a field of places, split on new lines alone — the save reads it with `parseLineList` (#607). */
   split?: 'lines';
-}> = ({ label, hint, more, name, values, rows = 3, placeholder, picker, split }) => (
+  chipLabel?: (value: string) => string;
+}> = ({ label, hint, more, name, values, rows = 3, placeholder, picker, split, chipLabel }) => (
   <Field label={label} hint={hint} more={more}>
-    <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker} data-split={split}>
+    <div
+      data-chips
+      data-label={label}
+      data-placeholder={placeholder}
+      data-picker={picker}
+      data-split={split}
+      data-labels={chipLabel ? JSON.stringify(Object.fromEntries(values.map((v) => [v, chipLabel(v)]))) : undefined}
+    >
       <Textarea name={name} rows={rows} mono placeholder={placeholder}>
         {values.join('\n')}
       </Textarea>

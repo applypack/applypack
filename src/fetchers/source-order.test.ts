@@ -6,6 +6,7 @@ import {
   POLITE_DELAY_MS,
   UNCHANGED_DELAY_MS,
   politeDelayMs,
+  pollIntervalFloorMs,
   shuffleSources,
   tickSeed,
 } from './source-order';
@@ -103,5 +104,13 @@ describe('politeDelayMs', () => {
         assert.ok(politeDelayMs(status, ats) > 0, `${status}/${ats}`);
       }
     }
+  });
+});
+
+describe('pollIntervalFloorMs', () => {
+  it("reads Remotive no more than four times a day, as its notice asks, and leaves every other source to its interval (#661)", () => {
+    assert.equal(pollIntervalFloorMs(AtsType.REMOTIVE), 6 * 60 * 60 * 1000);
+    assert.equal(pollIntervalFloorMs(AtsType.HIMALAYAS), 0);
+    assert.equal(pollIntervalFloorMs(AtsType.GREENHOUSE), 0);
   });
 });

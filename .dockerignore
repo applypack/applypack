@@ -1,19 +1,26 @@
-node_modules
+# A pattern here matches at the top of the checkout only; `**/` reaches into
+# every folder below it, where a nested checkout keeps its own copies.
+**/node_modules
 dist
 # Every env file, not two names. `.env.audit-backup` reached the build
 # stage through `COPY . .` — it never got into the runtime image, but a build
 # layer holding the operator's keys is a layer that can be pushed or cached
 # somewhere. `.env.example` has no secrets and the image has no use for it.
-.env
-.env.*
+**/.env
+**/.env.*
 .git
 .gitignore
 .idea
 .vscode
-*.log
-.DS_Store
+**/*.log
+**/.DS_Store
 README.md
 SPEC.md
 CLAUDE.md
 coverage
 docs
+# Nothing the image builds from: the landing page, CI, and the editor's
+# folder, where git worktrees of this repository can hold gigabytes.
+site
+.github
+.claude

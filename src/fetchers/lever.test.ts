@@ -1,6 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapLeverPosting, type LeverPosting } from './lever';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { HttpError } from '../http';
+import { fetchLeverList, mapLeverPosting, parseLeverBoard, type LeverPosting } from './lever';
+
+// Recorded on 2026-10-29: perforce's Senior Accountant (two lists[] blocks,
+// a closing section, a salaryRange) and siteground's backend role, whose
+// descriptionPlain is empty — its whole posting is in lists[]. Trimmed.
+const RECORDED = parseLeverBoard(JSON.parse(readFileSync(join(__dirname, 'fixtures', 'lever-postings.json'), 'utf8')), 'recorded');
 
 const COMPANY_ID = 99;
 
@@ -108,6 +116,43 @@ describe('mapLeverPosting', () => {
   });
 });
 
+describe('mapLeverPosting — the whole posting (#658)', () => {
+  it('keeps the intro, every lists[] block under its heading, the closing section and the salary range', () => {
+    const job = mapLeverPosting(RECORDED[0]!, COMPANY_ID);
+    const d = job.description;
+    assert.match(d, /^Salary: 82550-99000 USD \(year\)\.\n\nPosition Summary:/);
+    assert.match(d, /Responsibilities:\n• Perform normal month-end closing procedures/);
+    assert.match(d, /Requirements:\n• 3\+ years of accounting experience/);
+    assert.match(d, /Strong knowledge of U\.S\. GAAP/);
+    assert.match(d, /Additionally, this position is eligible for benefits/);
+    // In the order Lever's own page shows them.
+    const at = (s: string) => d.indexOf(s);
+    assert.ok(at('Position Summary') < at('Responsibilities:') && at('Responsibilities:') < at('Requirements:') && at('Requirements:') < at('Additionally'));
+  });
+
+  it('keeps a posting whose intro is empty — siteground stored nothing at all', () => {
+    const job = mapLeverPosting(RECORDED[1]!, COMPANY_ID);
+    assert.match(job.description, /^YOUR ROLE:\nWe're hiring a Software Engineer/);
+    assert.match(job.description, /OUR EXPECTATIONS:\n• Deep understanding of the HTTP stack/);
+    assert.match(job.description, /only shortlisted candidates will be contacted/);
+    assert.doesNotMatch(job.description, /Salary:/);
+  });
+
+  it('reads no salary off a range of zeros, and the hourly wording as an hour', () => {
+    const zero = mapLeverPosting(basePosting({ salaryRange: { min: 0, max: 0, currency: 'TRY', interval: 'per-month-salary' } }), COMPANY_ID);
+    assert.doesNotMatch(zero.description, /Salary:/);
+    const hourly = mapLeverPosting(basePosting({ salaryRange: { min: 40, max: 55, currency: 'USD', interval: 'per-hour-wage' } }), COMPANY_ID);
+    assert.match(hourly.description, /^Salary: 40-55 USD \(hour\)\./);
+  });
+
+  it('a malformed lists[] or salaryRange costs that field, never the board', () => {
+    const [job] = parseLeverBoard([{ ...basePosting(), lists: 'junk', salaryRange: { min: 'lots' } }], 'odd');
+    assert.deepEqual(job?.lists, []);
+    assert.equal(job?.salaryRange, null);
+    assert.throws(() => parseLeverBoard({ ok: false }, 'odd'), /Lever schema invalid for "odd"/);
+  });
+});
+
 describe('mapLeverPosting — location hints (ADR 0031)', () => {
   it('passes the ISO country and the arrangement as hints', () => {
     // Recorded from the spotify board on 2026-09-03.
@@ -126,5 +171,38 @@ describe('mapLeverPosting — location hints (ADR 0031)', () => {
   it('leaves the hints empty when the board sends neither', () => {
     const job = mapLeverPosting(basePosting({ country: null, workplaceType: null }), COMPANY_ID);
     assert.deepEqual(job.locationHints, { countries: [], workplace: 'UNKNOWN' });
+  });
+});
+
+/** #663: a token lives on Lever's global instance or its EU one, and the other answers 404. */
+describe('fetchLeverList', () => {
+  const answering = (status: (url: string) => number) => {
+    const asked: string[] = [];
+    const get = async (url: string): Promise<Response> => {
+      asked.push(url);
+      const code = status(url);
+      if (code !== 200) throw new HttpError(`HTTP ${code}`, code, url);
+      return new Response('[]');
+    };
+    return { asked, get };
+  };
+
+  it('asks the global instance, and only it, for a board it holds', async () => {
+    const { asked, get } = answering(() => 200);
+    assert.equal((await fetchLeverList('toptal', undefined, get)).url, 'https://api.lever.co/v0/postings/toptal?mode=json');
+    assert.equal(asked.length, 1);
+  });
+
+  it('asks the EU instance when the global one does not know the token', async () => {
+    const { asked, get } = answering((url) => (url.startsWith('https://api.lever.co/') ? 404 : 200));
+    assert.equal((await fetchLeverList('acme', undefined, get)).url, 'https://api.eu.lever.co/v0/postings/acme?mode=json');
+    assert.equal(asked.length, 2);
+  });
+
+  it('calls a token both instances refuse dead, and leaves a failure that is not a 404 to the caller', async () => {
+    await assert.rejects(fetchLeverList('nobody', undefined, answering(() => 404).get), (err) => err instanceof HttpError && err.status === 404);
+    const outage = answering(() => 503);
+    await assert.rejects(fetchLeverList('toptal', undefined, outage.get), (err) => err instanceof HttpError && err.status === 503);
+    assert.equal(outage.asked.length, 1);
   });
 });

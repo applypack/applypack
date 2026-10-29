@@ -115,9 +115,10 @@ const STATUS_TABS: (JobStatus | '')[] = ['', 'NEW', 'ALERTED', 'APPLIED', 'SAVED
  * status join from `sm`, the place from `md`, the salary and the time it was
  * found from `xl`. The fit and the status are as wide as their badges in the
  * longest language, so nothing scrolls sideways — table-hide.test.ts holds
- * them to it.
+ * them to it. From `sm` a cell's padding grows, and the fit's column with it,
+ * so its header ("Compat.", "Оцінка") stays one word on one line (#651).
  */
-export const JOBS_WIDTHS = ['', 'w-[16%]', 'w-[16%]', 'w-[5rem]', 'w-[7rem]', 'w-[8rem]', 'w-[7rem]'];
+export const JOBS_WIDTHS = ['', 'w-[16%]', 'w-[16%]', 'w-[5rem] sm:w-[6rem]', 'w-[7rem]', 'w-[8rem]', 'w-[7rem]'];
 export const JOBS_HIDE: HideBelow = ['', 'sm', 'md', '', 'xl', 'sm', 'xl'];
 
 /** The orders the list offers, each with the catalog key of its name. */
@@ -215,9 +216,11 @@ export const JobsListPage: FC<JobsListProps> = ({
             value={filters.minFit}
             placeholder={t('jobs.minFitPlaceholder')}
             aria-label={t('jobs.minimumFitScore')}
-            class="!w-20 sm:!w-24"
+            // Room on a phone too for the longest placeholder, "Compat. ≥" (#651).
+            class="!w-24"
           />
-          <Select name="sort" aria-label={t('jobs.sortBy')} class="!w-auto min-w-0 flex-1 sm:!w-44 sm:flex-none">
+          {/* Wide enough for "Récupérées récemment" whole (#651). */}
+          <Select name="sort" aria-label={t('jobs.sortBy')} class="!w-auto min-w-0 flex-1 sm:!w-52 sm:flex-none">
             {SORT_OPTIONS.map((o) => (
               <option value={o.value} selected={filters.sort === o.value}>
                 {t(o.label)}

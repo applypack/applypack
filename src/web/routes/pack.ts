@@ -6,7 +6,7 @@ import { cancelQueuedPack, getPack, getPackFile, packFiles, packIsKept, packOfSa
 import { packBusy, preparingLine, readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { contentDisposition, packFileName } from '../../resume/draft-document';
-import { loadLineDiff } from '../../resume/line-diff';
+import { asRewrites, loadLineDiff } from '../../resume/line-diff';
 import { readKeywords } from '../../resume/prompts';
 import { PDF_MIME } from '../../resume/render/clean-pdf';
 import { getPackSettings } from '../../settings';
@@ -96,7 +96,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
   const keywords = match ? readKeywords(match.keywords) : [];
   const changes =
     pack?.baseText && pack.text && pack.text !== pack.baseText
-      ? (await loadLineDiff()).diffLines(pack.baseText, pack.text).filter((op) => op.op !== 'keep')
+      ? asRewrites((await loadLineDiff()).diffLines(pack.baseText, pack.text)).filter((op) => op.op !== 'keep')
       : [];
   return {
     jobId,

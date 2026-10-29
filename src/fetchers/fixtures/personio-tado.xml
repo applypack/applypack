@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<workzag-jobs>
+
+<position>
+    <id>2502124</id>
+    <subcompany>tado GmbH</subcompany>
+    <office>Germany - Munich</office>
+    <department>Finance</department>
+    <recruitingCategory>People &amp; Culture</recruitingCategory>
+    <name>Team Lead Accounting (m/f/d)</name>
+    <jobDescriptions></jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>7-10</yearsOfExperience>
+    <occupation>bookkeeping</occupation>
+    <occupationCategory>accounting_and_finance</occupationCategory>
+    <createdAt>2026-01-22T09:48:25+00:00</createdAt>
+    <salaryInformation>
+        <min>80000.00</min>
+        <max>100000.00</max>
+        <currencySymbol>€</currencySymbol>
+        <currencyCode>EUR</currencyCode>
+        <type>yearly</type>
+    </salaryInformation>
+</position>
+
+<position>
+    <id>2840027</id>
+    <subcompany>tado GmbH</subcompany>
+    <office>Germany - Munich</office>
+    <department>Finance</department>
+    <recruitingCategory>People &amp; Culture</recruitingCategory>
+    <name>Werkstudent:in Accounting (m/w/d)</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Was erwartet dich bei uns</name>
+            <value>
+                <![CDATA[<p><strong>Standort</strong>: München | <strong>Start</strong>: ab Dezember 2026 | <strong>20</strong> Stunden/Woche</p><ul><li><p>Ein motiviertes Team mit starkem Zusammenhalt und viel Spaß an der Arbeit</p></li><li><p>Ein Umfeld, in dem du dich einbringen kannst – deine Ideen sind bei uns willkommen</p></li></ul><p><strong>Dein Impact bei uns:</strong></p><ul><li><p>Du lernst die Herausforderungen im Rahmen der Abrechnungen im E-Commerce Bereich kennen, ebenso wie mit Distributoren und Retailern wo du die Rechnungsstellung mitverantwortest</p></li><li><p>Du unterstützt uns in diversen operativen Tätigkeiten typisch für ein Accounting Department (Rechnungsprüfung, Reisekostenabrechnungen, etc.), dafür packst du auch beim Monatsabschluss mit an</p></li></ul>]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Warum du gut zu uns passt:</name>
+            <value>
+                <![CDATA[<ul><li><p>Laufendes Studium im Bereich Finance, BWL, VWL oder etwas Vergleichbares – idealerweise mit Schwerpunkt Finanzen oder Rechnungswesen</p></li><li><p>Du bringst erste Vorkenntnisse im Bereich Accounting mit (insbesondere HGB) sowie ein Grundverständnis für Umsatzsteuer; idealerweise hast du bereits mit ERP Systemen gearbeitet</p></li></ul>]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Unsere Benefits</name>
+            <value>
+                <![CDATA[<ul><li><p>Flexible Arbeitszeiten zur Anpassung an deinen Unterrichtsplan und remote-freundliche Arbeitsumgebung, mit der Möglichkeit, vorübergehend im Ausland innerhalb der EU zu arbeiten.</p></li><li><p>30 bezahlte Urlaubstage pro Jahr und einen Beitrag zu deiner betrieblichen Altersvorsorge.</p></li></ul>]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>intern</employmentType>
+    <seniority>student</seniority>
+    <schedule>part-time</schedule>
+    <occupation>bookkeeping</occupation>
+    <occupationCategory>accounting_and_finance</occupationCategory>
+    <createdAt>2026-10-13T09:59:49+00:00</createdAt>
+</position>
+
+</workzag-jobs>

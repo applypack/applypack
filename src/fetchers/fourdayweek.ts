@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { findCountry, placeLabel } from '../countries';
-import { fetchWithRetry, sleep } from '../http';
+import { decodeHtmlEntities, fetchWithRetry, sleep } from '../http';
 import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 import { type FetchContext, EMPTY_CONTEXT } from './fetch-context';
@@ -153,8 +153,9 @@ function toNormalized(j: FourDayWeekJob, companyId: number): NormalizedJob {
     url: j.url,
     location: formatLocation(j),
     // description is markdown-ish plaintext, NOT HTML — running a tag
-    // strip over it would collapse its real newlines (gotcha 12).
-    description: augmentDescription((j.description ?? '').trim(), j),
+    // strip over it would collapse its real newlines (gotcha 12). An entity
+    // in it ("Airframe &amp; Powerplant") is decoded; the lines stay.
+    description: augmentDescription(decodeHtmlEntities((j.description ?? '').trim()), j),
     postedAt: safeDate(j.posted_at),
     // `locations[].country` are geocoded names (verified live 2026-09-03).
     locationHints: {
@@ -164,6 +165,11 @@ function toNormalized(j: FourDayWeekJob, companyId: number): NormalizedJob {
   };
 }
 
+/**
+ * "Remote · Herndon, United States / Canada". Each place once: a row may
+ * list one country many times over — one read "United States" seven times
+ * (#662) — and the state, which would tell them apart, is not shown.
+ */
 function formatLocation(j: FourDayWeekJob): string {
   const places = j.locations
     .map((l) =>
@@ -172,7 +178,7 @@ function formatLocation(j: FourDayWeekJob): string {
         .filter((s) => s.length > 0)
         .join(', '),
     )
-    .filter((s) => s.length > 0);
+    .filter((s, i, all) => s.length > 0 && all.indexOf(s) === i);
   const place = places.join(' / ');
   const arrangement = (j.work_arrangement ?? '').trim().toLowerCase();
   const prefix = arrangement.includes('remote')

@@ -7,6 +7,7 @@ import type { WorkplaceCode } from './location';
 import type { RelocationCode } from './eligibility';
 import { SETTINGS_ID, withGlobalWriteLock } from './settings';
 import type { PriorityRule } from './priority-rules';
+import { searchName } from './search-names';
 
 /** A stale id: the search was deleted, most often from another tab. The sentence reaches the flash. */
 const searchGone = (): Error => new Error(t('settingsRoute.search.gone'));
@@ -65,23 +66,30 @@ export function blankProfileInput(): ProfileInput {
   };
 }
 
+/** A search as every reader gets it: a born name worded in the reader's language (search-names.ts, #652). */
+function shown<T extends { name: string }>(profile: T): T {
+  return { ...profile, name: searchName(profile.name) };
+}
+
 export async function listProfiles(): Promise<Profile[]> {
-  return prisma.profile.findMany({ orderBy: { id: 'asc' } });
+  return (await prisma.profile.findMany({ orderBy: { id: 'asc' } })).map(shown);
 }
 
 export async function getProfile(id: number): Promise<Profile | null> {
-  return prisma.profile.findUnique({ where: { id } });
+  const profile = await prisma.profile.findUnique({ where: { id } });
+  return profile && shown(profile);
 }
 
 /** The searches that hunt with a given resume — shown on that resume's page. */
 export async function listProfilesForResume(
   resumeId: number,
 ): Promise<Pick<Profile, 'id' | 'name'>[]> {
-  return prisma.profile.findMany({
+  const profiles = await prisma.profile.findMany({
     where: { resumeId },
     select: { id: true, name: true },
     orderBy: { id: 'asc' },
   });
+  return profiles.map(shown);
 }
 
 /**
@@ -91,7 +99,7 @@ export async function listProfilesForResume(
  * active — so a caller that only wants defaults can still use getActiveProfile.
  */
 export async function listActiveProfiles(): Promise<Profile[]> {
-  return prisma.profile.findMany({ where: { active: true }, orderBy: { id: 'asc' } });
+  return (await prisma.profile.findMany({ where: { active: true }, orderBy: { id: 'asc' } })).map(shown);
 }
 
 /**
@@ -128,7 +136,7 @@ export async function getActiveProfile(): Promise<Profile | null> {
     where: { id: SETTINGS_ID },
     include: { activeProfile: true },
   });
-  return settings?.activeProfile ?? null;
+  return settings?.activeProfile ? shown(settings.activeProfile) : null;
 }
 
 export async function createProfile(input: ProfileInput): Promise<Profile> {

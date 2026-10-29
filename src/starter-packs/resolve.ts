@@ -1,7 +1,9 @@
 /**
  * Pure resolution logic for starter packs: which (atsType, atsToken) pairs to
  * try for a catalog entry, in what order, and how to split probe results into
- * "insert / already here / could not resolve". No DB, no HTTP.
+ * "insert / already here / no open jobs / could not resolve". No DB, no HTTP:
+ * `resolveEntry` takes the probe as an argument, so the walk is tested on
+ * recorded answers.
  */
 
 import type { DiscoverableAtsType } from '../text-utils';
@@ -140,26 +142,124 @@ export interface ResolvedEntry extends ResolveTarget {
   boardUrl: string;
 }
 
+/**
+ * The pinned board answered and lists nothing, and no guess did better: the
+ * company's own board with no openings today (#638). Listed, never added — a
+ * source with nothing to read would only age into "silent" (ADR 0019).
+ */
+export interface QuietEntry extends ResolveTarget {
+  boardUrl: string;
+}
+
+/**
+ * Why an entry gave no board, read off the pinned board's answer — its
+ * status, never its words (#638):
+ * - `gone`: the vendor looked the token up and has no such board (a 404), or
+ *   answered with a redirect away from its API;
+ * - `refused`: the vendor would not say (401, 403) — closed, private, or kept
+ *   from where we ask;
+ * - `unavailable`: nothing about the token — a rate limit, an outage, no
+ *   answer at all;
+ * - `timedOut`: the pack's budget ran out before the entry was asked.
+ */
+export type UnresolvedReason = 'gone' | 'refused' | 'unavailable' | 'timedOut';
+
 export interface UnresolvedEntry {
   name: string;
   segment: string;
-  reason: string;
+  reason: UnresolvedReason;
+  /** The probe's own words, for the log: the page says `reason`. */
+  detail?: string;
+}
+
+/** What a probe answered, reduced to what the resolver reads (`ats-probe.ts:ProbeResult`). */
+export interface ProbeAnswer {
+  ok: boolean;
+  jobsCount?: number;
+  /** The vendor's HTTP status when it answered with an error. */
+  status?: number;
+  error?: string;
+}
+
+export function failureReason(answer: ProbeAnswer): Exclude<UnresolvedReason, 'timedOut'> {
+  const status = answer.status;
+  if (status === undefined || status === 429 || status >= 500) return 'unavailable';
+  if (status === 401 || status === 403) return 'refused';
+  return 'gone';
+}
+
+export type EntryOutcome =
+  | { kind: 'resolved'; entry: ResolvedEntry }
+  | { kind: 'quiet'; entry: QuietEntry }
+  | { kind: 'unresolved'; entry: UnresolvedEntry };
+
+/**
+ * One entry through its plan: the first attempt holding a job wins. When none
+ * does, the pinned board's own answer decides — an empty board is `quiet`, a
+ * failure says why. A deadline that falls after the pinned board answered
+ * still lets that answer speak; one that falls before it is `timedOut`.
+ */
+export async function resolveEntry(
+  target: ResolveTarget,
+  probe: (attempt: ResolveAttempt) => Promise<ProbeAnswer>,
+  deadline: number,
+  now: () => number = Date.now,
+): Promise<EntryOutcome> {
+  let pinnedAnswer: ProbeAnswer | null = null;
+  for (const attempt of buildResolvePlan(target)) {
+    if (now() > deadline) break;
+    const answer = await probe(attempt);
+    if (attempt.pinned) pinnedAnswer = answer;
+    // A board that exists but holds nothing is not proof of identity —
+    // SmartRecruiters answers 200 with an empty list for any slug (ADR 0017).
+    if (answer.ok && (answer.jobsCount ?? 0) >= MIN_JOBS_TO_ACCEPT) {
+      return {
+        kind: 'resolved',
+        entry: {
+          ...target,
+          atsType: attempt.atsType,
+          atsToken: attempt.atsToken,
+          pinned: attempt.pinned,
+          jobsCount: answer.jobsCount ?? 0,
+          boardUrl: boardUrl(attempt.atsType, attempt.atsToken),
+        },
+      };
+    }
+  }
+
+  const who = { name: target.name, segment: target.segment };
+  if (pinnedAnswer === null) return { kind: 'unresolved', entry: { ...who, reason: 'timedOut' } };
+  if (pinnedAnswer.ok) {
+    return { kind: 'quiet', entry: { ...target, boardUrl: boardUrl(target.atsType, target.atsToken) } };
+  }
+  const reason = failureReason(pinnedAnswer);
+  return {
+    kind: 'unresolved',
+    entry: pinnedAnswer.error === undefined ? { ...who, reason } : { ...who, reason, detail: pinnedAnswer.error },
+  };
+}
+
+export interface PackResolution {
+  resolved: ResolvedEntry[];
+  quiet: QuietEntry[];
+  unresolved: UnresolvedEntry[];
 }
 
 export interface PackPreview {
   toAdd: ResolvedEntry[];
   alreadyAdded: ResolvedEntry[];
+  quiet: QuietEntry[];
   unresolved: UnresolvedEntry[];
 }
 
 /**
  * Splits resolved entries against the boards already in the database. Entries
  * that resolved to nothing stay in `unresolved` so the user can chase them by
- * hand — a name is never dropped silently.
+ * hand — a name is never dropped silently. A quiet board already tracked is
+ * reported as tracked, with its zero.
  */
 export function buildPreview(
-  resolved: readonly ResolvedEntry[],
-  unresolved: readonly UnresolvedEntry[],
+  { resolved, quiet, unresolved }: PackResolution,
   existingKeys: ReadonlySet<string>,
 ): PackPreview {
   const toAdd: ResolvedEntry[] = [];
@@ -178,5 +278,8 @@ export function buildPreview(
     }
   }
 
-  return { toAdd, alreadyAdded, unresolved: [...unresolved] };
+  const tracked = (e: QuietEntry) => existingKeys.has(keyOf(e.atsType, e.atsToken));
+  for (const entry of quiet.filter(tracked)) alreadyAdded.push({ ...entry, jobsCount: 0, pinned: true });
+
+  return { toAdd, alreadyAdded, quiet: quiet.filter((e) => !tracked(e)), unresolved: [...unresolved] };
 }

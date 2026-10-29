@@ -20,14 +20,20 @@ export async function checkLiveness(job: LivenessJobInput & { id: number }): Pro
   return result;
 }
 
-/** Runs the ghost-job check with web tools and stores the verdict. Null on AI failure. */
+/**
+ * Runs the ghost-job check with web tools and stores the verdict. Null on AI
+ * failure. Whether the source dated the posting is read off its row: each
+ * caller builds the posting by hand, and a pasted one or an undated feed's
+ * `postedAt` is only the day it was first seen (#644).
+ */
 export async function verifyJob(
-  job: VerifyJobInput & { id: number },
+  job: Omit<VerifyJobInput, 'postedAtKnown'> & { id: number },
   onError?: (reason: string) => void,
 ): Promise<JobVerification | null> {
+  const dated = await prisma.job.findUnique({ where: { id: job.id }, select: { postedAtKnown: true } });
   const answer = await askForJson(
     await getAiRuntime(),
-    { ...buildVerifyPrompt(job), maxTokens: VERIFY_MAX_TOKENS, label: 'job-verify', role: 'resume', timeoutMs: VERIFY_TIMEOUT_MS, webTools: true, onError, subject: { jobId: job.id } },
+    { ...buildVerifyPrompt({ ...job, postedAtKnown: dated?.postedAtKnown ?? true }), maxTokens: VERIFY_MAX_TOKENS, label: 'job-verify', role: 'resume', timeoutMs: VERIFY_TIMEOUT_MS, webTools: true, onError, subject: { jobId: job.id } },
     parseVerifyResponse,
     { jobId: job.id },
   );

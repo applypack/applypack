@@ -22,10 +22,25 @@ export function withChips(list, values) {
   return out;
 }
 
+/** A chip's words: the label the page sent for a stored value (`data-labels`), else the value as typed (#642). */
+export function chipText(labels, value) {
+  return Object.hasOwn(labels, value) && typeof labels[value] === 'string' ? labels[value] : value;
+}
+
+function readLabels(json) {
+  try {
+    var parsed = json ? JSON.parse(json) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function enhance(host) {
   var ta = host.querySelector('textarea');
   if (!ta) return;
   var linesOnly = host.dataset.split === 'lines';
+  var labels = readLabels(host.dataset.labels);
   var box = document.createElement('div');
   box.className = 'flex min-h-[38px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 shadow-sm transition-colors duration-150 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 has-[[aria-invalid=true]]:border-danger has-[[aria-invalid=true]]:ring-2 has-[[aria-invalid=true]]:ring-danger/20';
   var input = document.createElement('input');
@@ -66,10 +81,10 @@ function enhance(host) {
       chip.setAttribute('data-chip', '');
       chip.className = 'inline-flex items-center gap-1 rounded-md bg-surface-overlay px-2 py-0.5 text-note text-ink ring-1 ring-inset ring-line';
       var text = document.createElement('span');
-      text.textContent = value;
+      text.textContent = chipText(labels, value);
       var del = document.createElement('button');
       del.type = 'button';
-      del.setAttribute('aria-label', t('browser.chips.remove', { value: value }));
+      del.setAttribute('aria-label', t('browser.chips.remove', { value: chipText(labels, value) }));
       del.className = 'grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-faint hover:bg-line hover:text-ink';
       del.textContent = '\u00d7';
       del.addEventListener('click', function () {

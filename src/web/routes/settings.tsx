@@ -50,13 +50,14 @@ import {
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
 import { config, setInEnv } from '../../config';
-import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
+import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, parseSchedule, scheduleInSentence } from '../../user-schedule';
 import { canonicalZone, readZone, timeZoneChoices } from '../time-zones';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { alertsSwitchedLine } from '../held-line';
 import {
   addStage,
   allStages,
+  MAX_STAGE_LABEL,
   moveStage,
   parseStageConfig,
   removeStage,
@@ -80,6 +81,7 @@ import {
   unsetModelName,
   withEngineTasks,
   type AiEngineConfig,
+  type AiEngineEnv,
   type AiProviderId,
 } from '../../ai-engine';
 import { AI_TASKS, isAiTask, taskLabel } from '../../ai-tasks';
@@ -122,7 +124,7 @@ import {
 import { groupSources, type SourceCount, fetchedSource } from '../source-groups';
 import { profileLine } from '../profile-line';
 import { testAiEngine } from '../ai-test';
-import { startEngineTrial, trialViews } from '../engine-trial-run';
+import { startEngineTrial, trialViews, type TrialView } from '../engine-trial-run';
 import { misfitLine, misfitSince, windowMisfits } from '../window-misfits';
 import {
   blankProfileInput,
@@ -138,7 +140,7 @@ import {
 import { countReclassifyAll, runReclassifyAll } from '../../jobs/reclassify-job';
 import { spendHint } from '../cost-hint';
 import { recordCronRun } from '../../jobs/cron-run';
-import { parseLineList, parseTagList, toStringArray } from '../../text-utils';
+import { parseTagList, toStringArray } from '../../text-utils';
 import { isCountryCode, isRegionCode, resolveCountries } from '../../countries';
 import { isRelocation, parseResidence } from '../../eligibility';
 import { isProfileWorkplace } from '../../location';
@@ -152,7 +154,9 @@ import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SettingsTab, type SourceKeyRow } from '../pages/settings';
-import { minFitField, profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
+import { blankSearchToReuse, lineListField, minFitField, minSalaryField, profileFieldLabel, reclassifyQuestion, sentProfile, seniorityField, tagListField } from '../profile-form';
+import { packFieldLabel, scheduleFieldLabel, scheduleInput } from '../form-fields';
+import { retentionParam } from '../retention-choices';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -212,12 +216,12 @@ const DiscordTargetSchema = z.object({
 
 const ProfileFormSchema = z.object({
   name: z.string().min(1).max(100),
-  stackRequired: z.string().optional().default(''),
-  roleTypes: z.string().optional().default(''),
-  stackNiceToHave: z.string().optional().default(''),
-  stackExclude: z.string().optional().default(''),
+  stackRequired: tagListField,
+  roleTypes: tagListField,
+  stackNiceToHave: tagListField,
+  stackExclude: tagListField,
   notes: z.string().max(4_000).optional().default(''),
-  seniority: z.union([z.string(), z.array(z.string())]).optional(),
+  seniority: seniorityField,
   // ADR 0032: chips post one value each, the no-JS textarea posts a list.
   countries: z.union([z.string(), z.array(z.string())]).optional(),
   regions: z.union([z.string(), z.array(z.string())]).optional(),
@@ -225,8 +229,8 @@ const ProfileFormSchema = z.object({
   // ADR 0033: where the candidate lives, and whether they would move.
   residence: z.string().optional().default(''),
   relocation: z.string().optional().default('no'),
-  onsiteCities: z.string().optional().default(''),
-  minSalaryUsd: z.coerce.number().int().min(0).default(0),
+  onsiteCities: lineListField,
+  minSalaryUsd: minSalaryField,
   minFitScore: minFitField,
   notificationTargetId: z.string().optional().default(''),
   resumeId: z.string().optional().default(''),
@@ -265,6 +269,8 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 async function loadSettingsProps(here: string, tab: SettingsTab) {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
+  // The engine cards are the AI tab's alone: no other tab waits on the probe or reads the ledger for them (#649).
+  const aiTab = tab === 'ai';
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
     await Promise.all([
       getSettings(),
@@ -272,14 +278,14 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
       listProfiles(),
       getActiveProfile(),
       listResumes(),
-      probeAiProviders(aiKeys),
+      aiTab ? probeAiProviders(aiKeys, { fresh: true }) : null,
       prisma.job.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
         where: { pipelineStage: { not: null } },
       }),
       billedThisMonth(),
-      loadRecentAttempts(),
+      aiTab ? loadRecentAttempts() : [],
     ]);
   // "available" is what the probe found on disk; whether calls get through is what the ledger's last rows say (#413).
   const troubles = new Map(engineTroubles(recentAttempts).map((trouble) => [trouble.engine, troubleLine(trouble)]));
@@ -326,7 +332,7 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
-  const aiEngines = AI_PROVIDER_IDS.map((id) => {
+  const aiEngines = aiStatuses === null ? [] : AI_PROVIDER_IDS.map((id) => {
     // A CLI engine with no model set runs whatever its own configuration names; the local engine runs none (#563).
     const unset = unsetModelName(id) ?? '';
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || unset;
@@ -339,7 +345,7 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
       trouble: troubles.get(id) ?? null,
-      ...aiEngineCard(engine, id, aiEnv.provider),
+      ...aiEngineCard(aiConfig, id, aiEnv),
       tasks: AI_TASKS.filter((task) => taskShown(task, settings.employerMode)).map((task) => ({
         id: task,
         label: taskLabel(task),
@@ -366,13 +372,15 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
     };
   }).sort((a, b) => cardRank(a) - cardRank(b));
   // A trial sits under an engine's tasks, which only an engine in the list shows.
-  const trials = await trialViews(
-    aiEngines.filter((e) => e.enabled).map((e) => e.id),
-    (id) => engine.modelFor(id, 'classifier'),
-    billingFor,
-  );
+  const trials = aiTab
+    ? await trialViews(
+        aiEngines.filter((e) => e.enabled).map((e) => e.id),
+        (id) => engine.modelFor(id, 'classifier'),
+        billingFor,
+      )
+    : new Map<AiProviderId, TrialView>();
   // #411: a ticked task whose prompt the engine refused as too large for its window lately.
-  const windowLog = await loadWindowRefusals(misfitSince(new Date()));
+  const windowLog = aiTab ? await loadWindowRefusals(misfitSince(new Date())) : { refusals: [], fallbacks: [] };
   const localWindow = settings.localContextTokens ?? DEFAULT_LOCAL_CONTEXT_TOKENS;
   const misfitsOf = (e: (typeof aiEngines)[number]): string[] =>
     windowMisfits(e.id, windowLog.refusals, windowLog.fallbacks)
@@ -591,7 +599,8 @@ settingsRoute.post('/settings/schedule', async (c) => {
   const back = SCHEDULE_BACK[schedulePart(form.from) ?? part ?? 'fetch'];
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
-    return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    const { issues } = parsed.error;
+    return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(issues, scheduleFieldLabel) }), refusedField(c.req.path, issues, scheduleInput));
   }
   await setSchedule(parsed.data);
   if (part === 'zone') {
@@ -599,7 +608,7 @@ settingsRoute.post('/settings/schedule', async (c) => {
     return flashRedirect(back, 'ok', t(moved ? 'settingsRoute.schedule.zoneChanged' : 'settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
   }
   const held = await loadHeldLine(parsed.data);
-  const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
+  const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: scheduleInSentence(parsed.data) });
   return flashRedirect(back, 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
 });
 
@@ -649,16 +658,20 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   return flashRedirect('/settings?tab=notifications', 'ok', alertsSwitchedLine(enabled, targets, held));
 });
 
-/** The list the engine cards show (`aiEngineOrder`), the stored config, and the .env engine that seeds it. */
+/**
+ * The list the engine cards show (`aiEngineOrder`), the stored config, and the
+ * engine facts of this host: the .env engine that seeds the list, and the keys
+ * and sign-ins that decide which engines can run.
+ */
 async function readAiOrder(): Promise<{
   order: AiProviderId[];
   config: AiEngineConfig;
-  envProvider: AiProviderId;
+  env: AiEngineEnv;
 }> {
-  const settings = await getSettings();
+  const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const config = parseAiEngineConfig(settings.aiEngine);
-  const envProvider = getAiEngineEnv().provider;
-  return { order: aiEngineOrder(config, envProvider), config, envProvider };
+  const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
+  return { order: aiEngineOrder(config, env.provider), config, env };
 }
 
 settingsRoute.post('/settings/ai/enable', async (c) => {
@@ -668,24 +681,29 @@ settingsRoute.post('/settings/ai/enable', async (c) => {
   // The state the button asks for (#683): a second press, a resubmit or an old tab never undoes the first.
   const want = switchParam(form.on);
   if (want === null) return flashRedirect('/settings?tab=ai', 'err', t('http.noSwitchState'));
-  const { order, config, envProvider } = await readAiOrder();
+  const { order, config, env } = await readAiOrder();
   const engine = AI_PROVIDER_LABELS[provider];
   if (want === order.includes(provider)) {
     return flashRedirect('/settings?tab=ai', 'ok', t(want ? 'settingsRoute.ai.alreadyOn' : 'settingsRoute.ai.alreadyOff', { engine }));
   }
-  const next = toggleAiEngine(order, provider, envProvider);
+  const next = toggleAiEngine(config, provider, env);
   if (next === null) {
     return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.onlyEngine', { engine }));
   }
   await setAiEngineConfig({ ...config, order: next });
   if (order.includes(provider)) {
+    // #647: the flash names the engine that answers now, which is not always the .env one.
+    const { lastResort } = resolveAiEngine({ ...config, order: next }, env);
+    if (lastResort !== null) {
+      return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.disabledLastResort', { engine, fallback: AI_PROVIDER_LABELS[lastResort] }));
+    }
     if (next.length === 0) {
-      return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.disabledFallback', { engine, fallback: AI_PROVIDER_LABELS[envProvider] }));
+      return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.disabledFallback', { engine, fallback: AI_PROVIDER_LABELS[env.provider] }));
     }
     return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.disabled', { engine }));
   }
   const placed = { engine, n: next.length };
-  const statuses = await probeAiProviders();
+  const statuses = await probeAiProviders(undefined, { fresh: true });
   if (!statuses[provider].ok) {
     return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.enabledUnusable', { ...placed, detail: statuses[provider].detail }));
   }
@@ -1009,6 +1027,7 @@ const STAGE_ERROR_TEXT = {
   limit: 'settingsRoute.stages.limit',
   'unknown-key': 'settingsRoute.stages.unknownKey',
   'fixed-column': 'settingsRoute.stages.fixedColumn',
+  'too-long': 'settingsRoute.stages.tooLong',
   'last-column': 'settingsRoute.stages.lastColumn',
 } as const satisfies Record<StageEditError, MessageKey>;
 
@@ -1022,7 +1041,7 @@ async function applyStageEdit(
   const work = parseStageConfig(settings.pipelineStages);
   const next = edit(work);
   if (typeof next === 'string') {
-    return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[next]));
+    return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[next], { n: MAX_STAGE_LABEL }));
   }
   await setPipelineStages(next);
   return flashRedirect(STAGES_BACK, 'ok', okText);
@@ -1131,7 +1150,7 @@ settingsRoute.post('/settings/pack', async (c) => {
   const form = packSettingsFromForm(await c.req.parseBody({ all: true }));
   // A value the form does not offer stores nothing — not even the switch — and the flash names the field (#383).
   if (!form.ok) {
-    return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues) }), refusedField(c.req.path, form.issues));
+    return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues, packFieldLabel) }), refusedField(c.req.path, form.issues));
   }
   const pack = switchedOn(form.settings, await getPackSettings(), new Date());
   await setPackSettings(pack);
@@ -1207,11 +1226,10 @@ settingsRoute.post('/settings/employer-mode-toggle', async (c) => {
 
 settingsRoute.post('/settings/screening-retention', async (c) => {
   const form = await c.req.parseBody();
-  const days = Number(form.days);
-  if (!Number.isFinite(days)) return flashRedirect('/settings?tab=screening', 'err', t('settingsRoute.retention.enterDays'));
+  const days = retentionParam(form.days, (await getSettings()).screeningRetentionDays, SCREENING_RETENTION_DAYS);
+  if (days === null) return flashRedirect('/settings?tab=screening', 'err', t('http.noChoice'));
   await setScreeningRetentionDays(days);
-  const saved = (await getSettings()).screeningRetentionDays;
-  return flashRedirect('/settings?tab=screening', 'ok', t('settingsRoute.retention.saved', { days: saved }));
+  return flashRedirect('/settings?tab=screening', 'ok', t('settingsRoute.retention.saved', { days }));
 });
 
 settingsRoute.post('/settings/source-health-toggle', async (c) => {
@@ -1355,7 +1373,9 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
 
 // --- Profiles ---------------------------------------------------------------
 
-settingsRoute.post('/settings/profiles/new', async (c) => {
+settingsRoute.post('/settings/profiles/new', onceGuard(() => 'profiles:new', () => '/settings?tab=profile'), async (c) => {
+  const blank = blankSearchToReuse(await listProfiles());
+  if (blank !== null) return flashRedirect(`/settings?tab=profile&profile=${blank}`, 'warn', t('settingsRoute.search.blankOpened'));
   const profile = await createProfile(blankProfileInput());
   // Born inactive (issue #50): a blank profile must never become the
   // scoring profile. The first save with real content activates it.
@@ -1508,18 +1528,18 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
 
   const input = {
     name: f.name,
-    stackRequired: parseTagList(f.stackRequired),
-    roleTypes: parseTagList(f.roleTypes),
-    stackNiceToHave: parseTagList(f.stackNiceToHave),
-    stackExclude: parseTagList(f.stackExclude),
+    stackRequired: f.stackRequired,
+    roleTypes: f.roleTypes,
+    stackNiceToHave: f.stackNiceToHave,
+    stackExclude: f.stackExclude,
     notes: f.notes && f.notes.trim().length > 0 ? f.notes.trim() : null,
-    seniority: toStringArray(f.seniority),
+    seniority: f.seniority,
     countries: countries.codes,
     regions: toStringArray(f.regions).filter(isRegionCode),
     workplace: toStringArray(f.workplace).filter(isProfileWorkplace),
     residence: parseResidence(f.residence, isCountryCode),
     relocation: isRelocation(f.relocation) ? f.relocation : 'no',
-    onsiteCities: parseLineList(f.onsiteCities),
+    onsiteCities: f.onsiteCities,
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
     notificationTargetId,

@@ -46,6 +46,7 @@ import { VerificationCard, type VerificationCardProps } from './verification-car
 import { livenessCodeLabel } from '../../verification/liveness';
 import type { MessageKey } from '../../i18n/catalog';
 import { placeName, workplaceName } from '../../i18n/places';
+import { headerPlace } from '../place-line';
 import { wordedStage, type StageDef } from '../stage-config';
 import type { AiBilling } from '../../ai-usage';
 import { t } from '../../i18n/t';
@@ -171,7 +172,7 @@ export interface JobDetailProps {
   applicationPack: ApplicationPackProps;
   /** The tab this request means (job-tabs.ts), and the four labels with what exists behind each. */
   tab: JobTab;
-  tabs: { tab: JobTab; label: string }[];
+  tabs: { tab: JobTab; label: string; title?: string }[];
   flash?: FlashMessage | null;
 }
 
@@ -244,7 +245,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     <Tabs
       label={t('job.jobSections')}
       class="mb-4"
-      tabs={tabs.map((entry) => ({ href: jobHref(job.id, entry.tab), label: entry.label, current: entry.tab === tab }))}
+      tabs={tabs.map((entry) => ({ href: jobHref(job.id, entry.tab), label: entry.label, title: entry.title, current: entry.tab === tab }))}
     />
 
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -658,8 +659,8 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
           <CompanyName name={companyOnPage(job.employer, job.company).name} />
           {companyOnPage(job.employer, job.company).via !== null && job.company.atsType !== 'ADZUNA' && job.company.atsType !== 'FRANCETRAVAIL' && (
             <span class="text-ink-faint"> · {tRich('job.via', {}, { source: () => <span translate="no">{job.company.name}</span> })}</span>
-          )}{' '}
-          · {job.location ? <span translate="no">{job.location}</span> : workplaceName('REMOTE')}
+          )}
+          <HeaderPlace job={job} />
         </div>
         {job.company.watched && (
           <div data-ui="hint" class="mt-1 text-meta text-ink-faint">
@@ -681,7 +682,7 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
         <PlaceChips job={job} />
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-3">
-        <FitBadge score={job.fitScore} worded />
+        <FitBadge score={job.fitScore} worded title={job.fitScore === null ? undefined : t('job.fitTitle', { score: job.fitScore })} />
         <StatusBadge status={job.status} />
         {/* A whole board listing no longer carries it, or a check found it gone (TASKS S13, ADR 0016). */}
         {job.liveness === 'expired' && (
@@ -698,6 +699,18 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
     </div>
   </header>
 );
+
+/** " · Berlin (hybrid)" after the company, or nothing when the chips under it say it all (place-line.ts:headerPlace). */
+const HeaderPlace: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions' | 'location'> }> = ({ job }) => {
+  const place = headerPlace(job);
+  if (!place) return null;
+  return (
+    <>
+      {' · '}
+      {place.asPosted ? <span translate="no">{place.text}</span> : place.text}
+    </>
+  );
+};
 
 /**
  * The parsed location as chips: the arrangement, then one chip per country

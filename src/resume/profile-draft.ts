@@ -1,4 +1,7 @@
 import { t } from '../i18n/t';
+import { isBornName } from '../search-names';
+import { placesFromText } from '../location';
+import { structureFromText } from './structure-from-text';
 
 /*
  * Maps a stored resume scan onto a profile — the "Fill from resume" flow.
@@ -15,6 +18,8 @@ export interface ProfileForDraft {
   stackNiceToHave: string[];
   roleTypes: string[];
   seniority: string[];
+  /** Where the candidate lives, ISO-2 (ADR 0033); null = not said. */
+  residence: string | null;
 }
 
 export interface ScanForDraft {
@@ -23,6 +28,8 @@ export interface ScanForDraft {
   skills: string[];
   primarySkills: string[];
   roleTypes: string[];
+  /** The resume's own text: the place its header states is where the candidate lives. */
+  text: string;
 }
 
 export interface ProfileDraft {
@@ -33,8 +40,6 @@ export interface ProfileDraft {
   warnings: string[];
 }
 
-/** Only a freshly created profile gets renamed from the resume headline. */
-const DEFAULT_PROFILE_NAMES = ['New profile', 'My profile'];
 
 /**
  * The classifier is told to raise the score for every nice-to-have term, and
@@ -111,12 +116,34 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
     changed.push(t('profile.draft.changed.seniority'));
   }
 
-  if (DEFAULT_PROFILE_NAMES.includes(current.name) && scan.title !== null && scan.title !== current.name) {
+  // Only a freshly created search gets renamed from the resume headline.
+  if (isBornName(current.name) && scan.title !== null && scan.title !== current.name) {
     changes.name = scan.title;
     changed.push(t('profile.draft.changed.name'));
   }
 
+  // Only into an empty field: an "I live in" the person set outranks a header
+  // line that may be a year old. Relocation is a wish no resume states.
+  const lives = current.residence === null ? residenceStated(scan.text) : null;
+  if (lives !== null) {
+    changes.residence = lives;
+    changed.push(t('profile.draft.changed.residence'));
+  }
+
   return { changes, changed, warnings };
+}
+
+/**
+ * The one country the resume's header names as where the candidate is
+ * ("Lisbon, Portugal" → PT), or null: no place line, a place the gazetteer
+ * does not know, or two countries, which is a choice for the person (#640).
+ * Read off the text, as the parsed view reads it — never asked of a model.
+ */
+export function residenceStated(text: string): string | null {
+  const place = structureFromText(text).basics.location;
+  if (!place) return null;
+  const { countries } = placesFromText(place);
+  return countries.length === 1 ? countries[0]! : null;
 }
 
 /**

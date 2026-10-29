@@ -98,6 +98,12 @@ function coreStackLine({ breakdown, keywords }: LinesInput): ScoreLine | null {
   const missing = primaries.filter((k) => k.status !== 'present' && k.status !== 'add');
   const names = (list: MatchKeyword[]) => list.map((k) => k.term).join(' · ');
   if (breakdown.cap === null) {
+    // `add` lifts the cap — the experience is there — and the word is still
+    // not: "all present" over a row that says "add the word" was not true (#642).
+    const unwritten = have.filter((k) => k.status === 'add');
+    if (unwritten.length > 0) {
+      return { label, text: t('score.coreStack.unwritten', { names: names(have), unwritten: names(unwritten) }), tone: 'warn' };
+    }
     return {
       label,
       text: primaries.length > 0 ? t('score.coreStack.allPresent', { names: names(have) }) : t('score.coreStack.covered'),
@@ -214,8 +220,9 @@ const shownAtWork = (k: MatchKeyword): boolean => k.status === 'present' && (k.e
  *
  * The ladder runs from what no wording can fix down to what editing reaches:
  * a failed gate, the core stack, an unanswered gate, a must-have term, a
- * must-have shown only in a list, a weak first glance, and finally the
- * report's own first high-priority edit. It names ONE thing, always something
+ * must-have shown only in a list, a weak first glance, the report's own
+ * first high-priority edit, and finally a gate about office days or travel
+ * that only the recruiter can answer. It names ONE thing, always something
  * the reader can act on, and it says nothing when the report is clean —
  * "Ready to apply" already covers that, and two sentences saying it is one
  * too many.
@@ -267,14 +274,33 @@ interface AdviceMessage {
 
 export function mainAdvice(input: AdviceInput): Advice | null {
   const ruled = ruledAdvice(input);
-  if (ruled !== null) return { text: t(ruled.key, ruled.params), modelWritten: false, message: ruled };
+  if (ruled !== null) return ours(ruled);
   const { actions } = input;
   const edit = actions.find((a) => a.priority === 'high') ?? actions[0];
-  if (!edit) return null;
-  const what = clipWords(edit.what, MAX_ADVICE_CHARS);
+  const what = edit ? clipWords(edit.what, MAX_ADVICE_CHARS) : '';
   // Every other rung is a sentence; the model's clause becomes one here
   // rather than sitting among them without a stop.
-  return what === '' ? null : { text: `${openingCase(what)}${/[.!?…]$/.test(what) ? '' : '.'}`, modelWritten: true };
+  if (what !== '') return { text: `${openingCase(what)}${/[.!?…]$/.test(what) ? '' : '.'}`, modelWritten: true };
+  // Last, because no edit answers it: a page about the resume says what to change before what to ask.
+  const ask = input.hard.find((h) => h.status === 'unknown' && asksWhereYouWork(h.requirement));
+  return ask ? ours(said('score.advice.askRecruiter', { gate: clipWords(ask.requirement, MAX_GATE_CHARS) })) : null;
+}
+
+const ours = (message: AdviceMessage): Advice => ({ text: t(message.key, message.params), modelWritten: false, message });
+
+/**
+ * A gate about when and where the work is done — office days, a commute, a
+ * move, travel, a time zone. The resume being silent on one is a question for
+ * the recruiter, never an edit: "in-office anchor days Mon/Tue/Fri if within
+ * commuting distance of SF" was "do this first" for a remote candidate
+ * (#642). Where the person lives is not on this list: a header line answers
+ * "based in Poland", and a FAILED gate of any kind still leads — it is not met.
+ */
+const WHERE_YOU_WORK =
+  /\b(?:on[- ]?site|in[- ]office|in[- ]person|office days?|the office|hybrid|commut\w*|relocat\w*|time ?zones?|travel\w*|days? (?:a|per) week|anchor days?)\b/i;
+
+function asksWhereYouWork(requirement: string): boolean {
+  return WHERE_YOU_WORK.test(requirement);
 }
 
 const said = (key: MessageKey, params: MessageParams): AdviceMessage => ({ key, params });
@@ -301,7 +327,7 @@ function ruledAdvice({ breakdown, keywords, hard, postingTitle }: AdviceInput): 
     return rest > 0 ? said('score.advice.coreMore', { first, second, rest, cap }) : said('score.advice.coreTwo', { first, second, cap });
   }
 
-  const unanswered = hard.find((h) => h.status === 'unknown');
+  const unanswered = hard.find((h) => h.status === 'unknown' && !asksWhereYouWork(h.requirement));
   if (unanswered) return said('score.advice.gateUnknown', { gate: clipWords(unanswered.requirement, MAX_GATE_CHARS) });
 
   // The posting's title is a must-level keyword and no skill: "confirm Sr. Software Engineer where it is true"

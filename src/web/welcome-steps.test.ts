@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { currentStep, isWelcomeStep, needsWelcome, stepDone, summarizeScoreRun, type WelcomeFacts } from './welcome-steps';
+import { currentStep, isWelcomeStep, needsWelcome, setupZone, stepDone, summarizeScoreRun, type WelcomeFacts } from './welcome-steps';
 
 const fresh: WelcomeFacts = {
   aiReady: false,
@@ -33,11 +33,29 @@ test('the wizard walks the steps in order, each derived from data', () => {
   );
 });
 
+test('the boards step is not done before there is a search to fit them to (#643)', () => {
+  assert.equal(stepDone('sources', fresh), false, 'a fresh install has nothing waiting because nothing was asked');
+  assert.equal(stepDone('sources', { ...fresh, aiReady: true, jobCount: 312 }), false);
+  assert.equal(stepDone('sources', { ...fresh, profileReady: true }), true, 'a search with nothing to add is done');
+  assert.equal(stepDone('sources', { ...fresh, profileReady: true, sourcesWaiting: 2 }), false);
+  assert.equal(stepDone('sources', { ...fresh, sourcesWaiting: 2, scoredCount: 4 }), true, 'scoring passed it');
+});
+
 test('a later step can be done before an earlier one — completion is per step', () => {
   const f = { ...fresh, profileReady: true, scoredCount: 3 };
   assert.equal(stepDone('profile', f), true);
   assert.equal(stepDone('matches', f), true);
   assert.equal(currentStep(f), 'ai', 'the first undone step still leads');
+});
+
+test('setup keeps the browser zone only when nobody chose one (#643)', () => {
+  assert.equal(setupZone(null, 'UTC', 'America/Chicago'), 'America/Chicago', 'a fresh install read every date in UTC');
+  assert.equal(setupZone(null, 'Etc/UTC', ' Europe/Kiev '), 'Europe/Kyiv', 'under its current name');
+  assert.equal(setupZone({ timezone: 'Europe/Warsaw' }, 'UTC', 'America/Chicago'), null, 'a stored schedule is a choice');
+  assert.equal(setupZone(null, 'Europe/Berlin', 'America/Chicago'), null, 'a TZ the install set is a choice');
+  assert.equal(setupZone(null, 'UTC', 'UTC'), null, 'nothing to change');
+  assert.equal(setupZone(null, 'UTC', ''), null, 'no script, no zone');
+  assert.equal(setupZone(null, 'UTC', 'Mars/Olympus'), null);
 });
 
 test('needsWelcome follows the flag alone, not the steps', () => {

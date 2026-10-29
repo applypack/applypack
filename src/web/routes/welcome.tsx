@@ -14,8 +14,10 @@ import {
   setFetchingEnabled,
   setLocalAiUrl,
   setOpenAiBaseUrl,
+  setSchedule,
   setSetupCompleted,
 } from '../../settings';
+import { defaultSchedule } from '../../user-schedule';
 import { getActiveProfile, listProfiles, updateProfile, type ProfileInput } from '../../profiles';
 import { resolveCountries } from '../../countries';
 import { isProfileWorkplace } from '../../location';
@@ -62,6 +64,7 @@ import {
   WELCOME_STEPS,
   currentStep,
   isWelcomeStep,
+  setupZone,
   stepDone,
 } from '../welcome-steps';
 import { spendHint } from '../cost-hint';
@@ -166,19 +169,37 @@ welcomeRoute.get('/welcome', async (c) => {
   );
 });
 
-welcomeRoute.post('/welcome/skip', async () => {
+welcomeRoute.post('/welcome/skip', async (c) => {
   await keepFoundEngine();
+  const zone = await keepBrowserZone(await c.req.parseBody());
   await setSetupCompleted(currentLocale());
-  return flashRedirect('/', 'ok', t('welcome.flash.skipped'));
+  return flashRedirect('/', 'ok', withZoneLine(t('welcome.flash.skipped'), zone));
 });
 
 /** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
-welcomeRoute.post('/welcome/finish', async () => {
+welcomeRoute.post('/welcome/finish', async (c) => {
   await keepFoundEngine();
+  const zone = await keepBrowserZone(await c.req.parseBody());
   await setFetchingEnabled(true);
   await setSetupCompleted(currentLocale());
-  return flashRedirect('/', 'ok', t('welcome.flash.finished'));
+  return flashRedirect('/', 'ok', withZoneLine(t('welcome.flash.finished'), zone));
 });
+
+/**
+ * Setup's last press keeps the zone the page's script read off the browser,
+ * when nobody chose one (#643, `welcome-steps.ts:setupZone`). The stored
+ * schedule is today's default in that zone, so only the zone moves.
+ */
+async function keepBrowserZone(form: Record<string, unknown>): Promise<string | null> {
+  const posted = typeof form.timezone === 'string' ? form.timezone : '';
+  const zone = setupZone((await getSettings()).schedule, config.TZ, posted);
+  if (zone !== null) await setSchedule(defaultSchedule(zone));
+  return zone;
+}
+
+/** The flash, and the sentence that says which zone the dates now read in. */
+const withZoneLine = (flash: string, zone: string | null): string =>
+  zone === null ? flash : `${flash} ${t('welcome.flash.zoneKept', { zone })}`;
 
 /**
  * Step 1's paste-a-key path (ADR 0027): the credential lands in the database,
@@ -483,6 +504,7 @@ function draftCard(
     skillCount: Math.max(0, resume.skills.length - primary.length),
     seniority: resume.seniority,
     roleTypes: draft.changes.roleTypes ?? resume.roleTypes,
+    lives: draft.changes.residence ?? null,
     changed: draft.changed,
     warnings: draft.warnings,
   };

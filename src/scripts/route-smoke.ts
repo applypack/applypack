@@ -100,6 +100,7 @@ const PSEUDO_VARIANTS = [
   '/jobs/:id?tab=match',
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
+  '/jobs/:id?tab=pack',
   '/settings?tab=sources',
   '/settings?tab=notifications',
   '/settings?tab=applications',
@@ -113,6 +114,12 @@ const PSEUDO_VARIANTS = [
   '/welcome?step=sources',
   '/welcome?step=matches',
 ];
+/**
+ * A flash is drawn from a cookie by the page a POST lands on, so no GET above
+ * shows one (#652): a language the switcher does not offer is refused with
+ * one, and nothing is stored.
+ */
+const PSEUDO_FLASH = { path: '/settings/locale', fields: { locale: 'xx', back: '/settings?tab=general' } };
 /** The words a page holds that are nobody's to translate: the product's name. */
 const NOT_INTERFACE = /\bApplyPack\b/g;
 /** How many pages the summary names; `--pseudo-list <file>` writes every run of every page. */
@@ -1256,7 +1263,7 @@ async function folderChecks(): Promise<Check[]> {
       'GET /companies with a folder that is off and failing (its card: the switch, the failure)',
       '/companies',
       offPage,
-      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 ticks in a row') && card.includes(`/companies/${folder.id}/files#moved`),
+      card.includes(`/companies/${folder.id}/toggle-active`) && card.includes('Folder not found') && card.includes('2 checks in a row') && card.includes(`/companies/${folder.id}/files#moved`),
     );
     await prisma.company.update({ where: { id: folder.id }, data: { lastFetchStatus: null, consecutiveFailures: 0 } });
 
@@ -1350,22 +1357,29 @@ async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url:
   await setLocale(PSEUDO_LOCALE);
   const rows: { route: string; url: string; status: number; ok: boolean }[] = [];
   const perPage: { url: string; runs: string[] }[] = [];
-  try {
-    for (const url of urls) {
-      const res = await app.request(url, { headers: ORIGIN });
-      if (res.status >= 500) rows.push({ route: `GET ${url} in the pseudo-language`, url, status: res.status, ok: false });
-      if (res.status !== 200 || !(res.headers.get('content-type') ?? '').includes('text/html')) continue;
-      const runs = hardcodedText(await res.text())
-        .map((run) => run.replace(NOT_INTERFACE, '').trim())
-        .filter((run) => /[A-Za-z]{2,}/.test(run));
-      perPage.push({ url, runs });
-      // The gate (#356): a page holds no English outside the catalog. A word that is data says so in its markup
-      // (`translate="no"`, or `lang="en"` for a model's words) and is not counted.
-      if (runs.length > 0) {
-        const shown = runs.slice(0, PSEUDO_SHOWN).map((run) => JSON.stringify(run.slice(0, PSEUDO_RUN_CHARS))).join(', ');
-        rows.push({ route: `GET ${url} in the pseudo-language: ${runs.length} run(s) of English outside the catalog — ${shown}`, url, status: res.status, ok: false });
-      }
+  const read = async (url: string, cookie?: string): Promise<void> => {
+    const res = await app.request(url, { headers: cookie ? { ...ORIGIN, cookie } : ORIGIN });
+    if (res.status >= 500) rows.push({ route: `GET ${url} in the pseudo-language`, url, status: res.status, ok: false });
+    if (res.status !== 200 || !(res.headers.get('content-type') ?? '').includes('text/html')) return;
+    const runs = hardcodedText(await res.text())
+      .map((run) => run.replace(NOT_INTERFACE, '').trim())
+      .filter((run) => /[A-Za-z]{2,}/.test(run));
+    perPage.push({ url, runs });
+    // The gate (#356): a page holds no English outside the catalog. A word that is data says so in its markup
+    // (`translate="no"`, or `lang="en"` for a model's words) and is not counted.
+    if (runs.length > 0) {
+      const shown = runs.slice(0, PSEUDO_SHOWN).map((run) => JSON.stringify(run.slice(0, PSEUDO_RUN_CHARS))).join(', ');
+      rows.push({ route: `GET ${url} in the pseudo-language: ${runs.length} run(s) of English outside the catalog — ${shown}`, url, status: res.status, ok: false });
     }
+  };
+  try {
+    for (const url of urls) await read(url);
+    const posted = await app.request(PSEUDO_FLASH.path, form(PSEUDO_FLASH.fields));
+    const landing = posted.headers.get('location');
+    const cookie = (posted.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const flashed = posted.status === 303 && landing !== null && cookie.includes('flash');
+    rows.push({ route: `POST ${PSEUDO_FLASH.path} in the pseudo-language (a flash to draw)`, url: PSEUDO_FLASH.path, status: posted.status, ok: flashed });
+    if (flashed) await read(landing, cookie);
   } finally {
     await prisma.appSettings.update({ where: { id: SETTINGS_ID }, data: { locale: before?.locale ?? null } });
   }

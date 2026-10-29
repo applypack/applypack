@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jobTechProbeUrl, jobTechSearchUrl, mapJobTechPage, parseJobTechTotal } from './jobtech';
+import { jobTechProbeUrl, jobTechSearchUrl, lookbackMinutes, mapJobTechPage, parseJobTechTotal } from './jobtech';
 
 // Trimmed from the live answer of 2026-09-03 (occupation-field=apaJ_2ja_LuF).
 const trafikverket = {
@@ -46,6 +46,14 @@ describe('mapJobTechPage', () => {
     );
   });
 
+  it("takes an image an employer pasted into the plain text out, and keeps the lines (#659)", () => {
+    // Ad 31653536, 2026-10-29: an `<img>` on a line of its own.
+    const lfv = { ...trafikverket, description: { text: 'varje beslut!\n<img src="https://x.example/0c22.jpg"> \n\n\nOm rollen\n\nSom Senior Javautvecklare' } };
+    const [job] = mapJobTechPage(page([lfv]), 3).jobs;
+    assert.doesNotMatch(job?.description ?? '', /<img|x\.example/);
+    assert.match(job?.description ?? '', /\n\nvarje beslut!\n[ \n]+Om rollen\n\nSom Senior Javautvecklare$/);
+  });
+
   it('reads a foreign ad by its country name, skips removed ads and malformed hits', () => {
     const spain = { ...trafikverket, id: 2, workplace_address: { municipality: null, region: null, country: 'Spanien', country_code: '193' } };
     const gone = { ...trafikverket, id: 3, removed: true };
@@ -72,5 +80,18 @@ describe('jobTechSearchUrl / jobTechProbeUrl / parseJobTechTotal', () => {
   it('reads the total of an answer and 0 of anything else', () => {
     assert.equal(parseJobTechTotal({ total: { value: 771 }, hits: [] }), 771);
     assert.equal(parseJobTechTotal({ message: 'bad request' }), 0);
+  });
+});
+
+describe('lookbackMinutes (#661)', () => {
+  const now = new Date('2026-10-29T12:00:00Z');
+  it('reads the last day when the previous read is recent or unknown', () => {
+    assert.equal(lookbackMinutes(null, now), 1440);
+    assert.equal(lookbackMinutes(new Date('2026-10-29T11:00:00Z'), now), 1440);
+  });
+
+  it('reaches back to the last good read, an hour to spare, after a computer slept through a weekend', () => {
+    assert.equal(lookbackMinutes(new Date('2026-10-26T12:00:00Z'), now), 3 * 1440 + 60);
+    assert.match(jobTechSearchUrl('occupation-field=apaJ_2ja_LuF', 0, 4380), /published-after=4380&/);
   });
 });

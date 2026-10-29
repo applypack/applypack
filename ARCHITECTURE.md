@@ -54,7 +54,7 @@ sequenceDiagram
   participant listActiveProfiles as listActiveProfiles<br/>profiles.ts
   participant runAllFetchers as runAllFetchers<br/>fetchers/index.ts
   participant processNormalizedJobs as processNormalizedJobs<br/>jobs/process-jobs.ts
-  participant passesAnyBaseFilter as passesAnyBaseFilter<br/>filter.ts
+  participant anyBaseFilterReason as anyBaseFilterReason<br/>filter.ts
   participant classifyJob as classifyJob<br/>classifier.ts
   participant prisma as prisma → Postgres
   participant sendAlert as sendAlert<br/>notifier.ts
@@ -79,9 +79,9 @@ sequenceDiagram
   runFetchJob->>processNormalizedJobs: processNormalizedJobs(fetched, profiles, stats, opts)
   processNormalizedJobs->>prisma: the batch's stored (companyId, externalId) pairs, one query
   loop per fetched job
-    processNormalizedJobs->>passesAnyBaseFilter: passesAnyBaseFilter(job, profiles)
+    processNormalizedJobs->>anyBaseFilterReason: anyBaseFilterReason(job, profiles)
     alt no running search admits it
-      passesAnyBaseFilter-->>processNormalizedJobs: false → stats.filterRejected++
+      anyBaseFilterReason-->>processNormalizedJobs: the gate → stats.filterRejected++
     else admitted, but the pair is stored already
       processNormalizedJobs->>processNormalizedJobs: stats.duplicate++
     else admitted and new
@@ -189,7 +189,7 @@ flowchart LR
     notes
   end
   primary --> profile
-  profile --> filter["filter.ts<br/>passesAnyBaseFilter"]
+  profile --> filter["filter.ts<br/>anyBaseFilterReason"]
   profile --> classifier["classifier.ts<br/>buildSystemPrompt"]
   mode --> classify["classifyJob wrapper"]
   classify -- "single" --> full["full prompt<br/>(the classifier model, Haiku 4.5 by default)"]
@@ -232,6 +232,7 @@ src/
   db.ts                        ← PrismaClient singleton
   types.ts                     ← NormalizedJob, ClaudeClassification, ClassifyInput, AlertJob
   http.ts                      ← fetchWithRetry, stripHtml, AbortController timeout
+  html-entities.ts             ← pure: HTML 4's named entities, the table decodeHtmlEntities reads
   app-version.ts               ← APP_VERSION from package.json: the sidebar, the User-Agent, the update check
   versions.ts                  ← pure: parseVersion, isNewer — release tags compared
   update-check.ts              ← the optional weekly look at GitHub's latest release (off by default)
@@ -252,8 +253,9 @@ src/
   currency.ts                  ← pure: salary in the posting's own money, toUsdPerYear over a dated rate table
   sectors.ts                   ← pure: one name per sector (payments and banking are fintech) — the screening's industry
                                  criterion and career line (TASKS E6), the resume's domain verdict (resume/domain.ts, #207)
-  filter.ts                    ← pure: passesAnyBaseFilter over passesBaseFilter, titleHasKeyword, placesOverlap;
-                                 baseFilterReason / anyBaseFilterReason name the gate that turned a posting away
+  filter.ts                    ← pure: anyBaseFilterReason over baseFilterReason (the gate that turned a posting away,
+                                 null = admitted; passesAnyBaseFilter / passesBaseFilter say yes or no), titleHasKeyword,
+                                 placesOverlap
   funnel.ts                    ← pure: the search funnel — the tick counters it keeps, the stages, the reasons in words
   employer.ts                  ← pure: who hires — employerKey (one key for two spellings), hiringKey, the mute /
                                  re-apply gate (ADR 0056)
@@ -493,6 +495,7 @@ src/
     fetch-tick.ts               ← the worker's own two fetch starters: the hourly tick (waits for the lock) and a folder check (asks once); the lock first, the run row after
     funnel-store.ts             ← addToFunnel (the fetch + HN wrappers) into funnel_day; loadFunnel, loadSourceYield for the pages
     employer-store.ts           ← the mute list, the tick's employer rules, the one-time fill of older rows' keys (ADR 0056)
+    stored-text.ts              ← pure: what the fetchers write now, applied to a stored row (scripts/backfill-descriptions.ts)
     fetch-pause.ts              ← makeFetchPauseProbe: a pause on /settings stops a running tick within seconds
     process-jobs.ts             ← processNormalizedJobs: the shared inner loop used by fetch + HN
     verdict-merge.ts            ← pure: one verdict per search, the winner, the score line (ADR 0028)

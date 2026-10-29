@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHnComment } from './hn-parser';
+import headers from './hn-headers.json';
 
 describe('parseHnComment — pipe format (most common)', () => {
   it('parses Company | Role | Location | URL', () => {
@@ -39,7 +40,7 @@ describe('parseHnComment — pipe format (most common)', () => {
     assert.ok(out !== null);
     assert.equal(out!.companyName, null);
     assert.equal(out!.title, 'Head of Engineering & Infrastructure');
-    assert.equal(out!.location, 'Full-Time');
+    assert.equal(out!.location, 'Remote');
   });
 
   it('extracts URL from anywhere in the text', () => {
@@ -171,5 +172,62 @@ describe('parseHnComment — robustness', () => {
     assert.ok(out !== null);
     assert.equal(out!.location, 'Remote, US');
     assert.equal(out!.url, 'https://foo.example');
+  });
+});
+
+// #660: one month's headers, read by position, made 65 of 240 titles a place
+// or "Full Time". Each field is recognised by what it is instead.
+describe('parseHnComment — fields in any order (October 2026 thread)', () => {
+  for (const row of headers.rows) {
+    it(`${row.id}: ${row.text.split('\n')[0]!.slice(0, 60)}`, () => {
+      const out = parseHnComment(row.text);
+      if (row.expect === null) return assert.equal(out, null);
+      assert.ok(out !== null);
+      assert.deepEqual({ companyName: out.companyName, title: out.title, location: out.location }, row.expect);
+    });
+  }
+});
+
+describe('parseHnComment — what a field is', () => {
+  it('never takes a place, a type or pay for the title, wherever the role stands', () => {
+    const out = parseHnComment('OpenRent | London, UK | Full-Time | ONSITE+PART REMOTE | Senior Full-Stack Engineer | £110k+');
+    assert.equal(out?.title, 'Senior Full-Stack Engineer');
+    assert.equal(out?.location, 'London, UK · ONSITE+PART REMOTE');
+  });
+
+  it('drops a header that names no role, with no role listed below it', () => {
+    assert.equal(parseHnComment('OpenRent | London, UK | Full-Time | ONSITE\nWhat sucked the last time you rented a flat?'), null);
+  });
+
+  it('reads the roles a header leaves out from the lines below it, never from prose', () => {
+    const out = parseHnComment(
+      [
+        'OpenRent | London, UK | Full-Time | ONSITE',
+        "We're looking for engineers who care about renters.",
+        'Roles currently available:',
+        '- Senior Full-Stack Engineer | 110k+ (based on experience)',
+        '* Product Designer (Remote): https://example.com/jobs/2',
+      ].join('\n'),
+    );
+    assert.equal(out?.title, 'Senior Full-Stack Engineer · Product Designer');
+  });
+
+  it('takes the link and the note in brackets off the company, and keeps a place note as the location', () => {
+    const out = parseHnComment('Flowstate (London, UK) — Founding Engineer — TypeScript / React / Postgres / AI');
+    assert.equal(out?.companyName, 'Flowstate');
+    assert.equal(out?.location, 'London, UK');
+    assert.equal(parseHnComment('Snout https://snout.com/ | Software Engineer | Remote US')?.companyName, 'Snout');
+  });
+
+  it('reads "engineering" and "a leading firm" as a line of work, not a role', () => {
+    const out = parseHnComment('Acme | Senior Backend Engineer | 35 headcount, ~10 in engineering | Relocation Acme is a leading firm');
+    assert.equal(out?.title, 'Senior Backend Engineer');
+  });
+
+  it('cuts a header the poster ran on into the prose', () => {
+    const out = parseHnComment('Acme Labs | Data Engineer | Berlin, Germany Acme builds tools for farmers and has 40 people.');
+    assert.equal(out?.location, 'Berlin, Germany');
+    const opener = parseHnComment("Acme | Data Engineer | Remote (EU) I'm Ana, the CTO, and I read every email.");
+    assert.equal(opener?.location, 'Remote (EU)');
   });
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sectorGroups, sectorLabels, sectorMatches } from './sectors';
+import { isSectorName, sectorGroups, sectorLabels, sectorMatches } from './sectors';
 
 // TASKS E6, issue #217: one resume read three times, three spellings of one career.
 test('three spellings of the same sectors are one reading', () => {
@@ -37,4 +37,13 @@ test('the career line names known sectors one way and keeps unknown ones as writ
   assert.deepEqual(sectorLabels('CRM software'), ['SaaS']);
   assert.deepEqual(sectorLabels('assessments / surveys'), ['assessments / surveys']);
   assert.deepEqual(sectorLabels(null), []);
+});
+
+test('isSectorName: a sector and nothing else, not a skill that names one (#645)', () => {
+  for (const name of ['payments', 'fintech', 'fintech or banking', 'the payments domain', 'Financial Services', 'healthtech experience']) {
+    assert.equal(isSectorName(name), true, name);
+  }
+  for (const skill of ['payment gateway integration', 'Stripe', 'banking APIs', 'test automation', '']) {
+    assert.equal(isSectorName(skill), false, skill);
+  }
 });

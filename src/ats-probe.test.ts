@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AtsType } from '@prisma/client';
-import { isDeadToken, probeAts, robotsRefusal } from './ats-probe';
+import { countJobs, isDeadToken, probeAts, robotsRefusal } from './ats-probe';
 
 /**
  * A manually added feed or careers page fetches the user's own host, so
@@ -81,5 +81,20 @@ describe('isDeadToken', () => {
     assert.equal(isDeadToken(429), false);
     assert.equal(isDeadToken(503), false);
     assert.equal(isDeadToken(undefined), false);
+  });
+});
+
+/** #663: the add-company flash said "1 job" for toptal (30) and gcore (15). */
+describe('countJobs', () => {
+  it("takes a paged board's stated total over the page it sent", () => {
+    assert.equal(countJobs({ offset: 0, limit: 1, totalFound: 15, content: [{ id: 'a' }] }), 15);
+    assert.equal(countJobs({ total: 25, results: Array.from({ length: 10 }, (_, i) => i), nextPage: 'x' }), 25);
+  });
+
+  it('counts a whole list', () => {
+    assert.equal(countJobs(Array.from({ length: 28 }, (_, i) => ({ id: String(i) }))), 28);
+    assert.equal(countJobs({ jobs: [{}, {}, {}] }), 3);
+    assert.equal(countJobs({ offers: [{}] }), 1);
+    assert.equal(countJobs(null), 0);
   });
 });

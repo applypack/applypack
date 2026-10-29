@@ -16,7 +16,7 @@ import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, 
 import { comparedResumeName } from './match-name';
 import { readPromptVersion, readVerificationId } from './match-reuse';
 import type { MatchAction, MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
-import { readKeywords } from './prompts';
+import { readActions, readKeywords } from './prompts';
 import type { FactAnswer } from './facts';
 import { countableFlags } from './red-flags';
 import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
@@ -679,6 +679,27 @@ export async function getLatestMatchForResumeAndJob(
     where: { jobId, resumeId, resumeText: text },
     orderBy: { createdAt: 'desc' },
   });
+}
+
+/**
+ * The newest comparison of this resume against this posting, older than
+ * `before`, that carries strengths — the full report a later quick check's
+ * text was tailored from (match-mode.ts:strengthsReport, #642).
+ */
+export async function getEarlierStrengths(jobId: number, resumeId: number, before: number): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findFirst({
+    where: { jobId, resumeId, id: { lt: before }, strengths: { isEmpty: false } },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+/**
+ * Every edit any comparison of this resume suggested, whatever the posting —
+ * what a letter's gate puts back to the resume's own words (applied.ts).
+ */
+export async function listSuggestedActions(resumeId: number): Promise<MatchAction[]> {
+  const rows = await prisma.resumeMatch.findMany({ where: { resumeId }, select: { actions: true } });
+  return rows.flatMap((r) => readActions(r.actions));
 }
 
 /**
