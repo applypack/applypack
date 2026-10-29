@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.35] — 2026-10-29
+
+### Fixed
+- Descriptions and titles no longer show HTML entities as text ("&amp;",
+  "&nbsp;", "&mdash;", "caf&eacute;"), and a bold or linked word no longer
+  leaves a space before the punctuation after it ("AWS ." is "AWS.").
+- RemoteOK text reads as written instead of "youâll"; Golangprojects
+  postings name their company; DOU keeps pay as pay, not as a place;
+  4dayweek names each place once; HN jobs no longer take the YC batch for a
+  location; Greenhouse titles are trimmed. `backfill-descriptions.js`
+  repairs stored rows (`--dry-run` first).
+- A watched careers page does not alert once after the upgrade because the
+  new reader reads it differently: its watch starts again in silence.
+
+## [2.63.34] — 2026-10-29
+
+### Fixed
+- Settings forms refuse what their pages do not offer and say which
+  field: a minimum salary over 10,000,000 (it was a 500), a seniority
+  outside the list, a tag list over 50 entries, a board column named like
+  Applied or Rejected or longer than 40 characters, a retention the list
+  lacks. Repeated skills are kept once; "+ New search" opens the empty
+  search you already have instead of making another.
+- Disabling the engine that would still answer every call is refused,
+  instead of a flash claiming another engine takes over; Enable no longer
+  puts an engine that cannot run here first.
+- A refused schedule, application-pack, mute or watchlist field is named
+  as its page labels it, and focused.
+- Settings tabs no longer wait half a second for the engine check; the
+  Overview, AI usage and setup show the last check at once while a new one
+  runs behind it.
+- "Start with this computer" keeps the port, time zone, data folder,
+  snapshot count and inbox folders exported in your terminal.
+
 ## [2.63.33] — 2026-10-29
 
 ### Fixed
@@ -6999,6 +7033,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.35]: https://github.com/applypack/applypack/compare/v2.63.34...v2.63.35
+[2.63.34]: https://github.com/applypack/applypack/compare/v2.63.33...v2.63.34
 [2.63.33]: https://github.com/applypack/applypack/compare/v2.63.32...v2.63.33
 [2.63.32]: https://github.com/applypack/applypack/compare/v2.63.31...v2.63.32
 [2.63.31]: https://github.com/applypack/applypack/compare/v2.63.30...v2.63.31
