@@ -16,7 +16,7 @@ import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, 
 import { comparedResumeName } from './match-name';
 import { readPromptVersion, readVerificationId } from './match-reuse';
 import type { MatchAction, MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
-import { readKeywords } from './prompts';
+import { readActions, readKeywords } from './prompts';
 import type { FactAnswer } from './facts';
 import { countableFlags } from './red-flags';
 import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
@@ -679,6 +679,15 @@ export async function getLatestMatchForResumeAndJob(
     where: { jobId, resumeId, resumeText: text },
     orderBy: { createdAt: 'desc' },
   });
+}
+
+/**
+ * Every edit any comparison of this resume suggested, whatever the posting —
+ * what a letter's gate puts back to the resume's own words (applied.ts).
+ */
+export async function listSuggestedActions(resumeId: number): Promise<MatchAction[]> {
+  const rows = await prisma.resumeMatch.findMany({ where: { resumeId }, select: { actions: true } });
+  return rows.flatMap((r) => readActions(r.actions));
 }
 
 /**

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appliedWording, freshActions, rewritesOfApplied, type Locate } from './applied';
+import { appliedWording, freshActions, rewritesOfApplied, withoutSuggestedWording, type Locate } from './applied';
 import { readActions, type MatchAction } from './prompts';
 import { titleOverHeadline } from './replacement-gate';
 import { structureFromText } from './structure-from-text';
@@ -112,4 +112,46 @@ test('the headline taken from the last report is a rework when the next one reti
   const keywords = [{ term: 'Node.js', aliases: [], status: 'present' as const }];
   assert.equal(rewritesOfApplied(applied, next, v2, m.locateQuote).length, 1);
   assert.deepEqual(freshActions(next, applied, keywords, v2, m).kept, []);
+});
+
+test("a letter's evidence is the candidate's own words: every applied suggestion goes back (#632)", async () => {
+  const { locateQuote } = await matcher;
+  const original = [
+    'Senior Backend Engineer',
+    '- Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes',
+    '- Deployed to AWS ECS; wrote the runbooks the on-call rota still uses',
+  ].join('\n');
+  const summary = action({
+    section: 'summary',
+    what: 'add a summary',
+    quote: null,
+    insert_after: 'Senior Backend Engineer',
+    replacement: 'Ran on-call rotations that cut incident resolution from 90 to 35 minutes.',
+  });
+  const bullet = action({
+    what: 'lead with on-call',
+    quote: 'Deployed to AWS ECS; wrote the runbooks the on-call rota still uses',
+    replacement: 'Owned on-call for AWS ECS services and wrote the runbooks the rota still uses',
+  });
+  // A later report reworded the bullet the first one wrote: both steps go back.
+  const again = action({
+    what: 'name the pager',
+    quote: 'Owned on-call for AWS ECS services and wrote the runbooks the rota still uses',
+    replacement: 'Owned the PagerDuty on-call for AWS ECS services; wrote the runbooks the rota still uses',
+  });
+  const saved = [
+    'Senior Backend Engineer',
+    'Ran on-call rotations that cut incident resolution from 90 to 35 minutes.',
+    '- Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes',
+    '- Owned the PagerDuty on-call for AWS ECS services; wrote the runbooks the rota still uses',
+  ].join('\n');
+  assert.equal(withoutSuggestedWording(saved, [summary, bullet, again], locateQuote), original);
+
+  // What the person typed in place of a suggestion is theirs, and stays.
+  const typed = saved.replace('Owned the PagerDuty on-call', 'Carried the pager');
+  assert.match(withoutSuggestedWording(typed, [summary, bullet, again], locateQuote), /Carried the pager/);
+
+  // A trim is part of what it replaced: putting it back must not find it again for ever.
+  const trim = action({ what: 'trim', quote: 'Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes', replacement: 'Set up structured logging and alerting' });
+  assert.equal(withoutSuggestedWording(original, [trim], locateQuote), original);
 });

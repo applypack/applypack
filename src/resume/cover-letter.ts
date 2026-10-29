@@ -19,11 +19,14 @@ import {
   type MatchJobInput,
 } from './prompts';
 import { factCheck } from './fact-check';
+import { withoutSuggestedWording } from './applied';
+import { loadKeywordMatcher } from './keyword-matcher';
 import {
   createCoverLetter,
   getLatestCompanySnapshot,
   getLatestMatchForResumeAndJob,
   listFacts,
+  listSuggestedActions,
 } from './store';
 
 const COVER_TIMEOUT_MS = 3 * 60_000;
@@ -35,6 +38,16 @@ export type CoverOutcome =
   /** The gate fired twice — nothing was shown, nothing was persisted (ADR 0021). */
   | { kind: 'blocked'; reasons: string[] }
   | { kind: 'failed' };
+
+/**
+ * What a letter about this resume may rest on (#632): its text with every
+ * suggestion's wording put back to the words it replaced. The letter is still
+ * written from the resume as it stands; only the gate reads this.
+ */
+export async function letterEvidence(resume: { id: number; text: string }): Promise<string> {
+  const [actions, matcher] = await Promise.all([listSuggestedActions(resume.id), loadKeywordMatcher()]);
+  return withoutSuggestedWording(resume.text, actions, matcher.locateQuote);
+}
 
 /**
  * One grounded cover letter, persisted as a CoverLetter row. Mirrors
@@ -60,9 +73,10 @@ export async function generateCoverLetter(
   },
 ): Promise<CoverOutcome> {
   const started = Date.now();
-  const [match, companySnapshot] = await Promise.all([
+  const [match, companySnapshot, evidenceText] = await Promise.all([
     getLatestMatchForResumeAndJob(job.id, resume.id, resume.text),
     getLatestCompanySnapshot(job.id),
+    letterEvidence(resume),
   ]);
   const evidence = opts.evidence ?? (resume.hidden ? (match ? readMatchEvidence(match.breakdown) : 'text') : 'own');
   const facts = evidence === 'own' ? await listFacts() : [];
@@ -79,7 +93,7 @@ export async function generateCoverLetter(
     match: match ? distillMatch(match.summary, match.strengths, match.keywords) : undefined,
     companySnapshot,
   };
-  const sources = coverGateSources(resume.text, job, companySnapshot);
+  const sources = coverGateSources(evidenceText, job, companySnapshot);
   const ai = await getAiRuntime();
 
   let regenerated = false;
@@ -101,10 +115,12 @@ export async function generateCoverLetter(
       facts,
       // The greeting's words are not claims about the writer (#162 stage 4).
       addressee: [opts.addressee, job.companyName].filter(Boolean).join(' '),
+      resume: evidenceText,
     });
     const words = countWords(letter);
     const violations = [
-      ...(gate.verdict === 'block' ? gate.reasons : []),
+      // A figure told about other work is asked again too, and kept with a note if it stays (#632).
+      ...(gate.verdict === 'block' ? gate.reasons : gate.detached.map((d) => d.reason)),
       ...(words > COVER_WORDS_MAX
         ? [`the letter runs ${words} words — the cap is ${COVER_WORDS_MAX}`]
         : []),

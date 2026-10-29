@@ -98,3 +98,40 @@ export function freshActions(
   }
   return { kept, dropped };
 }
+
+/** A wording a later suggestion rewrote is put back too, one step per pass. */
+const MAX_PASSES = 4;
+
+/**
+ * The text as the candidate wrote it (#632): every wording a suggestion put in
+ * goes back to the words it replaced, and an addition comes out. A cover
+ * letter is checked against this, so a suggestion's wording is never its own
+ * evidence — the letter once repeated a figure a summary rewrite had moved
+ * onto other work, "fact-checked" against the very version that carried it.
+ * What the person typed themselves (an edited wording included) stays: their
+ * words are their claim. A wording that is part of what it replaced (a trim)
+ * is left alone, or putting it back would find it again and grow forever.
+ */
+export function withoutSuggestedWording(text: string, actions: MatchAction[], locate: Locate): string {
+  let out = text;
+  const undone = new Set<MatchAction>();
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const found = appliedWording(actions.filter((a) => !undone.has(a)), out, locate)
+      .filter(({ action, wording }) => !action.quote || locate(action.quote, wording) === null)
+      .sort((a, b) => b.span.start - a.span.start);
+    let floor = Infinity;
+    let next = out;
+    for (const { action, span } of found) {
+      if (span.end > floor) continue;
+      const back = action.quote ?? '';
+      // An addition was a line of its own: it goes with its line break.
+      const end = back === '' && next[span.end] === '\n' ? span.end + 1 : span.end;
+      next = `${next.slice(0, span.start)}${back}${next.slice(end)}`;
+      floor = span.start;
+      undone.add(action);
+    }
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
