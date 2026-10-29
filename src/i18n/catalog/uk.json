@@ -1440,6 +1440,7 @@
   "settings.startApplypackWhenILog": "Запускати ApplyPack під час входу в систему",
   "settings.login.on": "Увімкнено: {kind, select, darwin {агент launchd} linux {користувацька служба systemd} other {скрипт у теці автозавантаження}}, файл <file/>. Запрацює з наступного входу в систему; npm run stop і далі зупиняє ApplyPack.",
   "settings.login.off": "Це запише у <file/> {kind, select, darwin {агент launchd} linux {користувацьку службу systemd} other {скрипт для теки автозавантаження}}, що запускатиме npm start із цієї теки, коли ви входите в систему. Кнопка вище все прибере.",
+  "settings.login.env": "Під час кожного запуску він читає .env у цій теці. Налаштування, задане натомість у терміналі (порт, часовий пояс, тека даних), потрапляє в запис таким, яким воно є зараз; ключі, паролі й WEB_HOST читаються лише з .env.",
   "settings.login.reason.noLauncher": "запускатися під час входу може лише інсталяція, яку запущено через npm start",
   "settings.login.reason.refused": "система цього не прийняла ({why}); нічого зайвого не лишилося",
   "settings.login.reason.refusedSilently": "система цього не прийняла (причину не вказано); нічого зайвого не лишилося",

@@ -1549,6 +1549,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             ),
           })}
         </Hint>
+        <Hint>{t('settings.login.env')}</Hint>
       </Section>
       )}
 

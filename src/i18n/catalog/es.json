@@ -1440,6 +1440,7 @@
   "settings.startApplypackWhenILog": "Iniciar ApplyPack al iniciar sesión",
   "settings.login.on": "Activado: {kind, select, darwin {un agente de launchd} linux {un servicio de usuario de systemd} other {un script en tu carpeta de Inicio}} en <file/>. Surte efecto en tu próximo inicio de sesión; npm run stop sigue deteniéndolo.",
   "settings.login.off": "Esto escribe {kind, select, darwin {un agente de launchd} linux {un servicio de usuario de systemd} other {un script en tu carpeta de Inicio}} en <file/>, que ejecuta npm start desde esta carpeta cuando inicias sesión. El botón de arriba lo vuelve a quitar.",
+  "settings.login.env": "En cada arranque lee el .env de esta carpeta. Un ajuste que exportaste en la terminal en su lugar (el puerto, la zona horaria, la carpeta de datos) se escribe en la entrada tal como está ahora; las claves, las contraseñas y WEB_HOST se leen solo del .env.",
   "settings.login.reason.noLauncher": "solo una instalación iniciada con npm start puede arrancar sola al iniciar sesión",
   "settings.login.reason.refused": "el sistema no lo aceptó ({why}); no quedó nada",
   "settings.login.reason.refusedSilently": "el sistema no lo aceptó (sin motivo indicado); no quedó nada",

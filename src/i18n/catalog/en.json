@@ -1440,6 +1440,7 @@
   "settings.startApplypackWhenILog": "Start ApplyPack when I log in",
   "settings.login.on": "On: {kind, select, darwin {a launchd agent} linux {a systemd user service} other {a script in your Startup folder}} at <file/>. It takes effect at your next login; npm run stop still stops it.",
   "settings.login.off": "This writes {kind, select, darwin {a launchd agent} linux {a systemd user service} other {a script in your Startup folder}} at <file/>, which runs npm start from this folder when you log in. The button above takes it away again.",
+  "settings.login.env": "It reads .env in this folder at every start. A setting you exported in the terminal instead (the port, the time zone, the data folder) is written into the entry as it is now; keys, passwords and WEB_HOST are read from .env only.",
   "settings.login.reason.noLauncher": "only an install started with npm start can start itself at login",
   "settings.login.reason.refused": "the system would not take it ({why}); nothing was left behind",
   "settings.login.reason.refusedSilently": "the system would not take it (no reason given); nothing was left behind",
