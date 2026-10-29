@@ -7,7 +7,7 @@
 
 Single-user, locally hosted job-search assistant. Pulls listings from
 33 kinds of public source (twelve ATS vendors, twenty aggregators, any
-RSS/Atom feed), classifies each through the AI engine chain (five
+RSS/Atom feed), classifies each through the AI engine chain (seven
 backends, ADR 0013/0014) against every running **search profile** the
 user edits in a small dashboard, and
 fires Telegram or Discord alerts for matches. Designed to run continuously on a
