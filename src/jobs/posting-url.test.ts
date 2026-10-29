@@ -39,6 +39,36 @@ test('postingTextFromHtml strips markup and rejects thin or challenged pages', (
   if (!challenge.ok) assert.match(challenge.error, /bot check/);
 });
 
+test('a company page gives its posting, not its menus', () => {
+  // Shaped like Vercel's own listing (live, 2026-10-28): a menu of products
+  // in the header, the posting in <main>.
+  const menu = `<header><nav><a>Products</a><a>AI SDK</a><a>AI Gateway</a><a>Sandbox</a></nav></header>`;
+  const posting = `<main><h1>Software Engineer, Backend</h1><p>${'Build identity services in TypeScript. '.repeat(12)}</p></main>`;
+  const r = postingTextFromHtml(`<html><body>${menu}${posting}<footer>Privacy · Legal</footer></body></html>`);
+  assert.ok(r.ok);
+  if (r.ok) {
+    assert.match(r.text, /^Software Engineer, Backend/);
+    assert.doesNotMatch(r.text, /AI Gateway|Privacy/);
+  }
+});
+
+test('a posting read off its JobPosting block keeps its role and employer in the text', () => {
+  const block = {
+    '@context': 'https://schema.org',
+    '@type': 'JobPosting',
+    title: 'Backend Engineer',
+    hiringOrganization: { '@type': 'Organization', name: 'Acme' },
+    description: `<p>${'You will run the billing services in Go. '.repeat(12)}</p>`,
+  };
+  const html = `<html><head><script type="application/ld+json">${JSON.stringify(block)}</script></head><body><nav>Home · Jobs · Blog</nav><div>${'Cookie banner text. '.repeat(30)}</div></body></html>`;
+  const r = postingTextFromHtml(html);
+  assert.ok(r.ok);
+  if (r.ok) {
+    assert.match(r.text, /^Backend Engineer\n\nAcme\n\nYou will run the billing services in Go\./);
+    assert.doesNotMatch(r.text, /Cookie banner/);
+  }
+});
+
 test('a posting that merely names a bot-check vendor is a posting', () => {
   const html = `<html><body><h1>Senior Platform Engineer</h1><p>Our edge runs on
     Cloudflare Workers, and we use a captcha on the sign-up form.
