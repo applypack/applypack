@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { describeRedactions, detectName, findLeaks, heldNote, leakKinds, redactApplicant } from './redact';
+import { describeRedactions, detectName, findLeaks, holdNote, leakKinds, noteWords, redactApplicant } from './redact';
 
 const UA_CV = `Олена Петренко
 Senior QA Engineer
@@ -36,8 +36,44 @@ test('detectName reads the header line and an explicit field', () => {
   assert.equal(detectName(UA_CV), 'Олена Петренко');
   assert.equal(detectName(EN_CV), 'Marcus Ade-Williams');
   assert.equal(detectName('Name: Jane Q. Doe\nEngineer'), 'Jane Q. Doe');
-  assert.equal(detectName('Senior Software Engineer Resume\nJane Doe'), null, 'a title is not a name');
-  assert.equal(detectName('john.doe@example.com\nJohn Doe'), null, 'the first line must be the name');
+  assert.equal(detectName('Senior Software Engineer Resume\nJane Doe'), 'Jane Doe', 'a title is not a name, and the name stands below it');
+  assert.equal(detectName('john.doe@example.com\nJohn Doe'), 'John Doe', "the email's own words name the line");
+  assert.equal(detectName('Jane Example — Backend Engineer. Skills: Node.js'), 'Jane Example', 'a dash ends the name');
+});
+
+// #679: every case the live check found the name in the model's text.
+const QUINN_CONTACTS = 'Kyiv · +380 67 123 45 67 · q.d@example.com\n\nEXPERIENCE\nQA Engineer, Acme (2020 – 2024)\n- Quinn owned the release checklist';
+
+test('the name below a heading, a title, with a particle or under a signature is found and removed (#679)', () => {
+  const cases: [string, string][] = [
+    [`CURRICULUM VITAE\nQuinn Doe\n${QUINN_CONTACTS}`, 'Quinn Doe'],
+    [`Senior QA Engineer\nQuinn Doe\n${QUINN_CONTACTS}`, 'Quinn Doe'],
+    [`Jan van der Berg\n${QUINN_CONTACTS.replace('Quinn', 'Jan')}\nvan der Berg wrote the test plan`, 'Jan van der Berg'],
+    ['Dear Hiring Team,\n\nI built the billing service at Acme. Quinn is how the team knows me.\n\nKind regards,\nQuinn Doe', 'Quinn Doe'],
+    ['Dear Hiring Team,\n\nI built the billing service.\n\nBest regards,\nQuinn', 'Quinn'],
+  ];
+  for (const [text, name] of cases) {
+    const r = redactApplicant(text, 4);
+    assert.equal(r.name, name, text.split('\n')[0]);
+    assert.ok(!/Quinn|Doe|Berg|\bvan der\b/.test(r.text), r.text);
+    assert.deepEqual(findLeaks(r.text, r), []);
+    assert.equal(holdNote(r), null, 'found and removed, so it is read');
+  }
+});
+
+test('a city below a title is not a name, and a particle alone is not a leak (#679)', () => {
+  assert.equal(detectName('Senior QA Engineer\nNew York, NY · +1 415 555 0100\nBuilt things.'), null);
+  assert.equal(detectName('Dear Hiring Team,\nI would like to apply.'), null, 'a greeting is not a name');
+  assert.equal(detectName('Professional Summary\nBuilt things.'), null, 'a section heading is not a name');
+  assert.deepEqual(findLeaks('Applicant №1\nWorked with der Spiegel and van Gogh museum', { name: 'Jan van der Berg', email: null, phone: null }), []);
+});
+
+test('an applicant with no name found is held, never read unasked (#679)', () => {
+  const r = redactApplicant('Resume\nBuilt the billing service.', 2);
+  assert.equal(r.name, null);
+  const note = holdNote(r);
+  assert.equal(note, 'Held for a look: no name was found to take out.');
+  assert.equal(noteWords(note!), 'Held for a look: no name was found to take out.');
 });
 
 test('redactApplicant removes the person and keeps the work — Ukrainian header', () => {
@@ -163,6 +199,7 @@ test('describeRedactions reads like an audit line', () => {
 test('a held row says what kind of thing leaked, never the thing itself (TASKS E4)', () => {
   const kinds = leakKinds(['name:Petrenko', 'email', 'name:Olena', 'phone']);
   assert.deepEqual(kinds, ['name', 'email', 'phone']);
-  assert.equal(heldNote(kinds), 'Held for a look: after redaction the leak check still found name, email, phone.');
-  assert.doesNotMatch(heldNote(kinds), /Petrenko|Olena/);
+  const note = holdNote({ text: 'Applicant №1\nOlena Petrenko, olena@x.io', name: 'Olena Petrenko', email: 'olena@x.io', phone: '+380 67 123 45 67' });
+  assert.equal(note, 'Held for a look: after redaction the leak check still found email, name.');
+  assert.doesNotMatch(note!, /Petrenko|Olena/);
 });

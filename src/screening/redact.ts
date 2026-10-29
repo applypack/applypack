@@ -1,5 +1,6 @@
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import { parseLocation } from '../location';
 import { storedReadNote } from '../resume/docx-text';
 
 /*
@@ -148,25 +149,77 @@ const EDUCATION_HEADING = /^#*\s*(?:education|academic|qualifications|освіт
 const DEGREE_LINE = word('bsc|msc|b\\.s\\.|m\\.s\\.|ba|ma|phd|bachelor\\p{L}*|master\\p{L}*|бакалавр\\p{L}*|магістр\\p{L}*|магистр\\p{L}*|спеціаліст|diplom\\p{L}*|licencjat|magister|inżynier');
 const HEADING = /^(?:#+\s+\S|[\p{Lu}\s&/,-]{4,44}$)/u;
 
-/** Words a first line can carry and still not be a name. */
-const NOT_A_NAME = word('resume|cv|curriculum|vitae|engineer|developer|manager|designer|analyst|architect|specialist|consultant|lead|senior|junior|intern|розробник|інженер|резюме');
+/** Words a header line can carry and still not be a name: a document heading, a title, a section, a greeting. */
+const NOT_A_NAME = word(
+  'resume|cv|curriculum|vitae|engineer|developer|manager|designer|analyst|architect|specialist|consultant|lead|senior|junior|intern|summary|profile|experience|skills|education|contacts?|objective|dear|hello|hi|team|розробник|інженер|резюме|досвід|освіта|навички|контакти|шановн\\p{L}*|опыт|образование|навыки|уважаем\\p{L}*',
+);
 const NAME_FIELD = /^(?:name|full name|ім'?я|піб|прізвище|фио|имя)\s*[:：]\s*(.+)$/iu;
+/** The words a surname may carry in lower case: "Jan van der Berg", "Ana de la Cruz". */
+const PARTICLES = new Set(['van', 'von', 'der', 'den', 'de', 'del', 'della', 'di', 'da', 'du', 'dos', 'das', 'la', 'le', 'ten', 'ter', 'zu', 'bin', 'al', 'el', 'y']);
+/** A heading or a title may stand above the name ("CURRICULUM VITAE", "Senior QA Engineer"): this many lines are looked at. */
+const HEADER_LINES = 3;
+/** The lines the email's own words are looked for in. */
+const EMAIL_NAME_LINES = 15;
+/** The line a letter's signature stands under. */
+const VALEDICTION =
+  /^(?:(?:kind|best|warm|warmest)\s+regards|regards|sincerely(?:\s+yours)?|yours\s+(?:sincerely|faithfully|truly)|best(?:\s+wishes)?|thank\s+you|thanks|cheers|з\s+повагою|с\s+уважением|mit\s+freundlichen\s+grüßen|viele\s+grüße|z\s+poważaniem|pozdrawiam)[,.!]?$/iu;
 
-/** The header line that is the applicant's name, if the text opens with one. */
+/** A line's first item: "Quinn Doe — QA Engineer · Kyiv" is "Quinn Doe". */
+function headOf(line: string): string {
+  return (line.split(SEGMENT)[0] ?? '').split(/\s+[—–-]\s+/)[0]!.trim();
+}
+
+/** Whether `candidate` reads as a person's name: capitalised words, particles aside, and nothing a title or a heading says. */
+function nameShaped(candidate: string, minWords = 2): boolean {
+  if (candidate.length > 48 || /[\d@]/.test(candidate) || NOT_A_NAME.test(candidate)) return false;
+  const words = candidate.split(/\s+/);
+  const core = words.filter((w) => !PARTICLES.has(w));
+  if (core.length < minWords || core.length > 4 || PARTICLES.has(words[0]!) || PARTICLES.has(words.at(-1)!)) return false;
+  return core.every((w) => /^\p{Lu}[\p{L}'’.-]*$/u.test(w));
+}
+
+function isPlace(s: string): boolean {
+  const place = parseLocation(s);
+  return place.countries.length > 0 || place.regions.length > 0;
+}
+
+const folded = (s: string): string => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+/**
+ * The applicant's name, wherever a resume or a letter usually puts it: a
+ * `Name:` field, the header line (below a heading or a title, if one stands
+ * first), the signature under a valediction, or a name-shaped line that
+ * carries the email's own words ("quinn.doe@…" → "Quinn Doe"). Null when none
+ * of them holds one — and then the applicant is held for a look (#679).
+ */
 export function detectName(text: string): string | null {
   const lines = text.split('\n').map((l) => l.replace(/^#+\s*/, '').trim()).filter((l) => l.length > 0);
   for (const line of lines.slice(0, 6)) {
     const field = NAME_FIELD.exec(line);
     if (field?.[1]) return field[1].trim();
   }
-  const first = lines[0];
-  if (!first) return null;
-  const candidate = first.split(SEGMENT)[0]?.trim() ?? '';
-  const words = candidate.split(/\s+/);
-  if (words.length < 2 || words.length > 4 || candidate.length > 48) return null;
-  if (/[\d@]/.test(candidate) || NOT_A_NAME.test(candidate)) return null;
-  if (!words.every((w) => /^\p{Lu}[\p{L}'’.-]*$/u.test(w))) return null;
-  return candidate;
+  for (const [i, line] of lines.slice(0, HEADER_LINES).entries()) {
+    const candidate = headOf(line);
+    // Below a title the next line is as often the city ("New York, NY") as the name.
+    if (nameShaped(candidate) && (i === 0 || !isPlace(candidate))) return candidate;
+    if (!NOT_A_NAME.test(line)) break;
+  }
+  const valediction = lines.reduce((at, l, i) => (VALEDICTION.test(l) ? i : at), -1);
+  const signed = valediction >= 0 ? headOf(lines[valediction + 1] ?? '') : '';
+  if (nameShaped(signed, 1)) return signed;
+  const local = text.match(EMAIL)?.[0].split('@')[0] ?? '';
+  const tokens = folded(local).split(/[._+-]+/).filter((w) => w.length >= 3);
+  if (tokens.length === 0) return null;
+  for (const line of lines.slice(0, EMAIL_NAME_LINES)) {
+    const candidate = headOf(line);
+    if (nameShaped(candidate) && candidate.split(/\s+/).some((w) => tokens.includes(folded(w)))) return candidate;
+  }
+  return null;
+}
+
+/** A name's words that identify the person on their own: two letters or more, particles aside. */
+function nameParts(name: string): string[] {
+  return name.split(/\s+/).filter((p) => p.replace(/[.'’-]/g, '').length >= 2 && !PARTICLES.has(p));
 }
 
 function escape(s: string): string {
@@ -215,8 +268,12 @@ export function redactApplicant(text: string, number: number): RedactedApplicant
   out = out.replace(PHONE_RUN, (run) => (isPhone(run) ? (count('phone'), '[phone removed]') : run));
 
   if (name) {
-    const parts = name.split(/\s+/).filter((p) => p.replace(/[.'’-]/g, '').length >= 2);
-    const forms = [name, [...parts].reverse().join(' '), ...parts.filter((p) => p.replace(/[.'’-]/g, '').length >= 3)];
+    const parts = nameParts(name);
+    const words = name.split(/\s+/);
+    const particle = words.findIndex((w) => PARTICLES.has(w));
+    // "van der Berg" goes whole, so no "van der" is left in front of the label.
+    const surname = particle > 0 ? [words.slice(particle).join(' ')] : [];
+    const forms = [name, [...parts].reverse().join(' '), ...surname, ...parts.filter((p) => p.replace(/[.'’-]/g, '').length >= 3)];
     // A hyphenated surname is also its halves.
     for (const p of parts) for (const half of p.split('-')) if (half.length >= 4 && !forms.includes(half)) forms.push(half);
     for (const form of forms) out = out.replace(nameRe(form), () => (count('name'), label));
@@ -325,7 +382,7 @@ export function findLeaks(redacted: string, identity: { name: string | null; ema
     if (digits.length >= PHONE_DIGITS.min && body.replace(/\D/g, '').includes(digits)) leaks.push('phone');
   }
   if (identity.name) {
-    for (const part of identity.name.split(/\s+/)) {
+    for (const part of nameParts(identity.name)) {
       if (part.replace(/[.'’-]/g, '').length >= 3 && new RegExp(nameRe(part).source, 'u').test(body)) leaks.push(`name:${part}`);
     }
   }
@@ -341,11 +398,24 @@ export function leakKinds(leaks: string[]): string[] {
  * The row's note while it is held (TASKS E4): what the leak check found, never
  * the text it found. Stored, and exported, in English; `noteWords` words it on a page.
  */
-export function heldNote(kinds: string[]): string {
+function heldNote(kinds: string[]): string {
   return `Held for a look: after redaction the leak check still found ${kinds.join(', ')}.`;
 }
 
 const HELD_NOTE = /^Held for a look: after redaction the leak check still found (.+)\.$/s;
+const UNNAMED_NOTE = 'Held for a look: no name was found to take out.';
+
+/**
+ * The note an applicant is held under before any model reads it, or null when
+ * it may be read: what the leak check still found, or no name found at all —
+ * a name nobody found is a name nobody took out, so the default never sends
+ * one (#679). "Score it anyway" is the person's answer to both.
+ */
+export function holdNote(redacted: Pick<RedactedApplicant, 'text' | 'name' | 'email' | 'phone'>): string | null {
+  const kinds = leakKinds(findLeaks(redacted.text, redacted));
+  if (kinds.length > 0) return heldNote(kinds);
+  return redacted.name === null ? UNNAMED_NOTE : null;
+}
 
 const LEAK_WORDS: Record<string, MessageKey> = {
   name: 'screening.leak.name',
@@ -365,6 +435,7 @@ export function leakLabel(leak: string): string {
 export function noteWords(note: string): string {
   const held = HELD_NOTE.exec(note);
   if (held) return t('screening.heldNote', { kinds: held[1]!.split(', ').map(leakLabel).join(', ') });
+  if (note === UNNAMED_NOTE) return t('screening.unnamedNote');
   // A file that gave no text keeps the reader's failure as its note, in English (resume/docx-text.ts).
   return storedReadNote(note) ?? note;
 }

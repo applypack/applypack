@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.24] — 2026-10-29
+
+### Security
+- A screening finds the applicant's name below a "CV" heading or a job
+  title, with a lower-case particle ("Jan van der Berg"), under a letter's
+  signature, or on the line the email address spells, and takes it out
+  before a model reads the resume. The name used to be looked for on the
+  first line only, so in each of those shapes the model read it. A resume
+  in which no name is found at all is held for a look, as one with a leak
+  is: "Score it anyway" sends it once someone has read the redacted text.
+
 ## [2.63.23] — 2026-10-28
 
 ### Fixed
@@ -6887,6 +6898,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.24]: https://github.com/applypack/applypack/compare/v2.63.23...v2.63.24
 [2.63.23]: https://github.com/applypack/applypack/compare/v2.63.22...v2.63.23
 [2.63.22]: https://github.com/applypack/applypack/compare/v2.63.21...v2.63.22
 [2.63.21]: https://github.com/applypack/applypack/compare/v2.63.20...v2.63.21

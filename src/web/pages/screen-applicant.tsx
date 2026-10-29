@@ -212,7 +212,9 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
         <Card class="mb-4">
           <Badge tone="warn">{t('screening.applicant.held')}</Badge>
           <p class="mt-2 text-sm text-ink-muted">
-            {t('screening.applicant.heldBody', { kinds: leakKinds(applicant.leaks).map(leakLabel).join(', ') || t('screening.applicant.somethingIdentifying') })}
+            {applicant.leaks.length === 0 && applicant.name === null
+              ? t('screening.applicant.heldUnnamedBody')
+              : t('screening.applicant.heldBody', { kinds: leakKinds(applicant.leaks).map(leakLabel).join(', ') || t('screening.applicant.somethingIdentifying') })}
           </p>
           <form method="post" action={`${back}/applicants/${applicant.id}/release`} class="mt-3 flex flex-wrap items-center gap-3">
             <Button variant="secondary">{t('screening.applicant.scoreAnyway')}</Button>
