@@ -1,0 +1,93 @@
+{
+  "list": [
+    {
+      "uuid": "32503612-d702-4274-bab0-127c2196f683",
+      "name": "Engineering Leader - Agentic Talent Products  ",
+      "department": {
+        "id": "Engineering",
+        "label": "Engineering"
+      },
+      "url": "https://ats.rippling.com/rippling/jobs/32503612-d702-4274-bab0-127c2196f683",
+      "workLocation": {
+        "label": "San Francisco, CA",
+        "id": "San Francisco, CA"
+      }
+    },
+    {
+      "uuid": "1584be38-83a9-41a8-94e8-f733332ace4e",
+      "name": "Account Executive, Broker Channel (San Jose / South Bay)",
+      "department": {
+        "id": "Sales",
+        "label": "Sales"
+      },
+      "url": "https://ats.rippling.com/rippling/jobs/1584be38-83a9-41a8-94e8-f733332ace4e",
+      "workLocation": {
+        "label": "Sunnyvale, CA",
+        "id": "Sunnyvale, CA"
+      }
+    },
+    {
+      "uuid": "1584be38-83a9-41a8-94e8-f733332ace4e",
+      "name": "Account Executive, Broker Channel (San Jose / South Bay)",
+      "department": {
+        "id": "Sales",
+        "label": "Sales"
+      },
+      "url": "https://ats.rippling.com/rippling/jobs/1584be38-83a9-41a8-94e8-f733332ace4e",
+      "workLocation": {
+        "label": "Milpitas, CA",
+        "id": "Milpitas, CA"
+      }
+    },
+    {
+      "uuid": "1584be38-83a9-41a8-94e8-f733332ace4e",
+      "name": "Account Executive, Broker Channel (San Jose / South Bay)",
+      "department": {
+        "id": "Sales",
+        "label": "Sales"
+      },
+      "url": "https://ats.rippling.com/rippling/jobs/1584be38-83a9-41a8-94e8-f733332ace4e",
+      "workLocation": {
+        "label": "Santa Clara, CA",
+        "id": "Santa Clara, CA"
+      }
+    }
+  ],
+  "detail": {
+    "uuid": "32503612-d702-4274-bab0-127c2196f683",
+    "name": "Engineering Leader - Agentic Talent Products  ",
+    "description": {
+      "company": "<meta><h2><b><strong>About Rippling</strong></b></h2><p><span>Rippling gives businesses one place to run HR, IT, and Finance. It brings together all of the workforce systems that are normally scattered across a company, like payroll, expenses, benefits, and computers. For the first time ever, you can manage and automate every part of the employee lifecycle in a single system.</span></p>",
+      "role": "<meta><h2><b><strong>About the role</strong></b></h2><p><span>We're looking for an exceptional engineering leader to build the next generation of Rippling's Talent platform for the AI era.</span></p><h2><b><strong>What you will do</strong></b></h2><ul><li><span>Lead the technical strategy and execution for Rippling's next-generation AI-powered Talent platform.</span></li><li><span>Build, lead, and develop a high-performing engineering organization, hiring exceptional engineers and engineering managers while fostering a culture of technical excellence, ownership, and velocity.</span></li></ul><h2><b><strong>What you will need</strong></b></h2><ul><li><span>Experience leading high-performing engineering teams, including hiring, mentoring, and developing senior engineers and engineering managers.</span></li><li><span>Proven success building and scaling engineering organizations while maintaining a high technical bar.</span></li></ul>"
+    },
+    "workLocations": [
+      "San Francisco, CA"
+    ],
+    "department": {
+      "name": "Talent Management",
+      "base_department": "Engineering",
+      "department_tree": [
+        "Engineering",
+        "HR Products",
+        "Talent Management"
+      ]
+    },
+    "employmentType": {
+      "label": "SALARIED_FT",
+      "id": "Salaried, full-time"
+    },
+    "createdOn": "2026-08-04T09:05:14.440000-07:00",
+    "url": "https://ats.rippling.com/rippling/jobs/32503612-d702-4274-bab0-127c2196f683",
+    "payRangeDetails": [
+      {
+        "location": "US San Francisco Bay Area",
+        "currency": "USD",
+        "frequency": "YEAR",
+        "rangeStart": 207000.0,
+        "rangeEnd": 345000.0,
+        "isRemote": false
+      }
+    ],
+    "companyName": "Rippling"
+  }
+}
