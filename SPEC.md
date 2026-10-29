@@ -213,7 +213,10 @@ refused it), `isDigestHour` decides whether the hourly recap beat does
 anything, and `isFirstDigestHour` whether the stale-application beat does.
 A beat that is not its digest hour writes no run row. An empty
 `AppSettings.schedule` means every hour, around the clock, one message per
-match and a recap at 09:00: the behaviour before v1.47.0.
+match and a recap at 09:00: the behaviour before v1.47.0. Its zone is `TZ`
+until someone picks one; the press that ends setup stores the browser's zone
+instead when the schedule is empty and `TZ` reads UTC
+(`welcome-steps.ts:setupZone`, #643), and the flash says so.
 
 | Cron expr    | Job                | What it does                                   |
 | ------------ | ------------------ | ---------------------------------------------- |
