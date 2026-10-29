@@ -31,8 +31,9 @@ import {
  * v4: v3 with the evidence ladder spelled out for lists — a stack line is at most "role"; a term the text never spells is absent.
  * v5: a role's sector is picked from the sector vocabulary (sectors.ts, TASKS E6) — free words only when none fits.
  * v6: "freelance" is a company type (#553).
+ * v7: a years criterion that names a kind of work marks every role "work" — yes / no / unknown with that role's own line (#645).
  */
-export const SCREEN_PROMPT_VERSION = 6;
+export const SCREEN_PROMPT_VERSION = 7;
 /** The version that began reading stand-out facts: a verdict from before it has none to show. */
 export const STANDOUT_SINCE = 3;
 /** The answer: one entry per criterion, the roles with dates, three stand-out facts, a few quotes and five questions. */
@@ -105,6 +106,23 @@ export const AnswerSchema = z.object({
 });
 export type ScreenAnswer = z.infer<typeof AnswerSchema>;
 
+const WORK_ANSWERS = ['yes', 'no', 'unknown'] as const;
+type WorkAnswer = (typeof WORK_ANSWERS)[number];
+
+/** A years criterion asks for this kind of work (spec.of): every role is marked whether it was (#645). */
+export function marksWork(c: Criterion): boolean {
+  return c.kind === 'years' && c.spec.of !== null;
+}
+
+/** One role against one such criterion: what the role's own lines say, and the line. */
+const WorkSchema = z.object({
+  id: z.string().trim().min(1),
+  /** Any other word is unknown — never the whole reply. */
+  answer: z.unknown().optional().transform((v): WorkAnswer => ((WORK_ANSWERS as readonly unknown[]).includes(v) ? (v as WorkAnswer) : 'unknown')),
+  quote: nullableText,
+});
+export type RoleWork = z.infer<typeof WorkSchema>;
+
 const RoleSchema = z.object({
   position: z.string().trim().min(1),
   employer: nullableText,
@@ -116,6 +134,8 @@ const RoleSchema = z.object({
   sector: nullableText,
   /** A type outside the list costs that role its type, never the whole reply (#553). */
   companyType: z.unknown().optional().transform(readCompanyType),
+  /** v7; absent on a reply from before it, which the years row then reads as it always did. */
+  work: z.array(WorkSchema).optional(),
 });
 export type ScreenRole = z.infer<typeof RoleSchema>;
 
@@ -157,9 +177,9 @@ const RULE_ANSWERS = `"answers" — one entry per criterion in the SCREENING RUB
    - level: the level the text SHOWS in "level", from scope and ownership rather than titles alone — junior (executes assigned tasks), mid (owns features end to end), senior (owns systems, makes and defends decisions, is the reference for others), lead (owns a team, a roadmap or an architecture across teams) — with the one line that shows it in "quote"; null when the resume gives too little to say.
    - impact: "strong" / "ok" / "weak" in "impact" — outcomes versus duties across the relevant roles: strong = most bullets say what changed for the business or the system, with numbers where the person had them; ok = some outcomes, mostly responsibilities; weak = activity and technology only. "quote" is the best outcome line; a strong with no quote is lowered by the application.
    - overall: the whole resume against the whole posting, in "overall": "exceptional" (would be shortlisted at any company for this role), "strong", "partial", "weak", "none" — with three "reasons" and up to three "concerns", each one clause, and the single line that most supports the grade in "quote". This is the one place you weigh everything at once; the other criteria are answered on their own.
-   - roles: no entry — the application reads years, sectors and company types off "roles".`;
+   - roles: no entry — the application reads years, sectors and company types off "roles", and a criterion that says "work" off each role's "work".`;
 
-const RULE_ROLES = `"roles" — every job in the resume, most recent first: "position", "employer", "start" and "end" copied CHARACTER FOR CHARACTER (the application parses the dates and drops any string it cannot find); "relevant" true when the role is the kind of work the position asks for, "why" in one clause; "sector" the employer's sector — the closest of ${SECTORS.map((s) => s.label).join(', ')}; two or three words of the text's own when none fits, null when the text does not say; "companyType" one of ${COMPANY_TYPES.join(' | ')}, or null. Internships and study projects are roles too, marked as such in "why".`;
+const RULE_ROLES = `"roles" — every job in the resume, most recent first: "position", "employer", "start" and "end" copied CHARACTER FOR CHARACTER (the application parses the dates and drops any string it cannot find); "relevant" true when the role is the kind of work the position asks for, "why" in one clause; "sector" the employer's sector — the closest of ${SECTORS.map((s) => s.label).join(', ')}; two or three words of the text's own when none fits, null when the text does not say; "companyType" one of ${COMPANY_TYPES.join(' | ')}, or null; "work" one entry per criterion whose "answer as" says "work", with that criterion's "id": "answer" "yes" when THIS role's own lines show that kind of work, "no" when they show other work, "unknown" when the role says too little to tell, and "quote" the line of THIS role that shows it, copied character for character — a yes or a no without one is read as unknown, and a role with no entry counts for none of them; [] when no criterion says "work". Internships and study projects are roles too, marked as such in "why".`;
 
 const RULE_STANDOUT = `"standout" — up to ${MAX_STANDOUT} facts a hiring manager would want to know that NO criterion asked about, most notable first: a technology or a domain beyond the rubric, a number the person quotes (users, revenue, scale, savings), a publication, a patent, open source, a conference talk, a language, an award. "fact" in eight words or fewer, "quote" the line that carries it, copied character for character — a fact without a located quote is dropped. These are never scored; they are what the person reads before deciding.`;
 
@@ -187,7 +207,7 @@ Every "quote", role field and "last_used" is copied character for character from
 OUTPUT (exactly this shape):
 {
   "summary": {"who": string, "did": string, "verdict": string},
-  "roles": [{"position": string, "employer": string|null, "start": string|null, "end": string|null, "relevant": boolean, "why": string, "sector": string|null, "companyType": ${COMPANY_TYPES.map((type) => `"${type}"`).join('|')}|null}],
+  "roles": [{"position": string, "employer": string|null, "start": string|null, "end": string|null, "relevant": boolean, "why": string, "sector": string|null, "companyType": ${COMPANY_TYPES.map((type) => `"${type}"`).join('|')}|null, "work": [{"id": string, "answer": "yes"|"no"|"unknown", "quote": string|null}]}],
   "answers": [{"id": string, "status": "pass"|"partial"|"unknown"|"fail"|null, "rung": "absent"|"listed"|"project"|"role"|"production"|null, "level": "junior"|"mid"|"senior"|"lead"|null, "impact": "strong"|"ok"|"weak"|null, "overall": "exceptional"|"strong"|"partial"|"weak"|"none"|null, "quote": string|null, "note": string|null, "question": string|null, "last_used": string|null, "reasons": [string], "concerns": [string]}],
   "standout": [{"fact": string, "quote": string}],
   "questions": [string],
@@ -208,8 +228,12 @@ export function answerShape(c: Criterion): string {
   return shape;
 }
 
-/** The rubric as the model reads it — one line per criterion, fenced because the draft came from the posting. */
-function rubricLines(rubric: Rubric): string {
+/**
+ * The rubric as the model reads it — one line per criterion, fenced because
+ * the draft came from the posting. `work`: the screening reads a kind of work
+ * off every role; a comparison of a shortlist does not.
+ */
+function rubricLines(rubric: Rubric, work = false): string {
   if (rubric.criteria.length === 0) return '(no criteria)';
   return rubric.criteria
     .map((c) => {
@@ -222,7 +246,7 @@ function rubricLines(rubric: Rubric): string {
           : c.kind === 'skill' && c.spec.core
             ? ' (core stack)'
             : '';
-      return `- [${c.id}] ${CRITERION_KIND_LABELS[c.kind]}: ${what}${extra} | ${c.mode} | answer as: ${answerShape(c)}`;
+      return `- [${c.id}] ${CRITERION_KIND_LABELS[c.kind]}: ${what}${extra} | ${c.mode} | answer as: ${answerShape(c)}${work && marksWork(c) ? `, with "work" on every role: was it ${c.spec.of}?` : ''}`;
     })
     .join('\n');
 }
@@ -263,7 +287,7 @@ export function buildScreenPrompt(input: ScreenPromptInput): { system: string; u
       `The applicant is "Applicant №${input.number}".`,
       '',
       'SCREENING RUBRIC — the criteria a person chose for this position, one answer each, by id.',
-      fence('SCREENING RUBRIC', rubricLines(input.rubric)),
+      fence('SCREENING RUBRIC', rubricLines(input.rubric, true)),
       '',
       fence(
         'JOB POSTING',

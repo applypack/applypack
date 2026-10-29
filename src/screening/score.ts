@@ -106,16 +106,18 @@ export interface ScreenScoreInput {
   now: Date;
 }
 
+type DatedRole = { range: DateRange; role: ScreenRole };
+
 interface RoleFacts {
   ranges: DateRange[];
   years: number | null;
   recentMonths: number | null;
   /** Dated roles, relevant or not, with their sector and type. */
-  dated: { range: DateRange; role: ScreenRole }[];
+  dated: DatedRole[];
 }
 
 function roleFacts(reply: ScreenReply, now: Date): RoleFacts {
-  const dated: { range: DateRange; role: ScreenRole }[] = [];
+  const dated: DatedRole[] = [];
   for (const role of reply.roles) {
     const range = parseRange(role.start, role.end, now);
     if (range) dated.push({ range, role });
@@ -219,7 +221,10 @@ export function scoreScreening(input: ScreenScoreInput): ScreenBreakdown {
         break;
       }
       case 'roles': {
-        if (c.kind === 'years') {
+        const work = c.kind === 'years' && c.spec.of !== null ? workMarks(c.id, facts.dated) : null;
+        if (work) {
+          ({ credit, answer, detail, gate, quote } = yearsOfWork(c, work, now));
+        } else if (c.kind === 'years') {
           if (facts.years === null || facts.recentMonths === null) {
             credit = null;
             answer = 'no dated relevant role';
@@ -234,8 +239,9 @@ export function scoreScreening(input: ScreenScoreInput): ScreenBreakdown {
           credit = over ? 0 : SCREEN_SCORING.yearsShare * share + SCREEN_SCORING.recencyShare * recency;
           answer = `${facts.years} years`;
           // The roles the reading called relevant to the position: when the
-          // criterion names a narrower kind of work, the dates cannot tell it
-          // apart, and the row says so instead of passing quietly (#645).
+          // criterion names a narrower kind of work and the reading marked no
+          // role for it (a verdict from before prompt v7), the dates cannot
+          // tell it apart, and the row says so instead of passing quietly (#645).
           const area = c.spec.of ? `; counted over every relevant role — the dates do not single out ${c.spec.of}` : '';
           detail = `${facts.years} relevant year${facts.years === 1 ? '' : 's'}${min !== null ? ` of ${min} asked` : ''}${max !== null ? `, at most ${max}` : ''}; last ended ${describeMonths(facts.recentMonths)}${area}`;
           gate = over ? 'fail' : min !== null && facts.years + 0.5 < min ? 'fail' : 'pass';
@@ -350,6 +356,60 @@ export function scoreScreening(input: ScreenScoreInput): ScreenBreakdown {
     recentMonths: facts.recentMonths,
     level: observedLevel,
     confidence: { value, band, answered, total: counted.length, thin },
+  };
+}
+
+interface WorkMarks {
+  /** Dated roles whose own line shows the kind of work; most recent first, as the reply lists them. */
+  yes: { role: DatedRole; quote: string | null }[];
+  /** Dated roles that say too little to tell. */
+  unclear: DatedRole[];
+  /** Dated roles marked at all — a role with no mark counts for nothing. */
+  marked: number;
+}
+
+/** The dated roles a reading marked for this criterion; null when no role carries "work" at all — a reply from before prompt v7. */
+function workMarks(id: string, dated: DatedRole[]): WorkMarks | null {
+  if (!dated.some((d) => d.role.work !== undefined)) return null;
+  const marks = dated.flatMap((d) => d.role.work?.filter((w) => w.id === id).map((w) => ({ d, w })) ?? []);
+  return {
+    yes: marks.filter((m) => m.w.answer === 'yes').map((m) => ({ role: m.d, quote: m.w.quote })),
+    unclear: marks.filter((m) => m.w.answer === 'unknown').map((m) => m.d),
+    marked: marks.length,
+  };
+}
+
+/**
+ * A years criterion that names a kind of work (#645), read off the roles the
+ * reading marked as that work — "5+ years in test automation" never counts
+ * the manual-testing junior role. A role that says too little stays a
+ * question: when it could decide the gate either way, the gate is unknown and
+ * the criterion leaves the denominator, as every unknown does (ADR 0050).
+ */
+function yearsOfWork(c: Criterion, work: WorkMarks, now: Date): Pick<ScoreRow, 'credit' | 'answer' | 'detail' | 'gate' | 'quote'> {
+  if (work.marked === 0) return { credit: null, answer: 'unknown', detail: 'ask which roles were this kind of work', gate: 'unknown', quote: null };
+  const { min, max, of } = c.spec;
+  const shownRanges = work.yes.map((y) => y.role.range);
+  const shown = shownRanges.length > 0 ? yearsCovered(shownRanges) : 0;
+  const could = work.unclear.length > 0 ? yearsCovered([...shownRanges, ...work.unclear.map((d) => d.range)]) : shown;
+  const short = (years: number): boolean => min !== null && years + 0.5 < min;
+  const over = (years: number): boolean => max !== null && years > max + 0.5;
+  const gate = over(shown) || short(could) ? 'fail' : short(shown) || over(could) ? 'unknown' : 'pass';
+  const answer = `${shown} years`;
+  const quote = work.yes[0]?.quote ?? null;
+  if (gate === 'unknown') {
+    return { credit: null, answer, detail: `${shown} year${shown === 1 ? '' : 's'} in ${of} shown, ${could} counting the roles that do not say`, gate, quote };
+  }
+  if (shown === 0) return { credit: 0, answer, detail: `no role shows ${of}`, gate, quote };
+  const recentMonths = monthsSinceLatest(shownRanges, now)!;
+  const share = min === null || min === 0 ? Math.min(1, shown) : Math.min(1, shown / min);
+  const recency = SCREEN_SCORING.recency.find((r) => recentMonths <= r.months)?.credit ?? SCREEN_SCORING.recencyFloor;
+  return {
+    credit: over(shown) ? 0 : SCREEN_SCORING.yearsShare * share + SCREEN_SCORING.recencyShare * recency,
+    answer,
+    detail: `${shown} year${shown === 1 ? '' : 's'} in ${of}${min !== null ? ` of ${min} asked` : ''}${max !== null ? `, at most ${max}` : ''}; last ended ${describeMonths(recentMonths)}`,
+    gate,
+    quote,
   };
 }
 
@@ -468,6 +528,9 @@ const DETAIL_LAST_USED = /^last used (.+)$/s;
 const DETAIL_ASK = /^ask: (.+)$/s;
 const DETAIL_LEVEL = new RegExp(`^reads as ${LEVEL}; the criterion asks ${LEVEL}( or above| or below| \\(one rung either way\\)| exactly)$`);
 const DETAIL_YEARS = new RegExp(`^${NUMBER} relevant years?(?: of ${NUMBER} asked)?(?:, at most ${NUMBER})?; last ended ${WHEN}(?:; counted over every relevant role — the dates do not single out (.+))?$`, 's');
+const DETAIL_YEARS_OF = new RegExp(`^${NUMBER} years? in (.+?)(?: of ${NUMBER} asked)?(?:, at most ${NUMBER})?; last ended ${WHEN}$`, 's');
+const DETAIL_YEARS_OF_UNCLEAR = new RegExp(`^${NUMBER} years? in (.+) shown, ${NUMBER} counting the roles that do not say$`, 's');
+const DETAIL_NO_ROLE_SHOWS = /^no role shows (.+)$/s;
 const DETAIL_INDUSTRY = new RegExp(`^${NUMBER} years? in (.+?)(?: of ${NUMBER} asked)?$`, 's');
 const DETAIL_NO_ROLE_IN = /^no role in (.+)$/s;
 const DETAIL_COMPANY = /^(\d+) of (\d+) dated roles at (.+) companies$/s;
@@ -502,6 +565,12 @@ export function detailParts(detail: string): DetailPart[] {
   if ((m = DETAIL_YEARS.exec(detail))) {
     return words('screening.detail.years', { years: Number(m[1]), min: optional(m[2]), max: optional(m[3]), when: whenWords(m[4]!), area: m[5] ?? 'none' });
   }
+  // Before the industry shape, which would read a kind of work's row as a sector's.
+  if ((m = DETAIL_YEARS_OF.exec(detail))) {
+    return words('screening.detail.yearsOf', { years: Number(m[1]), area: m[2]!, min: optional(m[3]), max: optional(m[4]), when: whenWords(m[5]!) });
+  }
+  if ((m = DETAIL_YEARS_OF_UNCLEAR.exec(detail))) return words('screening.detail.yearsOfUnclear', { years: Number(m[1]), area: m[2]!, could: Number(m[3]) });
+  if ((m = DETAIL_NO_ROLE_SHOWS.exec(detail))) return words('screening.detail.noRoleShows', { area: m[1]! });
   if ((m = DETAIL_COMPANY.exec(detail))) return words('screening.detail.companyType', { n: Number(m[1]), total: Number(m[2]), items: m[3]! });
   if ((m = DETAIL_NO_ROLE_AT.exec(detail))) return words('screening.detail.noRoleAt', { items: m[1]! });
   if ((m = DETAIL_INDUSTRY.exec(detail))) return words('screening.detail.industry', { years: Number(m[1]), items: m[2]!, min: optional(m[3]) });

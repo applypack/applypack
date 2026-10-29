@@ -195,3 +195,59 @@ test('anchorScreenReply raises a rung the text shows more of, and lowers a stron
   assert.equal(by.imp!.impact, 'ok');
   assert.deepEqual(textEvidence([{ term: 'Kubernetes', aliases: ['k8s'] }], TEXT, matcher), { rung: 'absent', quote: null });
 });
+
+// The gold set's Marcus: the title line repeats his position, and the junior role was manual testing (#645).
+const QA_TEXT = `Applicant №2
+QA Engineer | London, UK
+
+SUMMARY
+Test engineer with three years across manual and automated testing for SaaS products.
+
+EXPERIENCE
+QA Engineer, Monzo (Jan 2023 – Present)
+- Wrote Cypress tests for the onboarding flow
+- Ran manual regression before each release
+Junior QA, Fintech Startup Ltd (2022 – 2022)
+- Manual testing of the mobile app
+`;
+
+test('a role\'s "work" mark keeps its yes or no only on a line of that role (#645)', async () => {
+  const matcher = await loadKeywordMatcher();
+  const rubric = RubricSchema.parse({
+    criteria: [c('y', 'years', '5+ years in test automation', 'gate', { min: 5, of: 'test automation' }), c('y2', 'years', '5+', 'gate', { min: 5 })],
+  });
+  const role = (position: string, employer: string, start: string, end: string, work?: unknown[]) =>
+    ({ position, employer, start, end, relevant: true, why: 'QA', sector: null, companyType: null, ...(work ? { work } : {}) });
+  const reply = (work: [unknown[], unknown[]]) =>
+    ScreenReplySchema.parse({ roles: [role('QA Engineer', 'Monzo', 'Jan 2023', 'Present', work[0]), role('Junior QA', 'Fintech Startup Ltd', '2022', '2022', work[1])], answers: [] });
+
+  const fair = anchorScreenReply(
+    reply([
+      [{ id: 'y', answer: 'yes', quote: 'Wrote Cypress tests for the onboarding flow' }],
+      [{ id: 'y', answer: 'no', quote: 'Manual testing of the mobile app' }],
+    ]),
+    QA_TEXT,
+    rubric,
+    matcher,
+  );
+  assert.deepEqual(fair.reply.roles.map((r) => r.work?.map((w) => w.answer)), [['yes'], ['no']]);
+  assert.equal(fair.report.workUnproven, 0);
+
+  const generous = anchorScreenReply(
+    reply([
+      // The summary is no line of a role, and a bullet of the job above is not the junior role's.
+      [{ id: 'y', answer: 'yes', quote: 'three years across manual and automated testing' }, { id: 'y2', answer: 'yes', quote: 'x' }, { id: 'ghost', answer: 'yes', quote: 'x' }],
+      [{ id: 'y', answer: 'yes', quote: 'Wrote Cypress tests for the onboarding flow' }],
+    ]),
+    QA_TEXT,
+    rubric,
+    matcher,
+  );
+  assert.deepEqual(generous.reply.roles.map((r) => r.work), [[{ id: 'y', answer: 'unknown', quote: null }], [{ id: 'y', answer: 'unknown', quote: null }]]);
+  assert.equal(generous.report.workUnproven, 2);
+  assert.equal(generous.report.answersDropped, 2, 'a criterion that names no kind of work, and one the rubric never had');
+
+  // A reply from before prompt v7 carries no marks, and gets none.
+  const old = anchorScreenReply(reply([undefined as never, undefined as never]), QA_TEXT, rubric, matcher);
+  assert.deepEqual(old.reply.roles.map((r) => r.work), [undefined, undefined]);
+});

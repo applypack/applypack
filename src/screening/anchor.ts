@@ -2,7 +2,7 @@ import { normaliseForAnchor } from '../resume/structure-anchor';
 import { isMeasured, isTermList, lineAt, segmentAt } from '../resume/evidence';
 import type { KeywordMatcher } from '../resume/keyword-matcher';
 import { EVIDENCE_RUNGS, type Criterion, type EvidenceRung, type Rubric } from './rubric';
-import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
+import { answerShape, marksWork, type RoleWork, type ScreenAnswer, type ScreenReply, type ScreenRole } from './prompts';
 
 /*
  * The persist-time guard for a screening reply (ADR 0047 / 0050): every
@@ -38,6 +38,11 @@ import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
  *   "strong" with no quote becomes "ok";
  * - a role whose position or dates the text does not carry is dropped, and
  *   so is a stand-out fact whose quote is not in the text;
+ * - a role's "work" mark (a years criterion that names a kind of work, #645)
+ *   keeps its yes or no only on a line of THAT role — between its own header
+ *   and the next role's — else it is unknown: the line of another job, or
+ *   the summary's "five years of test automation", would credit this role's
+ *   dates with work it did not show;
  * - the RUBRIC is the frame: a criterion the model skipped gets an answer
  *   from the text alone (a skill) or "unknown" (anything else), an answer
  *   for an id the rubric never named is dropped.
@@ -55,6 +60,8 @@ export interface AnchorReport {
   rolesDropped: number;
   /** Stand-out facts whose quote the text does not carry. */
   standoutDropped: number;
+  /** Work marks lowered to unknown: a yes or a no without a line of that role. */
+  workUnproven: number;
 }
 
 type Matcher = Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>;
@@ -150,7 +157,7 @@ const blank = (id: string): ScreenAnswer => ({
 });
 
 export function anchorScreenReply(reply: ScreenReply, text: string, rubric: Rubric, matcher: Matcher): { reply: ScreenReply; report: AnchorReport } {
-  const report: AnchorReport = { quotesDropped: 0, rungsLowered: 0, rungsRaised: 0, answersFilled: 0, answersDropped: 0, statusesUnproven: 0, rolesDropped: 0, standoutDropped: 0 };
+  const report: AnchorReport = { quotesDropped: 0, rungsLowered: 0, rungsRaised: 0, answersFilled: 0, answersDropped: 0, statusesUnproven: 0, rolesDropped: 0, standoutDropped: 0, workUnproven: 0 };
   const hay = normaliseForAnchor(text);
   const located = (quote: string | null): string | null => {
     if (quote === null) return null;
@@ -180,6 +187,26 @@ export function anchorScreenReply(reply: ScreenReply, text: string, rubric: Rubr
     if (!ok) report.rolesDropped++;
     return ok;
   });
+  const marked = new Set(rubric.criteria.filter(marksWork).map((c) => c.id));
+  const headers = roles.map((r) => roleHeader(hay, r));
+  const withWork = roles.map((r, i): ScreenRole => {
+    if (r.work === undefined) return r;
+    const start = headers[i]!;
+    const end = Math.min(hay.length, ...headers.filter((h) => h > start));
+    const seen = new Set<string>();
+    const work: RoleWork[] = [];
+    for (const w of r.work) {
+      if (!marked.has(w.id) || seen.has(w.id)) {
+        report.answersDropped++;
+        continue;
+      }
+      seen.add(w.id);
+      const shown = w.answer !== 'unknown' && inSpan(hay, w.quote, start, end);
+      if (w.answer !== 'unknown' && !shown) report.workUnproven++;
+      work.push(shown ? w : { ...w, answer: 'unknown', quote: null });
+    }
+    return { ...r, work };
+  });
 
   // A stand-out fact is only as good as its line: no located quote, no fact (it was never scored, so nothing else moves).
   const standout = reply.standout.filter((f) => {
@@ -188,7 +215,37 @@ export function anchorScreenReply(reply: ScreenReply, text: string, rubric: Rubr
     return ok;
   });
 
-  return { reply: { ...reply, answers, roles, standout }, report };
+  return { reply: { ...reply, answers, roles: withWork, standout }, report };
+}
+
+/** How far a role's header line may hold its employer or dates from its position. */
+const HEADER_REACH = 120;
+
+/**
+ * Where a role starts in the normalised text: the occurrence of its position
+ * nearest its own employer or dates — "QA Engineer" is also the title line at
+ * the top. The role runs to the next role's start.
+ */
+function roleHeader(hay: string, role: ScreenRole): number {
+  const position = normaliseForAnchor(role.position);
+  const near = [role.employer, role.start, role.end].filter((v): v is string => v !== null).map(normaliseForAnchor).filter(Boolean);
+  let best = { at: hay.indexOf(position), gap: Infinity };
+  for (let i = best.at; i !== -1; i = hay.indexOf(position, i + 1)) {
+    for (const n of near) {
+      for (let j = hay.indexOf(n, Math.max(0, i - HEADER_REACH)); j !== -1 && j <= i + position.length + HEADER_REACH; j = hay.indexOf(n, j + 1)) {
+        if (Math.abs(j - i) < best.gap) best = { at: Math.min(i, j), gap: Math.abs(j - i) };
+      }
+    }
+  }
+  return best.at;
+}
+
+/** The quote is a verbatim span of the text between `start` and `end`. */
+function inSpan(hay: string, quote: string | null, start: number, end: number): boolean {
+  const needle = quote === null ? '' : normaliseForAnchor(quote);
+  if (needle.length === 0) return false;
+  const at = hay.indexOf(needle, start);
+  return at !== -1 && at + needle.length <= end;
 }
 
 function anchorAnswer(
