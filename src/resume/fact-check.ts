@@ -1,5 +1,6 @@
 import type { FactLike } from './facts';
 import { canonicalTerm } from './facts';
+import { joinWrapped } from './structure-from-text';
 
 /*
  * Deterministic fact gate (ADR 0020). Generated prose in, verdict out — no
@@ -40,6 +41,14 @@ export interface FactCheckInput {
   addressee?: string | null;
   allowMetrics?: string[];
   allowFacts?: string[];
+  /**
+   * The resume the text speaks for. Given, every figure must also stay with the
+   * work its own line names (`detachedFigures`, #632) — a true number told
+   * about other work warns.
+   */
+  resume?: string;
+  /** For a rewrite: the resume text it takes the place of. */
+  replacing?: string | null;
 }
 
 export interface FactCheckResult {
@@ -49,6 +58,8 @@ export interface FactCheckResult {
   unchecked: number;
   /** Allowlist entries that canonicalize to nothing, and so protect nothing. */
   inertAllowlist: string[];
+  /** True figures told about work their own lines do not name; empty without `resume`. */
+  detached: DetachedFigure[];
   /** One line per problem, quotable straight into a regeneration prompt. */
   reasons: string[];
 }
@@ -372,6 +383,266 @@ function mentions(haystack: string, needle: string): boolean {
   return new RegExp(String.raw`(?<![\p{L}\p{N}])${escaped}(?![\p{L}\p{N}])`, 'u').test(haystack);
 }
 
+// --------------------------------------------------------------- attachment
+
+/*
+ * A figure is a claim about the work its own line names (#632). The value
+ * check above proves "35 minutes" is in the resume; it cannot see that a
+ * rewrite moved it from "set up structured logging and alerting" onto "ran
+ * on-call rotations", which the resume says nothing of — a true number told
+ * about other work. So each figure is read with the words around it:
+ *
+ *  - in a rewrite of one bullet, a figure the bullet did not carry is
+ *    another bullet's, and it stays out unless the two lines describe the same
+ *    work (they share a word that names it);
+ *  - anywhere else (a summary, a new line, a letter), the words that say WHAT
+ *    produced the figure — the piece of the sentence before it ("ran on-call
+ *    rotations | that cut …"), and what follows it ("… by introducing the
+ *    runbooks") — may not come from another bullet while naming nothing of the
+ *    figure's own line or its role.
+ *
+ * Only distinctive words count: verbs, title nouns and words every bullet
+ * uses ("built", "team", "services") say nothing about which work it was, and
+ * a word the resume never uses is a paraphrase, not a borrowing. A bullet is a
+ * line that opens with a bullet marker; a resume without them is not read, and
+ * nothing is flagged — the bias toward not blocking (ADR 0020) holds here too.
+ */
+
+export interface DetachedFigure {
+  /** The figure as the checked text writes it. */
+  figure: string;
+  /** The other work it was put on, in the checked text's words, or the line it came from. */
+  onto: string;
+  /** The resume line the figure belongs to. */
+  line: string;
+  reason: string;
+}
+
+/** A line that opens with a bullet marker is one piece of work. */
+const BULLET_LINE = /^\s*[-•*·‣▪●◦∙–]\s+/;
+/** The non-bullet lines above a run of bullets that name its role: company, title, dates. */
+const ROLE_LINES = 3;
+/** How much of the figure's own line a reason quotes. */
+const LINE_QUOTE = 90;
+
+/** Words that say nothing about which work a sentence is about. */
+const PLAIN_WORDS = new Set([
+  // function words
+  'the', 'and', 'but', 'nor', 'for', 'with', 'from', 'into', 'onto', 'over', 'under', 'out', 'off', 'about',
+  'after', 'before', 'during', 'through', 'across', 'between', 'within', 'without', 'per', 'via', 'than',
+  'then', 'that', 'this', 'these', 'those', 'its', 'their', 'our', 'your', 'his', 'her', 'who', 'whom',
+  'whose', 'which', 'where', 'when', 'while', 'what', 'how', 'also', 'just', 'only', 'very', 'more', 'most',
+  'less', 'least', 'much', 'many', 'each', 'every', 'all', 'any', 'some', 'both', 'other', 'such', 'own',
+  'same', 'new', 'now', 'still', 'already', 'well', 'even', 'again', 'once', 'there', 'here', 'they', 'them',
+  'you', 'was', 'were', 'are', 'been', 'being', 'has', 'have', 'had', 'having', 'did', 'does', 'doing',
+  'can', 'could', 'would', 'should', 'will', 'may', 'might', 'must', 'not', 'one', 'two', 'three', 'four',
+  'five', 'six', 'seven', 'eight', 'nine', 'ten', 'end', 'way', 'along', 'around', 'against', 'toward',
+  'towards', 'upon', 'since', 'until', 'because', 'whether', 'like',
+  // what every bullet says, whatever the work was
+  'build', 'built', 'building', 'lead', 'led', 'leading', 'run', 'ran', 'running', 'make', 'made', 'making',
+  'work', 'worked', 'working', 'use', 'used', 'using', 'write', 'wrote', 'written', 'writing', 'create',
+  'created', 'creating', 'develop', 'developed', 'developing', 'design', 'designed', 'designing', 'deliver',
+  'delivered', 'delivering', 'improve', 'improved', 'improving', 'reduce', 'reduced', 'reducing', 'cut',
+  'cutting', 'increase', 'increased', 'increasing', 'owned', 'owning', 'ship', 'shipped', 'shipping',
+  'launch', 'launched', 'launching', 'manage', 'managed', 'managing', 'handle', 'handled', 'handling',
+  'help', 'helped', 'helping', 'set', 'setting', 'add', 'added', 'adding', 'move', 'moved', 'moving',
+  'keep', 'kept', 'keeping', 'drive', 'drove', 'driving', 'implement', 'implemented', 'implementing',
+  'maintain', 'maintained', 'maintaining', 'support', 'supported', 'supporting', 'enable', 'enabled',
+  'enabling', 'achieve', 'achieved', 'bring', 'brought', 'take', 'took', 'serve', 'served', 'serving',
+  'fell', 'fall', 'drop', 'dropped', 'grow', 'grew', 'growing', 'lower', 'lowered', 'raise', 'raised',
+  'get', 'got', 'give', 'gave', 'deploy', 'deployed', 'deploying', 'ensure', 'ensured', 'provide',
+  'provided', 'providing', 'production', 'team', 'experience', 'year', 'product', 'project', 'service',
+  'system', 'application', 'app', 'platform', 'feature', 'code', 'software', 'solution', 'company',
+  'business', 'role', 'result', 'impact', 'time', 'day', 'week', 'month', 'hour', 'minute', 'second',
+  'customer', 'client', 'user', 'people', 'staff', 'request', 'line', 'number', 'stack', 'end-to-end',
+  'daily', 'weekly', 'monthly', 'yearly', 'annually', 'total', 'overall',
+  ...TITLE_NOUNS,
+]);
+
+/** One plural folded, so "schemas" and "schema" are one word on both sides. */
+function fold(word: string): string {
+  if (/[.+#]/.test(word)) return word;
+  if (word.length > 4 && word.endsWith('ies')) return `${word.slice(0, -3)}y`;
+  if (word.length > 3 && word.endsWith('s') && !/(?:ss|us|is)$/.test(word)) return word.slice(0, -1);
+  return word;
+}
+
+/** The distinctive words of a span, folded, each with the first spelling the span used. */
+export function workWords(span: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const raw of span.split(/[\s,;:()[\]{}"'!?/|]+/)) {
+    const surface = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, '');
+    const lower = surface.toLowerCase();
+    if ((lower.match(/\p{L}/gu)?.length ?? 0) < 3) continue;
+    const word = fold(lower);
+    if (PLAIN_WORDS.has(word) || PLAIN_WORDS.has(lower)) continue;
+    if (!out.has(word)) out.set(word, surface);
+  }
+  return out;
+}
+
+interface WorkItem {
+  line: string;
+  /** A bullet is one piece of work; a prose line (a summary) only owns the figures it states. */
+  bullet: boolean;
+  words: Set<string>;
+  /** Its role's lines: the company and the title belong to every bullet under them. */
+  role: Set<string>;
+  /** Every value the line states, unit aside. */
+  values: Set<string>;
+}
+
+function valuesOf(text: string): Set<string> {
+  return new Set(
+    extractMetrics(normalizeText(text)).claims.filter((c) => c.unit !== 'magnitude').map((c) => String(c.value)),
+  );
+}
+
+/**
+ * The resume's bullets, each with its role's lines, and the prose lines that
+ * state a figure; a wrapped PDF bullet is one line again.
+ */
+function workItems(resume: string): WorkItem[] {
+  const items: WorkItem[] = [];
+  let heads: string[] = [];
+  let role = new Set<string>();
+  let inBullets = false;
+  for (const line of joinWrapped(resume.replace(/\r\n/g, '\n').split('\n'))) {
+    if (!BULLET_LINE.test(line)) {
+      // A section heading ends what came before it: the skills line is no role's.
+      if (inBullets || line.startsWith('#')) heads = [];
+      inBullets = false;
+      if (line.startsWith('#')) continue;
+      heads.push(line);
+      const values = valuesOf(line);
+      if (values.size > 0) items.push({ line, bullet: false, words: new Set(workWords(line).keys()), role: new Set(), values });
+      continue;
+    }
+    if (!inBullets) role = new Set(workWords(heads.slice(-ROLE_LINES).join(' ')).keys());
+    inBullets = true;
+    const text = line.replace(BULLET_LINE, '');
+    items.push({ line: text, bullet: true, words: new Set(workWords(text).keys()), role, values: valuesOf(text) });
+  }
+  return items;
+}
+
+/** The same words with no attention to case, spacing or punctuation. */
+function squash(s: string): string {
+  return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+/**
+ * Where a sentence hands over from one statement to the next. A relative word
+ * or a participle opens a piece that says what the piece before it did ("ran
+ * on-call rotations | that cut …", "…systems | serving 1.8M requests"); a
+ * comma or an "and" opens a statement of its own.
+ */
+const HANDOVER =
+  /\s*(?:(,(?=\s)|[:()—–]|\s-\s|\b(?:and|so)\b)|\b(?:that|which|where|who|whose|while|when|thereby)\b)\s*|(?<=\s)(?=\p{L}{2,}ing\b)/giu;
+/** After a figure, the words that say how it was reached: "… to 35 minutes | by introducing the runbooks". */
+const MEANS = /^\s*(?:by|through|via|using|with|after)\b/i;
+const PARTICIPLE = /^\p{L}+ing\b/u;
+
+interface Piece {
+  text: string;
+  /** Opened by a relative word or a participle: it is what the piece before it did. */
+  dependent: boolean;
+}
+
+function pieces(sentence: string): Piece[] {
+  const out: Piece[] = [];
+  let from = 0;
+  let dependent = false;
+  const push = (end: number) => {
+    const text = sentence.slice(from, end).trim();
+    if (text !== '') out.push({ text, dependent });
+  };
+  for (const m of sentence.matchAll(HANDOVER)) {
+    push(m.index);
+    dependent = m[1] === undefined;
+    from = m.index + m[0].length;
+  }
+  push(sentence.length);
+  return out;
+}
+
+function quoteLine(line: string): string {
+  return line.length > LINE_QUOTE ? `${line.slice(0, LINE_QUOTE).trimEnd()}…` : line;
+}
+
+/**
+ * The figures of `text` told about work their own lines do not name. `replacing`
+ * is the resume text a rewrite takes the place of: the figures it carried are
+ * that line's own.
+ */
+export function detachedFigures(text: string, resume: string, replacing?: string | null): DetachedFigure[] {
+  const items = workItems(resume);
+  const bullets = items.filter((i) => i.bullet);
+  if (bullets.length === 0) return [];
+  const replaced = replacing ? squash(replacing.replace(BULLET_LINE, '')) : '';
+  // The bullet a rewrite replaces, when it replaces (part of) one and only one.
+  const holding = replaced === '' ? [] : bullets.filter((i) => squash(i.line).includes(replaced));
+  const own = holding.length === 1 ? holding[0] : undefined;
+  const kept = replacing ? valuesOf(replacing) : new Set<string>();
+  const out: DetachedFigure[] = [];
+
+  for (const sentence of segments(normalizeText(text))) {
+    const parts = pieces(sentence);
+    for (const claim of extractMetrics(sentence).claims) {
+      if (claim.unit === 'bare' || claim.unit === 'magnitude') continue;
+      const value = String(claim.value);
+      if (kept.has(value) || out.some((d) => d.figure === claim.text)) continue;
+      const lines = items.filter((i) => i.values.has(value));
+      if (lines.length === 0 || (own && lines.includes(own))) continue;
+      const onto = own ? ontoOtherBullet(own, lines) : ontoOtherWork(parts, claim.text, lines, bullets);
+      if (onto === null) continue;
+      // Of the lines that state this value, the one the sentence reads most like.
+      const said = workWords(sentence);
+      const overlap = (i: WorkItem) => [...i.words].filter((w) => said.has(w)).length;
+      const line = lines.reduce((best, i) => (overlap(i) > overlap(best) ? i : best)).line;
+      out.push({
+        figure: claim.text,
+        onto,
+        line,
+        reason: `figure "${claim.text}" is told about ${onto}, but the resume gives it to "${quoteLine(line)}" — keep a figure with the work its own line names`,
+      });
+    }
+  }
+  return out;
+}
+
+/** A bullet's figure brought into another bullet: the two lines must name one piece of work. */
+function ontoOtherBullet(own: WorkItem, lines: WorkItem[]): string | null {
+  const shared = [...own.words].some((w) => lines.some((i) => i.words.has(w)));
+  return shared ? null : `"${quoteLine(own.line)}"`;
+}
+
+/**
+ * The words that say what produced the figure, borrowed from other bullets
+ * while naming nothing of the figure's own line or role. Those words are the
+ * piece the figure's piece depends on ("ran on-call rotations | that cut …"),
+ * and the means after it ("… by introducing the runbooks"); a statement with
+ * neither says it in its own words before the figure. A participle that states
+ * a figure of its own is that figure's result, not this one's means.
+ */
+function ontoOtherWork(parts: Piece[], figure: string, lines: WorkItem[], bullets: WorkItem[]): string | null {
+  const at = parts.findIndex((p) => p.text.includes(figure));
+  if (at < 0) return null;
+  const piece = parts[at]!;
+  const before = piece.text.slice(0, piece.text.indexOf(figure));
+  const after = piece.text.slice(piece.text.indexOf(figure) + figure.length);
+  const next = parts[at + 1];
+  const following = next?.dependent && PARTICIPLE.test(next.text) && !/\d/.test(next.text) ? next.text : '';
+  const means = `${MEANS.test(after) ? after : ''} ${following}`.trim();
+  const head = piece.dependent ? (parts[at - 1]?.text ?? '') : '';
+  const words = workWords(head || means ? `${head} ${means}` : before);
+  const theirs = new Set(lines.flatMap((i) => [...i.words, ...i.role]));
+  if ([...words.keys()].some((w) => theirs.has(w))) return null;
+  const others = new Set(bullets.filter((i) => !lines.includes(i)).flatMap((i) => [...i.words, ...i.role]));
+  const borrowed = [...words].filter(([w]) => others.has(w)).map(([, surface]) => `"${surface}"`);
+  return borrowed.length > 0 ? borrowed.join(', ') : null;
+}
+
 // ------------------------------------------------------------------ verdict
 
 /**
@@ -444,13 +715,17 @@ export function factCheck(input: FactCheckInput): FactCheckResult {
     }
   }
 
+  // A true number told about other work is not an invented one: it warns, and
+  // the caller decides what a warning stops (ADR 0020's verdicts stay as they were).
+  const detached = input.resume ? detachedFigures(input.text, input.resume, input.replacing) : [];
+  reasons.push(...detached.map((d) => d.reason));
   if (unchecked > 0) reasons.push(`${unchecked} claim${unchecked === 1 ? '' : 's'} could not be checked`);
   for (const e of inertAllowlist) reasons.push(`allowlist entry "${e}" can never match anything`);
 
   const verdict: FactVerdict = claims.some((c) => c.status === 'unsupported')
     ? 'block'
-    : unchecked > 0
+    : unchecked > 0 || detached.length > 0
       ? 'warn'
       : 'pass';
-  return { verdict, claims, unchecked, inertAllowlist, reasons };
+  return { verdict, claims, unchecked, inertAllowlist, detached, reasons };
 }
