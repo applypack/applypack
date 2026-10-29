@@ -29,15 +29,17 @@ const REM_PX = 16;
  * `w-[N%]` one takes its share of the table, and a column given no width ('')
  * takes what the others leave (#612). With no such column, the percentages
  * share what the rem columns leave, as a hidden column's share goes to the
- * rest (#537). What a test holds a column to when a control in it has a width
- * of its own.
+ * rest (#537). A width may change from a breakpoint up (`w-[8.25rem]
+ * xl:w-[14rem]`): the last one at or below `at` holds. What a test holds a
+ * column to when a control in it has a width of its own.
  */
 export function columnWidths(widths: readonly string[], hideBelow: HideBelow | undefined, at: Breakpoint | '', box: number): (number | null)[] {
-  const cols = widths.map((w, i) => {
+  const cols = widths.map((given, i) => {
     if (ORDER.indexOf(at) < ORDER.indexOf(hideBelow?.[i] ?? '')) return null;
+    const w = widthAt(given, at);
     if (w === '') return { kind: 'auto' as const, n: 0 };
     const m = /^w-\[(\d+(?:\.\d+)?)(rem|%)\]$/.exec(w);
-    if (!m) throw new Error(`a column width table-hide.ts cannot read: ${w}`);
+    if (!m) throw new Error(`a column width table-hide.ts cannot read: ${given}`);
     return m[2] === 'rem' ? { kind: 'rem' as const, n: Number(m[1]) * REM_PX } : { kind: 'pct' as const, n: Number(m[1]) };
   });
   const shown = cols.filter((c) => c !== null);
@@ -50,6 +52,17 @@ export function columnWidths(widths: readonly string[], hideBelow: HideBelow | u
     if (autos === 0) return (c.n / total('pct')) * left;
     return c.kind === 'pct' ? (c.n / 100) * box : (left - (total('pct') / 100) * box) / autos;
   });
+}
+
+/** The one width of a column's classes that holds from `at` up: the base, or the widest `bp:` at or below it. */
+function widthAt(classes: string, at: Breakpoint | ''): string {
+  let held = { from: -1, width: '' };
+  for (const cls of classes.split(/\s+/).filter(Boolean)) {
+    const m = /^(?:(sm|md|lg|xl):)?(.+)$/.exec(cls)!;
+    const from = ORDER.indexOf((m[1] ?? '') as Breakpoint | '');
+    if (from <= ORDER.indexOf(at) && from > held.from) held = { from, width: m[2]! };
+  }
+  return held.width;
 }
 
 /** The classes on the table element that hide the same columns' body cells. */

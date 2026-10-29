@@ -23,10 +23,10 @@ test('healthStreak is the label, lowercased in English, and the streak — for e
     for (const status of STATUSES)
       assert.equal(
         healthStreak(status, atsType, 3),
-        `${healthLabel(status, atsType).toLowerCase()} — 3 ticks in a row`,
+        `${healthLabel(status, atsType).toLowerCase()} — 3 checks in a row`,
         `${atsType} ${status}`,
       );
-  assert.equal(healthStreak('slug_gone', 'GREENHOUSE', 1), 'slug not found — 1 tick in a row');
+  assert.equal(healthStreak('slug_gone', 'GREENHOUSE', 1), 'slug not found — 1 check in a row');
 });
 
 test('statusBranch: a folder’s own branch where it has words, `other` for none or an unknown one (#478)', () => {

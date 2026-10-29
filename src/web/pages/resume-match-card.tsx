@@ -562,15 +562,18 @@ const MatchReport: FC<{
         <SuggestionsPrompt matchId={match.id} jobId={match.jobId} />
       ) : (
         <>
-          <div class="flex flex-wrap items-center gap-2">
-            <ChangeSheetButton
-              job={job}
-              resumeName={match.resume.name}
-              actions={readActions(match.actions)}
-              removals={readRemovals(match.removals)}
-            />
-            <Hint class="!mt-0">{t('match.sheetHint')}</Hint>
-          </div>
+          {/* The hint explains the button, so it goes where the button goes: nowhere when there is nothing to copy (#652). */}
+          {(readActions(match.actions).length > 0 || readRemovals(match.removals).length > 0) && (
+            <div class="flex flex-wrap items-center gap-2">
+              <ChangeSheetButton
+                job={job}
+                resumeName={match.resume.name}
+                actions={readActions(match.actions)}
+                removals={readRemovals(match.removals)}
+              />
+              <Hint class="!mt-0">{t('match.sheetHint')}</Hint>
+            </div>
+          )}
           <ActionsBlock actions={readActions(match.actions)} reach={reachOf(bd, match.matchScore)} summaryGuide={summaryGuide} />
           <RemovalsBlock removals={readRemovals(match.removals)} />
         </>

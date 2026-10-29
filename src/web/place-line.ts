@@ -6,8 +6,9 @@ import { t } from '../i18n/t';
  * Where a posting is, in one short line for a list row (pure): the
  * arrangement, then the first places by name and how many more there are —
  * "Remote · USA, Canada +3". It reads the structured columns (ADR 0031); a
- * row that has none keeps the posting's own words. The whole list is the
- * `title`, so nothing is lost to the "+3".
+ * row that names no place says its arrangement in the reader's language, and
+ * only a row that knows neither keeps the posting's own words. The whole list
+ * — or the posting's words — is the `title`, so nothing is lost to the "+3".
  */
 
 /** How the three longest-named usual suspects are written in a row: "USA", "UK", "UAE" — and each language's own short form. */
@@ -37,7 +38,7 @@ export interface PlaceLine {
   text: string;
   /** Every place, for the row's tooltip. */
   title: string;
-  /** The line is the posting's own words (data, `translate="no"`), not names in the reader's language. */
+  /** The line, or its tooltip, is the posting's own words (data, `translate="no"`), not names in the reader's language. */
   asPosted: boolean;
 }
 
@@ -51,7 +52,9 @@ export function placeLine(job: PlaceInput, prefer: readonly string[] = []): Plac
   const codes = job.countries.length > 0 ? job.countries : job.regions;
   if (codes.length === 0) {
     const posted = job.location.trim();
-    const words = posted || arrangement || workplaceName('REMOTE');
+    // "Remote" as posted sat in English beside "Німеччина" (#652): the arrangement is known, so it is worded.
+    if (arrangement) return { text: arrangement, title: posted || arrangement, asPosted: posted !== '' };
+    const words = posted || workplaceName('REMOTE');
     return { text: words, title: words, asPosted: posted !== '' };
   }
   const wanted = new Set(prefer);
@@ -62,4 +65,18 @@ export function placeLine(job: PlaceInput, prefer: readonly string[] = []): Plac
   const places = more > 0 ? `${shown} +${more}` : shown;
   const join = (list: string) => (arrangement ? `${arrangement} · ${list}` : list);
   return { text: join(places), title: join(names.join(', ')), asPosted: false };
+}
+
+/**
+ * The place beside the company in a job page's header: the posting's own
+ * words, which may name a city the chips under it cannot. Null when the chips
+ * already say all there is — no words of its own, or no place but the
+ * arrangement, which read "Smoke Co · Remote" over a «Віддалено» chip (#652).
+ */
+export function headerPlace(job: PlaceInput): { text: string; asPosted: boolean } | null {
+  const posted = job.location.trim();
+  const placed = job.countries.length > 0 || job.regions.length > 0;
+  if (job.workplace !== 'UNKNOWN' && !placed) return null;
+  if (posted) return { text: posted, asPosted: true };
+  return placed ? null : { text: workplaceName('REMOTE'), asPosted: false };
 }

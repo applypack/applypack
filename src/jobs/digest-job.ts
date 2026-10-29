@@ -9,6 +9,7 @@ import { QUIET_STREAK } from '../fetchers/source-health';
 import { getSettings, pausedFamilies } from '../settings';
 import { lastSuccessfulRunAt } from './cron-run';
 import type { AlertJob } from '../types';
+import { searchName } from '../search-names';
 
 /** The reach of the very first recap, before there is a previous one to measure from. */
 const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -91,7 +92,7 @@ export async function runDigestJob() {
     summary: j.summary ?? '',
     // Named only when the posting carries more than one verdict — with a
     // single search the name is noise on every line.
-    matchedProfile: j.scores.length > 1 ? (j.scores[0]?.profile.name ?? null) : null,
+    matchedProfile: j.scores.length > 1 && j.scores[0] ? searchName(j.scores[0].profile.name) : null,
   }));
 
   // Broadcast, not routed: the digest spans every search, so it goes to every

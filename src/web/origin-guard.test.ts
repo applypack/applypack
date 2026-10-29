@@ -35,6 +35,12 @@ describe('originGuard', () => {
     assert.match(await res.text(), /Cross-origin request refused/);
   });
 
+  it("words the refusal in the browser's language, which it reads off the request (#652)", async () => {
+    const res = await post({ origin: 'https://evil.example', 'sec-fetch-site': 'cross-site', 'accept-language': 'uk-UA,uk;q=0.9,en;q=0.8' });
+    assert.equal(res.status, 403);
+    assert.equal(await res.text(), 'Запит з іншого сайту відхилено.');
+  });
+
   it('refuses a foreign Origin with no fetch metadata', async () => {
     assert.equal((await post({ origin: 'https://evil.example' })).status, 403);
   });
@@ -93,6 +99,12 @@ describe('hostGuard', () => {
     assert.equal(read.status, 403);
     assert.match(await read.text(), /WEB_ALLOWED_HOSTS/);
     assert.equal((await guarded().request('/t', { method: 'POST', headers })).status, 403);
+  });
+
+  it("words the refusal in the browser's language, and in English for one it does not speak (#652)", async () => {
+    const refused = (lang: string) => guarded().request('/t', { headers: { host: 'attacker.example', 'accept-language': lang } });
+    assert.match(await (await refused('fr-FR,fr;q=0.9')).text(), /^Ce tableau de bord/);
+    assert.match(await (await refused('ja-JP')).text(), /^This dashboard does not answer/);
   });
 
   it('answers localhost, an address and a listed name', async () => {

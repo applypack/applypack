@@ -15,7 +15,7 @@ test('the three steps point at the best match, its comparison, then the editor',
     { title: 'Open your best match', body: 'Senior Backend Engineer at Acme, fit 87.', href: '/jobs/7' },
     {
       title: 'Compare it with your resume',
-      body: 'One AI call: the keywords the posting wants, its gates, and edits to make. Your plan covers it.',
+      body: 'One AI call: the keywords the posting asks for, its must-have conditions, and the edits to make. Your plan covers it.',
       href: '/jobs/7?tab=match',
     },
     { title: 'Tailor your resume for it', body: 'Apply the edits in the editor, save a version, download the .docx.', href: null },

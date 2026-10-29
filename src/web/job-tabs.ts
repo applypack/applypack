@@ -83,13 +83,20 @@ export interface JobTabFacts {
   pack: string | null;
 }
 
-/** "Resume match · 72", "Cover letter · 1", "Is it real? · likely real", "Application pack · ready" — or the bare name while there is nothing yet. */
-export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string }[] {
+/**
+ * "Resume score · 72", "Cover letter · 1", "Is it real? · likely real", "Application pack · ready" — or the bare name
+ * while there is nothing yet. The resume score's tab says on hover that it is not the fit beside the title (#655).
+ */
+export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string; title?: string }[] {
   // The verdict is the verifier's own word, shown as it wrote it.
   const verdict = facts.verdict ? facts.verdict.replace(/_/g, ' ').toLowerCase() : null;
   return [
     { tab: 'posting', label: t('job.tab.posting') },
-    { tab: 'match', label: facts.matchScore === null || facts.matchScore === 0 ? t('job.tab.match') : t('job.tab.matchScore', { score: facts.matchScore }) },
+    {
+      tab: 'match',
+      label: facts.matchScore === null || facts.matchScore === 0 ? t('job.tab.match') : t('job.tab.matchScore', { score: facts.matchScore }),
+      title: t('job.tab.matchTitle'),
+    },
     { tab: 'letter', label: facts.letters === 0 ? t('job.tab.letter') : t('job.tab.letterCount', { n: facts.letters }) },
     { tab: 'verify', label: verdict === null ? t('job.tab.verify') : t('job.tab.verifyVerdict', { verdict }) },
     // The pack's fact (pack/view.ts:packFact) is worded in the reader's language too; the tab name is ours.
