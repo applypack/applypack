@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:sy="http://purl.org/rss/1.0/modules/syndication/" xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:job_listing="https://jobicy.com"
+ >
+
+<channel>
+	<title>Jobicy's Feed</title>
+	<atom:link href="https://jobicy.com/feed/job_feed?job_categories=dev" rel="self" type="application/rss+xml" />
+	<link>https://jobicy.com</link>
+	<description>Jobicy</description>
+	<lastBuildDate>Thu, 29 Oct 2026 08:09:34 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	
+	<item>
+		<title>Staff Backend Engineer</title>
+		<id>151706</id>
+		<link>https://jobicy.com/jobs/151706-staff-backend-engineer</link>
+		<pubDate>Tue, 27 Oct 2026 03:29:26 +0000</pubDate>
+		<guid isPermaLink="false">https://jobicy.com/jobs/151706-staff-backend-engineer</guid>
+
+		<description><![CDATA[About Us: Future is building a personalized guidance system for lifelong health. We help people understand what to do next for their body, goals, and stage of life — then...]]></description>
+
+<content:encoded><![CDATA[<p><strong>About Us:</strong></p> <p>Future is building a personalized guidance system for lifelong health. We help people understand what to do next for their body, goals, and stage of life — then support them in turning those decisions into sustained behavior change. By combining AI, human expertise, personal health data, and accountability, Future helps members improve performance today while building the resilience, capacity, and healthspan they need for decades to come.</p> <h3><strong>About the Role</strong></h3> <p>Backend engineers at Future operate at all levels — building out core services, data pipelines, essential business systems, developer operations, and customer-facing features. </p> <h3><strong>You will:</strong></h3> <ul> <li>Design, implement, and test APIs for new products, features, and services</li> <li>Maintain and optimize existing systems, with emphasis on database-related performance</li> </ul> <h3><strong>You have: </strong></h3> <ul> <li>8+ years of production development experience, specifically working on backend / API</li> <li>Strong knowledge of Go, AWS, Docker (ECS), Postgres (RDS)</li> </ul> <h3><strong>Compensation, Benefits & Life at Future:</strong></h3> <ul> <li>Salary range: $200,000 – 230,000 / year + equity. <em>The salary range is set based on multiple considerations including business needs, market demands, talent availability, experience, and unique skills and attributes. The base pay range is subject to change and may be modified in the future.</em></li> </ul>]]></content:encoded>
+
+<job_listing:location><![CDATA[USA]]></job_listing:location>
+<job_listing:job_type><![CDATA[Full Time]]></job_listing:job_type>
+<job_listing:category><![CDATA[Software Engineering]]></job_listing:category>
+<job_listing:company><![CDATA[Future PLC]]></job_listing:company>
+<job_listing:salary_min>200000</job_listing:salary_min>
+<job_listing:salary_max>230000</job_listing:salary_max>
+<job_listing:salary_currency>USD</job_listing:salary_currency>
+<job_listing:salary_period>yearly</job_listing:salary_period>
+	</item>
+
+</channel>
+</rss>

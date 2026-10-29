@@ -1,0 +1,186 @@
+{
+  "flyio": {
+    "list": {
+      "meta": {
+        "totalCount": 10
+      },
+      "result": [
+        {
+          "id": "36",
+          "jobOpeningName": "Developer Relations Engineer",
+          "departmentId": "18579",
+          "departmentLabel": "Engineering",
+          "employmentStatusLabel": "US Employee",
+          "employmentType": null,
+          "location": {
+            "city": null,
+            "state": null
+          },
+          "atsLocation": {
+            "country": null,
+            "state": null,
+            "province": null,
+            "city": null
+          },
+          "isRemote": null,
+          "locationType": "1"
+        },
+        {
+          "id": "60",
+          "jobOpeningName": "Executive Assistant to the CEO ",
+          "departmentId": "18580",
+          "departmentLabel": "G&A",
+          "employmentStatusLabel": "US Employee",
+          "employmentType": null,
+          "location": {
+            "city": "chicago",
+            "state": "Illinois"
+          },
+          "atsLocation": {
+            "country": null,
+            "state": null,
+            "province": null,
+            "city": null
+          },
+          "isRemote": null,
+          "locationType": "2"
+        }
+      ]
+    },
+    "details": {
+      "36": {
+        "meta": {},
+        "result": {
+          "jobOpening": {
+            "jobOpeningShareUrl": "https://flyio.bamboohr.com/careers/36",
+            "jobOpeningName": "Developer Relations Engineer",
+            "jobOpeningStatus": "Open",
+            "jobCategoryId": null,
+            "departmentId": "18579",
+            "departmentLabel": "Engineering",
+            "employmentStatusLabel": "US Employee",
+            "employmentType": null,
+            "location": {
+              "city": null,
+              "state": null,
+              "postalCode": null,
+              "addressCountry": null
+            },
+            "atsLocation": {
+              "country": null,
+              "countryId": null,
+              "state": null,
+              "city": null
+            },
+            "description": "<p>We’re Fly.io, and we’re building a new public cloud. We transmogrify containers into lightweight VMs and run them on our hardware around the world – hundreds of thousands of applications rely on us, running on every continent except Antarctica. If you haven’t already,<span> </span><a rel=\"noopener noreferrer\" href=\"https://fly.io/docs/speedrun/\"><span style=\"font-weight: bold;\">take us for spin</span></a>. Your app will be up and running in just minutes.</p>",
+            "compensation": null,
+            "datePosted": "2024-03-01",
+            "minimumExperience": "Experienced",
+            "locationType": "1",
+            "seekPromoted": false,
+            "aiProcessingDisclosureEnabled": false
+          }
+        }
+      },
+      "60": {
+        "meta": {},
+        "result": {
+          "jobOpening": {
+            "jobOpeningShareUrl": "https://flyio.bamboohr.com/careers/60",
+            "jobOpeningName": "Executive Assistant to the CEO ",
+            "jobOpeningStatus": "Open",
+            "jobCategoryId": null,
+            "departmentId": "18580",
+            "departmentLabel": "G&A",
+            "employmentStatusLabel": "US Employee",
+            "employmentType": null,
+            "location": {
+              "city": "chicago",
+              "state": "Illinois",
+              "postalCode": "60607",
+              "addressCountry": "United States"
+            },
+            "atsLocation": {
+              "country": null,
+              "countryId": null,
+              "state": null,
+              "city": null
+            },
+            "description": "<p><a rel=\"noopener noreferrer\" href=\"https://fly.io/jobs/executive-assistant-to-ceo/#this-role-will-be-a-good-fit-for-you-if\"></a><span>This role will be a good fit for you if:</span></p>\n<ul>\n<li>You’ve got some solid startup Executive Assistant experience under your belt. You’re comfortable with the tasks required in a company of our size and stage (About 100 employees and three years old) and are unphased by the quirks of an emerging team.</li>\n<li>You learn quickly and think critically, seeking out information however you can get your hands on it. You are comfortable with paradox and don’t need things to be fully defined in order to act. You’re skilled at adopting new tools and processes.</li>\n</ul>\n<p>This is a mid-level, full-time, <span style=\"font-weight: bold;\">hybrid remote and in-person position. Unlike other roles at Fly.io, this role is required to be located in New Orleans, LA and will spend at least a couple days a week working in person with the CEO in various locations in New Orleans.</span>Travel may occasionally be required.</p>\n<p>In order to optimize for pay equity, Fly.io doesn’t negotiate salaries. We have standardized salaries for each employee level. The salary for this role is $134k USD. We offer competitive equity grants with a long exercise window. US employees get health care, everyone gets flexible vacation time (with a minimum), hardware/phone allowances, the standard stuff.</p>",
+            "compensation": "$134k yearly ",
+            "datePosted": "2024-05-23",
+            "minimumExperience": null,
+            "locationType": "2",
+            "seekPromoted": false,
+            "aiProcessingDisclosureEnabled": false
+          }
+        }
+      }
+    }
+  },
+  "wirex": {
+    "list": {
+      "meta": {
+        "totalCount": 1
+      },
+      "result": [
+        {
+          "id": "174",
+          "jobOpeningName": "Financial Crime Analyst - APAC",
+          "departmentId": "18930",
+          "departmentLabel": "Risk & Compliance",
+          "employmentStatusLabel": "Full-Time",
+          "employmentType": null,
+          "location": {
+            "city": null,
+            "state": null
+          },
+          "atsLocation": {
+            "country": "Malaysia",
+            "state": null,
+            "province": "Kuala Lumpur",
+            "city": "Kuala Lumpur"
+          },
+          "isRemote": null,
+          "locationType": "1"
+        }
+      ]
+    },
+    "details": {
+      "174": {
+        "meta": {},
+        "result": {
+          "jobOpening": {
+            "jobOpeningShareUrl": "https://wirex.bamboohr.com/careers/174",
+            "jobOpeningName": "Financial Crime Analyst - APAC",
+            "jobOpeningStatus": "Open",
+            "jobCategoryId": null,
+            "departmentId": "18930",
+            "departmentLabel": "Risk & Compliance",
+            "employmentStatusLabel": "Full-Time",
+            "employmentType": null,
+            "location": {
+              "city": null,
+              "state": null,
+              "postalCode": null,
+              "addressCountry": null
+            },
+            "atsLocation": {
+              "country": "Malaysia",
+              "countryId": "130",
+              "state": "Kuala Lumpur",
+              "city": "Kuala Lumpur"
+            },
+            "description": "<p><span style=\"font-family: arial, helvetica, sans-serif; font-size: 12pt; font-weight: bold\">Role Purpose</span><br></p>\n<p><span style=\"font-family: arial, helvetica, sans-serif; font-size: 12pt\">The Financial Crime Analyst is a Malaysia-based role within Wirex’s Global Risk &amp; Compliance function, responsible for supporting the effective operation of financial crime controls across the APAC region.</span></p>\n<p><span style=\"font-family: arial, helvetica, sans-serif; font-size: 12pt; font-weight: bold\">Experience &amp; Skills Required</span></p>\n<ul>\n<li><span style=\"font-family: arial, helvetica, sans-serif; font-size: 12pt\">Minimum 2 years’ experience in an AML/CFT, financial crime, or compliance operations role, with hands-on exposure to investigations, alert handling, and escalation processes.</span></li>\n<li><span style=\"font-family: arial, helvetica, sans-serif; font-size: 12pt\">Strong written and verbal English communication skills, with the ability to document  investigations clearly and accurately.</span></li>\n</ul>",
+            "compensation": null,
+            "datePosted": "2026-06-09",
+            "minimumExperience": "Mid-level",
+            "locationType": "1",
+            "seekPromoted": false,
+            "aiProcessingDisclosureEnabled": false
+          }
+        }
+      }
+    }
+  }
+}

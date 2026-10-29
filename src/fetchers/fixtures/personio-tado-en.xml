@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<workzag-jobs>
+
+<position>
+    <id>2502124</id>
+    <subcompany>tado GmbH</subcompany>
+    <office>Germany - Munich</office>
+    <department>Finance</department>
+    <recruitingCategory>People &amp; Culture</recruitingCategory>
+    <name>Team Lead Accounting (m/f/d)</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>What you’ll be up to</name>
+            <value>
+                <![CDATA[<p>You have a passion for numbers? Taking processes to the next level is something you enjoy? An awesome team is waiting for you!</p><p>We are tado°, a growing scale-up that develops smart energy and climate solutions to make life at home more sustainable and comfortable.</p><p>To continue our growth, we are looking for a dedicated Team Lead Accounting (m/f/d) who combines hands-on accounting expertise with strong ownership and enjoys actively shaping the future of accounting processes.</p><p><strong>Your Impact:</strong></p><ul><li><p>You’ll lead the Accounting department with 3 team members from Junior to Senior and directly report to the Head of Finance.</p></li><li><p>Oversee day-to-day accounting operations, including general ledger, accounts payable/ receivable and fixed assets, and ensure timely and accurate monthly/ annual financial closings.</p></li></ul>]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>What makes you a great fit:</name>
+            <value>
+                <![CDATA[<ul><li><p>A completed commercial education or a business-related Bachelor’s degree, with 6+ years of relevant experience</p></li><li><p>Strong knowledge of accounting standards (e. g. HGB, UGB) and VAT regulations</p></li></ul>]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Our Benefits</name>
+            <value>
+                <![CDATA[<ul><li><p>Flexible working hours to accommodate your schedule and remote-friendly work environment within Germany, with the option for temporary work from abroad within the EU.</p></li><li><p>30 annual paid vacation days and a contribution to your company pension scheme.</p></li></ul><p>tado° is an equal opportunity employer and we are striving for a diverse workforce. Thus, we recruit talented individuals based solely on their competencies and skills, without any regard to their race, ethnicity, sex, sexual orientation, age, religion, belief, or disability.</p>]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>7-10</yearsOfExperience>
+    <occupation>bookkeeping</occupation>
+    <occupationCategory>accounting_and_finance</occupationCategory>
+    <createdAt>2026-01-22T09:48:25+00:00</createdAt>
+    <salaryInformation>
+        <min>80000.00</min>
+        <max>100000.00</max>
+        <currencySymbol>€</currencySymbol>
+        <currencyCode>EUR</currencyCode>
+        <type>yearly</type>
+    </salaryInformation>
+</position>
+
+<position>
+    <id>2840027</id>
+    <subcompany>tado GmbH</subcompany>
+    <office>Germany - Munich</office>
+    <department>Finance</department>
+    <recruitingCategory>People &amp; Culture</recruitingCategory>
+    <name>Werkstudent:in Accounting (m/w/d)</name>
+    <jobDescriptions></jobDescriptions>
+    <employmentType>intern</employmentType>
+    <seniority>student</seniority>
+    <schedule>part-time</schedule>
+    <occupation>bookkeeping</occupation>
+    <occupationCategory>accounting_and_finance</occupationCategory>
+    <createdAt>2026-10-13T09:59:49+00:00</createdAt>
+</position>
+
+</workzag-jobs>

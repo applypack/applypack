@@ -1,8 +1,35 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { JOBICY_GEO, jobicyFeedUrl, jobicySlugsFor, mapJobicyItem } from './jobicy';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { JOBICY_GEO, jobicyFeedUrl, jobicySlugsFor, mapJobicyItem, readJobicyFeed } from './jobicy';
 
 const COMPANY_ID = 99;
+
+// One item of the dev feed, recorded on 2026-10-29, `content:encoded` trimmed.
+const FEED = readFileSync(join(__dirname, 'fixtures', 'jobicy-feed.xml'), 'utf8');
+
+describe('Jobicy — the recorded posting, whole (#658)', () => {
+  it('reads content:encoded, not the 250-character excerpt, and the salary fields', async () => {
+    const [item] = await readJobicyFeed(FEED);
+    const job = mustmapJobicyItem(item!, COMPANY_ID);
+    assert.match(job.description, /^Hiring company: Future PLC\. Type: full time\. Salary: 200000-230000 USD \(yearly\)\.\n\n/);
+    assert.match(job.description, /You have:/);
+    assert.match(job.description, /8\+ years of production development experience/);
+    assert.match(job.description, /Strong knowledge of Go, AWS, Docker \(ECS\), Postgres \(RDS\)/);
+    assert.doesNotMatch(job.description, /then\.\.\./);
+    assert.equal(job.location, 'USA');
+    assert.equal(job.employer, 'Future PLC');
+  });
+
+  it('keeps the excerpt for an item without the full body, and no salary line without a bound', () => {
+    const job = mustmapJobicyItem(
+      { title: 'X', link: 'https://jobicy.com/jobs/1', contentSnippet: 'An excerpt…', salaryCurrency: 'USD', salaryPeriod: 'yearly' },
+      COMPANY_ID,
+    );
+    assert.equal(job.description, 'An excerpt…');
+  });
+});
 
 describe('mapJobicyItem', () => {
   it('extracts <job_listing:location> instead of defaulting to Remote', () => {

@@ -6,6 +6,7 @@ import { feedEntryId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { type FetchContext, EMPTY_CONTEXT } from './fetch-context';
 import { cleanEmployer } from '../employer';
+import { salaryLine } from './salary';
 
 const FEED_URL = 'https://jobicy.com/?feed=job_feed';
 const DEFAULT_CATEGORY = 'dev';
@@ -51,6 +52,12 @@ export const JOBICY_GEO: Readonly<Record<string, string>> = {
  * rss-parser drops these unless we opt in via customFields. The
  * Larajobs fetcher (phase-7.2) hit the exact same pitfall — see that
  * file's header comment for the gotcha.
+ *
+ * `<description>` is an excerpt cut at ~250 characters and ending in "…";
+ * the whole posting is `<content:encoded>` (~13 k characters, 200 of 200
+ * items on 2026-10-29), which rss-parser keeps under its own name (#658).
+ * About half the items also carry `salary_min` / `salary_max` /
+ * `salary_currency` / `salary_period`.
  */
 export interface JobicyItem {
   title?: string;
@@ -58,10 +65,15 @@ export interface JobicyItem {
   pubDate?: string;
   contentSnippet?: string;
   content?: string;
+  'content:encoded'?: string;
   guid?: string;
   jobLocation?: string;
   jobType?: string;
   jobCompany?: string;
+  salaryMin?: string;
+  salaryMax?: string;
+  salaryCurrency?: string;
+  salaryPeriod?: string;
 }
 
 const parser: Parser<unknown, JobicyItem> = new Parser({
@@ -71,6 +83,10 @@ const parser: Parser<unknown, JobicyItem> = new Parser({
       ['job_listing:location', 'jobLocation'],
       ['job_listing:job_type', 'jobType'],
       ['job_listing:company', 'jobCompany'],
+      ['job_listing:salary_min', 'salaryMin'],
+      ['job_listing:salary_max', 'salaryMax'],
+      ['job_listing:salary_currency', 'salaryCurrency'],
+      ['job_listing:salary_period', 'salaryPeriod'],
     ],
   },
 });
@@ -95,18 +111,23 @@ export async function fetchJobicy(
     // fetchWithRetry rather than parser.parseURL: the project's User-Agent and
     // the retry ladder. No validator — one row makes several requests (ADR 0035).
     const resp = await fetchWithRetry(jobicyFeedUrl(category, slug), { timeoutMs: PARSER_TIMEOUT_MS });
-    const feed = await parser.parseString(await resp.text());
+    const items = await readJobicyFeed(await resp.text());
     let added = 0;
-    for (const item of feed.items) {
+    for (const item of items) {
       const job = mapJobicyItem(item, companyId);
       if (job && !out.has(job.externalId)) {
         out.set(job.externalId, job);
         added++;
       }
     }
-    logger.debug({ slug, items: feed.items.length, added }, 'jobicy: feed read');
+    logger.debug({ slug, items: items.length, added }, 'jobicy: feed read');
   }
   return [...out.values()];
+}
+
+/** The items of one feed, its own fields included. */
+export async function readJobicyFeed(xml: string): Promise<JobicyItem[]> {
+  return (await parser.parseString(xml)).items;
 }
 
 /** The slugs Jobicy knows for the searches' places, once each, in context order. */
@@ -139,10 +160,10 @@ export function mapJobicyItem(
   // Nothing identifies this row — skip it rather than hash '' and merge
   // every such row onto one shared id.
   if (!externalId) return null;
-  const baseDescription =
-    item.contentSnippet ??
-    (item.content ? stripHtml(item.content) : '') ??
-    '';
+  const full = item['content:encoded'];
+  const baseDescription = full
+    ? stripHtml(full)
+    : (item.contentSnippet ?? (item.content ? stripHtml(item.content) : ''));
   const description = augmentDescription(baseDescription, item);
   const location = (item.jobLocation && item.jobLocation.trim()) || 'Remote';
   return {
@@ -168,8 +189,16 @@ function augmentDescription(base: string, item: JobicyItem): string {
   if (item.jobType && item.jobType.trim().length > 0) {
     parts.push(`Type: ${item.jobType.trim().toLowerCase()}.`);
   }
+  const salary = jobicySalary(item);
+  if (salary) parts.push(salary);
   const header = parts.join(' ');
   if (header.length === 0) return base.trim();
   if (base.trim().length === 0) return header;
   return `${header}\n\n${base.trim()}`;
+}
+
+/** "Salary: 150000-200000 USD (yearly)." off the item's own fields. */
+function jobicySalary(item: JobicyItem): string | null {
+  const bound = (v: string | undefined) => Number.parseFloat(v ?? '');
+  return salaryLine(bound(item.salaryMin), bound(item.salaryMax), item.salaryCurrency, item.salaryPeriod);
 }

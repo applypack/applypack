@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.33] — 2026-10-29
+
+### Fixed
+- Six sources stored only a stub of each posting, so scoring and the
+  resume comparison judged a title and an intro. Lever, Jobicy, Workable,
+  BambooHR, Personio and Rippling now keep the whole posting, with its
+  requirements and published pay. BambooHR and Rippling keep the real
+  posting date, Rippling lists a posting once instead of once per office,
+  and its titles are trimmed. Postings stored before keep their old text.
+
 ## [2.63.32] — 2026-10-29
 
 ### Changed
@@ -6989,6 +6999,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.33]: https://github.com/applypack/applypack/compare/v2.63.32...v2.63.33
 [2.63.32]: https://github.com/applypack/applypack/compare/v2.63.31...v2.63.32
 [2.63.31]: https://github.com/applypack/applypack/compare/v2.63.30...v2.63.31
 [2.63.30]: https://github.com/applypack/applypack/compare/v2.63.29...v2.63.30
