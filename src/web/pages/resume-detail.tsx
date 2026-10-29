@@ -29,6 +29,8 @@ import {
 import { deleteConfirm, type DeleteImpact } from '../delete-confirm';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { flagOf } from '../../countries';
+import { placeName } from '../../i18n/places';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import type { ResumeReview } from '@prisma/client';
@@ -465,6 +467,7 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
             {(draft.changes.seniority ?? []).map((tag) => (
               <Tag tone="info">{tag}</Tag>
             ))}
+            {draft.changes.residence && <Tag tone="info">{`${flagOf(draft.changes.residence)} ${placeName(draft.changes.residence)}`.trim()}</Tag>}
           </div>
           {draft.warnings.length > 0 && (
             <p class="mt-2 text-note leading-5 text-warn">{t('resume.search.note', { warnings: draft.warnings.join('; ') })}</p>

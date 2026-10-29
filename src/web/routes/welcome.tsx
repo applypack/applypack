@@ -483,6 +483,7 @@ function draftCard(
     skillCount: Math.max(0, resume.skills.length - primary.length),
     seniority: resume.seniority,
     roleTypes: draft.changes.roleTypes ?? resume.roleTypes,
+    lives: draft.changes.residence ?? null,
     changed: draft.changed,
     warnings: draft.warnings,
   };

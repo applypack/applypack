@@ -31,7 +31,8 @@ import type { SourceSuggestion } from '../../starter-packs/suggest';
 import type { PackOffer } from '../pack-offers';
 import { LanguageMenu } from '../language-menu';
 import { PROFILE_WORKPLACES, type WorkplaceCode } from '../../location';
-import { workplaceName } from '../../i18n/places';
+import { placeName, workplaceName } from '../../i18n/places';
+import { flagOf } from '../../countries';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
@@ -71,6 +72,8 @@ export interface ProfileDraftCard {
   skillCount: number;
   seniority: string | null;
   roleTypes: string[];
+  /** The country the draft fills "I live in" with, from the resume's header (#640); null = it leaves the field alone. */
+  lives: string | null;
   /** Editor-facing labels of the fields the draft fills. */
   changed: string[];
   warnings: string[];
@@ -503,7 +506,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
         <>
           <p data-ui="hint" class="text-sm text-ink-muted">{t('welcome.draft.from', { name: d.resumeName })}</p>
           <p class="mt-2 text-sm leading-6 text-ink">
-            {/* Two sentences, each whole: who the resume says you are, then what the search will look for. */}
+            {/* Whole sentences: who the resume says you are, what the search will look for, and where the header says you live. */}
             {tRich(
               'welcome.draft.youAre',
               {
@@ -526,6 +529,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
               },
               { b: bold },
             )}
+            {d.lives && <> {tRich('welcome.draft.lives', { place: `${flagOf(d.lives)} ${placeName(d.lives)}`.trim() }, { b: bold })}</>}
           </p>
           {d.warnings.length > 0 && (
             <p class="mt-2 text-note leading-5 text-warn">{t('welcome.draft.note', { warnings: d.warnings.join('; ') })}</p>
