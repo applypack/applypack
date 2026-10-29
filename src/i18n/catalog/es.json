@@ -2430,7 +2430,7 @@
   "parsed.warning.unreadable_chars": "{n, plural, one {# carácter ilegible} many {# de caracteres ilegibles} other {# caracteres ilegibles}} (�) — las tipografías del archivo no se corresponden con texto; un ATS ve la misma basura.",
   "parsed.warning.control_chars": "{n, plural, one {# carácter de control} many {# de caracteres de control} other {# caracteres de control}} en el texto — una codificación inusual; algunos analizadores cortan el texto ahí.",
   "parsed.warning.no_email": "No hay dirección de correo en el texto extraído — si está en un encabezado, una imagen o un cuadro de texto, el ATS no la asocia a tus datos de contacto.",
-  "parsed.warning.no_phone": "No hay número de teléfono en el texto extraído — el mismo riesgo de encabezado o gráfico que con el correo.",
+  "parsed.warning.no_phone": "No hay número de teléfono en el texto. Si el tuyo está en un encabezado, una imagen o un cuadro de texto, el ATS no lo ve; si lo omitiste a propósito, ignora este aviso.",
   "parsed.warning.glued_words": "“Palabras” inusualmente largas — puede que la extracción haya perdido espacios (ligaduras o diseño en columnas); comprueba que el texto de abajo se lea con normalidad.",
   "parsed.warning.too_long": "≈{pages} páginas de texto — más que la norma de {max} páginas en EE. UU.; los reclutadores leen en diagonal y los analizadores dan más peso a lo que aparece primero.",
   "parsed.warningLabel.too_short": "demasiado corto",

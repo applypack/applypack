@@ -2430,7 +2430,7 @@
   "parsed.warning.unreadable_chars": "{n, plural, one {# caractère illisible} many {# de caractères illisibles} other {# caractères illisibles}} (�) — les polices du fichier ne correspondent à aucun texte ; un ATS voit le même charabia.",
   "parsed.warning.control_chars": "{n, plural, one {# caractère de contrôle} many {# de caractères de contrôle} other {# caractères de contrôle}} dans le texte — un encodage inhabituel ; certains analyseurs coupent le texte à cet endroit.",
   "parsed.warning.no_email": "Aucune adresse e-mail dans le texte extrait — si elle se trouve dans un en-tête, une image ou une zone de texte, l'ATS ne la rattache pas à vos coordonnées.",
-  "parsed.warning.no_phone": "Aucun numéro de téléphone dans le texte extrait — même risque d'en-tête ou de graphique que pour l'e-mail.",
+  "parsed.warning.no_phone": "Aucun numéro de téléphone dans le texte. S'il se trouve dans un en-tête, une image ou une zone de texte, l'ATS ne le voit pas ; si vous l'avez omis exprès, ignorez ce message.",
   "parsed.warning.glued_words": "« Mots » anormalement longs — l'extraction a peut-être perdu des espaces (ligatures ou mise en page en colonnes) ; vérifiez que le texte ci-dessous se lit normalement.",
   "parsed.warning.too_long": "≈{pages} pages de texte — au-delà de la norme américaine de {max} pages ; les recruteurs survolent, et les analyseurs accordent plus de poids à ce qui vient en premier.",
   "parsed.warningLabel.too_short": "trop court",

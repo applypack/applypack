@@ -2430,7 +2430,7 @@
   "parsed.warning.unreadable_chars": "{n, plural, one {# unreadable character} other {# unreadable characters}} (�) — the file's fonts don't map to text; an ATS sees the same garbage.",
   "parsed.warning.control_chars": "{n, plural, one {# control character} other {# control characters}} in the text — unusual encoding; some parsers truncate at these.",
   "parsed.warning.no_email": "No email address in the extracted text — if it lives in a header, image or text box, ATS contact mapping misses it.",
-  "parsed.warning.no_phone": "No phone number in the extracted text — same header/graphic risk as the email.",
+  "parsed.warning.no_phone": "No phone number in the text. If yours sits in a header, an image or a text box, an ATS misses it; if you left it out on purpose, ignore this.",
   "parsed.warning.glued_words": "Unusually long \"words\" — extraction may have lost spaces (ligatures or column layout); check the text below reads normally.",
   "parsed.warning.too_long": "≈{pages} pages of text — over the {max}-page US norm; recruiters skim, parsers rank early content higher.",
   "parsed.warningLabel.too_short": "too short",
