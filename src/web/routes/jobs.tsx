@@ -661,7 +661,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
       if (current && !current.pipelineStage) {
         data.pipelineStage = 'applied';
         // F5 (ADR 0024): the seeding is a funnel entry — ledger it.
-        seedEvent = stageChangeEvent(id, null, 'applied', current.appliedAt, new Date());
+        seedEvent = stageChangeEvent(id, null, 'applied', current.appliedAt, new Date(), displayZone());
       }
       if (!current?.appliedAt) data.appliedAt = new Date();
     }

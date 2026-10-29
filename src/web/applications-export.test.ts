@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from './applications-export';
+import { applicationsCsv, applicationsMarkdown, type ApplicationExportRow } from './applications-export';
 
 const row = (over: Partial<ApplicationExportRow> = {}): ApplicationExportRow => ({
   stageKey: 'interview',
@@ -16,13 +16,6 @@ const row = (over: Partial<ApplicationExportRow> = {}): ApplicationExportRow => 
   notes: 'First call went well.\nSend the portfolio.',
   url: 'https://jobs.acme.example/1',
   ...over,
-});
-
-test('a date is the day it fell on in the reader\'s time zone', () => {
-  const late = new Date('2026-09-01T22:30:00Z');
-  assert.equal(dayIn(late, 'UTC'), '2026-09-01');
-  assert.equal(dayIn(late, 'Europe/Kyiv'), '2026-09-02');
-  assert.equal(dayIn(null, 'UTC'), '');
 });
 
 test('the CSV has one line per application and keeps the notes in their cell', () => {

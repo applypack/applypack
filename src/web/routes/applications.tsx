@@ -13,12 +13,13 @@ import { ApplicationsPage, type ApplicationCard } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig, strandedStages, UNFILED_STAGE, wordedStage } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
 import { groupEventsByJob, stageTimeLine } from '../stage-time';
-import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from '../applications-export';
+import { applicationsCsv, applicationsMarkdown, type ApplicationExportRow } from '../applications-export';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { displayZone } from '../display-zone';
 import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { companyForPage, companyOnPage } from '../../employer';
+import { dayIn, dayStart, parseDay } from '../../zoned-day';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -76,7 +77,9 @@ async function loadBoard() {
       : [];
   const stranded = strandedStages(work, rows.map((r) => r.pipelineStage));
   const columns = [...allStages(work), ...(stranded.length > 0 ? [UNFILED_STAGE] : [])];
-  const eventsByJob = groupEventsByJob(events, boardIds);
+  // The ledger holds a day; a card counts from the moment that day began where the dashboard reads dates (#680).
+  const zone = displayZone();
+  const eventsByJob = groupEventsByJob(events.map((e) => ({ ...e, occurredOn: dayStart(e.occurredOn, zone) })), boardIds);
   const now = new Date();
   // A stage key no column covers any more files under "Unfiled", as the board draws it.
   const cards = rows.flatMap((j) => {
@@ -204,6 +207,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
     toStage,
     current.appliedAt,
     new Date(),
+    displayZone(),
   );
   if (event) {
     await prisma.$transaction([
@@ -257,10 +261,16 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
 
   const stageValue =
     pipelineStage && pipelineStage.length > 0 ? pipelineStage : null;
+  // The field holds a day in the dashboard's zone (#680): the same day sent back keeps the moment on
+  // record, another one is that day's start there — never the UTC midnight `new Date("2026-10-29")` reads.
+  const zone = displayZone();
+  const appliedDay = appliedAt ? parseDay(appliedAt) : null;
   const appliedAtValue =
-    appliedAt && appliedAt.length > 0 && !Number.isNaN(Date.parse(appliedAt))
-      ? new Date(appliedAt)
-      : null;
+    appliedDay === null
+      ? null
+      : current.appliedAt && dayIn(current.appliedAt, zone) === appliedDay
+        ? current.appliedAt
+        : dayStart(appliedDay, zone);
 
   // Keeping the job's current stage is always allowed — even one whose
   // column was removed by hand — but a CHANGE must land on a configured key.
@@ -275,8 +285,8 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   // F5 (ADR 0024): ledger row in the same transaction as the stage write.
   // A stage change wins; otherwise an appliedAt edit corrects the apply day.
   const event =
-    stageChangeEvent(id, current.pipelineStage, stageValue, appliedAtValue, new Date()) ??
-    appliedDateCorrection(id, stageValue, current.appliedAt, appliedAtValue);
+    stageChangeEvent(id, current.pipelineStage, stageValue, appliedAtValue, new Date(), zone) ??
+    appliedDateCorrection(id, stageValue, current.appliedAt, appliedAtValue, zone);
 
   const update = prisma.job.update({
     where: { id },

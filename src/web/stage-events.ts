@@ -1,5 +1,9 @@
 // F5 (ADR 0024). Pure builders for JobStageEvent rows; the two routes that
 // write pipelineStage put these in the same $transaction as the Job update.
+// The ledger stores days, not instants (occurredOn is a DATE column): the day
+// in the display zone, as the board and the export read it (#680).
+
+import { dayMarker } from '../zoned-day';
 
 export type StageEventSource = 'ui' | 'backfill' | 'correction';
 
@@ -11,10 +15,6 @@ export interface StageEventData {
   source: StageEventSource;
 }
 
-/** The ledger stores days, not instants (occurredOn is a DATE column). */
-export function dateOnly(d: Date): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
 
 /**
  * The event for an actual stage change, or null when nothing changed —
@@ -28,13 +28,14 @@ export function stageChangeEvent(
   toStage: string | null,
   appliedAt: Date | null,
   now: Date,
+  timeZone: string,
 ): StageEventData | null {
   if (fromStage === toStage) return null;
   return {
     jobId,
     fromStage,
     toStage,
-    occurredOn: dateOnly(toStage === 'applied' && appliedAt ? appliedAt : now),
+    occurredOn: dayMarker(toStage === 'applied' && appliedAt ? appliedAt : now, timeZone),
     source: toStage === null ? 'correction' : 'ui',
   };
 }
@@ -49,16 +50,17 @@ export function appliedDateCorrection(
   stage: string | null,
   oldAppliedAt: Date | null,
   newAppliedAt: Date | null,
+  timeZone: string,
 ): StageEventData | null {
   if (stage === null || newAppliedAt === null) return null;
-  if (oldAppliedAt && dateOnly(oldAppliedAt).getTime() === dateOnly(newAppliedAt).getTime()) {
+  if (oldAppliedAt && dayMarker(oldAppliedAt, timeZone).getTime() === dayMarker(newAppliedAt, timeZone).getTime()) {
     return null;
   }
   return {
     jobId,
     fromStage: null,
     toStage: 'applied',
-    occurredOn: dateOnly(newAppliedAt),
+    occurredOn: dayMarker(newAppliedAt, timeZone),
     source: 'correction',
   };
 }

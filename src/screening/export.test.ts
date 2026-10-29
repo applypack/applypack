@@ -8,7 +8,7 @@ const SCREENING: ExportScreening = {
   jobTitle: 'Senior Java Developer',
   companyName: 'Acme',
   gates: ['EU work authorisation', 'German B2'],
-  createdAt: new Date('2026-09-09T10:00:00Z'),
+  screenedOn: '2026-09-09',
 };
 
 const ROWS: ExportRow[] = [
