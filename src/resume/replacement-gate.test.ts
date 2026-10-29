@@ -619,11 +619,16 @@ test('a bullet rewrite whose only news is a term the line implies is refused (#6
       'Built the dispatch API in Node.js (Fastify) and TypeScript; 1.8M requests/day at p95 under 140 ms',
       'Built the dispatch REST API in Node.js (Fastify) and TypeScript, serving JSON over 1.8M requests/day at p95 under 140 ms',
     ],
+    // The live check's, with a word of its own ("latency"): listed beside the names that imply it.
+    [
+      'Built the dispatch API in Node.js (Fastify) and TypeScript; 1.8M requests/day at p95 under 140 ms',
+      'Built the dispatch REST API in Node.js, JavaScript, and TypeScript, exchanging JSON at 1.8M requests/day with p95 latency under 140 ms',
+    ],
   ];
   for (const [quote, replacement] of stuffed) {
     const out = gateActions([action({ quote, replacement })], src);
     assert.equal(out.actions[0]!.replacement, null, replacement);
-    assert.match(out.actions[0]!.why, /not applied — it only writes "(?:JavaScript|SQL|JSON)" into the line/, replacement);
+    assert.match(out.actions[0]!.why, /not applied — it (?:only writes|lists) "(?:JavaScript|SQL|JSON)"/, replacement);
   }
 });
 
@@ -642,6 +647,12 @@ test('a term written in with words about the work, confirmed, or moved off the s
   ];
   const out = gateActions(fine, src);
   assert.equal(out.blocked, 0, out.actions.map((a) => a.why).join('\n'));
+  // A capital that opens the sentence is not a name the term is listed beside (a stored rewrite).
+  const opening = action({
+    quote: 'Designed the PostgreSQL schema and Prisma migrations for invoicing; the monthly run dropped from 35 minutes to 5',
+    replacement: 'Wrote SQL schema and queries for the PostgreSQL invoicing database and built Prisma migrations, cutting the monthly billing run from 35 minutes to 5',
+  });
+  assert.equal(gateActions([opening], src).blocked, 0);
 });
 
 test('a term the resume does not show in a sentence goes into one bullet per report (#633)', async () => {

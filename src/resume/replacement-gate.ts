@@ -204,6 +204,44 @@ const unwritten = (k: MatchKeyword) => k.status === 'add' || (k.status === 'pres
 const impliedOnly = (k: MatchKeyword) => k.status === 'add' && !k.note?.startsWith('user-confirmed');
 
 const PRIORITY_RANK: Record<MatchAction['priority'], number> = { high: 0, medium: 1, low: 2 };
+/** Where an implied term belongs instead, said on both refusals. */
+const IMPLIED_HOME = 'a term the resume implies but never names goes on the skills line, or into a bullet whose own words show the work that used it';
+
+/** A name by its shape alone: "PostgreSQL", "Node.js", "AWS", "C#" — a capital inside it, a dot, plus or hash, or capitals throughout. */
+const NAME_SHAPE = /^(?:\p{L}+\p{Lu}[\p{L}\p{N}.+#-]*|[\p{L}\p{N}]*[.+#][\p{L}\p{N}.+#]*|\p{Lu}{2,}[\p{L}\p{N}-]*)$/u;
+/** A capitalised word is a name too, unless it opens the sentence ("Wrote SQL schema…"). */
+const CAPITALISED = /^\p{Lu}/u;
+/** What stands between two names in a list: "Node.js, TypeScript, and JavaScript". */
+const LIST_JOINERS = new Set(['and', 'or', 'a', 'an', 'the']);
+
+/**
+ * The name a term is listed beside, or null: the nearest word on either side,
+ * past list punctuation, the joiners and the wedge words ("SQL-backed
+ * PostgreSQL storage"), when it is a name too. A term beside the name that
+ * implies it ("a PostgreSQL SQL database") is that name said twice.
+ */
+function listedBeside(text: string, k: MatchKeyword, matcher: GateSources['matcher']): string | null {
+  const words = [...text.matchAll(/[^\s,;/&+()]+/g)].map((m) => ({ word: m[0].replace(/^-+|-+$/g, ''), at: m.index }));
+  const opensSentence = (at: number) => {
+    const head = text.slice(0, at).trimEnd();
+    return head === '' || /[.!?:]$/.test(head);
+  };
+  const nearest = (side: typeof words): string | null => {
+    for (const { word, at } of side) {
+      const lower = word.toLowerCase();
+      if (word === '' || LIST_JOINERS.has(lower) || WEDGE_WORDS.has(lower) || WEDGE_WORDS.has(lower.replace(/s$/, ''))) continue;
+      return NAME_SHAPE.test(word) || (CAPITALISED.test(word) && !opensSentence(at)) ? word : null;
+    }
+    return null;
+  };
+  for (const span of matcher.findTerm(text, k.term, k.aliases ?? [])) {
+    const before = words.filter((w) => w.at + w.word.length <= span.start).reverse();
+    const after = words.filter((w) => w.at >= span.end);
+    const name = nearest(before) ?? nearest(after);
+    if (name !== null) return name;
+  }
+  return null;
+}
 
 /** With every term it writes in taken out, does the rewrite say only what the quoted line said? */
 function onlyWritesIn(quote: string, text: string, terms: MatchKeyword[], matcher: GateSources['matcher']): boolean {
@@ -274,11 +312,16 @@ export function gateActions(actions: MatchAction[], sources: GateSources, option
       }
     }
 
-    // Stuffing (#633): a bullet rewrite whose only news is a term the line implies.
-    const writtenIn = sources.keywords.filter((k) => !has(quote, k) && has(text, k));
-    const implied = writtenIn.find(impliedOnly);
-    if (action.section === 'experience' && quote && implied && onlyWritesIn(quote, text, writtenIn, sources.matcher)) {
-      blocks.push(`it only writes "${implied.term}" into the line — a term the resume implies but never names goes on the skills line, or into a bullet whose own words show the work that used it`);
+    // Stuffing (#633): a bullet rewrite that writes in a term the line implies,
+    // as its only news or listed beside a name the line already gives.
+    if (action.section === 'experience' && quote) {
+      const writtenIn = sources.keywords.filter((k) => !has(quote, k) && has(text, k));
+      const implied = writtenIn.filter(impliedOnly);
+      const beside = implied.map((k) => [k, listedBeside(text, k, sources.matcher)] as const).find(([, name]) => name !== null);
+      if (beside) blocks.push(`it lists "${beside[0].term}" beside "${beside[1]}" — ${IMPLIED_HOME}`);
+      else if (implied.length > 0 && onlyWritesIn(quote, text, writtenIn, sources.matcher)) {
+        blocks.push(`it only writes "${implied[0]!.term}" into the line — ${IMPLIED_HOME}`);
+      }
     }
 
     if (blocks.length > 0) return { action: { ...action, replacement: null, why: `${action.why}${BLOCK_NOTE}${blocks[0]}` }, verdict: 'block' };
