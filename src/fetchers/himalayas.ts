@@ -7,10 +7,20 @@ import type { NormalizedJob } from '../types';
 import { type FetchContext, EMPTY_CONTEXT } from './fetch-context';
 import { cleanEmployer } from '../employer';
 
-// The browse endpoint caps `limit` at 20 and returns newest-first. One
-// page per hourly tick is plenty; the `offset` param is deprecated
-// upstream and cursor pagination is unnecessary at our cadence.
+// The browse endpoint caps `limit` at 20 and returns newest-first, and some
+// 220 postings arrive an hour (#661: the 100 newest spanned 27 minutes), so
+// one page saw 9 % of them. A read follows `nextCursor` (`?cursor=`, the
+// API's own paging since 2026-08-21; `offset` is deprecated) back to where
+// the previous read began, ten pages at most.
 const ENDPOINT = 'https://himalayas.app/jobs/api?limit=20';
+const BROWSE_PAGES_MAX = 10;
+/**
+ * The first page comes out of a cache that keeps it up to two hours
+ * (`s-maxage=7200`; 30 minutes old when measured, 2026-10-29), so the
+ * previous read may have begun that far behind its own clock. The walk
+ * reaches that far past it; the store dedupes the overlap.
+ */
+const CACHE_SLACK_MS = 2 * 60 * 60 * 1000;
 // The search endpoint (stage 3a, verified live 2026-09-03): same `jobs[]`
 // shape, `limit` capped at 20 as well, `country=` takes an ISO code or a
 // name and answers HTTP 400 to an unknown one — an error, not a silent
@@ -61,23 +71,30 @@ const HimalayasResponseSchema = z
   })
   .passthrough();
 
+const CursorSchema = z.object({ nextCursor: z.string().min(1) }).passthrough();
+
 /**
  * With searches that name countries: one search call per country (country-
  * locked rows) plus one worldwide call, merged by guid. Otherwise — a search
  * that hunts anywhere, or one that names only groups the API cannot express —
- * the newest-20 browse feed, exactly as before.
+ * the browse feed, walked back to the previous read.
  */
 export async function fetchHimalayas(
   companyId: number,
   context: FetchContext = EMPTY_CONTEXT,
+  /** The source's last good read (`Company.lastOkAt`): where the browse walk may stop. */
+  previousRead: Date | null = null,
 ): Promise<NormalizedJob[]> {
+  let calls = 0;
+  const readPage = async (url: string): Promise<unknown> => {
+    if (calls++ > 0) await sleep(CALL_DELAY_MS);
+    return (await fetchWithRetry(url)).json();
+  };
   const out = new Map<string, NormalizedJob>();
-  for (const [i, url] of himalayasUrls(context).entries()) {
-    if (i > 0) await sleep(CALL_DELAY_MS);
-    const resp = await fetchWithRetry(url);
-    const raw: unknown = await resp.json();
+  for (const url of himalayasUrls(context)) {
+    const jobs = url === ENDPOINT ? await walkBrowseFeed(readPage, companyId, previousRead) : mapHimalayasFeed(await readPage(url), companyId);
     let added = 0;
-    for (const job of mapHimalayasFeed(raw, companyId)) {
+    for (const job of jobs) {
       if (!out.has(job.externalId)) {
         out.set(job.externalId, job);
         added++;
@@ -85,7 +102,46 @@ export async function fetchHimalayas(
     }
     logger.debug({ url, added }, 'himalayas: feed read');
   }
+  logger.debug({ calls, jobs: out.size }, 'himalayas: read done');
   return [...out.values()];
+}
+
+/**
+ * The browse feed, page after page, until a page reaches back to the
+ * previous read (less the cache's slack), the cursor runs out, a page is
+ * empty or ten pages are read. A first read reads all ten. A page after the
+ * first that fails ends the walk with what it brought — a 429 on page six
+ * must not throw away five pages.
+ */
+export async function walkBrowseFeed(
+  readPage: (url: string) => Promise<unknown>,
+  companyId: number,
+  previousRead: Date | null,
+): Promise<NormalizedJob[]> {
+  const stopAt = previousRead === null ? null : previousRead.getTime() - CACHE_SLACK_MS;
+  const jobs: NormalizedJob[] = [];
+  let url: string | null = ENDPOINT;
+  for (let page = 0; url !== null && page < BROWSE_PAGES_MAX; page++) {
+    let raw: unknown;
+    try {
+      raw = await readPage(url);
+    } catch (err) {
+      if (page === 0) throw err;
+      logger.warn({ err, page: page + 1 }, 'himalayas: browse walk stopped at a failed page');
+      break;
+    }
+    const mapped = mapHimalayasFeed(raw, companyId);
+    jobs.push(...mapped);
+    const reachedBack = stopAt !== null && mapped.some((j) => j.postedAt.getTime() <= stopAt);
+    url = mapped.length === 0 || reachedBack ? null : nextPageUrl(raw);
+  }
+  return jobs;
+}
+
+/** The browse page after this one, from the answer's `nextCursor`; null at the end of the feed. */
+export function nextPageUrl(raw: unknown): string | null {
+  const page = CursorSchema.safeParse(raw);
+  return page.success ? `${ENDPOINT}&cursor=${encodeURIComponent(page.data.nextCursor)}` : null;
 }
 
 /**

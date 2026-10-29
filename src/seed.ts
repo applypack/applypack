@@ -287,9 +287,9 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
-  // Himalayas — free no-auth JSON API, 20 newest cross-company postings
-  // per call across ALL categories (tech + Legal/Sales/…; base filter
-  // culls). Carries structured salary + seniority that we fold into the
+  // Himalayas — free no-auth JSON API, 20 cross-company postings a page,
+  // walked back to the last read, across ALL categories (tech +
+  // Legal/Sales/…; base filter culls). Carries structured salary + seniority that we fold into the
   // description for Claude.
   {
     name: 'Himalayas',

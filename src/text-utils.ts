@@ -267,15 +267,18 @@ export function extractAtsToken(
   if (!url || typeof url !== 'string') return null;
   // Greenhouse: boards.greenhouse.io/{token} OR
   //             boards.greenhouse.io/embed/job_board?for={token}
+  // and the EU instance's job-boards.eu.greenhouse.io, whose boards the one
+  // boards API serves (verified 2026-10-29 on raisin, #663).
   let m =
-    /https?:\/\/(?:boards|job-boards)\.greenhouse\.io\/(?:embed\/job_board\?for=)?([\w-]{2,60})/i.exec(
+    /https?:\/\/(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io\/(?:embed\/job_board\?for=)?([\w-]{2,60})/i.exec(
       url,
     );
   if (m && m[1]) {
     return { atsType: 'GREENHOUSE', atsToken: m[1].toLowerCase() };
   }
-  // Lever: jobs.lever.co/{slug}/...
-  m = /https?:\/\/jobs\.lever\.co\/([\w-]{2,60})/i.exec(url);
+  // Lever: jobs.lever.co/{slug}/... and the EU instance's jobs.eu.lever.co,
+  // whose list fetchers/lever.ts asks of api.eu.lever.co (#663).
+  m = /https?:\/\/jobs(?:\.eu)?\.lever\.co\/([\w-]{2,60})/i.exec(url);
   if (m && m[1]) {
     return { atsType: 'LEVER', atsToken: m[1].toLowerCase() };
   }

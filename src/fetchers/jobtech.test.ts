@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jobTechProbeUrl, jobTechSearchUrl, mapJobTechPage, parseJobTechTotal } from './jobtech';
+import { jobTechProbeUrl, jobTechSearchUrl, lookbackMinutes, mapJobTechPage, parseJobTechTotal } from './jobtech';
 
 // Trimmed from the live answer of 2026-09-03 (occupation-field=apaJ_2ja_LuF).
 const trafikverket = {
@@ -80,5 +80,18 @@ describe('jobTechSearchUrl / jobTechProbeUrl / parseJobTechTotal', () => {
   it('reads the total of an answer and 0 of anything else', () => {
     assert.equal(parseJobTechTotal({ total: { value: 771 }, hits: [] }), 771);
     assert.equal(parseJobTechTotal({ message: 'bad request' }), 0);
+  });
+});
+
+describe('lookbackMinutes (#661)', () => {
+  const now = new Date('2026-10-29T12:00:00Z');
+  it('reads the last day when the previous read is recent or unknown', () => {
+    assert.equal(lookbackMinutes(null, now), 1440);
+    assert.equal(lookbackMinutes(new Date('2026-10-29T11:00:00Z'), now), 1440);
+  });
+
+  it('reaches back to the last good read, an hour to spare, after a computer slept through a weekend', () => {
+    assert.equal(lookbackMinutes(new Date('2026-10-26T12:00:00Z'), now), 3 * 1440 + 60);
+    assert.match(jobTechSearchUrl('occupation-field=apaJ_2ja_LuF', 0, 4380), /published-after=4380&/);
   });
 });

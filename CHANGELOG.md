@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.36] — 2026-10-29
+
+### Fixed
+- HN "Who is hiring" posts are read by what each header field says, not
+  its position: a title is never a place or "Full Time", the company loses
+  its link and bracket note, and roles listed under the header are found.
+- Himalayas reads back to the previous read (up to ten pages, not one),
+  JobTech reads back to the last good read after the computer slept, and
+  Remotive is read at most four times a day, as its terms ask.
+- Adding a Lever or SmartRecruiters board reports its real job count, and
+  EU Lever and Greenhouse board links are recognised.
+
 ## [2.63.35] — 2026-10-29
 
 ### Fixed
@@ -7033,6 +7045,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.36]: https://github.com/applypack/applypack/compare/v2.63.35...v2.63.36
 [2.63.35]: https://github.com/applypack/applypack/compare/v2.63.34...v2.63.35
 [2.63.34]: https://github.com/applypack/applypack/compare/v2.63.33...v2.63.34
 [2.63.33]: https://github.com/applypack/applypack/compare/v2.63.32...v2.63.33

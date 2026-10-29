@@ -1,0 +1,208 @@
+{
+  "source": "Ask HN: Who is hiring? (October 2026, item 49922569; the WorkHero row from September, 49522897). Each text is a comment as stripHtml gives it: the header line, and the body lines that name the roles when the header names none. The headers come in every field order (#660).",
+  "rows": [
+    {
+      "id": 49922584,
+      "text": "PrairieLearn (Remote US) — Full-Stack Software Engineer — TypeScript / Postgres / React / AI",
+      "expect": {
+        "companyName": "PrairieLearn",
+        "title": "Full-Stack Software Engineer",
+        "location": "Remote US"
+      }
+    },
+    {
+      "id": 49922609,
+      "text": "Sidekick Labs | Senior SWE, R&D Engineer, Intelligence Engineer | REMOTE (US Timezones) | Full-time | $170k to $230k Base + Equity + Health",
+      "expect": {
+        "companyName": "Sidekick Labs",
+        "title": "Senior SWE, R&D Engineer, Intelligence Engineer",
+        "location": "REMOTE (US Timezones)"
+      }
+    },
+    {
+      "id": 49922881,
+      "text": "Smarkets ( https://www.smarkets.com ) | Full Time | Hybrid - Onsite (London, UK)\nSenior DevSecOps Engineer - https://jobs.ashbyhq.com/smarkets/97b041b6-489c-4148-8e2c-2d...\nSoftware Engineers - Backend, Python, Rust - https://jobs.ashbyhq.com/smarkets/aaaf901f-77c0-4b35-9240-ed...\nEngineering Team Lead/Manager - https://jobs.ashbyhq.com/smarkets/59c8a1d1-25b6-4350-840c-9e...",
+      "expect": {
+        "companyName": "Smarkets",
+        "title": "Senior DevSecOps Engineer · Software Engineers · Engineering Team Lead/Manager",
+        "location": "Hybrid - Onsite (London, UK)"
+      }
+    },
+    {
+      "id": 49923426,
+      "text": "PDT Partners | NYC, Hybrid, 3 days in office PDT was a pioneer in the field of algorithmic trading in the 1990s and has today risen to become one of the most renowned quant investment companies in the world.\nOpen roles: Cloud Computing Engineer: https://grnh.se/lbqjx7de1us Software Engineer: https://grnh.se/a13993bl1us Performance Engineer: https://grnh.se/8pvu6jy91us Systems Intern (Summer 2027): https://grnh.se/vwvd8k041us",
+      "expect": {
+        "companyName": "PDT Partners",
+        "title": "Cloud Computing Engineer · Software Engineer · Performance Engineer · Systems Intern",
+        "location": "NYC, Hybrid, 3 days in office"
+      }
+    },
+    {
+      "id": 49924165,
+      "text": "SwingVision | Berkeley, CA | Full time + Internships\n- Head of Machine Learning: https://jobs.deel.com/swingvision/job-details/c2cc0f23-3e59-...\n- Machine Learning Engineer: https://jobs.deel.com/swingvision/job-details/cc271cef-58f7-...",
+      "expect": {
+        "companyName": "SwingVision",
+        "title": "Head of Machine Learning · Machine Learning Engineer",
+        "location": "Berkeley, CA"
+      }
+    },
+    {
+      "id": 49924239,
+      "text": "Hedge (YC) | Founding Engineer | San Francisco | ONSITE | Full-time | $150K-$250K + 1-3% equity",
+      "expect": {
+        "companyName": "Hedge",
+        "title": "Founding Engineer",
+        "location": "San Francisco · ONSITE"
+      }
+    },
+    {
+      "id": 49925098,
+      "text": "Strategy & Transformation Consulting (s&t) | Head of Development – AI Agent Platform | REMOTE (Germany) | Full-time | German C1+ required",
+      "expect": {
+        "companyName": "Strategy & Transformation Consulting",
+        "title": "Head of Development",
+        "location": "REMOTE (Germany)"
+      }
+    },
+    {
+      "id": 49925116,
+      "text": "Cisco ThousandEyes | San Francisco, CA and San Jose, CA | Full-time | HYBRID ONSITE (2 days/week) | https://www.thousandeyes.com/\nWe’re looking for a technical lead to guide architecture across secure, scalable microservices, high-throughput APIs, and customer-facing web apps.\nLead Software Engineer - https://careers.cisco.com/global/en/job/2023366/Lead-Softwar...",
+      "expect": {
+        "companyName": "Cisco ThousandEyes",
+        "title": "Lead Software Engineer",
+        "location": "San Francisco, CA and San Jose, CA · HYBRID ONSITE (2 days/week)"
+      }
+    },
+    {
+      "id": 49926195,
+      "text": "Rootly | https://rootly.com/ | design, engineering, GTM, sales | SF Bay, Toronto, APAC, Remote",
+      "expect": {
+        "companyName": "Rootly",
+        "title": "design, engineering, GTM, sales",
+        "location": "SF Bay, Toronto, APAC, Remote"
+      }
+    },
+    {
+      "id": 49926244,
+      "text": "Charge Robotics | Multiple Roles | Full-time | Onsite | SF Bay Area",
+      "expect": {
+        "companyName": "Charge Robotics",
+        "title": "Multiple Roles",
+        "location": "Onsite · SF Bay Area"
+      }
+    },
+    {
+      "id": 49926811,
+      "text": "KSC Trading | Remote | Full-Time | Senior Backend Software Engineer | $200k to $250k USD Total Compensation + Benefits",
+      "expect": {
+        "companyName": "KSC Trading",
+        "title": "Senior Backend Software Engineer",
+        "location": "Remote"
+      }
+    },
+    {
+      "id": 49927132,
+      "text": "Komodo Health | Principal Product Manager, AI Products | Full-Time | $213k-$288k + equity... | SF/NYC On-site / Remote US",
+      "expect": {
+        "companyName": "Komodo Health",
+        "title": "Principal Product Manager, AI Products",
+        "location": "SF/NYC On-site / Remote US"
+      }
+    },
+    {
+      "id": 49927257,
+      "text": "Albs | Freiburg, Germany | ONSITE or HYBRID | Full-time | Member of Technical Staff (Senior / Staff)",
+      "expect": {
+        "companyName": "Albs",
+        "title": "Member of Technical Staff (Senior / Staff)",
+        "location": "Freiburg, Germany · ONSITE or HYBRID"
+      }
+    },
+    {
+      "id": 49927984,
+      "text": "Sourcegraph | Remote | Full-Time | SWE, Tech Lead, ML Engineer, Product Manager, Product Marketing Manager | https://sourcegraph.com",
+      "expect": {
+        "companyName": "Sourcegraph",
+        "title": "SWE, Tech Lead, ML Engineer, Product Manager, Product Marketing Manager",
+        "location": "Remote"
+      }
+    },
+    {
+      "id": 49933507,
+      "text": "AREO | On-site in Bremen, Germany | Full-Time | Equity | Role: Head of Robotics",
+      "expect": {
+        "companyName": "AREO",
+        "title": "Head of Robotics",
+        "location": "On-site in Bremen, Germany"
+      }
+    },
+    {
+      "id": 49937360,
+      "text": "Software Engineer — Remote — US Only",
+      "expect": {
+        "companyName": null,
+        "title": "Software Engineer",
+        "location": "Remote · US Only"
+      }
+    },
+    {
+      "id": 49939804,
+      "text": "Hover | https://hover.to | San Francisco, CA & New York, NY | ONSITE | Full-time\nRole: Senior Software Engineer, 3D Measurements --> https://hover.to/job-posts/7723481",
+      "expect": {
+        "companyName": "Hover",
+        "title": "Senior Software Engineer, 3D Measurements",
+        "location": "San Francisco, CA & New York, NY · ONSITE"
+      }
+    },
+    {
+      "id": 49961551,
+      "text": "AssumeAI | AI Engineer (£30/hr) and Senior AI Engineer (£50/hr) | Contract | REMOTE (UK) | https://assume-ai.com",
+      "expect": {
+        "companyName": "AssumeAI",
+        "title": "AI Engineer (£30/hr) and Senior AI Engineer (£50/hr)",
+        "location": "REMOTE (UK)"
+      }
+    },
+    {
+      "id": 49966427,
+      "text": "G-Research | London, UK | On-site | https://www.gresearch.com/",
+      "expect": null
+    },
+    {
+      "id": 49980680,
+      "text": "Coder | https://coder.com/ | Multiple roles | Multiple locations | Full-time\n[1]Customer Support Engineer • Poland • Full time\n[2]Senior Software Engineer (Multiple Teams, Europe) • United Kingdom; Ireland; Poland • Full time •",
+      "expect": {
+        "companyName": "Coder",
+        "title": "Customer Support Engineer · Senior Software Engineer",
+        "location": null
+      }
+    },
+    {
+      "id": 49982803,
+      "text": "depproof | Part-time B2B Sales Lead | REMOTE (US) | Part-time | Equity + commission | https://depproof.com",
+      "expect": {
+        "companyName": "depproof",
+        "title": "Part-time B2B Sales Lead",
+        "location": "REMOTE (US)"
+      }
+    },
+    {
+      "id": 49986633,
+      "text": "Flow Traders | Research Engineer | Hong Kong | Full Time | Visa | Relocation Flow Traders is a leading proprietary trading firm with an entrepreneurial and innovative Tech culture at the heart of its business. We are looking for Research Engineers in our Hong Kong office.",
+      "expect": {
+        "companyName": "Flow Traders",
+        "title": "Research Engineer",
+        "location": "Hong Kong"
+      }
+    },
+    {
+      "id": 49524167,
+      "text": "WorkHero https://workhero.pro | Senior SWE, AI Automation Engr, Senior PM | REMOTE (US+INTL for eng, US for product & automations)",
+      "expect": {
+        "companyName": "WorkHero",
+        "title": "Senior SWE, AI Automation Engr, Senior PM",
+        "location": "REMOTE (US+INTL for eng, US for product & automations)"
+      }
+    }
+  ]
+}

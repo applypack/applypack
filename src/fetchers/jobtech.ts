@@ -22,10 +22,17 @@ import { cleanEmployer } from '../employer';
 const ENDPOINT = 'https://jobsearch.api.jobtechdev.se/search';
 const TIMEOUT_MS = 20_000;
 const PAGE_SIZE = 100;
-const MAX_PAGES = 3;
+/** Newest first, so a normal tick stops after one or two; ten reach back a week of the seed row's ~140 ads a day. */
+const MAX_PAGES = 10;
 const PAGE_DELAY_MS = 500;
-/** The hourly tick reads the last day; the store dedupes the overlap. */
-const LOOKBACK_MINUTES = 24 * 60;
+/**
+ * The window: the last day at least — the store dedupes the overlap — and
+ * back to the last good read with an hour to spare, so a computer that slept
+ * through a weekend reads the weekend instead of its last day (#661).
+ */
+const MIN_LOOKBACK_MINUTES = 24 * 60;
+const LOOKBACK_SLACK_MINUTES = 60;
+const MINUTE_MS = 60_000;
 /** The taxonomy's code for Sweden in `workplace_address.country_code`. */
 const SWEDEN_TAXONOMY_CODE = '199';
 
@@ -93,10 +100,16 @@ export interface JobTechCompany {
   atsToken: string;
 }
 
-export async function fetchJobTech(company: JobTechCompany): Promise<NormalizedJob[]> {
+export async function fetchJobTech(
+  company: JobTechCompany,
+  /** The source's last good read (`Company.lastOkAt`). */
+  previousRead: Date | null = null,
+  now: Date = new Date(),
+): Promise<NormalizedJob[]> {
+  const lookback = lookbackMinutes(previousRead, now);
   const out: NormalizedJob[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
-    const resp = await fetchWithRetry(jobTechSearchUrl(company.atsToken, page * PAGE_SIZE), { timeoutMs: TIMEOUT_MS });
+    const resp = await fetchWithRetry(jobTechSearchUrl(company.atsToken, page * PAGE_SIZE, lookback), { timeoutMs: TIMEOUT_MS });
     const raw: unknown = await resp.json();
     const mapped = mapJobTechPage(raw, company.id);
     out.push(...mapped.jobs);
@@ -106,10 +119,17 @@ export async function fetchJobTech(company: JobTechCompany): Promise<NormalizedJ
   return out;
 }
 
+/** `published-after`, in minutes: the last day, or back to the last good read with an hour to spare. */
+export function lookbackMinutes(previousRead: Date | null, now: Date): number {
+  if (previousRead === null) return MIN_LOOKBACK_MINUTES;
+  const since = Math.ceil((now.getTime() - previousRead.getTime()) / MINUTE_MS) + LOOKBACK_SLACK_MINUTES;
+  return Math.max(MIN_LOOKBACK_MINUTES, since);
+}
+
 /** The token's filters plus the window, newest first, one page from `offset`. */
-export function jobTechSearchUrl(token: string, offset = 0): string {
+export function jobTechSearchUrl(token: string, offset = 0, lookback = MIN_LOOKBACK_MINUTES): string {
   const params = filterParams(token);
-  params.set('published-after', String(LOOKBACK_MINUTES));
+  params.set('published-after', String(lookback));
   params.set('sort', 'pubdate-desc');
   params.set('limit', String(PAGE_SIZE));
   params.set('offset', String(offset));

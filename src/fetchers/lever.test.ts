@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { mapLeverPosting, parseLeverBoard, type LeverPosting } from './lever';
+import { HttpError } from '../http';
+import { fetchLeverList, mapLeverPosting, parseLeverBoard, type LeverPosting } from './lever';
 
 // Recorded on 2026-10-29: perforce's Senior Accountant (two lists[] blocks,
 // a closing section, a salaryRange) and siteground's backend role, whose
@@ -170,5 +171,38 @@ describe('mapLeverPosting — location hints (ADR 0031)', () => {
   it('leaves the hints empty when the board sends neither', () => {
     const job = mapLeverPosting(basePosting({ country: null, workplaceType: null }), COMPANY_ID);
     assert.deepEqual(job.locationHints, { countries: [], workplace: 'UNKNOWN' });
+  });
+});
+
+/** #663: a token lives on Lever's global instance or its EU one, and the other answers 404. */
+describe('fetchLeverList', () => {
+  const answering = (status: (url: string) => number) => {
+    const asked: string[] = [];
+    const get = async (url: string): Promise<Response> => {
+      asked.push(url);
+      const code = status(url);
+      if (code !== 200) throw new HttpError(`HTTP ${code}`, code, url);
+      return new Response('[]');
+    };
+    return { asked, get };
+  };
+
+  it('asks the global instance, and only it, for a board it holds', async () => {
+    const { asked, get } = answering(() => 200);
+    assert.equal((await fetchLeverList('toptal', undefined, get)).url, 'https://api.lever.co/v0/postings/toptal?mode=json');
+    assert.equal(asked.length, 1);
+  });
+
+  it('asks the EU instance when the global one does not know the token', async () => {
+    const { asked, get } = answering((url) => (url.startsWith('https://api.lever.co/') ? 404 : 200));
+    assert.equal((await fetchLeverList('acme', undefined, get)).url, 'https://api.eu.lever.co/v0/postings/acme?mode=json');
+    assert.equal(asked.length, 2);
+  });
+
+  it('calls a token both instances refuse dead, and leaves a failure that is not a 404 to the caller', async () => {
+    await assert.rejects(fetchLeverList('nobody', undefined, answering(() => 404).get), (err) => err instanceof HttpError && err.status === 404);
+    const outage = answering(() => 503);
+    await assert.rejects(fetchLeverList('toptal', undefined, outage.get), (err) => err instanceof HttpError && err.status === 503);
+    assert.equal(outage.asked.length, 1);
   });
 });
