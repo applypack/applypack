@@ -118,16 +118,20 @@ export function withoutSuggestedWording(text: string, actions: MatchAction[], lo
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const found = appliedWording(actions.filter((a) => !undone.has(a)), out, locate)
       .filter(({ action, wording }) => !action.quote || locate(action.quote, wording) === null)
-      .sort((a, b) => b.span.start - a.span.start);
-    let floor = Infinity;
+      // Where two wordings overlap, the longer is the one the text carries: two
+      // reports retitled one headline "Software Engineer, Backend" and "Senior
+      // Software Engineer, Backend", and the shorter is only a piece of the other.
+      .sort((a, b) => b.span.end - b.span.start - (a.span.end - a.span.start));
+    const picked: AppliedAction[] = [];
+    for (const f of found) {
+      if (picked.every((p) => f.span.end <= p.span.start || p.span.end <= f.span.start)) picked.push(f);
+    }
     let next = out;
-    for (const { action, span } of found) {
-      if (span.end > floor) continue;
+    for (const { action, span } of picked.sort((a, b) => b.span.start - a.span.start)) {
       const back = action.quote ?? '';
       // An addition was a line of its own: it goes with its line break.
       const end = back === '' && next[span.end] === '\n' ? span.end + 1 : span.end;
       next = `${next.slice(0, span.start)}${back}${next.slice(end)}`;
-      floor = span.start;
       undone.add(action);
     }
     if (next === out) break;

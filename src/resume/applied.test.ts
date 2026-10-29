@@ -151,6 +151,12 @@ test("a letter's evidence is the candidate's own words: every applied suggestion
   const typed = saved.replace('Owned the PagerDuty on-call', 'Carried the pager');
   assert.match(withoutSuggestedWording(typed, [summary, bullet, again], locateQuote), /Carried the pager/);
 
+  // Two reports retitled the headline, one wording inside the other: the longer is the one applied (the live check).
+  const short = action({ section: 'title', what: 'retitle', quote: 'Senior Backend Engineer', replacement: 'Software Engineer, Backend' });
+  const long = action({ section: 'title', what: 'retitle', quote: 'Senior Backend Engineer', replacement: 'Senior Software Engineer, Backend' });
+  const retitled = original.replace('Senior Backend Engineer', 'Senior Software Engineer, Backend');
+  assert.equal(withoutSuggestedWording(retitled, [short, long], locateQuote), original);
+
   // A trim is part of what it replaced: putting it back must not find it again for ever.
   const trim = action({ what: 'trim', quote: 'Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes', replacement: 'Set up structured logging and alerting' });
   assert.equal(withoutSuggestedWording(original, [trim], locateQuote), original);
