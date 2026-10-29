@@ -54,7 +54,7 @@ sequenceDiagram
   participant listActiveProfiles as listActiveProfiles<br/>profiles.ts
   participant runAllFetchers as runAllFetchers<br/>fetchers/index.ts
   participant processNormalizedJobs as processNormalizedJobs<br/>jobs/process-jobs.ts
-  participant passesAnyBaseFilter as passesAnyBaseFilter<br/>filter.ts
+  participant anyBaseFilterReason as anyBaseFilterReason<br/>filter.ts
   participant classifyJob as classifyJob<br/>classifier.ts
   participant prisma as prisma → Postgres
   participant sendAlert as sendAlert<br/>notifier.ts
@@ -79,9 +79,9 @@ sequenceDiagram
   runFetchJob->>processNormalizedJobs: processNormalizedJobs(fetched, profiles, stats, opts)
   processNormalizedJobs->>prisma: the batch's stored (companyId, externalId) pairs, one query
   loop per fetched job
-    processNormalizedJobs->>passesAnyBaseFilter: passesAnyBaseFilter(job, profiles)
+    processNormalizedJobs->>anyBaseFilterReason: anyBaseFilterReason(job, profiles)
     alt no running search admits it
-      passesAnyBaseFilter-->>processNormalizedJobs: false → stats.filterRejected++
+      anyBaseFilterReason-->>processNormalizedJobs: the gate → stats.filterRejected++
     else admitted, but the pair is stored already
       processNormalizedJobs->>processNormalizedJobs: stats.duplicate++
     else admitted and new
@@ -189,7 +189,7 @@ flowchart LR
     notes
   end
   primary --> profile
-  profile --> filter["filter.ts<br/>passesAnyBaseFilter"]
+  profile --> filter["filter.ts<br/>anyBaseFilterReason"]
   profile --> classifier["classifier.ts<br/>buildSystemPrompt"]
   mode --> classify["classifyJob wrapper"]
   classify -- "single" --> full["full prompt<br/>(the classifier model, Haiku 4.5 by default)"]
@@ -252,8 +252,9 @@ src/
   currency.ts                  ← pure: salary in the posting's own money, toUsdPerYear over a dated rate table
   sectors.ts                   ← pure: one name per sector (payments and banking are fintech) — the screening's industry
                                  criterion and career line (TASKS E6), the resume's domain verdict (resume/domain.ts, #207)
-  filter.ts                    ← pure: passesAnyBaseFilter over passesBaseFilter, titleHasKeyword, placesOverlap;
-                                 baseFilterReason / anyBaseFilterReason name the gate that turned a posting away
+  filter.ts                    ← pure: anyBaseFilterReason over baseFilterReason (the gate that turned a posting away,
+                                 null = admitted; passesAnyBaseFilter / passesBaseFilter say yes or no), titleHasKeyword,
+                                 placesOverlap
   funnel.ts                    ← pure: the search funnel — the tick counters it keeps, the stages, the reasons in words
   employer.ts                  ← pure: who hires — employerKey (one key for two spellings), hiringKey, the mute /
                                  re-apply gate (ADR 0056)

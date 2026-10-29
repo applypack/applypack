@@ -1,8 +1,8 @@
 {
   "name": "applypack",
-  "version": "2.63.31",
+  "version": "2.63.33",
   "private": true,
-  "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 7 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
+  "description": "Free, open-source AI job search that runs on your own computer: watches 33 kinds of job source, checks a posting is real, scores your resume without flattering it, drafts a cover letter that cannot invent, tracks the application. 7 AI engines with failover, your data in a Postgres of its own. It never applies for you.",
   "license": "MIT",
   "author": "Nazar Boyko (https://github.com/nazboyko)",
   "repository": {
@@ -13,7 +13,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc && node -e \"require('node:fs').cpSync('src/resume/fonts', 'dist/resume/fonts', { recursive: true })\"",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('node:fs').cpSync('src/resume/fonts', 'dist/resume/fonts', { recursive: true })\"",
     "css": "tailwindcss -c tailwind.config.js -i src/web/tailwind.css -o src/web/public/tailwind.css --minify",
     "start": "npm run build && node dist/local/launcher.js",
     "db": "npm run build && node dist/local/launcher.js db",
@@ -23,7 +23,7 @@
     "start:web": "node dist/web/server.js",
     "dev": "tsx watch src/index.ts",
     "dev:web": "npm run build && node --watch --watch-path=./dist/web dist/web/server.js",
-    "build:watch": "tsc --watch --preserveWatchOutput",
+    "build:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "seed": "tsx src/seed.ts",
     "fetch:once": "tsx src/scripts/fetch-once.ts",
     "digest:once": "tsx src/scripts/digest-once.ts",
@@ -40,6 +40,7 @@
     "variance:classify": "tsx src/scripts/classify-variance-once.ts",
     "variance:prefilter": "tsx src/scripts/prefilter-variance-once.ts",
     "churn:compare": "tsx src/scripts/churn-once.ts",
+    "pack:dry": "tsx src/scripts/pack-dry-once.ts",
     "spend:report": "tsx src/scripts/ai-spend-report.ts",
     "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "exports:audit": "tsx src/scripts/dead-exports.ts",
