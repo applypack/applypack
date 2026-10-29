@@ -50,14 +50,16 @@
 
 ## File rules
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
-- `filter.ts` is pure — no I/O. `passesBaseFilter` stays single-profile;
-  `passesAnyBaseFilter` is the union wrapper every caller uses (ADR 0028).
+- `filter.ts` is pure — no I/O. `baseFilterReason` stays single-profile;
+  `anyBaseFilterReason` is the union every caller uses (ADR 0028): `null`
+  admits a posting, anything else names the gate that turned it away, and
+  the search funnel counts them. `passesBaseFilter` / `passesAnyBaseFilter`
+  are the same gates as a yes or no (the wizard counts with the first; only
+  the tests call the second).
   It reads the Job columns, not the string: callers pass stored rows or a
   `parseLocation` result; `placesOverlap` expands groups on both sides
   (ADR 0032) and everything unknown goes to the classifier. Title keywords
   match whole words through `titleHasKeyword`, never a run inside one.
-  `baseFilterReason` / `anyBaseFilterReason` are the same gates naming the
-  one that turned a posting away — the search funnel counts them.
 - `employer.ts` is pure — who hires (ADR 0056): `employerKey` is the one
   normaliser (accents, case, punctuation, trailing legal forms; never fuzzy),
   `hiringKey` reads `NormalizedJob.employer` — set by every aggregator's
@@ -538,7 +540,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What a CLI child process may see in env | `ai-provider-parse.ts:CLI_PROVIDER_ENV_KEYS` (allowlist; ANTHROPIC_API_KEY never reaches claude_code) |
 | How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
-| Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter`; union across running searches = `passesAnyBaseFilter` |
+| Per-job filter rules (pre-Claude) | `src/filter.ts:baseFilterReason`; union across running searches = `anyBaseFilterReason` (`null` = admitted) |
 | Why an exclude of "java" does not drop "JavaScript" | `src/filter.ts:titleHasKeyword` (pure) — whole-word matching for all three keyword lists, a boundary demanded only where the keyword's own edge is a letter or a digit (so `c++`, `c#`, `.net`, `node.js` still match), plus `KEYWORD_SUFFIXES`, six tolerances measured on 941 stored titles (`go` → Golang, `team lead` → Team Leader, `engineer` → Engineering), and one spelling rule: a hyphen, a space, a dot or nothing between a keyword's parts are the same word (`back-end` = `backend`, `node.js` = `nodejs`, #528) |
 | One posting → a verdict per running search (winner, score line, thresholds) | `src/jobs/verdict-merge.ts` (pure, ADR 0028); parser `classifier.ts:parseClassifications`; write path `src/jobs/score-store.ts`. A remote posting whose stored place names a group holding the search's country (EUROPE for PL) is never a location mismatch: `openThroughGroup` overrules the model's `location_match: false` (#530) |
 | Which searches are running, and the ceiling on them | `src/profiles.ts:listActiveProfiles` / `setProfileActive`; `MAX_ACTIVE_PROFILES` in `src/profile-guards.ts` |

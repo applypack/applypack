@@ -95,7 +95,7 @@ NormalizedJob[]          unified shape (companyId, externalId, title, location, 
                          geo-filtered sources (Jobicy, Himalayas, 4dayweek) read the FetchContext —
                          the union of the running searches' countries + regions — instead of the whole feed
    ↓
-passesAnyBaseFilter()    admit if ANY running search admits it: a whole-word title hit on its
+anyBaseFilterReason()    admit if ANY running search admits it: a whole-word title hit on its
                          stackRequired OR roleTypes, no hit on its stackExclude, and a place and
                          arrangement that do not contradict its own (an unknown one passes)
    ↓
