@@ -1,18 +1,25 @@
 import { z } from 'zod';
-import { fetchWithRetry, sleep, stripHtml } from '../http';
+import { fetchWithRetry, stripHtml } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
+import { safeDate } from './dates';
+import { readDetails } from './detail-memory';
+import { rangeText } from './salary';
 import { logger } from '../logger';
 import type { NormalizedJob } from '../types';
 
-// Rippling's public ATS board API. The list endpoint returns every job
-// in one array but carries no date and no description — those live on
-// the per-job detail endpoint (SmartRecruiters pattern: capped detail
-// fetches with polite pacing; rows past the cap still ship title-only).
+// Rippling's public ATS board API. The list endpoint returns every job in
+// one array, one row per work location (Rippling's own board: 684 rows,
+// 378 postings, one of them twenty times), with no date and no text —
+// those live on the per-job detail endpoint. The rows are folded into one
+// posting per uuid before anything is asked, and a posting goes out only
+// once its detail was read (detail-memory.ts, #658).
 const LIST_URL = (slug: string) =>
   `https://api.rippling.com/platform/api/ats/v1/board/${encodeURIComponent(slug)}/jobs`;
 const DETAIL_URL = (slug: string, uuid: string) =>
   `${LIST_URL(slug)}/${encodeURIComponent(uuid)}`;
 const DETAIL_DELAY_MS = 250;
+const DETAIL_TIMEOUT_MS = 8_000;
+/** Detail requests per read; a longer board is read over the next ticks. */
 const MAX_DETAILS_PER_FETCH = 60;
 /** A list longer than this is cut, and said so: the vendor pages it without end (audit FETCH-5). */
 const MAX_LIST_ROWS = 1_000;
@@ -35,7 +42,27 @@ const RipplingListRowSchema = z
   })
   .passthrough();
 
-export type RipplingListRow = z.infer<typeof RipplingListRowSchema>;
+type RipplingListRow = z.infer<typeof RipplingListRowSchema>;
+
+/** One posting of the list: its rows folded together, the title trimmed (#662). */
+export interface RipplingPosting {
+  uuid: string;
+  title: string;
+  url: string;
+  department: string | null;
+  /** Every row's work location, in list order, once each. */
+  places: string[];
+}
+
+const PayRangeSchema = z
+  .object({
+    location: z.string().nullable().optional(),
+    currency: z.string().nullable().optional(),
+    frequency: z.string().nullable().optional(),
+    rangeStart: z.number().nullable().optional(),
+    rangeEnd: z.number().nullable().optional(),
+  })
+  .passthrough();
 
 // description arrived as {company, role} HTML blocks on the boards we
 // probed; tolerate a plain string in case older boards emit one.
@@ -61,15 +88,29 @@ const RipplingDetailSchema = z
       .passthrough()
       .nullable()
       .optional(),
+    /** The pay ranges a posting publishes, one per place (verified live 2026-10-29). */
+    payRangeDetails: z.array(PayRangeSchema).nullable().optional().catch(null),
   })
   .passthrough();
 
 export type RipplingDetail = z.infer<typeof RipplingDetailSchema>;
 
+/** What a detail adds to a posting — the memory keeps this, not the answer. */
+export interface RipplingText {
+  body: string;
+  postedAt: Date;
+  places: string[];
+  employment: string | null;
+  pay: string | null;
+}
+
 export interface RipplingCompany {
   id: number;
   atsToken: string;
 }
+
+/** Each board's details read in this process, by company id. */
+const remembered = new Map<number, Map<string, RipplingText>>();
 
 export async function fetchRippling(
   company: RipplingCompany,
@@ -79,37 +120,34 @@ export async function fetchRippling(
   const listUrl = LIST_URL(company.atsToken);
   const resp = await fetchWithRetry(listUrl, { init: { headers: conditionalHeaders(company.id, listUrl) } });
   const raw: unknown = await resp.json();
-  const listed = parseRipplingList(raw);
+  const listed = ripplingPostings(parseRipplingList(raw));
   if (listed.length > MAX_LIST_ROWS) {
     logger.warn({ atsToken: company.atsToken, listed: listed.length, kept: MAX_LIST_ROWS }, 'rippling: list cut at the cap');
   }
-  const rows = listed.slice(0, MAX_LIST_ROWS);
-
-  const out: NormalizedJob[] = [];
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]!;
-    let detail: RipplingDetail | null = null;
-    if (i < MAX_DETAILS_PER_FETCH) {
-      try {
-        const detailResp = await fetchWithRetry(
-          DETAIL_URL(company.atsToken, row.uuid),
-          { timeoutMs: 8_000 },
-        );
-        const detailRaw: unknown = await detailResp.json();
-        const parsed = RipplingDetailSchema.safeParse(detailRaw);
-        if (parsed.success) detail = parsed.data;
-      } catch (err) {
-        logger.warn(
-          { err, atsToken: company.atsToken, uuid: row.uuid },
-          'rippling: detail fetch failed',
-        );
-      }
-      await sleep(DETAIL_DELAY_MS);
-    }
-    out.push(toNormalized(row, detail, company.id));
+  const postings = listed.slice(0, MAX_LIST_ROWS);
+  const memory = remembered.get(company.id) ?? new Map<string, RipplingText>();
+  remembered.set(company.id, memory);
+  const read = await readDetails(
+    memory,
+    postings.map((p) => p.uuid),
+    async (uuid) => {
+      const detailResp = await fetchWithRetry(DETAIL_URL(company.atsToken, uuid), { timeoutMs: DETAIL_TIMEOUT_MS });
+      const parsed = RipplingDetailSchema.safeParse(await detailResp.json());
+      return parsed.success ? ripplingText(parsed.data) : null;
+    },
+    { cap: MAX_DETAILS_PER_FETCH, delayMs: DETAIL_DELAY_MS, source: `rippling:${company.atsToken}` },
+  );
+  const jobs = postings.flatMap((p) => {
+    const text = read.details.get(p.uuid);
+    return text ? [toNormalized(p, text, company.id)] : [];
+  });
+  if (read.waiting > 0) {
+    // A validator kept now would answer 304 next tick and hide the waiting postings.
+    logger.info({ atsToken: company.atsToken, waiting: read.waiting, read: read.requested }, 'rippling: postings wait for their text until a later read');
+  } else {
+    rememberResponse(company.id, listUrl, resp, jobs.length);
   }
-  rememberResponse(company.id, listUrl, resp, out.length);
-  return out;
+  return jobs;
 }
 
 export function parseRipplingList(raw: unknown): RipplingListRow[] {
@@ -122,46 +160,64 @@ export function parseRipplingList(raw: unknown): RipplingListRow[] {
   return rows;
 }
 
-export function toNormalized(
-  row: RipplingListRow,
-  detail: RipplingDetail | null,
-  companyId: number,
-): NormalizedJob {
-  const locations = (detail?.workLocations ?? [])
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+/** The list's rows folded into one posting per uuid, in list order. */
+export function ripplingPostings(rows: readonly RipplingListRow[]): RipplingPosting[] {
+  const byUuid = new Map<string, RipplingPosting>();
+  for (const row of rows) {
+    const place = (row.workLocation?.label ?? '').trim();
+    const known = byUuid.get(row.uuid);
+    if (known) {
+      if (place && !known.places.includes(place)) known.places.push(place);
+      continue;
+    }
+    byUuid.set(row.uuid, {
+      uuid: row.uuid,
+      title: row.name.trim(),
+      url: row.url,
+      department: row.department?.label?.trim() || null,
+      places: place ? [place] : [],
+    });
+  }
+  return [...byUuid.values()];
+}
+
+/** The parts of a detail a job is built from. */
+export function ripplingText(detail: RipplingDetail): RipplingText {
   return {
-    companyId,
-    externalId: row.uuid,
-    title: row.name,
-    url: row.url,
-    location:
-      locations.length > 0
-        ? locations.join(' / ')
-        : (row.workLocation?.label ?? '').trim(),
-    description: buildDescription(row, detail),
-    postedAt: safeDate(detail?.createdOn),
+    body: descriptionBody(detail.description),
+    postedAt: safeDate(detail.createdOn),
+    places: (detail.workLocations ?? []).map((s) => s.trim()).filter((s) => s.length > 0),
+    employment: detail.employmentType?.id?.trim() || null,
+    pay: payLine(detail.payRangeDetails ?? []),
   };
 }
 
-function buildDescription(
-  row: RipplingListRow,
-  detail: RipplingDetail | null,
-): string {
-  const parts: string[] = [];
-  const department = row.department?.label?.trim();
-  if (department) parts.push(`Department: ${department}.`);
-  const employment = detail?.employmentType?.id?.trim();
-  if (employment) parts.push(`Type: ${employment}.`);
-  const header = parts.join(' ');
-  const body = descriptionBody(detail);
-  if (header.length === 0) return body;
-  if (body.length === 0) return header;
-  return `${header}\n\n${body}`;
+export function toNormalized(
+  posting: RipplingPosting,
+  text: RipplingText,
+  companyId: number,
+): NormalizedJob {
+  const places = text.places.length > 0 ? text.places : posting.places;
+  return {
+    companyId,
+    externalId: posting.uuid,
+    title: posting.title,
+    url: posting.url,
+    location: places.join(' / '),
+    description: buildDescription(posting, text),
+    postedAt: text.postedAt,
+  };
 }
 
-function descriptionBody(detail: RipplingDetail | null): string {
-  const desc = detail?.description;
+function buildDescription(posting: RipplingPosting, text: RipplingText): string {
+  const parts: string[] = [];
+  if (posting.department) parts.push(`Department: ${posting.department}.`);
+  if (text.employment) parts.push(`Type: ${text.employment}.`);
+  if (text.pay) parts.push(`Salary: ${text.pay}.`);
+  return [parts.join(' '), text.body].filter((s) => s.length > 0).join('\n\n');
+}
+
+function descriptionBody(desc: RipplingDetail['description']): string {
   if (!desc) return '';
   if (typeof desc === 'string') return stripHtml(desc);
   return [desc.role, desc.company]
@@ -170,8 +226,13 @@ function descriptionBody(detail: RipplingDetail | null): string {
     .join('\n\n');
 }
 
-function safeDate(s: string | null | undefined): Date {
-  if (!s) return new Date();
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? new Date() : d;
+/** "207000-345000 USD (year, US San Francisco Bay Area)", one range per place. */
+function payLine(ranges: readonly z.infer<typeof PayRangeSchema>[]): string | null {
+  const lines = ranges.flatMap((r) => {
+    const range = rangeText(r.rangeStart, r.rangeEnd);
+    if (range === null) return [];
+    const note = [r.frequency?.trim().toLowerCase(), r.location?.trim()].filter((s) => !!s).join(', ');
+    return [`${range}${r.currency ? ` ${r.currency.trim()}` : ''}${note ? ` (${note})` : ''}`];
+  });
+  return lines.length > 0 ? lines.join('; ') : null;
 }

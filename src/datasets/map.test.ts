@@ -801,7 +801,7 @@ describe('markup in a row (#403)', () => {
   });
 
   it('a description made of blocks is still rebuilt from them', () => {
-    assert.equal(read({ title: 'a', text: '<p>One.</p>\n<p>Two <b>bold</b>.</p><ul><li>x</li><li>y</li></ul>' }).text, 'One.\n\nTwo bold .\n\n• x\n• y');
+    assert.equal(read({ title: 'a', text: '<p>One.</p>\n<p>Two <b>bold</b>.</p><ul><li>x</li><li>y</li></ul>' }).text, 'One.\n\nTwo bold.\n\n• x\n• y');
   });
 });
 

@@ -16,7 +16,8 @@ WORKDIR /app
 ENV CHECKPOINT_DISABLE=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# npm run build is tsc plus the PDF fonts beside dist/ (ADR 0039). Then the
+# npm run build is tsc over tsconfig.build.json (no tests, no checkout-only
+# tools) plus the PDF fonts beside dist/ (ADR 0039). Then the
 # dev dependencies go (the compiler, tsx, tailwind, the types), and the
 # client is generated again because a prune can take it with them. The
 # built-in database is for `npm start` (ADR 0054); compose runs its own

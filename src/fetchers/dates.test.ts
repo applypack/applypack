@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapBambooFeed } from './bamboohr';
+import { bambooRows, bambooText, toNormalized as bambooJob } from './bamboohr';
 import { clockDated, markClockDated, safeDate, validDate } from './dates';
 import { mapGreenhouseJob } from './greenhouse';
 
@@ -49,9 +49,10 @@ test('markClockDated: what the mappers fall back to is marked, a date the source
   assert.equal(said[0]!.undated, true);
 });
 
-test('markClockDated over two real mappers: a board that publishes no dates, and one that dates every job', () => {
+test('markClockDated over two real mappers: a posting whose detail gives no date, and a board that dates every job', () => {
   const began = Date.now();
-  const bamboo = mapBambooFeed({ result: [{ id: '7', jobOpeningName: 'Backend Developer', location: { city: 'Lisbon', state: null }, isRemote: true }] }, 1, 'quince');
+  const rows = bambooRows({ result: [{ id: '7', jobOpeningName: 'Backend Developer', location: { city: 'Lisbon', state: null }, isRemote: true }] });
+  const bamboo = rows.map((row) => bambooJob(row, bambooText({ result: { jobOpening: { description: '<p>x</p>' } } })!, 1, 'quince'));
   const greenhouse = [
     mapGreenhouseJob({ id: 1, title: 'Backend Developer', location: { name: 'Remote' }, content: 'x', absolute_url: 'https://boards.greenhouse.io/fennel/jobs/1', updated_at: '2026-10-09T08:00:00Z', departments: [], offices: [] }, 2),
     // A date that does not parse falls back to now, on this board as on any.

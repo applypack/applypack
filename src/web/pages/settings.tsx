@@ -45,12 +45,14 @@ import type { LoginItemState } from '../login-item-io';
 import type { TrialView } from '../engine-trial-run';
 import { TRIAL_SIZE } from '../engine-trial';
 import { describeCount, wordedSource, type SourceGroup } from '../source-groups';
-import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
+import { dotClassFor, MAX_STAGE_LABEL, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
 import { COUNTRIES, REGIONS } from '../../countries';
 import { RELOCATION_CODES, RELOCATION_LABEL } from '../../eligibility';
 import { PROFILE_WORKPLACES } from '../../location';
 import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
+import { MAX_MIN_SALARY_USD } from '../profile-form';
+import { retentionChoices } from '../retention-choices';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
@@ -588,16 +590,6 @@ const AiSummary: FC<{ plan: AiPlanRow[]; billedMicro: number }> = ({ plan, bille
     </div>
   );
 };
-
-/** A screening's lengths as a few round choices, and the stored one when it is none of them — it was set by hand before. */
-const RETENTION_CHOICES = [30, 60, 90, 180, 365] as const;
-
-function retentionChoices(s: ScreeningSettings): number[] {
-  const offered = RETENTION_CHOICES.filter((d) => d >= s.retentionMin && d <= s.retentionMax);
-  return offered.includes(s.retentionDays as (typeof RETENTION_CHOICES)[number])
-    ? [...offered]
-    : [...offered, s.retentionDays].sort((a, b) => a - b);
-}
 
 /** Before applicants are read: what is in place and what is still the person's to do, worked out from the settings. */
 const ScreeningReadiness: FC<{ screening: ScreeningSettings }> = ({ screening }) => {
@@ -1261,7 +1253,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                           name="label"
                           value={s.label}
                           required
-                          maxlength={40}
+                          maxlength={MAX_STAGE_LABEL}
                           aria-label={t('settings.stage.rename', { label: s.label })}
                           class="max-w-[14rem]"
                         />
@@ -1320,7 +1312,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                 name="label"
                 placeholder={t('settings.newColumnPlaceholder')}
                 required
-                maxlength={40}
+                maxlength={MAX_STAGE_LABEL}
                 aria-label={t('settings.newColumnName')}
                 class="max-w-[14rem]"
               />
@@ -1557,6 +1549,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             ),
           })}
         </Hint>
+        <Hint>{t('settings.login.env')}</Hint>
       </Section>
       )}
 
@@ -1609,7 +1602,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           <form method="post" action="/settings/screening-retention" class="flex flex-wrap items-end gap-3">
             <Field label={t('settings.keepAScreeningFor')} hint={t('settings.retentionHint')}>
               <Select name="days" class="!w-56">
-                {retentionChoices(screening).map((d) => (
+                {retentionChoices(screening.retentionDays, { min: screening.retentionMin, max: screening.retentionMax }).map((d) => (
                   <option value={String(d)} selected={d === screening.retentionDays}>
                     {t('settings.retentionOption', { n: d, recommended: d === screening.retentionDefault ? 'yes' : 'no' })}
                   </option>
@@ -2384,6 +2377,7 @@ const ProfileEditor: FC<{
             type="number"
             name="minSalaryUsd"
             min="0"
+            max={String(MAX_MIN_SALARY_USD)}
             step="1000"
             value={profile.minSalaryUsd}
           />

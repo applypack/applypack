@@ -36,6 +36,12 @@ test('firstIssue names a field by the label its form shows, when it is given one
   assert.equal(firstIssue([{ path: ['notes'], message: 'too long' }], label), 'notes: too long');
 });
 
+test('a label is asked for the field, a place in its list left out (#648)', () => {
+  const label = (field: string) => (field === 'fetch.days' ? 'Days' : undefined);
+  assert.equal(firstIssue([{ path: ['fetch', 'days', 0], message: 'too big' }], label), 'Days: too big');
+  assert.equal(firstIssue([{ path: ['alerts', 'days', 0], message: 'too big' }], label), 'alerts.days.0: too big', 'one it does not name keeps its path');
+});
+
 test('firstIssue joins a nested path and survives a root-level issue', () => {
   assert.equal(firstIssue([{ path: ['search', 'hours', 0], message: 'out of range' }]), 'search.hours.0: out of range');
   assert.equal(firstIssue([{ path: [], message: 'pick one source' }]), 'pick one source');
@@ -148,6 +154,10 @@ test('the refused field rides the flash with its form, and only names do (TASKS 
   assert.deepEqual(refusedField(at, [{ path: [] }]), {}, 'a root-level issue names no field');
   assert.deepEqual(refusedField(at, [{ path: [0] }]), {});
   assert.deepEqual(refusedField('/jobs?x="]', [{ path: ['name'] }]), {}, 'a form path only');
+  // #648: a schema that nests what its form keeps flat names the input that carries the field.
+  const input = (field: string) => (field === 'fetch.days' ? 'fetchDays' : undefined);
+  assert.deepEqual(refusedField('/settings/schedule', [{ path: ['fetch', 'days', 0] }], input), { field: { form: '/settings/schedule', name: 'fetchDays' } });
+  assert.deepEqual(refusedField('/settings/schedule', [{ path: ['timezone'] }], input), { field: { form: '/settings/schedule', name: 'timezone' } });
   const cookie = (field: unknown) => {
     return parseFlashCookie(cookieOf({ kind: 'err', text: 'name: required.', field }));
   };

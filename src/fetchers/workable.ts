@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { fetchWithRetry, sleep } from '../http';
+import { fetchWithRetry, sleep, stripHtml } from '../http';
 import { logger } from '../logger';
 import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
@@ -14,11 +14,17 @@ const ENDPOINT_TEMPLATE = (slug: string) =>
  */
 const MAX_PAGES = 5;
 const PAGE_DELAY_MS = 300;
+/**
+ * The list carries no text; the careers widget carries every open job with
+ * its whole posting — description, requirements and benefits in one HTML
+ * body — in one request (verified live 2026-10-29 on eight boards: the same
+ * shortcodes as the list, one row per location a job names). The list
+ * stays the source of the rows, for its arrangement and its paging total;
+ * the widget is read once after it, for the text (#658).
+ */
+const WIDGET_URL = (slug: string) =>
+  `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(slug)}?details=true`;
 
-// The list endpoint returns lightweight job metadata. Workable does NOT
-// expose per-job descriptions on a public endpoint, so description stays
-// empty — Claude classifies on the title alone (which is usually clear
-// for engineering roles).
 const WorkableLocationSchema = z
   .object({
     country: z.string().nullable().optional(),
@@ -40,6 +46,19 @@ const WorkableJobSchema = z
     state: z.string().optional(),
     published: z.string().optional(),
     workplace: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const WidgetSchema = z
+  .object({
+    jobs: z.array(
+      z
+        .object({
+          shortcode: z.string(),
+          description: z.string().nullable().optional(),
+        })
+        .passthrough(),
+    ),
   })
   .passthrough();
 
@@ -104,8 +123,50 @@ export async function fetchWorkable(
   if (total !== null && read < total) {
     logger.warn({ atsToken: company.atsToken, total, read }, 'workable: board has more postings than the pages read');
   }
-  if (whole) listedInFull(company.id);
-  return out;
+  if (out.length === 0) {
+    if (whole) listedInFull(company.id);
+    return out;
+  }
+  await sleep(PAGE_DELAY_MS);
+  const widget = await fetchWithRetry(WIDGET_URL(company.atsToken));
+  const texts = workableTexts(await widget.json());
+  if (texts === null) throw new Error(`workable: "${company.atsToken}" answered no job list on its widget`);
+  const { jobs, missing } = withWorkableText(out, texts);
+  // A widget that describes nothing listed is a changed widget, not an empty board (gotcha 13).
+  if (jobs.length === 0) throw new Error(`workable: "${company.atsToken}" widget described none of ${missing} listed postings`);
+  if (missing > 0) {
+    // Listed between the two requests, or kept off the widget: it waits for a
+    // read that has its text, and the listing is not whole meanwhile.
+    logger.warn({ atsToken: company.atsToken, missing }, 'workable: listed postings the widget did not describe');
+  } else if (whole) {
+    listedInFull(company.id);
+  }
+  return jobs;
+}
+
+/** Each job's text off the widget, by shortcode; null when the answer is not the widget. */
+export function workableTexts(raw: unknown): Map<string, string> | null {
+  const parsed = WidgetSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const texts = new Map<string, string>();
+  for (const job of parsed.data.jobs) {
+    // One row per location a job names, the same body on each.
+    if (!texts.has(job.shortcode)) texts.set(job.shortcode, stripHtml(job.description ?? ''));
+  }
+  return texts;
+}
+
+/** The listed jobs with their text; one the widget did not describe is left out and counted. */
+export function withWorkableText(
+  jobs: readonly NormalizedJob[],
+  texts: ReadonlyMap<string, string>,
+): { jobs: NormalizedJob[]; missing: number } {
+  const out: NormalizedJob[] = [];
+  for (const job of jobs) {
+    const text = texts.get(job.externalId);
+    if (text !== undefined) out.push({ ...job, description: text });
+  }
+  return { jobs: out, missing: jobs.length - out.length };
 }
 
 export function mapWorkableFeed(
@@ -126,8 +187,7 @@ export function mapWorkableFeed(
       title: j.title,
       url: `https://apply.workable.com/${slug}/j/${j.shortcode}/`,
       location: formatLocation(j),
-      // Workable's public list endpoint omits the description body; Claude
-      // classifies on the title alone for these roles.
+      // The list carries no text; `withWorkableText` adds the widget's.
       description: '',
       postedAt: j.published ? safeDate(j.published) : new Date(),
       locationHints: {

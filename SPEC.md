@@ -7,7 +7,7 @@
 
 Single-user, locally hosted job-search assistant. Pulls listings from
 33 kinds of public source (twelve ATS vendors, twenty aggregators, any
-RSS/Atom feed), classifies each through the AI engine chain (five
+RSS/Atom feed), classifies each through the AI engine chain (seven
 backends, ADR 0013/0014) against every running **search profile** the
 user edits in a small dashboard, and
 fires Telegram or Discord alerts for matches. Designed to run continuously on a
@@ -95,7 +95,7 @@ NormalizedJob[]          unified shape (companyId, externalId, title, location, 
                          geo-filtered sources (Jobicy, Himalayas, 4dayweek) read the FetchContext —
                          the union of the running searches' countries + regions — instead of the whole feed
    ↓
-passesAnyBaseFilter()    admit if ANY running search admits it: a whole-word title hit on its
+anyBaseFilterReason()    admit if ANY running search admits it: a whole-word title hit on its
                          stackRequired OR roleTypes, no hit on its stackExclude, and a place and
                          arrangement that do not contradict its own (an unknown one passes)
    ↓

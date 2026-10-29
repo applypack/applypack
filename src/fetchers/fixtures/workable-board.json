@@ -1,0 +1,128 @@
+{
+  "list": {
+    "total": 1,
+    "results": [
+      {
+        "id": 6157454,
+        "shortcode": "6C1E9F512C",
+        "title": "Senior Site Reliability Engineer",
+        "remote": true,
+        "location": {
+          "city": "",
+          "country": "Argentina",
+          "countryCode": "AR",
+          "region": null
+        },
+        "locations": [
+          {
+            "city": "",
+            "country": "Argentina",
+            "countryCode": "AR",
+            "hidden": true,
+            "region": null
+          },
+          {
+            "city": "",
+            "country": "Brazil",
+            "countryCode": "BR",
+            "hidden": true,
+            "region": null
+          }
+        ],
+        "state": "published",
+        "isInternal": false,
+        "code": "",
+        "published": "2026-09-30T00:00:00.000Z",
+        "type": "full",
+        "language": "en",
+        "department": [
+          "Engineering"
+        ],
+        "accountUid": "cae22d34-d59d-430a-a04c-1e837644ec44",
+        "approvalStatus": "approved",
+        "workplace": "remote"
+      }
+    ],
+    "nextPage": null
+  },
+  "widget": {
+    "name": "Laravel",
+    "description": null,
+    "jobs": [
+      {
+        "title": "Senior Site Reliability Engineer",
+        "shortcode": "6C1E9F512C",
+        "code": "",
+        "employment_type": "Full-time",
+        "telecommuting": true,
+        "department": "Engineering",
+        "url": "https://apply.workable.com/j/6C1E9F512C",
+        "shortlink": "https://apply.workable.com/j/6C1E9F512C",
+        "application_url": "https://apply.workable.com/j/6C1E9F512C/apply",
+        "published_on": "2026-09-30",
+        "created_at": "2026-09-28",
+        "country": "Argentina",
+        "city": "",
+        "state": "",
+        "education": "",
+        "experience": "Mid-Senior level",
+        "function": "Engineering",
+        "industry": "Computer Software",
+        "locations": [
+          {
+            "country": "Argentina",
+            "countryCode": "AR",
+            "city": "",
+            "region": null,
+            "hidden": true
+          },
+          {
+            "country": "Brazil",
+            "countryCode": "BR",
+            "city": "",
+            "region": null,
+            "hidden": true
+          }
+        ],
+        "description": "<p>At Laravel, we don’t just build tools; we build the foundation that empowers millions of developers to ship their dreams. We are looking for a Senior Site Reliability Engineer to help us scale that mission by ensuring our global infrastructure remains as elegant and reliable as the code we write. If you are energized by the challenge of building robust observability systems, running Kubernetes clusters across multiple regions, and solving complex operational puzzles with code, you’ve found your next home.</p><p><strong>Requirements</strong></p><h3><strong>Requirements - What You Will Bring </strong></h3><ul><li><strong>Infrastructure Mastery</strong>: Deep experience with Linux system administration and cloud platforms, specifically AWS.</li><li><strong>Orchestration &amp; IaC</strong>: Proficiency with Kubernetes, Docker, and managing infrastructure via Terraform. </li></ul><p><strong>Benefits</strong></p><ul> <li>Small tight-knit team where every developer counts</li> <li>Fully remote and globally distributed working environment</li> </ul>"
+      },
+      {
+        "title": "Senior Site Reliability Engineer",
+        "shortcode": "6C1E9F512C",
+        "code": "",
+        "employment_type": "Full-time",
+        "telecommuting": true,
+        "department": "Engineering",
+        "url": "https://apply.workable.com/j/6C1E9F512C",
+        "shortlink": "https://apply.workable.com/j/6C1E9F512C",
+        "application_url": "https://apply.workable.com/j/6C1E9F512C/apply",
+        "published_on": "2026-09-30",
+        "created_at": "2026-09-28",
+        "country": "Brazil",
+        "city": "",
+        "state": "",
+        "education": "",
+        "experience": "Mid-Senior level",
+        "function": "Engineering",
+        "industry": "Computer Software",
+        "locations": [
+          {
+            "country": "Argentina",
+            "countryCode": "AR",
+            "city": "",
+            "region": null,
+            "hidden": true
+          },
+          {
+            "country": "Brazil",
+            "countryCode": "BR",
+            "city": "",
+            "region": null,
+            "hidden": true
+          }
+        ],
+        "description": "<p>At Laravel, we don’t just build tools; we build the foundation that empowers millions of developers to ship their dreams. We are looking for a Senior Site Reliability Engineer to help us scale that mission by ensuring our global infrastructure remains as elegant and reliable as the code we write. If you are energized by the challenge of building robust observability systems, running Kubernetes clusters across multiple regions, and solving complex operational puzzles with code, you’ve found your next home.</p><p><strong>Requirements</strong></p><h3><strong>Requirements - What You Will Bring </strong></h3><ul><li><strong>Infrastructure Mastery</strong>: Deep experience with Linux system administration and cloud platforms, specifically AWS.</li><li><strong>Orchestration &amp; IaC</strong>: Proficiency with Kubernetes, Docker, and managing infrastructure via Terraform. </li></ul><p><strong>Benefits</strong></p><ul> <li>Small tight-knit team where every developer counts</li> <li>Fully remote and globally distributed working environment</li> </ul>"
+      }
+    ]
+  }
+}
