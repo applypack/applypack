@@ -483,6 +483,11 @@ test('an edit that asks for nothing is dropped, and the count says how many (#57
       action({ what: 'Keep the payments bullet as is but move it to the top' }),
       // Taking out a term the resume does carry is a real edit.
       action({ what: 'Remove Laravel from the summary' }),
+      // The floor call's card from #672: it says there is no change, and has nothing to apply.
+      action({ section: 'summary', where: 'SUMMARY section', what: 'No further change — JavaScript already implied by TypeScript stack but not named' }),
+      action({ what: 'Nothing else to add here' }),
+      // Advice with wording of its own is an edit, whatever its first words.
+      action({ what: 'No change to the facts — reword the bullet', quote: 'Designed Laravel payment workflows', replacement: 'Owned Laravel payment workflows end to end.' }),
     ],
     [
       removal({ what: 'Nothing to remove here — line only contains present/add keywords' }),
@@ -493,10 +498,10 @@ test('an edit that asks for nothing is dropped, and the count says how many (#57
   );
   assert.deepEqual(
     out.actions.map((a) => a.what),
-    ['Reword it.', 'Keep the payments bullet as is but move it to the top', 'Remove Laravel from the summary'],
+    ['Reword it.', 'Keep the payments bullet as is but move it to the top', 'Remove Laravel from the summary', 'No change to the facts — reword the bullet'],
   );
   assert.deepEqual(out.removals.map((r) => r.what), ['Drop MySQL from the skills line']);
-  assert.equal(out.dropped, 5);
+  assert.equal(out.dropped, 7);
 });
 
 test('a why the candidate reads is in plain words, not the prompt\'s field names (#577)', async () => {

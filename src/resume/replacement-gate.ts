@@ -344,6 +344,8 @@ export function titleOverHeadline(actions: MatchAction[], resumeText: string, he
 
 /** "Keep the refunds bullet as is": an edit that says to change nothing. */
 const KEEP_AS_IS = /^\s*(?:keep|leave|retain)\b[^.;]*\b(?:as[ -]is|unchanged|alone|untouched)\b/i;
+/** "No further change — JavaScript already implied by TypeScript" (#672): an edit that opens by saying there is none. */
+const NO_CHANGE = /^\s*(?:no (?:further |other |more )?(?:change|edit)s?|nothing (?:more |else )?to (?:change|edit|add))\b/i;
 /** A removal that says there is nothing to remove. */
 const NOTHING_TO_REMOVE =
   /\bnothing (?:to|worth) (?:remove|cut|delete|trim|drop)\b|\bno (?:removal|cut|deletion)s? (?:is |are )?(?:needed|required|necessary)\b/i;
@@ -408,7 +410,7 @@ export function finishEdits(
   const noWording = (a: MatchAction) => (a.replacement ?? '').trim() === '' && !a.insert_after;
   const actionAsksNothing = (a: MatchAction) =>
     (Boolean(a.quote) && Boolean(a.replacement) && toPlainPunctuation(a.quote ?? '') === toPlainPunctuation(a.replacement ?? '')) ||
-    (noWording(a) && KEEP_AS_IS.test(a.what) && !MOVES.test(a.what)) ||
+    (noWording(a) && (KEEP_AS_IS.test(a.what) || NO_CHANGE.test(a.what)) && !MOVES.test(a.what)) ||
     (noWording(a) && !a.quote && takesOutAbsent(a.what));
   const removalAsksNothing = (r: MatchRemoval) =>
     NOTHING_TO_REMOVE.test(r.what) || KEEP_AS_IS.test(r.what) || (!r.quote && takesOutAbsent(r.what));
