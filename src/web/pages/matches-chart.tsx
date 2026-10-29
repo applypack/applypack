@@ -226,23 +226,27 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
           ))}
         </div>
         <figcaption class="sr-only">{caption}</figcaption>
-        <table class="sr-only">
-          <caption>{t('overview.chart.tableCaption', { step })}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('overview.chart.dayColumn', { step })}</th>
-              <th scope="col">{t('nav.jobs')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {chart.points.map((p) => (
+        {/* A table is never narrower than its cells, whatever its width says: the box around it is what clips it
+            to nothing, so its longer day names cannot push a phone's page sideways (#651). */}
+        <div class="sr-only">
+          <table>
+            <caption>{t('overview.chart.tableCaption', { step })}</caption>
+            <thead>
               <tr>
-                <th scope="row">{pointLabel(p)}</th>
-                <td>{p.value}</td>
+                <th scope="col">{t('overview.chart.dayColumn', { step })}</th>
+                <th scope="col">{t('nav.jobs')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {chart.points.map((p) => (
+                <tr>
+                  <th scope="row">{pointLabel(p)}</th>
+                  <td>{p.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </figure>
 
       {stageCount(funnel, 'read') > 0 && (

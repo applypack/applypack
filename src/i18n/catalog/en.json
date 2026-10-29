@@ -1148,7 +1148,7 @@
   "jobs.pasteAJob": "+ Paste a job",
   "jobs.everyPostingTheSearchFound": "Every posting the search found, with its fit and its status.",
   "jobs.blankProfile": "Every running search is empty — classification idle. New jobs are fetched but not scored or alerted until one lists a required stack or role types. <link>Fix the search</link>.",
-  "jobs.searchTitleDescriptionOrLocation": "Search title, description or location…",
+  "jobs.searchTitleDescriptionOrLocation": "Title, description or place…",
   "jobs.searchJobs": "Search jobs",
   "jobs.minFitPlaceholder": "Fit ≥",
   "jobs.minimumFitScore": "Minimum fit score",

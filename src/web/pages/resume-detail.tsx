@@ -133,14 +133,15 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         <span class="flex flex-wrap items-center gap-2">
           {/* The name is what every picker, flash and "applied with" line
               says, and it starts as whatever the uploaded file was called. */}
-          <form method="post" action={`/resumes/${resume.id}/rename`} class="flex items-center gap-1.5">
+          {/* The field gives way on a phone, where "Rename" in Ukrainian leaves it less than its 14rem (#651). */}
+          <form method="post" action={`/resumes/${resume.id}/rename`} class="flex min-w-0 max-w-full items-center gap-1.5">
             <Input
               name="name"
               value={resume.name}
               maxlength="120"
               required
               aria-label={t('resume.resumeName')}
-              class="!w-56 !px-2 !py-1 !text-meta"
+              class="!w-56 min-w-0 !px-2 !py-1 !text-meta"
             />
             <Button variant="ghost">
               {t('resume.rename')}
