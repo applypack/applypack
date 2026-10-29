@@ -58,7 +58,7 @@ import { loadLedger, loadStoredPostings } from '../jobs/source-file-store';
 import { config } from '../config';
 import { localInstall } from '../local/install';
 import { getSourceKeys } from '../settings';
-import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
+import { politeDelayMs, pollIntervalFloorMs, shuffleSources, tickSeed } from './source-order';
 import { dueCutoff, idleReason, nextCheckAfter, nextCheckAfterManual, watchRules, type IdleReason, type WatchRules } from '../watchlist/interval';
 import type { NormalizedJob } from '../types';
 import { forgetListing, wasListedInFull } from './listing';
@@ -304,7 +304,7 @@ async function reconcileListing(company: { id: number; name: string }, jobs: rea
  * a health write that fails must not cost us the jobs we just fetched.
  */
 async function recordFetchHealth(
-  company: { id: number; name: string; consecutiveFailures: number; checkEvery: string },
+  company: { id: number; name: string; consecutiveFailures: number; checkEvery: string; atsType: AtsType },
   status: FetchStatus,
   lastFullCount: number | null,
   /**
@@ -326,7 +326,10 @@ async function recordFetchHealth(
         // Stamped after EVERY attempt, failures included: a board that throws
         // has to wait its interval like a healthy one, or a broken feed is
         // retried every heartbeat while a working one waits an hour.
-        nextCheckAt: manual ? nextCheckAfterManual(company, tickStartedAt) : nextCheckAfter(company, tickStartedAt),
+        // …and never sooner than the vendor asks (Remotive: four reads a day, #661).
+        nextCheckAt: manual
+          ? nextCheckAfterManual(company, tickStartedAt, pollIntervalFloorMs(company.atsType))
+          : nextCheckAfter(company, tickStartedAt, pollIntervalFloorMs(company.atsType)),
       },
     });
   } catch (err) {
@@ -352,6 +355,8 @@ export async function fetchOne(
     lastContentAlertAt?: Date | null;
     /** ADR 0062 — read by FOLDER only. */
     sourceConfig?: unknown;
+    /** The last good read (ADR 0019) — where HIMALAYAS and JOBTECH read back to (#661). */
+    lastOkAt?: Date | null;
   },
   context: FetchContext = EMPTY_CONTEXT,
 ): Promise<NormalizedJob[]> {
@@ -393,7 +398,7 @@ export async function fetchOne(
     case AtsType.WORKINGNOMADS:
       return fetchWorkingNomads(company.id);
     case AtsType.HIMALAYAS:
-      return fetchHimalayas(company.id, context);
+      return fetchHimalayas(company.id, context, company.lastOkAt ?? null);
     case AtsType.RECRUITEE:
       return fetchRecruitee({ id: company.id, atsToken: company.atsToken });
     case AtsType.BREEZY:
@@ -417,7 +422,7 @@ export async function fetchOne(
     case AtsType.LANDINGJOBS:
       return fetchLandingJobs(company.id);
     case AtsType.JOBTECH:
-      return fetchJobTech({ id: company.id, atsToken: company.atsToken });
+      return fetchJobTech({ id: company.id, atsToken: company.atsToken }, company.lastOkAt ?? null, context.now);
     case AtsType.PERSONIO:
       return fetchPersonio({ id: company.id, atsToken: company.atsToken });
     case AtsType.TEAMTAILOR:

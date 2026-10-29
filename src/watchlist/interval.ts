@@ -105,8 +105,8 @@ export function dueCutoff(now: Date): Date {
  * several times in a row to "catch up", which is a burst against a board
  * for no information.
  */
-export function nextCheckAfter(row: Pick<Pacing, 'checkEvery'>, now: Date): Date {
-  return new Date(now.getTime() + INTERVAL_MS[toCheckInterval(row.checkEvery)]);
+export function nextCheckAfter(row: Pick<Pacing, 'checkEvery'>, now: Date, floorMs = 0): Date {
+  return new Date(now.getTime() + Math.max(INTERVAL_MS[toCheckInterval(row.checkEvery)], floorMs));
 }
 
 /** The fetch cron's beat (`index.ts`): once an hour. */
@@ -122,8 +122,8 @@ const HEARTBEAT_MS = HOUR_MS;
  * next tick reads an hourly source again, and a daily one comes due on the
  * heartbeat a scheduled read would have set.
  */
-export function nextCheckAfterManual(row: Pick<Pacing, 'checkEvery'>, readAt: Date): Date {
-  return nextCheckAfter(row, new Date(readAt.getTime() - HEARTBEAT_MS));
+export function nextCheckAfterManual(row: Pick<Pacing, 'checkEvery'>, readAt: Date, floorMs = 0): Date {
+  return nextCheckAfter(row, new Date(readAt.getTime() - HEARTBEAT_MS), floorMs);
 }
 
 /** Why a walk read no source at all (#557) — the run row says it instead of a bare "0 fetched". */

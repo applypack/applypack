@@ -145,6 +145,13 @@ describe('nextCheckAfter', () => {
       assert.ok(nextCheckAfter({ checkEvery: every }, NOW).getTime() > NOW.getTime());
     }
   });
+  it("keeps a source no sooner than its vendor's floor, and a longer interval as it is (#661)", () => {
+    const sixHours = 6 * 60 * 60 * 1000;
+    assert.equal(nextCheckAfter({ checkEvery: 'hour' }, NOW, sixHours).toISOString(), '2026-09-04T18:00:00.000Z');
+    assert.equal(nextCheckAfter({ checkEvery: 'day' }, NOW, sixHours).toISOString(), '2026-09-05T12:00:00.000Z');
+    // A read the user asked for counts from one heartbeat earlier, floor and all.
+    assert.equal(nextCheckAfterManual({ checkEvery: 'hour' }, NOW, sixHours).toISOString(), '2026-09-04T17:00:00.000Z');
+  });
 });
 
 /**
