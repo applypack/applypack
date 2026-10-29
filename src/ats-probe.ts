@@ -14,6 +14,7 @@ import { looksLikeChallenge } from './watchlist/scan';
 import { bindingTokens, robotsAllows } from './robots';
 import { MIN_WATCHABLE_CHARS, normalisePageText } from './watchlist/page-hash';
 import { franceTravailProbeCount } from './fetchers/francetravail';
+import { fetchLeverList } from './fetchers/lever';
 import type { FranceTravailCredentials } from './fetchers/francetravail-auth';
 import { resolveSourceKeys, type SourceKeys } from './source-keys';
 
@@ -114,10 +115,8 @@ export async function probeAts(
         );
         break;
       case AtsType.LEVER:
-        resp = await fetchWithRetry(
-          `https://api.lever.co/v0/postings/${encodeURIComponent(trimmed)}?mode=json&limit=1`,
-          { timeoutMs: 8_000 },
-        );
+        // The whole list: Lever states no total, and `limit=1` made every board "1 job" (#663).
+        resp = (await fetchLeverList(trimmed, () => ({ timeoutMs: 8_000 }))).resp;
         break;
       case AtsType.ASHBY:
         resp = await fetchWithRetry(
@@ -366,22 +365,28 @@ function describeHttpFailure(
   return t('probe.http.invalidToken', { atsType, status, token: atsToken });
 }
 
-function countJobs(payload: unknown): number {
+/**
+ * How many postings a board's answer says it has. A board that answers a
+ * page at a time states its total, and the total wins over the page: the
+ * probe asks SmartRecruiters for one posting, and Workable sends a page with
+ * the board's `total` beside it (#663).
+ */
+export function countJobs(payload: unknown): number {
   if (Array.isArray(payload)) return payload.length;
   if (payload && typeof payload === 'object') {
     const obj = payload as Record<string, unknown>;
+    // SmartRecruiters
+    if (typeof obj.totalFound === 'number') return obj.totalFound;
+    // Workable
+    if (typeof obj.total === 'number') return obj.total;
     if (Array.isArray(obj.jobs)) return obj.jobs.length;
     // Recruitee
     if (Array.isArray(obj.offers)) return obj.offers.length;
     // BambooHR / Pinpoint
     if (Array.isArray(obj.result)) return obj.result.length;
     if (Array.isArray(obj.data)) return obj.data.length;
-    // Workable
     if (Array.isArray(obj.results)) return obj.results.length;
-    if (typeof obj.total === 'number') return obj.total as number;
-    // SmartRecruiters
     if (Array.isArray(obj.content)) return obj.content.length;
-    if (typeof obj.totalFound === 'number') return obj.totalFound as number;
   }
   return 0;
 }

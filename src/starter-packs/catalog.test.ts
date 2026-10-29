@@ -74,3 +74,22 @@ test('findCompany matches on the (segment, name) pair the form round-trips', () 
   assert.equal(findCompany('no-such-segment', sample.name), null);
   assert.equal(findCompany(sample.segment, 'No Such Company'), null);
 });
+
+test('the boards the companies left stay out of the catalog (#638)', () => {
+  // Re-checked 2026-10-29 against each company's careers page: Postman hires
+  // on Workday, Remote on its own site, Skylum on PeopleForce, Stytch's
+  // careers page redirects to Twilio's, MacPaw's Recruitee API answers 403,
+  // and Webflow, Amplitude and Lemon.io moved to the Ashby boards now pinned.
+  const left = [
+    'GREENHOUSE:postman',
+    'GREENHOUSE:remotecom',
+    'BAMBOOHR:skylum',
+    'ASHBY:stytch',
+    'RECRUITEE:macpaw',
+    'GREENHOUSE:webflow',
+    'GREENHOUSE:amplitude',
+    'BAMBOOHR:lemonio',
+  ];
+  const pinned = new Set(CATALOG.companies.map((c) => keyOf(c.atsType, c.atsToken)));
+  for (const key of left) assert.ok(!pinned.has(key), `${key} is pinned again`);
+});

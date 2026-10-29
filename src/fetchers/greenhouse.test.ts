@@ -120,15 +120,24 @@ describe('mapGreenhouseJob', () => {
     assert.equal(job.postedAt.toISOString(), '2026-04-28T12:00:00.000Z');
   });
 
-  it('regression: HigherLogic-style "Sr. Software Engineer (PHP)" title is preserved verbatim', () => {
+  it('regression: HigherLogic-style "Sr. Software Engineer (PHP)" keeps its parentheses', () => {
     // The user found this job on LinkedIn at HigherLogic's Greenhouse
-    // board. Title contains parentheses and a trailing whitespace
-    // pattern that must NOT be stripped — the word "PHP" inside parens
-    // is what makes it pass the user's profile filter.
+    // board. The word "PHP" inside parens is what makes it pass the
+    // user's profile filter; only the blank around the words goes.
     const job = mapGreenhouseJob(
       baseJob({ title: 'Sr. Software Engineer (PHP) ' }),
       COMPANY_ID,
     );
-    assert.equal(job.title, 'Sr. Software Engineer (PHP) ');
+    assert.equal(job.title, 'Sr. Software Engineer (PHP)');
+  });
+
+  it('trims the title and closes the runs of spaces inside it (#662)', () => {
+    // GitLab's board on 2026-10-29: 46 of 231 titles end in spaces.
+    for (const [given, stored] of [
+      ['Business Development Representative, German Speaking - UK/I   ', 'Business Development Representative, German Speaking - UK/I'],
+      ['Recruiter,  Sales (AMER)', 'Recruiter, Sales (AMER)'],
+    ]) {
+      assert.equal(mapGreenhouseJob(baseJob({ title: given }), COMPANY_ID).title, stored);
+    }
   });
 });

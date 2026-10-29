@@ -7,6 +7,7 @@ import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { sleep } from '../../http';
 import { firstIssue, flashRedirect, refusedField, safeBack } from '../flash';
+import { watchFieldLabel } from '../form-fields';
 import { ALERT_POLICIES, CHECK_INTERVALS } from '../../watchlist/interval';
 import { parseCompanyLines } from '../../watchlist/parse-input';
 import { installAiTokens, liveResolveIo, resolveCompanyUrl, type ResolvedCompany } from '../../watchlist/resolve';
@@ -107,7 +108,7 @@ watchlistRoute.post('/companies/watchlist/add', async (c) => {
     alertPolicy: form.alertPolicy,
   });
   if (!parsed.success) {
-    return flashRedirect('/companies', 'err', t('watchlist.flash.addInvalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect('/companies', 'err', t('watchlist.flash.addInvalid', { issue: firstIssue(parsed.error.issues, watchFieldLabel) }), refusedField(c.req.path, parsed.error.issues));
   }
   const run = getWatchlistRun(parsed.data.runId);
   if (!run) return flashRedirect('/companies', 'err', t('watchlist.flash.expired'));
@@ -182,7 +183,7 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
   const form = await c.req.parseBody();
   const parsed = WatchSchema.safeParse({ checkEvery: form.checkEvery, alertPolicy: form.alertPolicy });
   if (!parsed.success) {
-    return flashRedirect('/companies', 'err', t('watchlist.flash.watchInvalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect('/companies', 'err', t('watchlist.flash.watchInvalid', { issue: firstIssue(parsed.error.issues, watchFieldLabel) }), refusedField(c.req.path, parsed.error.issues));
   }
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true, checkEvery: true } });
   if (!company) return c.text(t('http.notFound'), 404);

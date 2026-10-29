@@ -217,18 +217,27 @@ export function aiEngineOrder(config: AiEngineConfig, provider: AiProviderId): A
 }
 
 /**
- * The list after pressing Enable or Disable on `id`, or null when Disable
- * would change nothing: an emptied list is seeded from AI_PROVIDER again, so
- * the .env engine cannot leave a list it is alone in.
+ * The list after pressing Enable or Disable on `id` (#647).
+ *
+ * Enable puts it after the engines the list holds. While nothing is stored the
+ * list is the .env engine alone, and that one is kept only if it can run here:
+ * stored in front of the engine the person enabled, a pay-per-token API nobody
+ * chose would be asked first the day a key turned up in the environment.
+ *
+ * Disable is null when it would change nothing: an emptied list is seeded from
+ * AI_PROVIDER again, so the .env engine cannot leave a list it is alone in, and
+ * an engine that would answer every call as the last resort the moment it left
+ * — nothing else can run here — stays where it is.
  */
-export function toggleAiEngine(
-  order: readonly AiProviderId[],
-  id: AiProviderId,
-  provider: AiProviderId,
-): AiProviderId[] | null {
-  if (!order.includes(id)) return [...order, id];
-  if (order.length === 1 && id === provider) return null;
-  return order.filter((x) => x !== id);
+export function toggleAiEngine(config: AiEngineConfig, id: AiProviderId, env: AiEngineEnv): AiProviderId[] | null {
+  const order = aiEngineOrder(config, env.provider);
+  if (!order.includes(id)) {
+    const kept = config.order.length > 0 ? config.order : order.filter((p) => !providerUnusable(p, env));
+    return [...kept, id];
+  }
+  const next = order.filter((x) => x !== id);
+  const after = resolveAiEngine({ ...config, order: next }, env);
+  return after.order.includes(id) || after.chain.includes(id) ? null : next;
 }
 
 /** What "Use it" gives a model on this computer: measured, scoring is the one task a small one suits (#411). */
@@ -455,16 +464,17 @@ export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngin
  * resort nobody enabled.
  */
 export function aiEngineCard(
-  engine: ResolvedAiEngine,
+  config: AiEngineConfig,
   id: AiProviderId,
-  provider: AiProviderId,
+  env: AiEngineEnv,
 ): { enabled: boolean; position: number; lastResort: boolean; canToggle: boolean } {
+  const engine = resolveAiEngine(config, env);
   const position = engine.order.indexOf(id);
   return {
     enabled: position !== -1,
     position,
     lastResort: engine.lastResort === id,
-    canToggle: toggleAiEngine(engine.order, id, provider) !== null,
+    canToggle: toggleAiEngine(config, id, env) !== null,
   };
 }
 

@@ -81,6 +81,8 @@ test('a must-level term the resume backs but no rewrite writes in is owed, by na
   assert.deepEqual(none, ['keywords']);
   assert.deepEqual(unwrittenMusts({ keywords, actions: [] }), ['Kafka']);
   assert.match(floorDemand(none, ['Kafka']), /\(Kafka\)/);
+  // Once, on the skills line or in the bullet whose work used it — never into every rewrite (#633).
+  assert.match(floorDemand(none, ['Kafka']), /write each in once: on the skills line, or into the one bullet whose work used it/);
   // Written in, by its own name or an alias, the gap closes; a word inside another word does not count.
   const byAlias = [action({ section: 'experience', replacement: 'Moved the event bus to Apache Kafka.' })];
   assert.deepEqual(floorGaps({ keywords, alignment: STRONG, actions: byAlias, breakdown: bd() }), []);

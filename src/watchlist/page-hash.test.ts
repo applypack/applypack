@@ -36,12 +36,12 @@ describe('normalisePageText', () => {
   it('is stable across runs and short enough for a column', () => {
     const h = pageHash(page('<p>Careers</p>'));
     assert.equal(h, pageHash(page('<p>Careers</p>')));
-    assert.equal(h.length, 32);
-    assert.match(h, /^[0-9a-f]+$/);
+    assert.match(h, /^r2:[0-9a-f]{32}$/);
   });
 });
 
 describe('decideChange', () => {
+  const OLD = pageHash(page('<p>Old</p>'));
   const seen = (hash: string | null, alertedAt: Date | null = null) => ({
     lastContentHash: hash,
     lastContentAlertAt: alertedAt,
@@ -53,40 +53,46 @@ describe('decideChange', () => {
     assert.equal((d as { hash: string }).hash, pageHash(page('<p>Careers</p>')));
   });
 
+  it('starts again in silence over a hash an older reading of the page took', () => {
+    // A 2.63.34 hash: 32 hex characters, no reading. The new stripHtml reads the same page differently.
+    const d = decideChange(seen('0123456789abcdef0123456789abcdef', new Date(NOW.getTime() - CHANGE_ALERT_GAP_MS)), page('<p>Careers</p>'), NOW);
+    assert.equal(d.kind, 'first');
+  });
+
   it('is quiet while the text is what we last reported', () => {
     const html = page('<p>Careers</p>');
     assert.equal(decideChange(seen(pageHash(html)), html, NOW).kind, 'unchanged');
   });
 
   it('reports a change when we have not said so today', () => {
-    const d = decideChange(seen('old', new Date(NOW.getTime() - CHANGE_ALERT_GAP_MS)), page('<p>New</p>'), NOW);
+    const d = decideChange(seen(OLD, new Date(NOW.getTime() - CHANGE_ALERT_GAP_MS)), page('<p>New</p>'), NOW);
     assert.equal(d.kind, 'changed');
     assert.equal((d as { hash: string }).hash, pageHash(page('<p>New</p>')));
   });
 
   it('reports a change when we have never alerted', () => {
-    assert.equal(decideChange(seen('old', null), page('<p>New</p>'), NOW).kind, 'changed');
+    assert.equal(decideChange(seen(OLD, null), page('<p>New</p>'), NOW).kind, 'changed');
   });
 
   // The hash is only advanced on an alert, so a change inside the quiet
   // window is still pending at the next allowed check rather than swallowed.
   it('holds a change that lands less than a day after the last alert', () => {
     const anHourAgo = new Date(NOW.getTime() - 60 * 60 * 1000);
-    assert.equal(decideChange(seen('old', anHourAgo), page('<p>New</p>'), NOW).kind, 'held');
+    assert.equal(decideChange(seen(OLD, anHourAgo), page('<p>New</p>'), NOW).kind, 'held');
   });
 
   it('releases it once a full day has passed', () => {
     const justOver = new Date(NOW.getTime() - CHANGE_ALERT_GAP_MS - 1);
-    assert.equal(decideChange(seen('old', justOver), page('<p>New</p>'), NOW).kind, 'changed');
+    assert.equal(decideChange(seen(OLD, justOver), page('<p>New</p>'), NOW).kind, 'changed');
   });
 
   it('a page that changes twice inside the window still alerts once, on the newest text', () => {
     const recent = new Date(NOW.getTime() - 60 * 60 * 1000);
     // First change is held; the row keeps 'old'.
-    assert.equal(decideChange(seen('old', recent), page('<p>Second</p>'), NOW).kind, 'held');
+    assert.equal(decideChange(seen(OLD, recent), page('<p>Second</p>'), NOW).kind, 'held');
     // A day later the row still holds 'old', so the newest text is reported.
     const tomorrow = new Date(NOW.getTime() + CHANGE_ALERT_GAP_MS);
-    const d = decideChange(seen('old', recent), page('<p>Third</p>'), tomorrow);
+    const d = decideChange(seen(OLD, recent), page('<p>Third</p>'), tomorrow);
     assert.equal(d.kind, 'changed');
     assert.equal((d as { hash: string }).hash, pageHash(page('<p>Third</p>')));
   });

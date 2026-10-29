@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 import { safeDate } from './dates';
 import { findCountry } from '../countries';
-import { fetchWithRetry, stripHtml } from '../http';
+import { decodeHtmlEntities, fetchWithRetry, stripHtml } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -83,7 +83,10 @@ export function mapDouItem(item: DouItem, companyId: number): NormalizedJob | nu
   const link = item.link ?? '';
   const externalId = vacancyId(link) ?? feedItemKey(link, item.title);
   if (!externalId) return null;
-  const parsed = parseDouTitle(item.title ?? '');
+  // The XML escapes the title's entities once more than rss-parser undoes:
+  // "Booking platform &amp; APIs", "від&nbsp;$5000".
+  const rawTitle = decodeHtmlEntities(item.title ?? '');
+  const parsed = parseDouTitle(rawTitle);
   const location = [...parsed.places, parsed.abroad ? 'за кордоном' : '', parsed.remote ? 'віддалено' : '']
     .filter((s) => s.length > 0)
     .join(', ');
@@ -100,7 +103,7 @@ export function mapDouItem(item: DouItem, companyId: number): NormalizedJob | nu
     companyId,
     employer: cleanEmployer(parsed.company),
     externalId,
-    title: parsed.title || item.title || 'Untitled',
+    title: parsed.title || rawTitle.trim() || 'Untitled',
     url: link,
     location,
     description: header && body ? `${header}\n\n${body}` : header || body,

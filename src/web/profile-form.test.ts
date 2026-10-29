@@ -2,7 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Profile } from '@prisma/client';
 import { z } from 'zod';
-import { minFitField, profileFieldLabel, reclassifyQuestion, sentProfile } from './profile-form';
+import { firstIssue } from './flash';
+import {
+  blankSearchToReuse,
+  lineListField,
+  minFitField,
+  minSalaryField,
+  profileFieldLabel,
+  reclassifyQuestion,
+  sentProfile,
+  seniorityField,
+  tagListField,
+} from './profile-form';
 
 const STORED = {
   id: 3,
@@ -93,7 +104,53 @@ test('"Save & re-classify" asks with the number of jobs and the cost of the engi
 
 test('a refused field is named by the label the editor shows it under', () => {
   assert.equal(profileFieldLabel('minFitScore'), 'Minimum fit score (0–100)');
-  assert.equal(profileFieldLabel('stackRequired'), undefined);
+  assert.equal(profileFieldLabel('stackRequired'), 'Core skills');
+  assert.equal(profileFieldLabel('priorityRules'), undefined);
+});
+
+/** The first refusal of one field, as the save's flash words it. */
+const refusal = (field: z.ZodType, sent: unknown): string => {
+  const parsed = z.object({ f: field }).safeParse({ f: sent });
+  assert.equal(parsed.success, false, JSON.stringify(sent));
+  return parsed.success ? '' : firstIssue(parsed.error.issues);
+};
+
+test('a minimum salary past what the editor takes is refused, never a 500 from the column (#646)', () => {
+  const form = z.object({ minSalaryUsd: minSalaryField });
+  assert.deepEqual(form.parse({ minSalaryUsd: '150000' }), { minSalaryUsd: 150_000 });
+  assert.deepEqual(form.parse({ minSalaryUsd: '' }), { minSalaryUsd: 0 }, 'emptied is no salary filter, as the hint says');
+  assert.deepEqual(form.parse({}), { minSalaryUsd: 0 });
+  assert.equal(refusal(minSalaryField, '3000000000'), 'f: Must be 10,000,000 or less');
+  assert.equal(refusal(minSalaryField, '-1'), 'f: Must be 0 or more');
+});
+
+test('seniority takes the levels the editor offers and no other (#646)', () => {
+  const form = z.object({ seniority: seniorityField });
+  assert.deepEqual(form.parse({ seniority: ['senior', 'lead', 'senior'] }), { seniority: ['senior', 'lead'] });
+  assert.deepEqual(form.parse({ seniority: 'mid' }), { seniority: ['mid'] });
+  assert.deepEqual(form.parse({}), { seniority: [] });
+  assert.match(refusal(seniorityField, ['senior', '<script>alert(1)</script>']), /^f\.1: /);
+  refusal(seniorityField, 'wizard');
+});
+
+test('a tag list keeps one entry per term and is refused past its limits, not cut (#646)', () => {
+  const form = z.object({ stackRequired: tagListField, onsiteCities: lineListField });
+  assert.deepEqual(form.parse({ stackRequired: 'TypeScript, typescript\nNode.js,TYPESCRIPT', onsiteCities: 'Austin, TX\naustin, tx' }), {
+    stackRequired: ['TypeScript', 'Node.js'],
+    onsiteCities: ['Austin, TX'],
+  });
+  assert.deepEqual(form.parse({}), { stackRequired: [], onsiteCities: [] });
+  const many = Array.from({ length: 51 }, (_, i) => `skill${i}`).join(', ');
+  assert.equal(refusal(tagListField, many), 'f: At most 50 items');
+  assert.equal(z.object({ f: tagListField }).safeParse({ f: Array.from({ length: 51 }, () => 'go').join(',') }).success, true, 'repeats do not count');
+  assert.equal(refusal(tagListField, `go, ${'x'.repeat(81)}`), 'f.1: At most 80 characters');
+});
+
+test('"+ New search" opens the paused blank search there is, instead of another (#646)', () => {
+  const search = (id: number, active: boolean, stackRequired: string[] = []) => ({ id, active, stackRequired, roleTypes: [] });
+  assert.equal(blankSearchToReuse([search(1, true, ['node.js']), search(4, false)]), 4);
+  assert.equal(blankSearchToReuse([search(1, true, ['node.js']), search(2, false, ['go'])]), null, 'a paused search with content is not blank');
+  assert.equal(blankSearchToReuse([search(1, true)]), null, 'a running one is not reused');
 });
 
 test('an emptied "Minimum fit score" is refused, never read as 0 (#682)', () => {

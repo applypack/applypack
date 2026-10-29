@@ -21,6 +21,7 @@ import { activeWatchlistRun } from '../watchlist-runs';
 import { installAiTokens } from '../../watchlist/resolve';
 import { currentSuggestions, waitingSuggestions } from '../source-suggestions';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
+import { muteFieldLabel } from '../form-fields';
 import {
   boardUrl,
   buildPreview,
@@ -223,7 +224,7 @@ companiesRoute.post('/companies/mutes', async (c) => {
   const body = await c.req.parseBody();
   const back = safeBack(body.back, '/companies#muted');
   const parsed = MuteFormSchema.safeParse(body);
-  if (!parsed.success) return flashRedirect(back, 'err', t('mute.flash.invalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+  if (!parsed.success) return flashRedirect(back, 'err', t('mute.flash.invalid', { issue: firstIssue(parsed.error.issues, muteFieldLabel) }), refusedField(c.req.path, parsed.error.issues));
   const mute = await muteEmployer(parsed.data.name, parsed.data.reason);
   if (!mute) return flashRedirect(back, 'err', t('mute.flash.noLetters'));
   const hidden = await prisma.job.count({ where: { employerKey: mute.key } });
@@ -402,14 +403,15 @@ companiesRoute.post('/companies/starter-pack', async (c) => {
     return redirectWithFlash('err', t('packs.flash.pickSegment'));
   }
 
-  const { resolved, unresolved } = await resolvePack(targets);
-  const preview = buildPreview(resolved, unresolved, await trackedBoardKeys());
+  const preview = buildPreview(await resolvePack(targets), await trackedBoardKeys());
   logger.info(
     {
       segments: chosen,
       toAdd: preview.toAdd.length,
       alreadyAdded: preview.alreadyAdded.length,
-      unresolved: preview.unresolved.length,
+      quiet: preview.quiet.map((e) => e.name),
+      // The probe's own words ride here; the page says the reason in the reader's language.
+      unresolved: preview.unresolved.map((e) => `${e.name}: ${e.reason}${e.detail ? ` (${e.detail})` : ''}`),
     },
     'starter-pack: previewed',
   );

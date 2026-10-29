@@ -3,6 +3,7 @@ import { safeDate } from './dates';
 import { fetchWithRetry, stripHtml } from '../http';
 import type { NormalizedJob } from '../types';
 import { cleanEmployer } from '../employer';
+import { parseLocation } from '../location';
 
 const ALGOLIA_BASE = 'https://hn.algolia.com/api/v1';
 const FRESH_WINDOW_DAYS = 14;
@@ -102,25 +103,32 @@ export function hnJobEmployer(title: string): string | null {
   return name && !NOT_A_NAME.has(name.toLowerCase()) ? cleanEmployer(name) : null;
 }
 
+/** A YC batch: a season's letter and a year — W23, S21, F24, X25, P26. */
+const YC_BATCH_RE = /^YC\s+[A-Z]\d{2,4}$/i;
+/** "9 Mothers (YC P26) Is Hiring in Austin, TX": the place right after the verb. */
+const HIRING_IN_RE = /\b(?:is|are)\s+hiring\s+in\s+([^()]{2,60})$/i;
+
 /**
  * HN job titles often look like:
  *   "Infisical (YC W23) Is Hiring Full Stack Software Engineers (Remote)"
  *   "Acme Is Hiring a Founding Engineer (SF or NYC)"
+ *   "9 Mothers (YC P26) Is Hiring in Austin, TX"
  *   "Stardex Is Hiring a Founding Customer Success Lead"
  * The trailing parens tend to hold location. YC batch markers like
- * "(YC W23)" are NOT location — we filter those out by token.
+ * "(YC W23)" are NOT location — we filter those out by token. Without
+ * parentheses, "Is Hiring in …" names a place when the location parser
+ * knows it: "in Office of CEO" after a role is no place.
  */
 function extractLocationFromTitle(title: string): string {
   const matches = [...title.matchAll(/\(([^)]+)\)/g)];
-  if (matches.length === 0) return '';
   // Take the last paren group that is NOT a YC batch marker.
   for (let i = matches.length - 1; i >= 0; i--) {
     const candidate = matches[i]?.[1]?.trim() ?? '';
-    if (candidate.length === 0) continue;
-    if (/^YC\s+[SWFA]\d{2,4}$/i.test(candidate)) continue;
+    if (candidate.length === 0 || YC_BATCH_RE.test(candidate)) continue;
     return candidate;
   }
-  return '';
+  const place = HIRING_IN_RE.exec(title)?.[1]?.trim() ?? '';
+  return place && parseLocation(place).source !== null ? place : '';
 }
 
 // Re-export helper for caller-side discovery URL extraction.

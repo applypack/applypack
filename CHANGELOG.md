@@ -4,6 +4,77 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.38] — 2026-10-29
+
+### Fixed
+- Starter packs point Webflow, Amplitude and Lemon.io at their current
+  boards and drop five that closed. The preview lists a board with no
+  openings under "No open jobs right now", says why a board failed (no
+  longer exists, refused, no answer), and no longer offers a stranger's
+  board as Remote.
+- A careers URL that now redirects to the site's home page is listed under
+  "Not added" instead of being watched for banner changes.
+- Setup no longer ticks step 4 before a search exists, its step links and
+  arrangement choices say their names, and ending setup keeps your
+  browser's time zone when none was chosen, so dates stop reading in UTC.
+
+## [2.63.37] — 2026-10-29
+
+### Fixed
+- A suggestion can no longer move a real number onto work the resume
+  never ties it to ("ran on-call rotations that cut resolution from 90 to
+  35"), and a cover letter is checked against your own wording, not a
+  suggestion's. Bullet rewrites that only add a term the line already
+  implies ("a PostgreSQL SQL database") are refused, and a missing keyword
+  goes into one bullet instead of every one. The next comparison of each
+  posting rebuilds its keyword list once (prompt v19).
+
+## [2.63.36] — 2026-10-29
+
+### Fixed
+- HN "Who is hiring" posts are read by what each header field says, not
+  its position: a title is never a place or "Full Time", the company loses
+  its link and bracket note, and roles listed under the header are found.
+- Himalayas reads back to the previous read (up to ten pages, not one),
+  JobTech reads back to the last good read after the computer slept, and
+  Remotive is read at most four times a day, as its terms ask.
+- Adding a Lever or SmartRecruiters board reports its real job count, and
+  EU Lever and Greenhouse board links are recognised.
+
+## [2.63.35] — 2026-10-29
+
+### Fixed
+- Descriptions and titles no longer show HTML entities as text ("&amp;",
+  "&nbsp;", "&mdash;", "caf&eacute;"), and a bold or linked word no longer
+  leaves a space before the punctuation after it ("AWS ." is "AWS.").
+- RemoteOK text reads as written instead of "youâll"; Golangprojects
+  postings name their company; DOU keeps pay as pay, not as a place;
+  4dayweek names each place once; HN jobs no longer take the YC batch for a
+  location; Greenhouse titles are trimmed. `backfill-descriptions.js`
+  repairs stored rows (`--dry-run` first).
+- A watched careers page does not alert once after the upgrade because the
+  new reader reads it differently: its watch starts again in silence.
+
+## [2.63.34] — 2026-10-29
+
+### Fixed
+- Settings forms refuse what their pages do not offer and say which
+  field: a minimum salary over 10,000,000 (it was a 500), a seniority
+  outside the list, a tag list over 50 entries, a board column named like
+  Applied or Rejected or longer than 40 characters, a retention the list
+  lacks. Repeated skills are kept once; "+ New search" opens the empty
+  search you already have instead of making another.
+- Disabling the engine that would still answer every call is refused,
+  instead of a flash claiming another engine takes over; Enable no longer
+  puts an engine that cannot run here first.
+- A refused schedule, application-pack, mute or watchlist field is named
+  as its page labels it, and focused.
+- Settings tabs no longer wait half a second for the engine check; the
+  Overview, AI usage and setup show the last check at once while a new one
+  runs behind it.
+- "Start with this computer" keeps the port, time zone, data folder,
+  snapshot count and inbox folders exported in your terminal.
+
 ## [2.63.33] — 2026-10-29
 
 ### Fixed
@@ -6999,6 +7070,11 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.38]: https://github.com/applypack/applypack/compare/v2.63.37...v2.63.38
+[2.63.37]: https://github.com/applypack/applypack/compare/v2.63.36...v2.63.37
+[2.63.36]: https://github.com/applypack/applypack/compare/v2.63.35...v2.63.36
+[2.63.35]: https://github.com/applypack/applypack/compare/v2.63.34...v2.63.35
+[2.63.34]: https://github.com/applypack/applypack/compare/v2.63.33...v2.63.34
 [2.63.33]: https://github.com/applypack/applypack/compare/v2.63.32...v2.63.33
 [2.63.32]: https://github.com/applypack/applypack/compare/v2.63.31...v2.63.32
 [2.63.31]: https://github.com/applypack/applypack/compare/v2.63.30...v2.63.31

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { himalayasUrls, mapHimalayasFeed } from './himalayas';
+import { himalayasUrls, mapHimalayasFeed, nextPageUrl, walkBrowseFeed } from './himalayas';
 import type { NormalizedJob } from '../types';
 
 const COMPANY_ID = 88;
@@ -171,5 +171,67 @@ describe('himalayasUrls — the calls a context needs (stage 3a)', () => {
   it('caps the country calls', () => {
     const many = Array.from({ length: 12 }, (_, i) => `C${i}`);
     assert.equal(himalayasUrls({ countries: many, regions: [] }).length, 9);
+  });
+});
+
+/**
+ * #661: one browse page an hour saw 9 % of the new postings — the 100 newest
+ * spanned 27 minutes. A read walks the cursor back to the previous read.
+ */
+describe('walkBrowseFeed — the cursor back to the previous read', () => {
+  const HOUR_S = 3600;
+  const NOW_S = 1793275110; // 2026-10-29T11:58:30Z
+  /** Page `n` (0 = newest): twenty postings over half an hour, then a cursor unless it is the last. */
+  const page = (n: number, last = false) => ({
+    ...wrap(
+      Array.from({ length: 20 }, (_, i) => ({
+        ...SAMPLE_JOB,
+        guid: `https://himalayas.app/jobs/${n}-${i}`,
+        pubDate: NOW_S - n * HOUR_S / 2 - i * 40,
+      })),
+    ),
+    nextCursor: last ? undefined : `cursor-${n + 1}`,
+  });
+  /** A reader over `count` pages that records the URLs it was asked for. */
+  const reader = (count: number, fail?: number) => {
+    const asked: string[] = [];
+    const read = async (url: string): Promise<unknown> => {
+      asked.push(url);
+      const n = asked.length - 1;
+      if (n === fail) throw new Error('429 Too Many Requests');
+      return page(n, n === count - 1);
+    };
+    return { asked, read };
+  };
+
+  it('stops at the page that reaches back past the previous read, less the cache\'s two hours', async () => {
+    const { asked, read } = reader(20);
+    // The previous read an hour ago: its first page may have been two hours old, so the walk reaches three hours back.
+    const jobs = await walkBrowseFeed(read, COMPANY_ID, new Date((NOW_S - HOUR_S) * 1000));
+    assert.equal(asked.length, 7);
+    assert.equal(jobs.length, 140);
+    assert.equal(asked[0], 'https://himalayas.app/jobs/api?limit=20');
+    assert.equal(asked[1], 'https://himalayas.app/jobs/api?limit=20&cursor=cursor-1');
+  });
+
+  it('reads ten pages at most, and all ten when there was no previous read', async () => {
+    const { asked, read } = reader(20);
+    assert.equal((await walkBrowseFeed(read, COMPANY_ID, null)).length, 200);
+    assert.equal(asked.length, 10);
+  });
+
+  it('ends where the feed ends, and with the pages it has when a later one fails', async () => {
+    const short = reader(3);
+    assert.equal((await walkBrowseFeed(short.read, COMPANY_ID, null)).length, 60);
+    assert.equal(short.asked.length, 3);
+    const failing = reader(20, 4);
+    assert.equal((await walkBrowseFeed(failing.read, COMPANY_ID, null)).length, 80);
+    await assert.rejects(walkBrowseFeed(reader(20, 0).read, COMPANY_ID, null), /429/);
+  });
+
+  it('builds the next page from nextCursor, and none without one', () => {
+    assert.equal(nextPageUrl({ jobs: [], nextCursor: 'MjAy/+=' }), 'https://himalayas.app/jobs/api?limit=20&cursor=MjAy%2F%2B%3D');
+    assert.equal(nextPageUrl({ jobs: [] }), null);
+    assert.equal(nextPageUrl({ jobs: [], nextCursor: '' }), null);
   });
 });

@@ -32,7 +32,8 @@ import { t } from '../i18n/t';
  *    would report the shell, and the user pastes the page (TASKS N8).
  *    A redirect onto a board the vendor will not serve stays `watchOnly`.
  * 6. **Refused**, with the reason on screen: an ADR 0005 host, a private
- *    address, a robots.txt that says no, an HTTP error, a bot check.
+ *    address, a robots.txt that says no, an HTTP error, a bot check, a
+ *    careers URL that now sends you to the site's home page.
  *
  * Two invariants:
  *
@@ -196,6 +197,12 @@ export async function resolveCompanyUrl(
   // can tell the user when it moves — which is the honest offer, and all the
   // measurement supports (docs/company-watchlist.md §5-§6).
   if (boardMiss !== null) return { ...named, resolution: { kind: 'watchOnly', reason: boardMiss }, requests };
+  // The careers page is gone and the site sends its visitors home (#639,
+  // monobank.ua/vacancies): a home page changes with every banner, so a
+  // watch on it would report promotions, and its text is no careers page.
+  if (redirectedHome(target, new URL(page.url))) {
+    return { ...named, resolution: { kind: 'refused', reason: t('watchlist.refused.homePage', { url: page.url }) }, requests };
+  }
   const chars = normalisePageText(page.body).length;
   if (chars >= MIN_WATCHABLE_CHARS) {
     return { ...named, resolution: { kind: 'changeWatch', url: page.url, chars, crawlDelayMs: crawlDelay }, requests };
@@ -203,6 +210,28 @@ export async function resolveCompanyUrl(
   return { ...named, resolution: { kind: 'needsBrowser', url: page.url }, requests };
 }
 
+
+/** A site's front door in one language: `/en`, `/uk/`, `/pt-BR`, `/zh-hans`. */
+const LANGUAGE_ROOT = /^\/[a-z]{2}(?:[-_][a-z]{2,4})?\/?$/i;
+
+/** A host whose own front page is the careers page: careers.acme.com, jobs.acme.com. */
+const CAREERS_HOST = /^(?:careers?|jobs?|join|hiring|talent|apply|work|vacanc(?:y|ies))\./i;
+
+/** A front page: the root or a language's root, with no query that could name a page (`/?page_id=42`). */
+const isFrontPage = (url: URL): boolean =>
+  url.search === '' && (url.pathname === '/' || LANGUAGE_ROOT.test(url.pathname));
+
+/**
+ * The paste was a careers page — a path of its own, or a careers host's front
+ * page — and the redirect landed on the site's front page (#639): the page is
+ * gone and the site sends its visitors home. A move to another page
+ * (`/careers` → `/company/jobs`) still passes, because no rule tells a renamed
+ * careers path from an unrelated one; so does a careers host's own front page.
+ */
+export function redirectedHome(pasted: URL, landed: URL): boolean {
+  if (!isFrontPage(landed) || CAREERS_HOST.test(landed.hostname)) return false;
+  return !isFrontPage(pasted) || CAREERS_HOST.test(pasted.hostname);
+}
 
 /** `<item>` / `<entry>` count — the emptiness test, not a parse. */
 function countEntries(xml: string): number {

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AtsType } from '@prisma/client';
-import { MAX_HOST_REQUESTS, resolveCompanyUrl, type PageAnswer, type ResolveIo } from './resolve';
+import { MAX_HOST_REQUESTS, redirectedHome, resolveCompanyUrl, type PageAnswer, type ResolveIo } from './resolve';
 import { aiCrawlerTokens } from '../ai-engine';
 
 /** An install running Claude — the .env default (ADR 0036). */
@@ -321,6 +321,57 @@ describe('rung 5 — the change watch', () => {
       boards: { 'GREENHOUSE:acme': 7 },
     });
     assert.equal((await resolveCompanyUrl(paste('https://acme.com/careers'), stub, CLAUDE)).resolution.kind, 'ats');
+  });
+
+  // #639, measured 2026-10-29: www.monobank.ua/vacancies → 301 monobank.ua:443/vacancies
+  // → 301 / → 200, the bank's home page, whose banners would read as "this page changed".
+  it('refuses a careers URL that now lands on the home page, and says where it went', async () => {
+    const stub = io({
+      pages: {
+        'https://www.monobank.ua/robots.txt': { status: 404 },
+        'https://www.monobank.ua/vacancies': { status: 200, url: 'https://monobank.ua/', body: prose },
+      },
+    });
+    const r = await resolveCompanyUrl(paste('https://www.monobank.ua/vacancies'), stub, CLAUDE);
+    assert.equal(r.resolution.kind, 'refused');
+    assert.match((r.resolution as { reason: string }).reason, /home page \(https:\/\/monobank\.ua\/\)/);
+  });
+
+  it('refuses a home page that draws itself in the browser too: there is nothing to paste either', async () => {
+    const stub = io({
+      pages: { ...robots, 'https://acme.com/en/careers': { status: 200, url: 'https://acme.com/en/', body: '<div id="root"></div>' } },
+    });
+    assert.equal((await resolveCompanyUrl(paste('https://acme.com/en/careers'), stub, CLAUDE)).resolution.kind, 'refused');
+  });
+
+  it('still takes a board the home page links to: the vendor confirms it', async () => {
+    const stub = io({
+      pages: {
+        ...robots,
+        'https://acme.com/careers': { status: 200, url: 'https://acme.com/', body: `${prose}<a href="https://jobs.lever.co/acme">Jobs</a>` },
+      },
+      boards: { 'LEVER:acme': 4 },
+    });
+    assert.equal((await resolveCompanyUrl(paste('https://acme.com/careers'), stub, CLAUDE)).resolution.kind, 'ats');
+  });
+});
+
+describe('redirectedHome — a careers page that now sends you to the front page', () => {
+  const home = (pasted: string, landed: string) => redirectedHome(new URL(pasted), new URL(landed));
+
+  it('reads a root or a language root as the front page', () => {
+    assert.equal(home('https://www.monobank.ua/vacancies', 'https://monobank.ua/'), true);
+    assert.equal(home('https://acme.com/en/careers', 'https://acme.com/en/'), true);
+    assert.equal(home('https://acme.com/careers', 'https://acme.com/pt-BR'), true);
+    assert.equal(home('https://careers.acme.com/', 'https://acme.com/'), true, 'the careers host handed over to the main one');
+  });
+
+  it('lets a careers page that moved, a pasted front page and a careers host through', () => {
+    assert.equal(home('https://acme.com/careers', 'https://acme.com/company/careers'), false);
+    assert.equal(home('https://acme.com/careers', 'https://acme.com/careers/'), false);
+    assert.equal(home('https://acme.com/', 'https://www.acme.com/'), false, 'the user pasted the front page');
+    assert.equal(home('https://acme.com/careers', 'https://jobs.acme.com/'), false, "a careers host's front page is its careers page");
+    assert.equal(home('https://acme.com/careers', 'https://acme.com/?page_id=42'), false, 'a query names a page');
   });
 });
 

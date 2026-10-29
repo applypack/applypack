@@ -7,15 +7,7 @@
 import type { AtsType } from '@prisma/client';
 import { probeAts } from '../ats-probe';
 import { createLimiter } from '../concurrency';
-import { t } from '../i18n/t';
-import {
-  MIN_JOBS_TO_ACCEPT,
-  boardUrl,
-  buildResolvePlan,
-  type ResolveTarget,
-  type ResolvedEntry,
-  type UnresolvedEntry,
-} from './resolve';
+import { resolveEntry, type PackResolution, type ResolveTarget } from './resolve';
 
 /** Polite parallelism: enough to keep a 30-name pack quick, low enough that a
  *  vendor does not see a burst (Workable starts answering 429 well before). */
@@ -25,11 +17,6 @@ const PACK_CONCURRENCY = 4;
  *  reported as unresolved rather than left hanging on the request. */
 const PACK_BUDGET_MS = 60_000;
 
-export interface PackResolution {
-  resolved: ResolvedEntry[];
-  unresolved: UnresolvedEntry[];
-}
-
 export async function resolvePack(
   targets: readonly ResolveTarget[],
   budgetMs: number = PACK_BUDGET_MS,
@@ -37,52 +24,17 @@ export async function resolvePack(
   const limit = createLimiter(PACK_CONCURRENCY);
   const deadline = Date.now() + budgetMs;
 
-  const settled = await Promise.all(
-    targets.map((target) => limit(() => resolveOne(target, deadline))),
+  const outcomes = await Promise.all(
+    targets.map((target) =>
+      limit(() => resolveEntry(target, (a) => probeAts(a.atsType as AtsType, a.atsToken), deadline)),
+    ),
   );
 
-  const resolved: ResolvedEntry[] = [];
-  const unresolved: UnresolvedEntry[] = [];
-  for (const entry of settled) {
-    if ('jobsCount' in entry) resolved.push(entry);
-    else unresolved.push(entry);
+  const resolution: PackResolution = { resolved: [], quiet: [], unresolved: [] };
+  for (const outcome of outcomes) {
+    if (outcome.kind === 'resolved') resolution.resolved.push(outcome.entry);
+    else if (outcome.kind === 'quiet') resolution.quiet.push(outcome.entry);
+    else resolution.unresolved.push(outcome.entry);
   }
-  return { resolved, unresolved };
-}
-
-async function resolveOne(
-  target: ResolveTarget,
-  deadline: number,
-): Promise<ResolvedEntry | UnresolvedEntry> {
-  // The reasons land on the pack's preview, beside the company they are about.
-  let lastError = t('packs.reason.noBoard');
-
-  for (const attempt of buildResolvePlan(target)) {
-    if (Date.now() > deadline) {
-      return { name: target.name, segment: target.segment, reason: t('packs.reason.timedOut') };
-    }
-
-    const probe = await probeAts(attempt.atsType as AtsType, attempt.atsToken);
-    if (!probe.ok) {
-      if (attempt.pinned) lastError = probe.error ?? t('packs.reason.probeFailed');
-      continue;
-    }
-    // A board that exists but holds nothing is not proof of identity —
-    // SmartRecruiters answers 200 with an empty list for any slug (ADR 0017).
-    if ((probe.jobsCount ?? 0) < MIN_JOBS_TO_ACCEPT) {
-      if (attempt.pinned) lastError = t('packs.reason.noOpenJobs');
-      continue;
-    }
-
-    return {
-      ...target,
-      atsType: attempt.atsType,
-      atsToken: attempt.atsToken,
-      pinned: attempt.pinned,
-      jobsCount: probe.jobsCount ?? 0,
-      boardUrl: boardUrl(attempt.atsType, attempt.atsToken),
-    };
-  }
-
-  return { name: target.name, segment: target.segment, reason: lastError };
+  return resolution;
 }
