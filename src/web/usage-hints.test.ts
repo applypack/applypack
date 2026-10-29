@@ -197,7 +197,7 @@ test('scoring billed on an expensive model names the cheap one its engine offers
   const groups = [group({ engine: 'anthropic_api', model: 'claude-opus-5', billing: 'billed', calls: 60, micro: 9_000_000 })];
   const only = { engines: [engine('anthropic_api', 'billed', 0)], first: { scoring: 'anthropic_api' } as const, budgetCents: 100_000 };
   const hint = find(usageHints(facts({ groups, ...only })), /Scoring ran on/);
-  assert.match(hint!.text, /^Scoring ran on claude-opus-5: 60 calls in the last 7 days\. claude-haiku-4-5-20251001 costs about \d+ times less per token \(prices of \d{4}-\d\d-\d\d\)\. The model is picked in the Classifier slot on the engine's card\.$/);
+  assert.match(hint!.text, /^Scoring ran on claude-opus-5: 60 calls in the last 7 days\. claude-haiku-4-5-20251001 costs about \d+ times less per token \(prices of Oct 3, 2026\)\. The model is picked in the Classifier slot on the engine's card\.$/);
   assert.ok(!find(usageHints(facts({ groups: [group({ engine: 'anthropic_api', billing: 'billed', calls: 60, micro: 90_000 })], ...only })), /Scoring ran on/));
 });
 

@@ -8,6 +8,7 @@ import { shouldDeliverHeld, type Schedule } from '../user-schedule';
 import { starred, watchRules } from '../watchlist/interval';
 import { groupHeldByTarget, heldTitle, type HeldRow } from './held-alerts';
 import type { AlertJob } from '../types';
+import { searchName } from '../search-names';
 
 /**
  * Delivery of the matches that could not be sent when they were scored: found
@@ -114,7 +115,7 @@ export async function deliverHeldAlerts(
       techMatch: j.techMatch,
       redFlags: j.redFlags,
       summary: j.summary ?? '',
-      matchedProfile: j.scores.length > 1 ? (j.scores[0]?.profile.name ?? null) : null,
+      matchedProfile: j.scores.length > 1 && j.scores[0] ? searchName(j.scores[0].profile.name) : null,
     } satisfies AlertJob,
   }));
 

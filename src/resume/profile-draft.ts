@@ -1,4 +1,5 @@
 import { t } from '../i18n/t';
+import { isBornName } from '../search-names';
 
 /*
  * Maps a stored resume scan onto a profile — the "Fill from resume" flow.
@@ -33,8 +34,6 @@ export interface ProfileDraft {
   warnings: string[];
 }
 
-/** Only a freshly created profile gets renamed from the resume headline. */
-const DEFAULT_PROFILE_NAMES = ['New profile', 'My profile'];
 
 /**
  * The classifier is told to raise the score for every nice-to-have term, and
@@ -111,7 +110,8 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
     changed.push(t('profile.draft.changed.seniority'));
   }
 
-  if (DEFAULT_PROFILE_NAMES.includes(current.name) && scan.title !== null && scan.title !== current.name) {
+  // Only a freshly created search gets renamed from the resume headline.
+  if (isBornName(current.name) && scan.title !== null && scan.title !== current.name) {
     changes.name = scan.title;
     changed.push(t('profile.draft.changed.name'));
   }

@@ -111,3 +111,22 @@ describe('an engine reason', () => {
     }
   });
 });
+
+describe('a message on the page (#652)', () => {
+  it('carries no Markdown: a backtick is drawn as it is, so a command is quoted as the language quotes', () => {
+    for (const locale of LANGUAGES) {
+      for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage(locale, key) ?? '', /`/, `${locale}: ${key}`);
+    }
+  });
+
+  it('agrees with its count after the colon too: one job waiting is stored in the singular', () => {
+    const say = (locale: Locale, n: number): string =>
+      partsToText(formatMessage(parseMessage(ownMessage(locale, 'jobs.unscored')!), { n }, intlTag(locale)));
+    const singular: Partial<Record<Locale, RegExp>> = { uk: /: збережена,/, es: /: guardada con/, fr: /: enregistrée pendant/ };
+    const plural: Partial<Record<Locale, RegExp>> = { uk: /: збережені,/, es: /: guardadas con/, fr: /: enregistrées pendant/ };
+    for (const [locale, words] of Object.entries(singular) as [Locale, RegExp][]) {
+      assert.match(say(locale, 1), words, locale);
+      assert.match(say(locale, 5), plural[locale]!, locale);
+    }
+  });
+});

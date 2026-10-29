@@ -1,6 +1,7 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { logger } from '../logger';
 import { t } from '../i18n/t';
+import { SOURCE_LOCALE, matchAcceptLanguage, offeredLocales, withLocale } from '../i18n/locale';
 import { hostAllowed } from '../dashboard-host';
 import { guardedMethod, sameOriginPost } from './same-origin';
 
@@ -31,7 +32,7 @@ export function originGuard(): MiddlewareHandler {
       { method: c.req.method, path: c.req.path, reason: verdict.reason },
       'web: cross-origin write refused',
     );
-    return c.text(t('http.crossOrigin'), 403);
+    return c.text(refusal(c, () => t('http.crossOrigin')), 403);
   };
 }
 
@@ -46,6 +47,15 @@ export function hostGuard(allowed: readonly string[]): MiddlewareHandler {
     const host = c.req.header('host');
     if (hostAllowed(host, allowed)) return next();
     logger.warn({ method: c.req.method, path: c.req.path, host }, 'web: request under an unknown host name refused');
-    return c.text(t('http.unknownHost', { host: host ?? '' }), 403);
+    return c.text(refusal(c, () => t('http.unknownHost', { host: host ?? '' })), 403);
   };
+}
+
+/**
+ * Both refusals answer before the language middleware (app.ts), which reads
+ * the stored language from the database; they read the browser's own instead,
+ * so a refused page is not the one English line on a Ukrainian dashboard (#652).
+ */
+function refusal(c: Context, words: () => string): string {
+  return withLocale(matchAcceptLanguage(c.req.header('accept-language'), offeredLocales()) ?? SOURCE_LOCALE, words);
 }
