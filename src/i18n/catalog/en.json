@@ -3542,7 +3542,7 @@
   "screening.detail.inUseNow": "in use now",
   "screening.detail.ask": "ask: <en>{question}</en>",
   "screening.detail.level": "reads as {observed}; the criterion asks {wanted}{tolerance, select, atLeast { or above} atMost { or below} one { (one rung either way)} other { exactly}}",
-  "screening.detail.years": "{years} relevant {years, plural, one {year} other {years}}{min, select, none {} other { of {min} asked}}{max, select, none {} other {, at most {max}}}; last ended {when}",
+  "screening.detail.years": "{years} relevant {years, plural, one {year} other {years}}{min, select, none {} other { of {min} asked}}{max, select, none {} other {, at most {max}}}; last ended {when}{area, select, none {} other {; counted over every relevant role — the dates do not single out {area}}}",
   "screening.detail.industry": "{years} {years, plural, one {year} other {years}} in {items}{min, select, none {} other { of {min} asked}}",
   "screening.detail.noRoleIn": "no role in {items}",
   "screening.detail.companyType": "{n} of {total} dated roles at {items} companies",

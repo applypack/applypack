@@ -120,6 +120,17 @@ test('"last used" is worded for the reader and never dates an absent term (#565)
   assert.equal(detailText('last used the Acme years'), 'last used the Acme years', 'what is no date stays as written');
 });
 
+test('a years row that names a kind of work says the dates could not single it out (#645)', () => {
+  const rubric = RubricSchema.parse({ criteria: [c('y', 'years', '5+ years in test automation', 'gate', 3, parseCriterionText('years', '5+ years in test automation')!.spec)] });
+  const row = scoreScreening({ rubric, reply: reply(), textChars: 3000, now: NOW }).rows[0]!;
+  assert.equal(row.detail, '9.8 relevant years of 5 asked; last ended this month; counted over every relevant role — the dates do not single out test automation');
+  assert.equal(detailText(row.detail), row.detail, 'worded back the way it was written');
+  // A band with no kind of work, and a verdict stored before, read as they always did.
+  const bare = RubricSchema.parse({ criteria: [c('y', 'years', '5+', 'gate', 3, { min: 5 })] });
+  assert.equal(scoreScreening({ rubric: bare, reply: reply(), textChars: 3000, now: NOW }).rows[0]!.detail, '9.8 relevant years of 5 asked; last ended this month');
+  assert.equal(detailText('9.8 relevant years of 5 asked; last ended this month'), '9.8 relevant years of 5 asked; last ended this month');
+});
+
 test('no core skill anywhere caps at 30', () => {
   const bd = scoreScreening({ rubric: RUBRIC, reply: reply({}, { 's-java': { rung: 'absent' }, 's-spring': { rung: 'absent' } }), textChars: 3000, now: NOW });
   assert.equal(bd.coreCovered, 0);

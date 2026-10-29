@@ -3542,7 +3542,7 @@
   "screening.detail.inUseNow": "en uso ahora",
   "screening.detail.ask": "pregunta: <en>{question}</en>",
   "screening.detail.level": "se lee como {observed}; el criterio pide {wanted}{tolerance, select, atLeast { o superior} atMost { o inferior} one { (un escalón arriba o abajo)} other { exactamente}}",
-  "screening.detail.years": "{years} {years, plural, one {año relevante} many {de años relevantes} other {años relevantes}}{min, select, none {} other { de {min} pedidos}}{max, select, none {} other {, como máximo {max}}}; el último puesto terminó {when}",
+  "screening.detail.years": "{years} {years, plural, one {año relevante} many {de años relevantes} other {años relevantes}}{min, select, none {} other { de {min} pedidos}}{max, select, none {} other {, como máximo {max}}}; el último puesto terminó {when}{area, select, none {} other {; se cuentan todos los puestos relevantes: las fechas no distinguen {area}}}",
   "screening.detail.industry": "{years} {years, plural, one {año} many {de años} other {años}} en {items}{min, select, none {} other { de {min} pedidos}}",
   "screening.detail.noRoleIn": "ningún puesto en {items}",
   "screening.detail.companyType": "{n} de {total} puestos con fechas en empresas de tipo {items}",

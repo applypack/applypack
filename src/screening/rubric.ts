@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
 import type { PostingBrief } from '../resume/prompts';
+import { isSectorName, sectorGroups } from '../sectors';
 
 /*
  * What a screening checks (TASKS §19.5, ADR 0050): a list of CRITERIA the
@@ -240,10 +241,18 @@ const V1Schema = z.object({
 /** Reads the stored column; a v1 rubric (v2.0.0 / v2.1.0) becomes criteria; anything unreadable is empty. */
 export function readRubric(value: unknown): Rubric {
   const v2 = RubricSchema.safeParse(value);
-  if (v2.success && typeof value === 'object' && value !== null && (value as { version?: unknown }).version === RUBRIC_VERSION) return v2.data;
+  if (v2.success && typeof value === 'object' && value !== null && (value as { version?: unknown }).version === RUBRIC_VERSION) {
+    return { ...v2.data, criteria: v2.data.criteria.map(withYearsArea) };
+  }
   const v1 = V1Schema.safeParse(value);
   if (v1.success && (v1.data.must.length > 0 || v1.data.gates.length > 0)) return fromV1(v1.data);
   return emptyRubric();
+}
+
+/** A years row saved before #645 kept its whole sentence as the kind of work; it is read again, as the editor now reads it. */
+function withYearsArea(c: Criterion): Criterion {
+  if (c.kind !== 'years' || c.spec.of === null || c.spec.of !== c.label) return c;
+  return { ...c, spec: { ...c.spec, of: parseCriterionText('years', c.label)?.spec.of ?? null } };
 }
 
 function fromV1(v1: z.infer<typeof V1Schema>): Rubric {
@@ -354,10 +363,10 @@ export function draftRubric(brief: PostingBrief | null, previous: Rubric = empty
   // row. A one-word term that also sits in the title ("Playwright" in
   // "QA Engineer (Playwright / TypeScript)") is a skill and stays.
   const title = brief.role.posted_title.trim().toLowerCase();
-  const sector = (brief.company.industry ?? '').trim().toLowerCase();
+  const industry = brief.company.industry?.trim() ?? '';
   const skills = brief.keywords.filter((k) => {
     const t = k.term.trim().toLowerCase();
-    if (t === sector) return false;
+    if (industry !== '' && namesTheSector(t, industry)) return false;
     return !(t.split(/\s+/).length >= 2 && title.includes(t));
   });
   for (const gate of brief.gates) add(written(gateKind(gate), gate, posting('gate', 3)) ?? written('custom', gate, posting('gate', 3)));
@@ -375,6 +384,22 @@ export function draftRubric(brief: PostingBrief | null, previous: Rubric = empty
   // The person's own criteria survive a redraft.
   for (const c of previous.criteria) if (c.source === 'you') criteria.push(c);
   return RubricSchema.parse({ version: RUBRIC_VERSION, criteria: criteria.slice(0, MAX_CRITERIA), removed: previous.removed });
+}
+
+/**
+ * Is this keyword the posting's sector again? "fintech" and "payments" beside
+ * an industry row of "fintech payments" were three criteria for one
+ * requirement — a candidate with the years was credited three times, one
+ * without lost three times (#645). The industry row reads the roles' sectors
+ * through the vocabulary (`sectors.ts`), so a term that is nothing but a
+ * sector the row already names is the row's to answer. A skill that names one
+ * ("payment gateway integration") stays a skill, and a word the vocabulary
+ * does not know counts only spelled the same as the row.
+ */
+function namesTheSector(term: string, industry: string): boolean {
+  if (term === industry.toLowerCase()) return true;
+  const row = sectorGroups(industry);
+  return isSectorName(term) && sectorGroups(term).every((g) => row.includes(g));
 }
 
 /** The kind a posting's gate sentence names, else a custom yes / no gate. */
@@ -557,7 +582,7 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
       if (!said) return null;
       const min = Math.min(MAX_YEARS, Number(said[1]));
       const max = said[2] === undefined ? null : Math.min(MAX_YEARS, Number(said[2]));
-      const of = band ? work.join(':').trim() || null : text;
+      const of = band ? work.join(':').trim() || null : yearsArea(text, said);
       return { label: text, spec: SpecSchema.parse({ min: max !== null && min > max ? max : min, max, of }) };
     }
     case 'level': {
@@ -597,6 +622,20 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
     case 'custom':
       return text ? { label: text, spec: SpecSchema.parse({ question: text }) } : null;
   }
+}
+
+/** Words around the years that name no kind of work: "at least 5 years of professional experience in …". */
+const YEARS_FILLER = /^(?:(?:at least|minimum|min\.?|over|more than|of|in|with|as|doing|on|at|professional|commercial|hands-on|relevant|proven|industry|working|work|experience|exp\.?)(?:\s+|$))+/i;
+
+/**
+ * The kind of work a sentence asks the years of (#645): "5+ years in test
+ * automation for web applications" → "test automation for web applications",
+ * "Test automation: 5+ years" → "Test automation". The sentence stays the
+ * label; this is what the scorecard says the dates could not single out.
+ */
+function yearsArea(text: string, said: RegExpExecArray): string | null {
+  const clean = (part: string): string => part.trim().replace(YEARS_FILLER, '').replace(/[\s.,;:–-]+$/, '').trim();
+  return clean(text.slice(said.index + said[0].length)) || clean(text.slice(0, said.index)) || null;
 }
 
 /* ---------- what may not be a criterion ---------- */
