@@ -124,7 +124,7 @@ import {
 import { groupSources, type SourceCount, fetchedSource } from '../source-groups';
 import { profileLine } from '../profile-line';
 import { testAiEngine } from '../ai-test';
-import { startEngineTrial, trialViews } from '../engine-trial-run';
+import { startEngineTrial, trialViews, type TrialView } from '../engine-trial-run';
 import { misfitLine, misfitSince, windowMisfits } from '../window-misfits';
 import {
   blankProfileInput,
@@ -269,6 +269,8 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 async function loadSettingsProps(here: string, tab: SettingsTab) {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
+  // The engine cards are the AI tab's alone: no other tab waits on the probe or reads the ledger for them (#649).
+  const aiTab = tab === 'ai';
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
     await Promise.all([
       getSettings(),
@@ -276,14 +278,14 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
       listProfiles(),
       getActiveProfile(),
       listResumes(),
-      probeAiProviders(aiKeys),
+      aiTab ? probeAiProviders(aiKeys, { fresh: true }) : null,
       prisma.job.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
         where: { pipelineStage: { not: null } },
       }),
       billedThisMonth(),
-      loadRecentAttempts(),
+      aiTab ? loadRecentAttempts() : [],
     ]);
   // "available" is what the probe found on disk; whether calls get through is what the ledger's last rows say (#413).
   const troubles = new Map(engineTroubles(recentAttempts).map((trouble) => [trouble.engine, troubleLine(trouble)]));
@@ -330,7 +332,7 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
-  const aiEngines = AI_PROVIDER_IDS.map((id) => {
+  const aiEngines = aiStatuses === null ? [] : AI_PROVIDER_IDS.map((id) => {
     // A CLI engine with no model set runs whatever its own configuration names; the local engine runs none (#563).
     const unset = unsetModelName(id) ?? '';
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || unset;
@@ -370,13 +372,15 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
     };
   }).sort((a, b) => cardRank(a) - cardRank(b));
   // A trial sits under an engine's tasks, which only an engine in the list shows.
-  const trials = await trialViews(
-    aiEngines.filter((e) => e.enabled).map((e) => e.id),
-    (id) => engine.modelFor(id, 'classifier'),
-    billingFor,
-  );
+  const trials = aiTab
+    ? await trialViews(
+        aiEngines.filter((e) => e.enabled).map((e) => e.id),
+        (id) => engine.modelFor(id, 'classifier'),
+        billingFor,
+      )
+    : new Map<AiProviderId, TrialView>();
   // #411: a ticked task whose prompt the engine refused as too large for its window lately.
-  const windowLog = await loadWindowRefusals(misfitSince(new Date()));
+  const windowLog = aiTab ? await loadWindowRefusals(misfitSince(new Date())) : { refusals: [], fallbacks: [] };
   const localWindow = settings.localContextTokens ?? DEFAULT_LOCAL_CONTEXT_TOKENS;
   const misfitsOf = (e: (typeof aiEngines)[number]): string[] =>
     windowMisfits(e.id, windowLog.refusals, windowLog.fallbacks)
@@ -699,7 +703,7 @@ settingsRoute.post('/settings/ai/enable', async (c) => {
     return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.disabled', { engine }));
   }
   const placed = { engine, n: next.length };
-  const statuses = await probeAiProviders();
+  const statuses = await probeAiProviders(undefined, { fresh: true });
   if (!statuses[provider].ok) {
     return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.enabledUnusable', { ...placed, detail: statuses[provider].detail }));
   }
