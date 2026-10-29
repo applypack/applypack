@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 import { z } from 'zod';
-import { fetchWithRetry, stripHtml } from '../http';
+import { decodeHtmlEntities, fetchWithRetry, stripHtml } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import { hashShortId } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -19,6 +19,16 @@ const ENDPOINT = 'https://remoteok.com/api';
 const READ_CHECK =
   /Please mention the word[^()]*\(#R[A-Za-z0-9+/=]+\)\.?(?:\s*This is a beta feature to avoid spam applicants\.)?(?:\s*Companies can search these words to find applicants that read this and see they(?:'|&#39;|&#x27;|’)re human\.)?/g;
 const TAG = /#?R[A-Za-z0-9+/]{6,}={0,2}/g;
+
+/**
+ * RemoteOK's text is UTF-8 read as Latin-1 and written out again:
+ * "We\u00e2\u0080\u0099re" for "We’re", "\u00c2\u00a0" for a no-break space,
+ * four letters for an emoji — in 87 of the 87 strings of the feed that left
+ * ASCII (2026-10-29). Each run that is a whole UTF-8 sequence written as
+ * Latin-1 letters is read again as the bytes it is; a run that is none
+ * ("café", written so) stays as it was.
+ */
+const LATIN1_UTF8_RE = /[\u00c2-\u00df][\u0080-\u00bf]|[\u00e0-\u00ef][\u0080-\u00bf]{2}|[\u00f0-\u00f4][\u0080-\u00bf]{3}/g;
 
 // RemoteOK returns an array whose first element is meta:
 //   [{ legal: '...', last_updated: 1234 }, ...jobs]
@@ -74,11 +84,11 @@ export function mapRemoteokFeed(raw: unknown, companyId: number): NormalizedJob[
 }
 
 function toNormalized(j: RemoteOkJob, companyId: number): NormalizedJob {
-  const title = j.position ?? j.title ?? 'Untitled';
-  const company = j.company ?? j.company_name ?? '';
+  const title = plainField(j.position ?? j.title ?? 'Untitled');
+  const company = plainField(j.company ?? j.company_name ?? '');
   const externalId = j.id || j.slug || hashShortId(`${title}|${company}`);
   const url = j.apply_url ?? j.url ?? '';
-  const location = formatLocation(j.location ?? '', company);
+  const location = formatLocation(plainField(j.location ?? ''), company);
   const postedAt = parsePostedAt(j.epoch, j.date);
   return {
     companyId,
@@ -87,7 +97,7 @@ function toNormalized(j: RemoteOkJob, companyId: number): NormalizedJob {
     title,
     url,
     location,
-    description: stripHtml(withoutAddressTag(j.description ?? '')),
+    description: stripHtml(withoutAddressTag(repairUtf8(j.description ?? ''))),
     postedAt,
   };
 }
@@ -116,4 +126,17 @@ function parsePostedAt(epoch?: number, date?: string): Date {
 /** The description without RemoteOK's read-check paragraph, or any tag that carries an IP address. */
 export function withoutAddressTag(description: string): string {
   return description.replace(READ_CHECK, '').replace(TAG, (tag) => (isIP(Buffer.from(tag.replace(/^#?R/, ''), 'base64').toString('latin1')) === 0 ? tag : ''));
+}
+
+/** A short field as text: its UTF-8 read back, and its entities ("Aisles &amp; Abroad") decoded. */
+function plainField(text: string): string {
+  return decodeHtmlEntities(repairUtf8(text));
+}
+
+/** The text with every UTF-8 sequence RemoteOK wrote as Latin-1 letters read as UTF-8. */
+export function repairUtf8(text: string): string {
+  return text.replace(LATIN1_UTF8_RE, (run) => {
+    const read = Buffer.from(run, 'latin1').toString('utf8');
+    return read.includes('\ufffd') ? run : read;
+  });
 }

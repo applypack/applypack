@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveLocation, mapGolangProjectsItem } from './golangprojects';
+import { deriveLocation, mapGolangProjectsItem, splitGolangTitle } from './golangprojects';
 
 // Recorded from rss.xml on 2026-09-03 — no flag emoji in any title any more.
 const BASE = 'https://www.golangprojects.com/';
@@ -57,7 +57,27 @@ describe('mapGolangProjectsItem', () => {
     assert.equal(job.externalId, 'gxh');
   });
 
+  it('takes the role as the title and who hires from after the "@" (#662)', () => {
+    // As rss.xml wrote it on 2026-10-29: no-break spaces around the "@".
+    const job = mapGolangProjectsItem(
+      {
+        title: 'Senior Software Engineer\u00a0@\u00a0Sotheby\u2019s',
+        link: `${BASE}golang-go-job-gkd-Remote-Senior-Software-Engineer-London-Sotheby-s-remotework.html`,
+        guid: 'gkd',
+      },
+      619,
+    );
+    assert.deepEqual([job?.title, job?.employer, job?.location], ['Senior Software Engineer', 'Sotheby\u2019s', 'Remote']);
+  });
+
   it('skips an item nothing identifies', () => {
     assert.equal(mapGolangProjectsItem({ title: '' }, 619), null);
+  });
+});
+
+describe('splitGolangTitle', () => {
+  it('splits at the last "@", and names nobody without one', () => {
+    assert.deepEqual(splitGolangTitle('Go Engineer @ Remote @ Acme Ltd '), { title: 'Go Engineer @ Remote', employer: 'Acme Ltd' });
+    assert.deepEqual(splitGolangTitle('Go Engineer (email jobs@acme.io)'), { title: 'Go Engineer (email jobs@acme.io)', employer: null });
   });
 });
