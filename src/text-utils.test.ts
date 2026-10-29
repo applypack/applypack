@@ -11,6 +11,7 @@ import {
   decideStageStrategy,
   extractAtsToken,
   extractJson,
+  firstOf,
   jsonFailure,
   maskToken,
   parseLineList,
@@ -455,6 +456,13 @@ describe('jsonFailure', () => {
     const bad = jsonFailure('{"a": 1, "b": }');
     assert.equal(bad.cutOff, undefined);
     assert.equal(bad.error, 'malformed JSON in reply');
+  });
+});
+
+describe('firstOf', () => {
+  it('keeps the first items of a long list and leaves a short one alone', () => {
+    assert.deepEqual(firstOf(2)(['a', 'b', 'c']), ['a', 'b']);
+    assert.deepEqual(firstOf(5)(['a']), ['a']);
   });
 });
 
