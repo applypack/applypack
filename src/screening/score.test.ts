@@ -213,3 +213,40 @@ test('sectorMatches, orderVerdicts, readScreenBreakdown', () => {
   assert.deepEqual(readScreenBreakdown(JSON.parse(JSON.stringify(bd))), bd);
   assert.equal(readScreenBreakdown({ v: 1, score: 80 }), null, 'a v1 breakdown is stale, not read');
 });
+
+test('a years row that names a kind of work counts only the roles marked as that work (#645)', () => {
+  const rubric = RubricSchema.parse({ criteria: [c('y', 'years', '5+ years in test automation for web applications', 'gate', 3, parseCriterionText('years', '5+ years in test automation for web applications')!.spec)] });
+  const CYPRESS = [{ id: 'y', answer: 'yes', quote: 'Wrote Cypress tests for the onboarding flow' }];
+  const qa = (junior: unknown[] | undefined, senior: unknown[] | undefined = CYPRESS) =>
+    ScreenReplySchema.parse({
+      roles: [
+        { position: 'QA Engineer', employer: 'Monzo', start: 'Jan 2023', end: 'Present', relevant: true, why: 'QA', work: senior },
+        { position: 'Junior QA', employer: 'Fintech Startup Ltd', start: '2022', end: '2022', relevant: true, why: 'QA', work: junior },
+      ],
+      answers: [],
+    });
+  const row = (r: ScreenReply) => scoreScreening({ rubric, reply: r, textChars: 3000, now: NOW }).rows[0]!;
+
+  // Marcus: 4.8 relevant years pass a 5-year gate; 3.8 of them were test automation, and the manual role is not.
+  const marcus = row(qa([{ id: 'y', answer: 'no', quote: 'Manual testing of the mobile app' }]));
+  assert.deepEqual([marcus.gate, marcus.answer, marcus.quote], ['fail', '3.8 years', 'Wrote Cypress tests for the onboarding flow']);
+  assert.equal(marcus.detail, '3.8 years in test automation for web applications of 5 asked; last ended this month');
+  assert.equal(detailText(marcus.detail), marcus.detail, 'worded back the way it was written');
+  const old = ScreenReplySchema.parse({ ...qa(undefined), roles: qa(undefined).roles.map(({ work: _, ...r }) => r) });
+  assert.equal(row(old).gate, 'pass', 'a verdict from before prompt v7 reads every relevant role, as it did');
+
+  // A role that says too little stays a question when it could decide the gate.
+  const unclear = row(qa([{ id: 'y', answer: 'unknown', quote: null }]));
+  assert.deepEqual([unclear.gate, unclear.credit], ['unknown', null]);
+  assert.equal(unclear.detail, '3.8 years in test automation for web applications shown, 4.8 counting the roles that do not say');
+  assert.equal(detailText(unclear.detail), unclear.detail);
+  // A role with no mark counts for nothing; no mark at all is a question, never a fail.
+  assert.equal(row(qa([])).gate, 'fail');
+  const none = row(qa([], []));
+  assert.deepEqual([none.gate, none.detail], ['unknown', 'ask which roles were this kind of work']);
+  const other = row(qa([{ id: 'y', answer: 'no', quote: 'x' }], [{ id: 'y', answer: 'no', quote: 'y' }]));
+  assert.deepEqual([other.gate, other.credit, other.detail], ['fail', 0, 'no role shows test automation for web applications']);
+  assert.equal(detailText(other.detail), other.detail);
+  // The detail of a sector's years still reads as one.
+  assert.equal(detailText('6.8 years in fintech, payments of 3 asked'), '6.8 years in fintech, payments of 3 asked');
+});

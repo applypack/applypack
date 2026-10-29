@@ -76,7 +76,7 @@ import { postingDepth } from '../../resume/brief-depth';
 import { domainMismatch, domainNoticeMessage } from '../../resume/domain';
 import { postingOrientation } from '../../resume/posting-orientation';
 import { rewriteAction } from '../../resume/rewrite';
-import { readMatchEvidence, parseMatchMode, readMatchMode } from '../../resume/match-mode';
+import { readMatchEvidence, parseMatchMode, readMatchMode, strengthsReport } from '../../resume/match-mode';
 import { generateCoverLetter, letterEvidence } from '../../resume/cover-letter';
 import {
   countWords,
@@ -537,11 +537,12 @@ jobsRoute.get('/jobs/:id', async (c) => {
 
   // The cover card starts where the letter on show was generated (#581), and
   // the letter distils the latest comparison with the resume it preselects; a
-  // quick check carries no strengths to distil (#89).
+  // quick check carries no strengths to distil (#89) unless an earlier full
+  // report of the same resume lends them, as after Save as vN (#642).
   const coverResumeId = resumes.find((r) => r.id === selectedLetter?.resumeId)?.id ?? suggested?.id ?? null;
   const coverMatch = matches.find((m) => m.resumeId === (coverResumeId ?? resumes[0]?.id)) ?? null;
   const quickCheck =
-    coverMatch && readMatchMode(coverMatch.breakdown) === 'fast'
+    coverMatch && strengthsReport(coverMatch, matches, coverMatch.resume.hidden) === null
       ? { matchId: coverMatch.id, resumeName: coverMatch.resume.name }
       : null;
 

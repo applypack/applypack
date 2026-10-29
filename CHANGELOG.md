@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.41] — 2026-10-29
+
+### Fixed
+- A cover letter written right after Save as vN uses the strengths of the
+  full comparison the edits came from, instead of asking for suggestions
+  again. The search editor's stack chips read TypeScript and Node.js; what
+  is stored does not change.
+- A screening years criterion that names a kind of work ("5+ years in test
+  automation") counts only the roles whose own lines show that work, and a
+  role that says too little makes the gate a question, not a fail
+  (screening prompt v7; Score again to apply it to older verdicts).
+
 ## [2.63.40] — 2026-10-29
 
 ### Changed
@@ -7104,6 +7116,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.41]: https://github.com/applypack/applypack/compare/v2.63.40...v2.63.41
 [2.63.40]: https://github.com/applypack/applypack/compare/v2.63.39...v2.63.40
 [2.63.39]: https://github.com/applypack/applypack/compare/v2.63.38...v2.63.39
 [2.63.38]: https://github.com/applypack/applypack/compare/v2.63.37...v2.63.38

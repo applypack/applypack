@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFrameReason } from './keyword-frame';
-import { readMatchEvidence, parseMatchMode, readMatchMode, storedBreakdown, withSuggestionsMode } from './match-mode';
+import { readMatchEvidence, parseMatchMode, readMatchMode, storedBreakdown, strengthsReport, withSuggestionsMode } from './match-mode';
 import { scoreMatch } from './score';
 
 test('parseMatchMode: only an explicit "full" upgrades; everything else is the quick check', () => {
@@ -40,4 +40,15 @@ test('withSuggestionsMode flips a stored JSON to full, stamps the verification a
   const next = withSuggestionsMode({ v: 3, score: 66, promptVersion: 6, mode: 'fast' }, 12);
   assert.deepEqual(next, { v: 3, score: 66, promptVersion: 6, mode: 'full', verificationId: 12 });
   assert.deepEqual(withSuggestionsMode(null, null), { mode: 'full', verificationId: null });
+});
+
+test('a letter after Save as vN reads the strengths of the report the edits came from (#642)', () => {
+  const row = (id: number, mode: 'fast' | 'full', strengths: string[], resumeId = 1) => ({ id, resumeId, strengths, breakdown: { mode } });
+  const saved = row(12, 'fast', []);
+  const tailored = row(10, 'full', ['Owns the payments ledger']);
+  assert.equal(strengthsReport(saved, [saved, row(11, 'full', ['x'], 2), tailored], false), tailored, 'the newest full report of the same resume, older than the quick check');
+  assert.equal(strengthsReport(tailored, [], false), tailored, 'a full report is its own');
+  assert.equal(strengthsReport(saved, [saved, row(11, 'fast', [])], false), null, 'no full report: nothing to lend');
+  assert.equal(strengthsReport(saved, [row(14, 'full', ['later'])], false), null, 'a report written after the quick check is not what it was tailored from');
+  assert.equal(strengthsReport(saved, [tailored], true), null, "a one-off file's earlier texts were other files");
 });

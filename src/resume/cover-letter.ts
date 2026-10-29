@@ -1,5 +1,5 @@
 import type { CoverLetter } from '@prisma/client';
-import { readMatchEvidence, type MatchEvidence } from './match-mode';
+import { readMatchEvidence, readMatchMode, strengthsReport, type MatchEvidence } from './match-mode';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
@@ -23,6 +23,7 @@ import { withoutSuggestedWording } from './applied';
 import { loadKeywordMatcher } from './keyword-matcher';
 import {
   createCoverLetter,
+  getEarlierStrengths,
   getLatestCompanySnapshot,
   getLatestMatchForResumeAndJob,
   listFacts,
@@ -78,6 +79,9 @@ export async function generateCoverLetter(
     getLatestCompanySnapshot(job.id),
     letterEvidence(resume),
   ]);
+  // A quick check of the saved text borrows the strengths of the report the edits came from (#642).
+  const earlier = match && readMatchMode(match.breakdown) === 'fast' ? await getEarlierStrengths(job.id, resume.id, match.id) : null;
+  const lender = match ? strengthsReport(match, earlier ? [earlier] : [], resume.hidden === true) : null;
   const evidence = opts.evidence ?? (resume.hidden ? (match ? readMatchEvidence(match.breakdown) : 'text') : 'own');
   const facts = evidence === 'own' ? await listFacts() : [];
   const context: CoverContext = {
@@ -88,9 +92,10 @@ export async function generateCoverLetter(
       .filter((f) => f.status === 'confirmed')
       .map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
-    // A quick-check row (ADR 0029) carries no strengths, so the shortlist is
-    // then the verdict plus the evidenced keywords — thinner, never wrong.
-    match: match ? distillMatch(match.summary, match.strengths, match.keywords) : undefined,
+    // A quick-check row (ADR 0029) carries no strengths: with no full report
+    // to lend them, the shortlist is the verdict plus the evidenced keywords —
+    // thinner, never wrong.
+    match: match ? distillMatch(match.summary, lender?.strengths ?? [], match.keywords) : undefined,
     companySnapshot,
   };
   const sources = coverGateSources(evidenceText, job, companySnapshot);
@@ -165,6 +170,8 @@ export async function generateCoverLetter(
         words,
         verdict: gate.verdict,
         regenerated,
+        matchId: match?.id ?? null,
+        strengthsFrom: lender?.id ?? null,
         promptVersion: COVER_PROMPT_VERSION,
         ms: Date.now() - started,
       },

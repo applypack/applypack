@@ -119,3 +119,19 @@ lowered. The cost is an ownership bullet with no number ("Owned the payments
 ledger"), which now reads as role. The prompt is unchanged, and
 `rescore-screenings.js --write` applies the rule to stored verdicts without a
 call. The set's ranking is still its author's, not a recruiter's.
+
+## Addendum (2026-10-29): a years criterion's kind of work is read per role (issue #645)
+
+"5+ years in test automation for web applications" counted every relevant
+year: the gold set's Marcus passed on 4.8 dated years, a manual-testing
+junior role among them. The criterion keeps its kind of work in `spec.of`
+(`src/screening/rubric.ts`), and prompt v7 has the model mark every role's
+`work` for each such criterion: yes, no or unknown, with a line of that
+role. `src/screening/anchor.ts` keeps a yes or a no only when the line lies
+between the role's own header and the next role's — the summary's "three
+years across manual and automated testing", or another job's bullet, is
+unknown. `src/screening/score.ts` counts the dates of the roles marked yes
+alone; a role marked unknown that could tip the gate makes it unknown, and
+the criterion leaves the denominator; a role with no mark counts for
+nothing. A verdict from before v7 carries no marks and reads every relevant
+role, with the line that says the dates do not single out the kind of work.
