@@ -102,15 +102,23 @@ export async function realFolder(folder: string): Promise<string> {
   }
 }
 
+/** What a look at a folder lists: its files, and the folders too deep to be opened (#684). */
+export interface FolderListing {
+  files: ListedFile[];
+  /** Folders past `MAX_DEPTH`, never opened, so their files are never read: how many, and the first by path. */
+  tooDeep: { count: number; first: string | null };
+}
+
 /**
  * Every regular file under a real folder path, at most `MAX_DEPTH` folders
- * deep. Dotfiles, hidden folders and links are passed over; a subfolder the
- * system will not open is passed over too, since one locked corner should not
- * blind the look. A folder of more than `MAX_ENTRIES` entries is refused
- * whole: it is not a folder of job files.
+ * deep, and a count of the folders below that. Dotfiles, hidden folders and
+ * links are passed over; a subfolder the system will not open is passed over
+ * too, since one locked corner should not blind the look. A folder of more
+ * than `MAX_ENTRIES` entries is refused whole: it is not a folder of job files.
  */
-export async function listFolder(root: string): Promise<ListedFile[]> {
+export async function listFolder(root: string): Promise<FolderListing> {
   const files: ListedFile[] = [];
+  const tooDeep: FolderListing['tooDeep'] = { count: 0, first: null };
   let entries = 0;
   const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
     let children: Awaited<ReturnType<typeof fs.opendir>>;
@@ -133,6 +141,10 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
         const relPath = rel === '' ? child.name : `${rel}/${child.name}`;
         if (child.isDirectory()) {
           if (depth < MAX_DEPTH) await walk(path.join(dir, child.name), relPath, depth + 1);
+          else {
+            tooDeep.count += 1;
+            if (tooDeep.first === null || relPath < tooDeep.first) tooDeep.first = relPath;
+          }
         } else if (child.isFile()) {
           // Gone between the listing and the stat: the next look will not list it. A disk that stopped answering ends the look.
           const stat = await answers.inTime(root, () => fs.lstat(path.join(dir, child.name))).catch((err: unknown) => {
@@ -150,7 +162,7 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
     }
   };
   await walk(root, '', 1);
-  return files;
+  return { files, tooDeep };
 }
 
 /**

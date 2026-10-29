@@ -63,7 +63,7 @@ export async function fetchFolder(company: FolderCompany, ledger: readonly Ledge
   const allowed = folderAllowed(root, rules);
   if (!allowed.ok) throw new FolderError('not-allowed', allowed.reason);
 
-  const listing = await listFolder(root);
+  const { files: listing } = await listFolder(root);
   const named = includeMatcher(config.include);
   // What a browser saves beside a page (its `_files` folder) is never a posting of its own.
   const resource = config.holds === 'postings' ? pageResources(listing) : () => false;

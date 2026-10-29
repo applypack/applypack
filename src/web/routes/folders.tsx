@@ -4,7 +4,7 @@ import path from 'node:path';
 import { AtsType, type Prisma } from '@prisma/client';
 import { Hono } from 'hono';
 import { config } from '../../config';
-import { FolderError, currentFolderRules, listFolder, readFolderFile, realFolder } from '../../datasets/folder-io';
+import { FolderError, currentFolderRules, listFolder, readFolderFile, realFolder, type FolderListing } from '../../datasets/folder-io';
 import { folderAllowed, folderPathFrom } from '../../datasets/folder-path';
 import {
   MAX_ROWS_PER_LOOK,
@@ -134,8 +134,9 @@ async function searchesNow(): Promise<{ scoring: boolean; active: Profile[]; ros
  */
 async function previewFolder(root: string, form: Record<string, unknown>): Promise<Preview | { error: string }> {
   let listing: ListedFile[];
+  let tooDeep: FolderListing['tooDeep'];
   try {
-    listing = await listFolder(root);
+    ({ files: listing, tooDeep } = await listFolder(root));
   } catch (err) {
     if (err instanceof FolderError) return { error: explainFolderFault(err.fault, err.message, process.platform, !localInstall()) };
     throw err;
@@ -153,12 +154,12 @@ async function previewFolder(root: string, form: Record<string, unknown>): Promi
   const alerts = isAlerts(form.alerts) ? form.alerts : (kept?.alerts ?? 'matches');
   const now = new Date();
   const ledger = existing ? await loadLedger(existing.id) : [];
-  const base = { path: root, name, include, existing: existing ? { id: existing.id, active: existing.active } : null, alerts };
+  const base = { path: root, name, include, existing: existing ? { id: existing.id, active: existing.active } : null, alerts, tooDeep };
   if (holds === 'postings') return previewPostings(root, listing, ledger, matches, now, base);
   return previewRows(root, listing, ledger, matches, now, form, existing?.id ?? null, kept?.holds === 'rows' ? kept.mapping : null, base);
 }
 
-type PreviewBase = Pick<RowsPreviewProps, 'path' | 'name' | 'include' | 'existing' | 'alerts'>;
+type PreviewBase = Pick<RowsPreviewProps, 'path' | 'name' | 'include' | 'existing' | 'alerts' | 'tooDeep'>;
 
 /** A folder a tool writes into: its row files, the mapping, and the rows a first look would hand over. */
 async function previewRows(
@@ -380,7 +381,13 @@ foldersRoute.get('/companies/:id/files', async (c) => {
     select: { id: true, name: true, atsToken: true, active: true, sourceConfig: true, lastFetchStatus: true, consecutiveFailures: true },
   });
   if (!company) return c.text(t('http.notFound'), 404);
-  const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
+  const [files, summaries, tooDeep] = await Promise.all([
+    listSourceFiles(id),
+    folderSummaries(),
+    // The ledger knows only the files a look read; the folders too deep to read are counted on the folder itself (#684).
+    // Not there, or not readable now: the page says what the ledger says, and the health line says the rest.
+    listFolder(company.atsToken).then((l) => l.tooDeep, () => null),
+  ]);
   const jobs = await jobsByFile(id, files.map((f) => f.relPath));
   const kept = readSourceConfig(company.sourceConfig);
   return c.html(
@@ -398,6 +405,7 @@ foldersRoute.get('/companies/:id/files', async (c) => {
       }}
       files={files}
       jobs={jobs}
+      tooDeep={tooDeep}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

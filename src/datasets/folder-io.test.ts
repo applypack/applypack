@@ -47,7 +47,9 @@ after(async () => {
 
 describe('listFolder', () => {
   it('lists regular files three folders deep, and passes over dotfiles, hidden folders and links', async () => {
-    const files = await listFolder(root);
+    const { files, tooDeep } = await listFolder(root);
+    // #684: the folder below the third level is counted, never opened.
+    assert.deepEqual(tooDeep, { count: 1, first: 'sub/deep/deeper' });
     assert.deepEqual(files.map((f) => f.relPath).sort(), ['a.json', 'sub/b.csv', 'sub/deep/c.jsonl']);
     const a = files.find((f) => f.relPath === 'a.json')!;
     assert.equal(a.size, 15);
@@ -122,7 +124,7 @@ describe('readFolderFile on what is not a file', () => {
     const pipe = path.join(root, 'pipe.json');
     execFileSync('mkfifo', [pipe]);
     try {
-      assert.deepEqual(await listFolder(root).then((files) => files.some((f) => f.relPath === 'pipe.json')), false);
+      assert.deepEqual(await listFolder(root).then(({ files }) => files.some((f) => f.relPath === 'pipe.json')), false);
       const got = await readFolderFile(root, 'pipe.json');
       assert.equal(got.ok, false);
     } finally {

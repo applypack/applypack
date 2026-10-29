@@ -238,6 +238,8 @@ interface PreviewBase {
   alerts: FolderAlerts;
   /** Files of the kind this folder does not hold, or that the name filter leaves out. */
   other: number;
+  /** Folders too deep to be read (#684). */
+  tooDeep: { count: number; first: string | null };
   scoring: boolean;
   searches: { running: number; usable: number };
   cost: string;
@@ -265,6 +267,10 @@ export interface RowsPreviewProps extends PreviewBase {
   counts: PreviewCounts;
 }
 
+/** The folders a look never opens, said where the files are counted (#684). */
+const TooDeepLine: FC<{ tooDeep: PreviewBase['tooDeep'] }> = ({ tooDeep }) =>
+  tooDeep.count === 0 ? null : <li>{t('folders.tooDeep', { n: tooDeep.count, depth: MAX_DEPTH, first: tooDeep.first ?? '' })}</li>;
+
 /** Why the folder cannot be added yet, or null. One reason, the first that holds. */
 function blocker({ rows, mapping, sample }: RowsPreviewProps): string | null {
   if (rows.length === 0) return t('folders.block.noRows');
@@ -274,7 +280,7 @@ function blocker({ rows, mapping, sample }: RowsPreviewProps): string | null {
 }
 
 const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
-  const { path, name, include, existing, alerts, kinds, other, newest, plan, rows, columns, mapping, guessed, sample, misfits, fileNotes, counts, scoring, searches, cost, flash } = props;
+  const { path, name, include, existing, alerts, kinds, other, tooDeep, newest, plan, rows, columns, mapping, guessed, sample, misfits, fileNotes, counts, scoring, searches, cost, flash } = props;
   const blocked = blocker(props);
   const rowFiles = Object.values(kinds).reduce((sum, n) => sum + (n ?? 0), 0);
   const byKind = (Object.keys(KIND_NAME) as RowFormat[]).filter((k) => (kinds[k] ?? 0) > 0).map((k) => `${kinds[k]} ${KIND_NAME[k]}`);
@@ -291,6 +297,7 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
           <SectionTitle>{t('folders.whatIsInIt')}</SectionTitle>
           <ul class="space-y-1 text-sm text-ink">
             <li>{t('folders.rows.contents', { files: rowFiles, kinds: byKind.join(', '), filtered: include ? 'yes' : 'no', include: include ?? '', other })}</li>
+            <TooDeepLine tooDeep={tooDeep} />
             {newest.length > 0 && <li>{t('folders.newest', { files: newest.join(', ') })}</li>}
             {rowFiles > 0 && <li>{t('folders.rows.plan', { ...plan, perCheck: MAX_ROW_FILES_PER_LOOK, mb: MAX_BODY_MB })}</li>}
           </ul>
@@ -404,7 +411,7 @@ export interface PostingsPreviewProps extends PreviewBase {
   plan: { read: number; later: number; waiting: number; tooLarge: number; unchanged: number };
 }
 
-const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, existing, alerts, kinds, other, newest, plan, scoring, searches, cost, flash }) => {
+const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, existing, alerts, kinds, other, tooDeep, newest, plan, scoring, searches, cost, flash }) => {
   const files = Object.values(kinds).reduce((sum, n) => sum + (n ?? 0), 0);
   const byKind = (Object.keys(POSTING_KIND_NAME) as PostingKind[]).filter((k) => (kinds[k] ?? 0) > 0).map((k) => `${kinds[k]} ${POSTING_KIND_NAME[k]}`);
   const asking = newest.filter((f) => f.why === null && f.asksModel).length;
@@ -420,6 +427,7 @@ const PostingsPreviewPage: FC<PostingsPreviewProps> = ({ path, name, include, ex
           <SectionTitle>{t('folders.whatIsInIt')}</SectionTitle>
           <ul class="space-y-1 text-sm text-ink">
             <li>{t('folders.postings.contents', { files, kinds: byKind.join(', '), filtered: include ? 'yes' : 'no', include: include ?? '', other })}</li>
+            <TooDeepLine tooDeep={tooDeep} />
             {files > 0 && <li>{t('folders.postings.plan', { ...plan, perCheck: MAX_FILES_PER_LOOK })}</li>}
           </ul>
           {files === 0 && <Hint class="mt-2">{t('folders.postings.saveHint')}</Hint>}
@@ -549,8 +557,10 @@ export const FolderFilesPage: FC<{
   folder: FolderSourceRow;
   files: SourceFile[];
   jobs: Map<string, JobsOfFile>;
+  /** Null when the folder could not be listed just now. */
+  tooDeep: PreviewBase['tooDeep'] | null;
   flash?: FlashMessage | null;
-}> = ({ folder, files, jobs, flash }) => {
+}> = ({ folder, files, jobs, tooDeep, flash }) => {
   // A folder not found at its path opens on the way to point it at the new one.
   const lost = folder.lastFetchStatus === NOT_FOUND;
   return (
@@ -578,6 +588,11 @@ export const FolderFilesPage: FC<{
         </PageHeader>
         <Flash flash={flash} />
         {lost && <MovedFolderCard folder={folder} class="mb-6" />}
+        {tooDeep !== null && tooDeep.count > 0 && (
+          <Notice tone="warn" class="mb-6">
+            {t('folders.tooDeep', { n: tooDeep.count, depth: MAX_DEPTH, first: tooDeep.first ?? '' })}
+          </Notice>
+        )}
         {files.length === 0 ? (
           <Empty title={t('folders.files.empty')}>{t(folder.active ? 'folders.files.emptyActive' : 'folders.files.emptyOff')}</Empty>
         ) : (
