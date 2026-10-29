@@ -18,7 +18,7 @@ import { extractResumeText } from '../../resume/resume-text';
 import { MAX_ZIP_ENTRIES } from '../../resume/zip';
 import { applyPreset, draftRubric, PRESETS, rubricEquals, rubricFromForm, rubricSummary, type Preset } from '../../screening/rubric';
 import { displayName, expandUploads, fingerprintBytes, fingerprintText, coverLetterSignal, letterOwners, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB, planIntake } from '../../screening/intake';
-import { findLeaks, heldNote, leakKinds, noteWords, readRedactions, redactApplicant } from '../../screening/redact';
+import { findLeaks, holdNote, leakKinds, noteWords, readRedactions, redactApplicant } from '../../screening/redact';
 import { MAX_COMPARE, MIN_COMPARE, readScreenReply } from '../../screening/prompts';
 import { comparisonMarkdown, comparisonView, readStoredComparison } from '../../screening/comparison';
 import { compareApplicants } from '../../screening/compare';
@@ -399,6 +399,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
     redacted: ReturnType<typeof redactApplicant> | null;
     print: { hash: string; simhash: bigint | null };
     leaks: string[];
+    held: string | null;
   }[] = [];
   for (const file of batch) {
     let text: string | null = null;
@@ -413,11 +414,12 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
     // dedupe reads; the store puts its own number on the label.
     const redacted = text ? redactApplicant(text, 0) : null;
     const print = text ? fingerprintText(text) : { hash: fingerprintBytes(file.bytes), simhash: null };
-    // TASKS E4 (Q6): what the redaction missed holds the applicant back from
-    // every model until a person has looked. The kinds only — a leak entry
-    // names a part of the person.
+    // TASKS E4 (Q6): what the redaction missed — or a name it never found
+    // (#679) — holds the applicant back from every model until a person has
+    // looked. The kinds only — a leak entry names a part of the person.
     const leaks = redacted ? leakKinds(findLeaks(redacted.text, redacted)) : [];
-    read.push({ file, text, note, redacted, print, leaks });
+    const held = redacted ? holdNote(redacted) : null;
+    read.push({ file, text, note, redacted, print, leaks, held });
   }
   // TASKS E3 (Q9): a cover letter goes to its person and is never scored.
   const signals = read.map((r) => (r.text === null ? null : coverLetterSignal(r.file.name, r.text)));
@@ -443,7 +445,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   const owners = found.filter((o, i) => !(o === null && lettersFound[i]!.signal === 'text'));
   const { created, skipped } = await createApplicants(
     screening.id,
-    adding.map(({ file, text, note, redacted, print, leaks, sameAs }) => ({
+    adding.map(({ file, text, note, redacted, print, held, sameAs }) => ({
       name: redacted?.name ?? null,
       email: redacted?.email ?? null,
       phone: redacted?.phone ?? null,
@@ -453,8 +455,8 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
       text: text ?? '',
       redactedTextFor: (n: number) => redacted?.text.replaceAll('Applicant №0', `Applicant №${n}`) ?? '',
       redactions: redacted?.redactions ?? [],
-      parseStatus: !text ? ('unreadable' as const) : leaks.length > 0 ? ('held' as const) : ('ok' as const),
-      parseNote: !text ? note : leaks.length > 0 ? heldNote(leaks) : null,
+      parseStatus: !text ? ('unreadable' as const) : held ? ('held' as const) : ('ok' as const),
+      parseNote: !text ? note : held,
       sameAs,
       textHash: print.hash,
       simhash: print.simhash,
