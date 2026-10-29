@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Profile } from '@prisma/client';
-import { profileFieldLabel, reclassifyQuestion, sentProfile } from './profile-form';
+import { z } from 'zod';
+import { minFitField, profileFieldLabel, reclassifyQuestion, sentProfile } from './profile-form';
 
 const STORED = {
   id: 3,
@@ -93,4 +94,16 @@ test('"Save & re-classify" asks with the number of jobs and the cost of the engi
 test('a refused field is named by the label the editor shows it under', () => {
   assert.equal(profileFieldLabel('minFitScore'), 'Minimum fit score (0–100)');
   assert.equal(profileFieldLabel('stackRequired'), undefined);
+});
+
+test('an emptied "Minimum fit score" is refused, never read as 0 (#682)', () => {
+  const form = z.object({ minFitScore: minFitField });
+  assert.deepEqual(form.parse({}), { minFitScore: 70 }, 'a form without the field gets the default');
+  assert.deepEqual(form.parse({ minFitScore: '85' }), { minFitScore: 85 });
+  for (const sent of ['', '  ', '101', '-1', 'abc', '7.5']) {
+    const parsed = form.safeParse({ minFitScore: sent });
+    assert.equal(parsed.success, false, JSON.stringify(sent));
+  }
+  const empty = form.safeParse({ minFitScore: '' });
+  assert.equal(empty.success ? '' : empty.error.issues[0]!.message, 'Required');
 });

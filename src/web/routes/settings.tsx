@@ -152,7 +152,7 @@ import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SettingsTab, type SourceKeyRow } from '../pages/settings';
-import { profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
+import { minFitField, profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -220,7 +220,7 @@ const ProfileFormSchema = z.object({
   relocation: z.string().optional().default('no'),
   onsiteCities: z.string().optional().default(''),
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
-  minFitScore: z.coerce.number().int().min(0).max(100).default(70),
+  minFitScore: minFitField,
   notificationTargetId: z.string().optional().default(''),
   resumeId: z.string().optional().default(''),
   priorityRules: z.string().optional().default(''),

@@ -51,7 +51,8 @@ import { TargetPage } from '../pages/target';
 import { describeStructure, docxStructure } from '../../resume/docx-structure';
 import { oneOffDraft, previousFor } from '../../resume/match-name';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { clearFlashCookie, flashRedirect, parseFlashCookie, refusedField } from '../flash';
+import { launcherRefusal } from '../form-refusal';
 import { claimRun, findLiveRun, LETTER_FAILED, startRun, updateRun } from '../target-runs';
 import { runFailure } from '../run-failure';
 import { startComparison } from '../comparison-run';
@@ -372,11 +373,9 @@ jobsRoute.get('/jobs/new', (c) =>
 jobsRoute.post('/jobs/new', async (c) => {
   const parsed = ManualJobSchema.safeParse(await c.req.parseBody());
   if (!parsed.success) {
-    return flashRedirect(
-      '/jobs/new',
-      'err',
-      t('jobRoute.new.required', { min: MIN_DESCRIPTION_CHARS }),
-    );
+    const { issues } = parsed.error;
+    const required = t('jobRoute.new.required', { min: MIN_DESCRIPTION_CHARS });
+    return flashRedirect('/jobs/new', 'err', launcherRefusal(issues, required, ['companyName', 'title', 'description']), refusedField(c.req.path, issues));
   }
   const result = await createManualJob(parsed.data);
   if (result.kind === 'existing') {

@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.30] — 2026-10-29
+
+### Fixed
+- A form never answers with a 500 or a bare "Invalid form values" page. The
+  wizard's "Yes, that's me" and "Create this search" without a resume say
+  so; the tracking rail names the field it refused ("Recruiter contact: At
+  most 300 characters") and stays on the job; an "Applied on" that is not a
+  day from 1990 to today (a five-digit year, a word) keeps the date on
+  record and saves the rest, with a line saying so.
+- Clearing "Minimum fit score" is refused instead of saved as 0, which let
+  every scored posting through the alert floor.
+- Tailor resume, Cover letter and Paste a job name the field a refusal is
+  about, beyond "pick a job source and a resume".
+
 ## [2.63.29] — 2026-10-29
 
 ### Fixed
@@ -6941,6 +6955,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.30]: https://github.com/applypack/applypack/compare/v2.63.29...v2.63.30
 [2.63.29]: https://github.com/applypack/applypack/compare/v2.63.28...v2.63.29
 [2.63.28]: https://github.com/applypack/applypack/compare/v2.63.27...v2.63.28
 [2.63.27]: https://github.com/applypack/applypack/compare/v2.63.26...v2.63.27

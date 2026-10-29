@@ -150,7 +150,7 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
 }
 
 /** A refused field as a schema reports it; `code` is there when zod wrote it. */
-interface Issue {
+export interface Issue {
   path: readonly PropertyKey[];
   message: string;
   code?: string;

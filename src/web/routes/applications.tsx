@@ -7,7 +7,8 @@ import { getSettings } from '../../settings';
 import { getPack, markPackSent } from '../../pack/store';
 import { getResume } from '../../resume/store';
 import { appliedResumeColumns, packAsShown, readAppliedResumeChoice } from '../applied-resume';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import type { MessageKey } from '../../i18n/catalog';
+import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField } from '../flash';
 import { jobHref, resolveJobTab } from '../job-tabs';
 import { ApplicationsPage, type ApplicationCard } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig, strandedStages, UNFILED_STAGE, wordedStage } from '../stage-config';
@@ -19,7 +20,7 @@ import { displayZone } from '../display-zone';
 import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { companyForPage, companyOnPage } from '../../employer';
-import { dayIn, dayStart, parseDay } from '../../zoned-day';
+import { dayIn, dayStart, parsePastDay } from '../../zoned-day';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -32,6 +33,19 @@ const ApplicationFormSchema = z.object({
   // rather than "erase it" (applied-resume.ts).
   appliedResumeId: z.string().optional(),
 });
+
+/** The tracking rail's fields as the page names them, for a refused save (#682). */
+const APPLICATION_FIELD_LABEL: Record<string, MessageKey> = {
+  pipelineStage: 'job.pipelineStage',
+  appliedAt: 'job.appliedOn',
+  recruiterContact: 'job.recruiterContact',
+  applicationNotes: 'job.notes',
+};
+
+function applicationFieldLabel(field: string): string | undefined {
+  const key = APPLICATION_FIELD_LABEL[field];
+  return key ? t(key) : undefined;
+}
 
 export const applicationsRoute = new Hono();
 
@@ -234,8 +248,12 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     applicationNotes: form.applicationNotes,
     appliedResumeId: form.appliedResumeId,
   });
+  // Back to the tab the rail was used on; read through the resolver, so only a known tab reaches the redirect.
+  const back = jobHref(id, resolveJobTab({ tab: typeof form.tab === 'string' ? form.tab : null }));
   if (!parsed.success) {
-    return c.text(t('http.invalidForm'), 400);
+    // #682: the field named and marked on the job page, never a bare 400 page.
+    const { issues } = parsed.error;
+    return flashRedirect(back, 'err', t('jobRoute.application.notSaved', { issue: firstIssue(issues, applicationFieldLabel) }), refusedField(c.req.path, issues));
   }
   const { pipelineStage, appliedAt, recruiterContact, applicationNotes } =
     parsed.data;
@@ -263,10 +281,14 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     pipelineStage && pipelineStage.length > 0 ? pipelineStage : null;
   // The field holds a day in the dashboard's zone (#680): the same day sent back keeps the moment on
   // record, another one is that day's start there — never the UTC midnight `new Date("2026-10-29")` reads.
+  // A value that is not a day from 1990 to today keeps the date on record, and the rest is saved (#682).
   const zone = displayZone();
-  const appliedDay = appliedAt ? parseDay(appliedAt) : null;
-  const appliedAtValue =
-    appliedDay === null
+  const typedDay = appliedAt?.trim() ?? '';
+  const appliedDay = typedDay === '' ? null : parsePastDay(typedDay, new Date(), zone);
+  const dayRefused = typedDay !== '' && appliedDay === null;
+  const appliedAtValue = dayRefused
+    ? current.appliedAt
+    : appliedDay === null
       ? null
       : current.appliedAt && dayIn(current.appliedAt, zone) === appliedDay
         ? current.appliedAt
@@ -311,6 +333,8 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   }
   if (sentPack) await markPackSent(id, new Date());
 
-  // Back to the tab the rail was used on; read through the resolver, so only a known tab reaches the redirect.
-  return c.redirect(jobHref(id, resolveJobTab({ tab: typeof form.tab === 'string' ? form.tab : null })), 303);
+  if (dayRefused) {
+    return flashRedirect(back, 'warn', t('jobRoute.application.dayKept', { typed: typedDay.slice(0, 40) }), { field: { form: c.req.path, name: 'appliedAt' } });
+  }
+  return c.redirect(back, 303);
 });
