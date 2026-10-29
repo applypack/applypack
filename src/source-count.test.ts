@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AI_PROVIDER_IDS } from './ai-engine';
 import { sourceFamily } from './web/source-groups';
 
 /*
@@ -9,7 +10,8 @@ import { sourceFamily } from './web/source-groups';
  * reads. The number went stale through three releases and was wrong in seven
  * places at once (#160), so it is derived here from the enum, the same way
  * prompt-fence-registry.test.ts derives its rosters: a new source fails CI
- * until the copy says the new number.
+ * until the copy says the new number. The AI engines are counted the same
+ * way, from AI_PROVIDER_IDS, at the end of the file.
  */
 
 const ROOT = join(__dirname, '..');
@@ -165,4 +167,62 @@ test('SPEC.md lists every AtsType but MANUAL and counts the source kinds', () =>
   assert.deepEqual(countedSourcePhrases(heading), [sourceKinds().length], `SPEC.md heading: "${heading}"`);
   const rows = [...table.matchAll(/^\| ([A-Z][A-Z_0-9]*) +\|/gm)].map((m) => m[1]);
   assert.deepEqual([...rows].sort(), atsTypes().filter((v) => v !== 'MANUAL').sort());
+});
+
+/*
+ * The engines went the same way (#657): README said six in one paragraph and
+ * seven in the next, SPEC.md five, the repository card five, while
+ * AI_PROVIDER_IDS held seven. The total is under ten, so the subset rule above
+ * cannot tell it apart; a total stands right before its noun ("seven AI
+ * engines", "7 swappable AI backends") and is never "the" N, while a subset is
+ * ("the four engines that take a key") or names its kind in between ("the two
+ * Claude engines").
+ */
+function countedEnginePhrases(text: string): number[] {
+  const pattern = new RegExp(String.raw`(?<!\bthe\s+)\b${NUMBER}\s+(?:swappable\s+)?(?:AI\s+)?(?:engines|backends)\b`, 'gi');
+  return [...text.matchAll(pattern)].flatMap((m) => {
+    const n = numberValue(m[1] ?? '');
+    return n === null ? [] : [n];
+  });
+}
+
+/** The copies that state the engine total: the public ones, the spec and the setup guide. */
+function engineCopies(): [string, string][] {
+  return [
+    ...publicCopies(),
+    ...['SPEC.md', 'docs/ai-engines.md'].map((file): [string, string] => [file, readFileSync(join(ROOT, file), 'utf8')]),
+  ];
+}
+
+test('the engine reader takes a total and skips a subset', () => {
+  assert.deepEqual(
+    countedEnginePhrases('Seven backends; six\nAI engines; 7 swappable AI backends; the four engines that take a key; the two Claude engines; both engines'),
+    [7, 6, 7],
+  );
+});
+
+test('every count of AI engines matches AI_PROVIDER_IDS', () => {
+  const expected = AI_PROVIDER_IDS.length;
+  for (const [file, text] of engineCopies()) {
+    const numbers = countedEnginePhrases(text);
+    assert.deepEqual(
+      numbers,
+      numbers.map(() => expected),
+      `${file} says ${[...new Set(numbers)].join('/')} engines where AI_PROVIDER_IDS has ${expected}`,
+    );
+  }
+  for (const file of ['README.md', 'site/public/index.html', 'SPEC.md']) {
+    assert.ok(countedEnginePhrases(readFileSync(join(ROOT, file), 'utf8')).length > 0, `${file} no longer states the engine count`);
+  }
+});
+
+/* The two lists that name the engines one by one: README's table under "Bring your own AI" and the landing's row of engines. */
+test('README and the landing list every engine', () => {
+  const expected = AI_PROVIDER_IDS.length;
+  const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+  const table = /^\| Engine \| What it is \| Billing \|\n\| --- \| --- \| --- \|\n((?:\|.*\n)+)/m.exec(readme)?.[1] ?? '';
+  assert.equal(table.trim().split('\n').length, expected, 'README\'s engine table');
+  const landing = readFileSync(join(ROOT, 'site', 'public', 'index.html'), 'utf8');
+  const list = /<ul class="engines"[^>]*>([\s\S]*?)<\/ul>/.exec(landing)?.[1] ?? '';
+  assert.equal(list.match(/<li>/g)?.length ?? 0, expected, 'the landing\'s engine list');
 });

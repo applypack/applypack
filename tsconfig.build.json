@@ -1,0 +1,26 @@
+{
+  // What `npm run build` compiles into dist/: what `npm start` and the Docker
+  // image run. tsconfig.json still type-checks everything (`npm run
+  // lint:types`). Left out: the tests, which run from src/ through tsx, and
+  // the tools that only make sense in a checkout, each run as `npm run <name>`
+  // through tsx. A script a doc tells someone to run as `node dist/scripts/…`
+  // stays in; src/build-config.test.ts holds both lists to that.
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/scripts/churn-once.ts",
+    "src/scripts/classify-variance-once.ts",
+    "src/scripts/dead-exports.ts",
+    "src/scripts/i18n-browser.ts",
+    "src/scripts/match-matrix-once.ts",
+    "src/scripts/match-variance-once.ts",
+    "src/scripts/pack-dry-once.ts",
+    "src/scripts/prefilter-variance-once.ts",
+    "src/scripts/resume-bench-once.ts",
+    "src/scripts/screen-bench-once.ts",
+    "src/scripts/test-telegram.ts",
+    "src/scripts/verify-brief-once.ts"
+  ]
+}
