@@ -1,6 +1,35 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPersonioFeed, mapPersonioPosition, parsePersonioXml, personioFeedUrl, personioSlug } from './personio';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { isPersonioFeed, mapPersonioPosition, parsePersonioXml, personioFeedUrl, personioSlug, withOwnLanguage } from './personio';
+
+// tado's two feeds on 2026-10-29, the text trimmed: the English one and the
+// one without a language. Each position is written in one language, and the
+// other feed lists it without a word.
+const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
+const TADO_EN = parsePersonioXml(fixture('personio-tado-en.xml'));
+const TADO_OWN = parsePersonioXml(fixture('personio-tado.xml'));
+
+describe('Personio — every position with its text, whichever language it is written in (#658)', () => {
+  it('keeps the English text where it exists and takes the own-language text for the rest', () => {
+    const [lead, student] = withOwnLanguage(TADO_EN, TADO_OWN).map((p) => mapPersonioPosition(p, 7, 'tado'));
+    assert.equal(lead?.title, 'Team Lead Accounting (m/f/d)');
+    assert.match(lead?.description ?? '', /Salary: € 80000\.00-100000\.00 \(yearly\)\./);
+    assert.match(lead?.description ?? '', /What makes you a great fit:/);
+    assert.match(lead?.description ?? '', /6\+ years of relevant experience/);
+    assert.equal(student?.title, 'Werkstudent:in Accounting (m/w/d)');
+    assert.match(student?.description ?? '', /Warum du gut zu uns passt:/);
+    assert.match(student?.description ?? '', /Laufendes Studium im Bereich Finance/);
+  });
+
+  it('the English feed alone left the German-only position without a word', () => {
+    const [, student] = TADO_EN.map((p) => mapPersonioPosition(p, 7, 'tado'));
+    assert.doesNotMatch(student?.description ?? '', /Warum du gut zu uns passt/);
+    // And the own-language feed alone, the English-only one.
+    assert.deepEqual(TADO_OWN[0]?.sections, []);
+  });
+});
 
 // Trimmed from the live feeds of 2026-09-03 (holidu, personio, everphone).
 const XML = `<?xml version="1.0" encoding="UTF-8"?>
