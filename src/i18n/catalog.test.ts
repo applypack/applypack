@@ -132,6 +132,16 @@ describe('uk.json in Ukrainian words (#653)', () => {
   });
 });
 
+describe('Spanish and French typography (#654)', () => {
+  it('French sets a narrow no-break space before : ; ? ! and inside « »', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage('fr', key) ?? '', /[ \u00a0][:;?!»]|«[ \u00a0]/, key);
+  });
+
+  it('Spanish quotes one way, “as the rest of its catalog does”', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage('es', key) ?? '', /[«»]/, key);
+  });
+});
+
 describe('a message on the page (#652)', () => {
   it('carries no Markdown: a backtick is drawn as it is, so a command is quoted as the language quotes', () => {
     for (const locale of LANGUAGES) {

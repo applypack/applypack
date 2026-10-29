@@ -113,7 +113,7 @@ replaces a row here first and the catalog second.
 | cover letter | супровідний лист | Anschreiben | carta de presentación | lettre de motivation | कवर लेटर |
 | search (a saved one) | пошук | Suche | búsqueda | recherche | खोज |
 | fit (a posting's score against your search; "Fits your search") | відповідність (column header: «Оцінка») | Passung | compatibilidad (column header: «Compat.») | adéquation (column header: « Adéq. ») | फ़िट |
-| resume score (your resume against one posting; never "match score") | оцінка резюме | Lebenslauf-Score | puntuación del currículum | score du CV | रेज़्यूमे स्कोर |
+| resume score (your resume against one posting; never "match score") | оцінка резюме | Lebenslauf-Score | puntuación del currículum (tab: «Puntuación del CV») | score du CV | रेज़्यूमे स्कोर |
 | match (a job that fits) | збіг | Treffer | coincidencia | correspondance | मैच |
 | alert | сповіщення | Benachrichtigung | alerta | alerte | अलर्ट |
 | digest | дайджест | Zusammenfassung | resumen | récapitulatif | सारांश |
@@ -182,7 +182,8 @@ row here first, then every message that uses it.
 | English | Spanish | French |
 | --- | --- | --- |
 | board (a company's list of openings) | portal (de empleo) | job board |
-| setup (the first-run wizard) | configuración inicial | configuration initiale |
+| job boards (the aggregators, as a group) | portales de empleo | sites d'emploi |
+| setup (the first-run wizard) | configuración inicial ("configuración" alone is Settings) | configuration |
 | to upload | subir | importer |
 | to scan (a resume) | analizar | analyser |
 | watched (a company) | en seguimiento | suivie |
@@ -199,7 +200,7 @@ row here first, then every message that uses it.
 | To interview / On hold / Declined | Para entrevista / En espera / Descartado | À convoquer / En attente / Écarté |
 | scorecard | ficha de evaluación | fiche d'évaluation |
 | redaction | anonimización | anonymisation |
-| criterion mode Gate / Scored / Note | Requisito excluyente / Puntuado / Nota | Condition éliminatoire / Noté / Remarque |
+| criterion mode Gate / Scored / Note (a pill) | Excluyente / Puntuado / Nota | Éliminatoire / Noté / Remarque |
 
 Known clashes a native reader may want to settle: Spanish "seguimiento" is a
 watched company, application tracking and the follow-up reminder at once;

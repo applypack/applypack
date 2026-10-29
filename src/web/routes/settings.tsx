@@ -50,7 +50,7 @@ import {
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
 import { config, setInEnv } from '../../config';
-import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
+import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, parseSchedule, scheduleInSentence } from '../../user-schedule';
 import { canonicalZone, readZone, timeZoneChoices } from '../time-zones';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { alertsSwitchedLine } from '../held-line';
@@ -599,7 +599,7 @@ settingsRoute.post('/settings/schedule', async (c) => {
     return flashRedirect(back, 'ok', t(moved ? 'settingsRoute.schedule.zoneChanged' : 'settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
   }
   const held = await loadHeldLine(parsed.data);
-  const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
+  const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: scheduleInSentence(parsed.data) });
   return flashRedirect(back, 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
 });
 
