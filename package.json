@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.63.39",
+  "version": "2.63.40",
   "private": true,
   "description": "Free, open-source AI job search that runs on your own computer: watches 33 kinds of job source, checks a posting is real, scores your resume without flattering it, drafts a cover letter that cannot invent, tracks the application. 7 AI engines with failover, your data in a Postgres of its own. It never applies for you.",
   "license": "MIT",
