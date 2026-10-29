@@ -1,3 +1,4 @@
+import type { FitFacts } from './fit-score';
 import type { LocationHints, WorkplaceCode } from './location';
 
 export interface NormalizedJob {
@@ -58,7 +59,10 @@ export interface NormalizedJob {
 }
 
 export interface ClaudeClassification {
+  /** Since ADR 0064 computed from `fit_facts` (fit-score.ts), never written by the model. */
   fit_score: number;
+  /** What the reply said the posting shows for this search; absent on a verdict built elsewhere (a test, a stored row). */
+  fit_facts?: FitFacts;
   /** True when the role matches the active profile's location preferences. */
   location_match: boolean;
   /** The posting's own numbers; the currency and the period say what they mean. */
