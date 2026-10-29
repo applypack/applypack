@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapRemoteokFeed, withoutAddressTag } from './remoteok';
+import { mapRemoteokFeed, repairUtf8, withoutAddressTag } from './remoteok';
 
 const META = { legal: '...', last_updated: 1714000000 };
 
@@ -139,5 +139,23 @@ describe('withoutAddressTag', () => {
   it('leaves words that only look like a tag', () => {
     const text = 'Requirements: React, Redux, RabbitMQ and REST — Responsibilities follow.';
     assert.equal(withoutAddressTag(text), text);
+  });
+});
+
+describe('repairUtf8', () => {
+  it("reads RemoteOK's Latin-1 spelling of UTF-8 back as UTF-8 (#662)", () => {
+    // As the feed's JSON writes them, 2026-10-29.
+    assert.equal(repairUtf8('We\u00e2\u0080\u0099re hiring 1\u00e2\u0080\u00932 engineers'), 'We\u2019re hiring 1\u20132 engineers');
+    assert.equal(repairUtf8('Job Summary\u00c2\u00a0\u00f0\u009f\u008e\u00af'), 'Job Summary\u00a0\u{1F3AF}');
+  });
+
+  it('leaves a Latin-1 letter that is no such sequence', () => {
+    for (const text of ['Café in München', 'na\u00efve \u00c2ge', 'plain ASCII']) assert.equal(repairUtf8(text), text);
+  });
+
+  it('runs before the description, title, company and place are read, and their entities decoded', () => {
+    const feed = [META, { id: '9', position: 'Staff Engineer \u00e2\u0080\u0094 Payments', company: 'Caf\u00c3\u00a9 &amp; Labs', location: 'Z\u00c3\u00bcrich', description: '<p>You\u00e2\u0080\u0099ll own it.</p>' }];
+    const job = mapRemoteokFeed(feed, 1)[0]!;
+    assert.deepEqual([job.title, job.employer, job.location, job.description], ['Staff Engineer \u2014 Payments', 'Caf\u00e9 & Labs', 'Remote · Z\u00fcrich', 'You\u2019ll own it.']);
   });
 });

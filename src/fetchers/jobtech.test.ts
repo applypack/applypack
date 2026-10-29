@@ -46,6 +46,14 @@ describe('mapJobTechPage', () => {
     );
   });
 
+  it("takes an image an employer pasted into the plain text out, and keeps the lines (#659)", () => {
+    // Ad 31653536, 2026-10-29: an `<img>` on a line of its own.
+    const lfv = { ...trafikverket, description: { text: 'varje beslut!\n<img src="https://x.example/0c22.jpg"> \n\n\nOm rollen\n\nSom Senior Javautvecklare' } };
+    const [job] = mapJobTechPage(page([lfv]), 3).jobs;
+    assert.doesNotMatch(job?.description ?? '', /<img|x\.example/);
+    assert.match(job?.description ?? '', /\n\nvarje beslut!\n[ \n]+Om rollen\n\nSom Senior Javautvecklare$/);
+  });
+
   it('reads a foreign ad by its country name, skips removed ads and malformed hits', () => {
     const spain = { ...trafikverket, id: 2, workplace_address: { municipality: null, region: null, country: 'Spanien', country_code: '193' } };
     const gone = { ...trafikverket, id: 3, removed: true };

@@ -33,9 +33,18 @@ export function normalisePageText(html: string): string {
   return stripHtml(html).replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Which reading of a page a hash stands for. It moves whenever
+ * `normalisePageText` reads the same page differently — 2.63.35's stripHtml
+ * decodes every named entity and drops the space an inline tag left before
+ * punctuation — so a hash taken by an older reading starts the watch again
+ * in silence instead of alerting a change nobody made.
+ */
+const READING = 'r2';
+
 /** Short, stable, and never compared against anything but itself. */
 export function pageHash(html: string): string {
-  return createHash('sha256').update(normalisePageText(html)).digest('hex').slice(0, 32);
+  return `${READING}:${createHash('sha256').update(normalisePageText(html)).digest('hex').slice(0, 32)}`;
 }
 
 /**
@@ -72,7 +81,7 @@ export type ChangeDecision =
  */
 export function decideChange(page: WatchedPage, html: string, now: Date): ChangeDecision {
   const hash = pageHash(html);
-  if (page.lastContentHash === null) return { kind: 'first', hash };
+  if (page.lastContentHash === null || !page.lastContentHash.startsWith(`${READING}:`)) return { kind: 'first', hash };
   if (page.lastContentHash === hash) return { kind: 'unchanged' };
   const last = page.lastContentAlertAt;
   if (last !== null && now.getTime() - last.getTime() < CHANGE_ALERT_GAP_MS) return { kind: 'held' };

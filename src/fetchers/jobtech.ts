@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { findCountry, placeLabel } from '../countries';
-import { fetchWithRetry, sleep } from '../http';
+import { fetchWithRetry, sleep, stripInlineTags } from '../http';
 import type { NormalizedJob } from '../types';
 import { cleanEmployer } from '../employer';
 
@@ -16,7 +16,8 @@ import { cleanEmployer } from '../employer';
  * the /companies probe checks the count. `workplace_address.country_code`
  * is the taxonomy's ("199" = Sverige), not ISO; `workplace_model` says
  * "Arbete på plats" on every ad — a form default, not a signal — so the
- * arrangement is left to the classifier. `description.text` is plain text.
+ * arrangement is left to the classifier. `description.text` is plain text,
+ * now and then with a tag pasted into it.
  */
 const ENDPOINT = 'https://jobsearch.api.jobtechdev.se/search';
 const TIMEOUT_MS = 20_000;
@@ -151,8 +152,11 @@ function toNormalized(hit: JobTechHit, companyId: number): NormalizedJob {
     title: hit.headline.trim() || 'Untitled',
     url: hit.webpage_url ?? '',
     location: formatLocation(hit, code),
-    // `description.text` is plain text with real newlines — no tag strip (gotcha 12).
-    description: augmentDescription((hit.description?.text ?? '').trim(), hit),
+    // `description.text` is plain text with real newlines — no tag strip
+    // (gotcha 12) — but an employer may paste markup into it: ad 31653536
+    // carried an `<img src="…">` line. The inline reader takes that out and
+    // keeps the lines.
+    description: augmentDescription(stripInlineTags(hit.description?.text ?? '').trim(), hit),
     postedAt: Number.isNaN(posted.getTime()) ? new Date() : posted,
     locationHints: code ? { countries: [code] } : {},
   };

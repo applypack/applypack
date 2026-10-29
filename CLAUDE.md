@@ -446,7 +446,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | How much English is still written into the code | the route smoke's last pass: every page again in the pseudo-language (`locale.ts:PSEUDO_LOCALE`, stored as `AppSettings.locale`), where the catalog's and the format module's text comes back in ⟦ ⟧ and `src/i18n/pseudo.ts:hardcodedText` reads what is left outside them. Since v2.52.0 it is a gate: one run on any page fails `npm run smoke:routes` with the page and its first runs; `node dist/scripts/route-smoke.js --pseudo-list out.txt` writes every run. An element with `translate="no"` or `lang="en"` is data and is skipped — data says so in its markup, a tab title through `Layout`'s `titleIsData` |
 | HTTP retry, timeout, default User-Agent | `src/http.ts` — a 5xx and a network failure are retried twice; a 429 whose `Retry-After` (`retryAfterMs`) is at most 10 s is waited out once, a longer one fails as the `rate_limit` source-health reads |
 | A URL from outside (a feed's link, the verifier's finding, a typed career page) as a link | `src/web/format.ts:safeHref` — http(s) or no link at all: a `javascript:` link from a feed would run in the dashboard's origin on a click |
-| HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12); one pass even over markup nobody closed — `replaceUpTo` cuts each pattern off at its last closer and `dropElements` walks script and style blocks forward, because 300 kB of `<a ` once took nine seconds; `safeCodePoint` decodes no NUL and no lone surrogate |
+| HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` over HTML 4's named entities in `src/html-entities.ts` (gotcha 12: the markup's layer before the tags, the text's after; an inline tag next to punctuation leaves no space, #636); one pass even over markup nobody closed — `replaceUpTo` cuts each pattern off at its last closer and `dropElements` walks script and style blocks forward, because 300 kB of `<a ` once took nine seconds; `safeCodePoint` decodes no NUL and no lone surrogate |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
 | Why a posting dismissed and deleted a month ago is not scored again while its source still lists it | `src/jobs/dismissed-store.ts` (#474), the only file that touches `dismissed_posting`: `cleanup-job.ts` deletes a Dismissed posting through `deleteDismissed`, one statement that keeps its source, its id and its `fetchedAt` (no text); `process-jobs.ts:storedKeys` reads those keys as stored (`dismissedKeys`), and so do the import and folder previews (`knownIds`). A key is forgotten 180 days after the posting was found (`forgetOldDismissals`, `dismissalsForgotten` on `/runs`), and goes with its source |
@@ -473,7 +473,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | A run on `/runs` as a sentence instead of its stats JSON | `src/web/runs-summary.ts:summarizeRun(name, stats)` (pure): a `reason` code becomes a sentence, a raised 0/1 flag too, known counts follow in a fixed order ("0 stored" always, the rest only when they happened, "0 alerted" whenever something new was stored), and the routine ones (`filterRejected`, `preFiltered`, `dismissed` and the funnel's reason counters) plus everything that is not a number stay in the raw block. `pages/runs.tsx` draws the dots, folds the JSON and the per-source list behind **Details**, and folds runs past the latest fifty (`RECENT_RUNS`) behind a button that names and opens on a failure. Every count a job writes has its words in the catalog: `runs-summary.test.ts` reads each job's numeric stat keys off its return type, so a new count fails `tsc` until it is worded (#606); a new `reason` code wants a line in `REASON`. A run's name is `runName(name)`, a catalog name for every `cron-run.ts:RunName` (#568). `unscoredRun(status, stats)` is the one run that finished OK and is not: postings reached the classifier and none came back with a verdict (`classifyFailed` with no `classified` and no `preFiltered`) — `pages/overview.tsx:runBadge` gives it a warn "nothing scored" on `/runs` and in Pipeline health, with a line pointing at the engine's card (#366) |
 | Why a search finds little: the search funnel (read → past the filter → new → scored → matches → alerted), the filter's reasons, what each source brought | `src/funnel.ts` (pure: `FUNNEL_KEYS`, `funnelView`, the reasons in words, `FILTER_KEY` / `DISMISS_KEY` — the counters `process-jobs.ts` and `reclassify-job.ts` add to) over `filter.ts:anyBaseFilterReason` (with several searches, the furthest gate any of them reached) and the winner's `dismissReason`; `jobs/funnel-store.ts:addToFunnel` sums each fetch / HN run into `funnel_day` (a scoring pass adds what it scored for the first time — `funnel.ts:scorePassCounts` / `isFirstScoring`) (one row per UTC day, never pruned; the migration backfilled it from `cron_run`, totals only, and `funnel.test.ts` holds its key list to `FUNNEL_KEYS`), `loadFunnel` / `loadSourceYield` read it for `pages/funnel-card.tsx` on `/runs`; the Overview's chart and the funnel row under it read the same rows through `web/overview-stats.ts`. Zero AI |
 | What the compared postings keep asking for and the resume lacks ("Missing across postings") | `src/resume/coverage.ts` (pure, `MIN_POSTINGS` = 5) over `store.ts:listLatestKeywordTables` (the latest saved comparison per posting, one SQL `DISTINCT ON`): the user's overrides and the confirmed facts applied, presence re-read off the resume's current text (`anchorStatuses`, ADR 0045), a met "any of" group and `context` rows skipped; the card on `/resumes/:id`. Zero AI |
-| Who hires an aggregator's posting, and the key two spellings of a company share | `src/employer.ts` (pure, ADR 0056): `cleanEmployer`, `employerKey`, `hiringKey`, `hiringName`, `sourceIsEmployer` (MANUAL counts as the employer, unlike `web/source-groups.ts:isAggregator`); each aggregator's mapper sets `NormalizedJob.employer` (`weworkremotely.ts:wwrEmployer` and `hn-jobs.ts:hnJobEmployer` read it off the title); `Job.employer` / `employerKey`, filled once for older rows by `jobs/employer-store.ts:fillEmployerKeys` from the "Hiring company: …" line (`employerFromDescription`) |
+| Who hires an aggregator's posting, and the key two spellings of a company share | `src/employer.ts` (pure, ADR 0056): `cleanEmployer`, `employerKey`, `hiringKey`, `hiringName`, `sourceIsEmployer` (MANUAL counts as the employer, unlike `web/source-groups.ts:isAggregator`); each aggregator's mapper sets `NormalizedJob.employer` (`weworkremotely.ts:wwrEmployer`, `hn-jobs.ts:hnJobEmployer` and `golangprojects.ts:splitGolangTitle` read it off the title); `Job.employer` / `employerKey`, filled once for older rows by `jobs/employer-store.ts:fillEmployerKeys` from the "Hiring company: …" line (`employerFromDescription`) |
 | A muted company, and the re-apply window | `company_mute` + `AppSettings.reapplyDays` → `jobs/employer-store.ts:loadEmployerRules`, read once per tick in `jobs/process-jobs.ts` right after the base filter; `employer.ts:employerGate` turns a posting away before any AI (a watched company on "every posting" is exempt from the window, never from a mute) and the funnel counts `rejectedMuted` / `rejectedApplied`. `/jobs` hides the stored rows (`routes/jobs.tsx`, the `muted=1` panel option; `employerKey IS NULL OR NOT IN`, since NOT IN alone drops the NULLs); the rail's `pages/job-detail.tsx:MuteCard`, `pages/muted-companies.tsx`, routes `POST /companies/mutes` and `/companies/mutes/delete` |
 | The Overview's "Next: three things" (open the best match → Compare → Tailor) | `src/web/next-things.ts` (pure): shown while a posting clears the primary search's floor and no comparison exists yet, gone with the first one; loaded by `routes/overview.tsx:loadNextThings` (one count in the steady state — the page refreshes every 30 s) |
 | The cost sentence under a button that spends AI, before anything is on record | `src/web/cost-hint.ts:spendHint(feature)`: the ledger's median (`ai-spend.ts:costHintText`) when there is one, else `ai-spend.ts:billingHint` for the engine the chain tries first — never a guessed figure; on the wizard's resume and scoring steps and the next-three card |
@@ -1072,20 +1072,27 @@ Three lessons paid for with one broken evening (2026-08-30):
 - **Greenhouse ships job bodies HTML-escaped** (`&lt;p&gt;…`). The old
   strip-tags-then-decode order found no tags to strip, then the decode step
   rematerialised them — all 535 stored Greenhouse descriptions carried raw
-  `<div class="content-intro">…` markup as visible text. Decode first,
-  and decode `&amp;` LAST so `&amp;lt;` stays a literal `&lt;` instead of
-  double-decoding into a phantom tag.
+  `<div class="content-intro">…` markup as visible text. Decode first, one
+  layer in one pass, so `&amp;lt;` stays a literal `&lt;` instead of
+  double-decoding into a phantom tag. Then, once the tags are gone, decode
+  the text's own layer (#659): Greenhouse escapes `&nbsp;` / `&amp;` inside
+  the escaped body as `&amp;nbsp;`, Arbeitnow escapes a body and appends a
+  footer of real tags, so "is the body escaped?" has no reliable answer and
+  each layer is simply decoded once, around the strip.
 - **Line structure comes from block tags, not source newlines.** Raw `\n`
   in HTML is whitespace; stripHtml collapses it, then rebuilds paragraphs
   from `<p>/<div>/<h*>` boundaries, `<br>` and `<li>` (→ `• `). That is what
   makes descriptions readable — see the tests in `src/http.test.ts`.
 - **stripHtml is NOT idempotent on its own plaintext output** — a second
   pass reads the newlines it just created as whitespace and flattens them.
-  `backfill-descriptions.ts` therefore only strips rows that still match a
-  markup regex; everything else gets entity decoding only. When structure
+  `backfill-descriptions.ts` (`jobs/stored-text.ts`) therefore only strips
+  rows that still hold a block tag and its closer; everything else gets
+  entity decoding a line at a time. Since #659 stored text may spell a
+  "<b>" of its own, which a re-strip would eat. When structure
   is already lost, `refetch-descriptions.ts` re-pulls the boards and updates
   descriptions in place (no inserts). Never point either script at MANUAL
-  rows with tag stripping — pasted prose like "salary < 100k" is not markup.
+  or imported rows — pasted prose like "salary < 100k" is not markup, and
+  their entities were decoded once when they came in.
 
 ---
 
@@ -1135,7 +1142,7 @@ Always:
 | psql into the DB | `docker compose exec postgres psql -U jobhunter -d jobhunter` |
 | psql / Prisma from the HOST | port **5433** (`postgresql://jobhunter:jobhunter@localhost:5433/jobhunter`) — compose publishes the DB on loopback only, on 5433 so a host Postgres on 5432 cannot shadow it |
 | Back up the database | `docker compose exec -T postgres pg_dump -U jobhunter jobhunter > applypack-$(date +%F).sql` (verified: 8.7 MB, 16 tables; restore into an empty DB with `psql < dump`) |
-| Re-clean stored descriptions (rows with leftover markup) | `docker compose exec app node dist/scripts/backfill-descriptions.js --dry-run`, then without the flag |
+| Re-clean stored text (leftover entities and markup, RemoteOK's mojibake, untrimmed titles — `jobs/stored-text.ts`) | `docker compose exec app node dist/scripts/backfill-descriptions.js --dry-run`, then without the flag |
 | Fingerprint existing jobs + link cross-listings | `docker compose exec app node dist/scripts/backfill-fingerprints.js --dry-run`, then without the flag |
 | Flag apply links on already-stored jobs | `docker compose exec app node dist/scripts/backfill-apply-link-flags.js --dry-run`, then without the flag |
 | Re-pull descriptions from the boards (structure lost) | `docker compose exec app node dist/scripts/refetch-descriptions.js --dry-run`, then without the flag |
