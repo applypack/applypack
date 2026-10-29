@@ -81,6 +81,7 @@ import {
   unsetModelName,
   withEngineTasks,
   type AiEngineConfig,
+  type AiEngineEnv,
   type AiProviderId,
 } from '../../ai-engine';
 import { AI_TASKS, isAiTask, taskLabel } from '../../ai-tasks';
@@ -342,7 +343,7 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
       trouble: troubles.get(id) ?? null,
-      ...aiEngineCard(engine, id, aiEnv.provider),
+      ...aiEngineCard(aiConfig, id, aiEnv),
       tasks: AI_TASKS.filter((task) => taskShown(task, settings.employerMode)).map((task) => ({
         id: task,
         label: taskLabel(task),
@@ -653,16 +654,20 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   return flashRedirect('/settings?tab=notifications', 'ok', alertsSwitchedLine(enabled, targets, held));
 });
 
-/** The list the engine cards show (`aiEngineOrder`), the stored config, and the .env engine that seeds it. */
+/**
+ * The list the engine cards show (`aiEngineOrder`), the stored config, and the
+ * engine facts of this host: the .env engine that seeds the list, and the keys
+ * and sign-ins that decide which engines can run.
+ */
 async function readAiOrder(): Promise<{
   order: AiProviderId[];
   config: AiEngineConfig;
-  envProvider: AiProviderId;
+  env: AiEngineEnv;
 }> {
-  const settings = await getSettings();
+  const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   const config = parseAiEngineConfig(settings.aiEngine);
-  const envProvider = getAiEngineEnv().provider;
-  return { order: aiEngineOrder(config, envProvider), config, envProvider };
+  const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
+  return { order: aiEngineOrder(config, env.provider), config, env };
 }
 
 settingsRoute.post('/settings/ai/enable', async (c) => {
@@ -672,19 +677,24 @@ settingsRoute.post('/settings/ai/enable', async (c) => {
   // The state the button asks for (#683): a second press, a resubmit or an old tab never undoes the first.
   const want = switchParam(form.on);
   if (want === null) return flashRedirect('/settings?tab=ai', 'err', t('http.noSwitchState'));
-  const { order, config, envProvider } = await readAiOrder();
+  const { order, config, env } = await readAiOrder();
   const engine = AI_PROVIDER_LABELS[provider];
   if (want === order.includes(provider)) {
     return flashRedirect('/settings?tab=ai', 'ok', t(want ? 'settingsRoute.ai.alreadyOn' : 'settingsRoute.ai.alreadyOff', { engine }));
   }
-  const next = toggleAiEngine(order, provider, envProvider);
+  const next = toggleAiEngine(config, provider, env);
   if (next === null) {
     return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.onlyEngine', { engine }));
   }
   await setAiEngineConfig({ ...config, order: next });
   if (order.includes(provider)) {
+    // #647: the flash names the engine that answers now, which is not always the .env one.
+    const { lastResort } = resolveAiEngine({ ...config, order: next }, env);
+    if (lastResort !== null) {
+      return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.disabledLastResort', { engine, fallback: AI_PROVIDER_LABELS[lastResort] }));
+    }
     if (next.length === 0) {
-      return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.disabledFallback', { engine, fallback: AI_PROVIDER_LABELS[envProvider] }));
+      return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.disabledFallback', { engine, fallback: AI_PROVIDER_LABELS[env.provider] }));
     }
     return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.disabled', { engine }));
   }
