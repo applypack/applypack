@@ -1,4 +1,5 @@
 import { APP_VERSION } from './app-version';
+import { namedEntity } from './html-entities';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RETRY_DELAYS_MS = [1_000, 3_000];
@@ -132,32 +133,31 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Code points outside the Unicode range would make String.fromCodePoint throw. */
 /**
  * A numeric entity as its character, or nothing: `&#0;` is a NUL, which
  * Postgres refuses in a text column (one such posting failed the whole
- * insert), and a surrogate on its own is half a character.
+ * insert), a surrogate on its own is half a character, and a code point
+ * past the Unicode range would make String.fromCodePoint throw.
  */
 function safeCodePoint(n: number): string {
   return n > 0 && n <= 0x10ffff && (n < 0xd800 || n > 0xdfff) ? String.fromCodePoint(n) : '';
 }
 
+/** A character reference: decimal, hex, or a name (the longest HTML knows has 31 characters). */
+const ENTITY_RE = /&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z][a-zA-Z0-9]{0,31}));/g;
+
 /**
- * Decode the HTML entities job feeds actually emit. `&amp;` is decoded LAST,
- * so double-escaped input ("&amp;lt;") yields the literal "&lt;" instead of
- * decoding twice and materialising a phantom tag.
+ * One layer of HTML entities decoded, in one pass: each reference becomes
+ * its character and what that character spells is not read again, so
+ * "&amp;lt;" yields the literal "&lt;" instead of a phantom tag (gotcha
+ * 12). A name `html-entities.ts` does not know stays as written.
  */
 export function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&apos;/gi, "'")
-    // Generic numeric entities: &#x2F; → '/', &#39; → "'", &#x27; → "'"
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => safeCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => safeCodePoint(parseInt(dec, 10)))
-    .replace(/&amp;/gi, '&');
+  return text.replace(ENTITY_RE, (whole: string, dec?: string, hex?: string, name?: string) => {
+    if (dec !== undefined) return safeCodePoint(parseInt(dec, 10));
+    if (hex !== undefined) return safeCodePoint(parseInt(hex, 16));
+    return namedEntity(name ?? '') ?? whole;
+  });
 }
 
 /** Tags that end a line of text; each boundary becomes a newline. */
@@ -165,12 +165,43 @@ const BLOCK_TAG_RE =
   /<\/?(?:p|div|section|article|header|footer|main|aside|table|thead|tbody|tr|ul|ol|dl|dt|dd|blockquote|figure|figcaption|form|fieldset|pre|h[1-6])(?:\s[^>]*)?\/?>/gi;
 
 /**
- * HTML → readable plaintext. Entities are decoded FIRST because some ATS
- * feeds (Greenhouse) ship the whole body HTML-escaped — stripping before
- * decoding used to let those tags rematerialise into the stored text.
- * Raw newlines in the source are treated as whitespace (HTML semantics);
- * line structure is rebuilt from block tags, <br> and <li> instead, so
- * descriptions keep their paragraphs and bullet lists.
+ * Phrasing elements: a browser draws them inside the line, with no space of
+ * their own.
+ */
+const INLINE_TAG_RE =
+  /<\/?(?:a|abbr|b|bdi|bdo|cite|code|data|del|dfn|em|font|i|ins|kbd|mark|q|s|samp|small|span|strike|strong|sub|sup|time|tt|u|var)(?:\s[^>]*)?\/?>/gi;
+
+/**
+ * Where an inline tag stood, until the characters around it are known. A
+ * NUL, because no decoded entity can be one; a raw NUL in a feed goes the
+ * same way, which Postgres would have refused anyway.
+ */
+const INLINE_GAP = '\u0000';
+/** Punctuation that closes on the word before it: "AWS.", "Node.js,", "Google's", "full-time". */
+const GAP_BEFORE_PUNCTUATION_RE = /\u0000+(?=[\p{Pe}\p{Pf}\p{Po}\p{Pd}])/gu;
+/** Punctuation that opens on the word after it: "(remote)", "$100k", "pre-seed". */
+const GAP_AFTER_PUNCTUATION_RE = /(?<=[\p{Ps}\p{Pi}\p{Pd}\p{Sc}'"\/])\u0000+/gu;
+const GAP_RE = /\u0000+/g;
+
+/**
+ * HTML → readable plaintext, in three steps:
+ *
+ * 1. The markup's own layer of entities is decoded, because some feeds ship
+ *    the body HTML-escaped — Greenhouse every one, Arbeitnow some with a
+ *    footer of real tags after it — and stripping first used to leave those
+ *    tags in the stored text.
+ * 2. The tags go. Raw newlines are whitespace (HTML semantics); the lines are
+ *    rebuilt from block tags, <br> and <li>, so descriptions keep their
+ *    paragraphs and bullet lists. Any other tag leaves a space, except an
+ *    inline one next to punctuation: "<b>AWS</b>." is "AWS.", as a browser
+ *    draws it. Between two words it stays a space: a span a page styles as a
+ *    block would otherwise glue them.
+ * 3. The text's own entities are decoded: what the escaped body escaped once
+ *    more ("&amp;nbsp;", "&amp;amp;") and what a plain one carried. After the
+ *    tags, so a "<" they spell stays a character of the text.
+ *
+ * Each layer is decoded once. The output is not markup any more, and is never
+ * read by this again (gotcha 12).
  */
 export function stripHtml(html: string): string {
   // Source newlines/tabs are not structure — block tags below are.
@@ -189,9 +220,13 @@ export function stripHtml(html: string): string {
   tags(/<\/li>/gi, ' ');
   tags(/<br\s*\/?>/gi, '\n');
   tags(BLOCK_TAG_RE, '\n');
+  tags(INLINE_TAG_RE, INLINE_GAP);
   // Only real tag shapes — "<3" or "a < b" in prose must survive.
   tags(/<\/?[a-zA-Z][^>]*>/g, ' ');
-  return text
+  return decodeHtmlEntities(text)
+    .replace(GAP_BEFORE_PUNCTUATION_RE, '')
+    .replace(GAP_AFTER_PUNCTUATION_RE, '')
+    .replace(GAP_RE, ' ')
     .replace(/[^\S\n]+/g, ' ')
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
@@ -209,18 +244,21 @@ const VOID_TAGS: ReadonlySet<string> = new Set(['img', 'br', 'hr', 'wbr', 'input
  * tags, which flattens a plain-text posting that holds one link. A "<" that
  * is not markup stays as well: "a < b", "<3", "C++ <-> Rust", and
  * "a<b and c>d", which has a tag's shape and closes nothing. Entities are
- * decoded first (gotcha 12). Every step is one pass over the text.
+ * decoded before the tags go and once more after, one layer each, as in
+ * stripHtml (gotcha 12). Every step is one pass over the text.
  */
 export function stripInlineTags(text: string): string {
   const decoded = decodeHtmlEntities(text);
   const closed = new Set<string>();
   for (const closer of decoded.matchAll(/<\/([a-zA-Z][a-zA-Z0-9]*)\s*>/g)) closed.add(closer[1]!.toLowerCase());
   const body = closed.has('script') || closed.has('style') ? dropElements(dropElements(decoded, 'script'), 'style') : decoded;
-  return body.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)(?:\s[^<>]*)?\/?>/g, (tag: string, name: string) => {
+  const bare = body.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)(?:\s[^<>]*)?\/?>/g, (tag: string, name: string) => {
     const lower = name.toLowerCase();
     if (!closed.has(lower) && !VOID_TAGS.has(lower)) return tag;
     return lower === 'br' || lower === 'hr' ? ' ' : '';
   });
+  // The text's own entities, once the tags are out — as stripHtml's step 3.
+  return decodeHtmlEntities(bare);
 }
 
 /**

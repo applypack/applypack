@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { stripHtml, stripInlineTags, sleep, DEFAULT_USER_AGENT, retryAfterMs } from './http';
+import { decodeHtmlEntities, stripHtml, stripInlineTags, sleep, DEFAULT_USER_AGENT, retryAfterMs } from './http';
 
 describe('DEFAULT_USER_AGENT', () => {
   it('carries the package.json major.minor, never a stale hardcode', () => {
@@ -116,8 +116,26 @@ describe('stripHtml', () => {
     assert.equal(stripHtml(escaped), 'Who We Are\n\nVerkada is transforming.');
   });
 
-  it('does not double-decode &amp;lt;', () => {
-    assert.equal(stripHtml('a &amp;lt;b&amp;gt; c'), 'a &lt;b&gt; c');
+  it('keeps a tag the text spells as text, never as a tag to strip', () => {
+    assert.equal(stripHtml('a &amp;lt;b&amp;gt; c'), 'a <b> c');
+    assert.equal(stripHtml('&lt;p&gt;Experience with &amp;lt;canvas&amp;gt;&lt;/p&gt;'), 'Experience with <canvas>');
+  });
+
+  it("decodes the entities an escaped body's text escaped once more (#659)", () => {
+    assert.equal(stripHtml('&lt;p&gt;Learning &amp;amp; Development&amp;nbsp;budget&lt;/p&gt;'), 'Learning & Development budget');
+    assert.equal(stripHtml('&lt;p&gt;Ship it &amp;mdash; then &amp;quot;measure&amp;quot;&lt;/p&gt;'), 'Ship it \u2014 then "measure"');
+  });
+
+  it('reads a body escaped up to a footer of real tags, as Arbeitnow sends some', () => {
+    assert.equal(
+      stripHtml('&lt;p&gt;Stabilit&amp;auml;t &amp;amp; Klarheit&lt;/p&gt;<p>Find more <a href="https://x.example">jobs</a> on Arbeitnow</p>'),
+      'Stabilit\u00e4t & Klarheit\n\nFind more jobs on Arbeitnow',
+    );
+  });
+
+  it('decodes the named entities beyond the six it used to know (#659)', () => {
+    assert.equal(stripHtml('<p>Pay in &euro; &mdash; it&rsquo;s caf&eacute;</p>'), 'Pay in \u20ac \u2014 it\u2019s caf\u00e9');
+    assert.equal(stripHtml('&ldquo;Hi&rdquo; &hellip; 9&ndash;5, &copy; Acme'), '\u201cHi\u201d \u2026 9\u20135, \u00a9 Acme');
   });
 
   it('keeps loose < and > comparisons in prose', () => {
@@ -125,6 +143,19 @@ describe('stripHtml', () => {
       stripHtml('we <3 offsites, salary > 100k and load < 5ms'),
       'we <3 offsites, salary > 100k and load < 5ms',
     );
+  });
+
+  it('adds no space between an inline tag and the punctuation next to it (#636)', () => {
+    assert.equal(stripHtml('<p>We build <b>robot fleets</b>. You will</p>'), 'We build robot fleets. You will');
+    assert.equal(stripHtml('Use <a href="x">Node.js</a>, React and <strong>AWS</strong>.'), 'Use Node.js, React and AWS.');
+    assert.equal(stripHtml('<p>Salary: <em>$100k</em>!</p>'), 'Salary: $100k!');
+    assert.equal(stripHtml("<a href=\"x\"><b>Google</b></a>'s team (<i>remote</i>), <b>full</b>-time, $<b>90k</b>"), "Google's team (remote), full-time, $90k");
+  });
+
+  it('keeps the space an inline tag stands for between two words, and the one the text wrote', () => {
+    assert.equal(stripHtml('<span>Engineer</span><span>Berlin</span>'), 'Engineer Berlin');
+    assert.equal(stripHtml('C# and <b>.NET</b> roles'), 'C# and .NET roles');
+    assert.equal(stripHtml('<li><b>Go</b></li><li><em>Rust</em></li>'), '\u2022 Go\n\u2022 Rust');
   });
 
   it('drops HTML comments', () => {
@@ -160,6 +191,9 @@ describe('stripHtml — markup nobody closed', () => {
     'script openers before one closer': `${'<script '.repeat(50_000)}</script>`,
     'style openers before one closer': `${'<style '.repeat(50_000)}</style>`,
     'style blocks never closed': '<style>'.repeat(50_000),
+    'inline tags never closed': '<span '.repeat(100_000),
+    'inline tags between punctuation': '(<b>x</b>), '.repeat(50_000),
+    'entities never ended': `&${'a'.repeat(300_000)}`,
   };
   for (const [name, text] of Object.entries(hostile)) {
     it(`reads ${name} in one pass`, () => {
@@ -195,8 +229,9 @@ describe('stripInlineTags', () => {
   it('decodes entities first, so escaped markup goes the same way', () => {
     assert.equal(stripInlineTags('Ops &amp; Platform Engineer'), 'Ops & Platform Engineer');
     assert.equal(stripInlineTags('We use &lt;span&gt;Kubernetes&lt;/span&gt; daily.'), 'We use Kubernetes daily.');
-    // Escaped twice is text about markup, and stays text.
-    assert.equal(stripInlineTags('the &amp;lt;b&amp;gt; tag'), 'the &lt;b&gt; tag');
+    // Escaped twice is text about markup: the second layer is the text's own, and stays text.
+    assert.equal(stripInlineTags('the &amp;lt;b&amp;gt; tag'), 'the <b> tag');
+    assert.equal(stripInlineTags('<b>R&amp;amp;D</b> &amp;mdash; Lund'), 'R&D \u2014 Lund');
   });
 
   it('leaves a "<" that is not markup, and a tag-shaped run that closes nothing', () => {
@@ -217,6 +252,23 @@ describe('stripInlineTags', () => {
       const took = Date.now() - started;
       assert.ok(took < 1_500, `${text.length} characters took ${took} ms`);
     }
+  });
+});
+
+describe('decodeHtmlEntities', () => {
+  it('decodes one layer, whichever way the first one is written', () => {
+    assert.equal(decodeHtmlEntities('&amp;lt;b&amp;gt;'), '&lt;b&gt;');
+    assert.equal(decodeHtmlEntities('&#38;lt; &#x26;amp;'), '&lt; &amp;');
+  });
+
+  it('knows the names HTML 4 knows, the six basic ones in capitals too, and leaves the rest', () => {
+    assert.equal(decodeHtmlEntities('caf&eacute; &Uuml;ber &szlig; &alpha; &rarr; &trade;'), 'caf\u00e9 \u00dcber \u00df \u03b1 \u2192 \u2122');
+    assert.equal(decodeHtmlEntities('&AMP; &LT; &NBSP;'), '& <  ');
+    assert.equal(decodeHtmlEntities('AT&T; R&D &notaname; &EACUTE;'), 'AT&T; R&D &notaname; &EACUTE;');
+  });
+
+  it('writes a no-break space as a space and a soft hyphen as nothing', () => {
+    assert.equal(decodeHtmlEntities('Java&shy;Script&nbsp;dev'), 'JavaScript dev');
   });
 });
 
