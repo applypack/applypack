@@ -20,6 +20,7 @@ import {
   withEngineTasks,
   OPENAI_DEFAULT_MODEL,
   type AiEngineEnv,
+  type AiProviderId,
 } from './ai-engine';
 import { AI_TASKS } from './ai-tasks';
 
@@ -147,17 +148,38 @@ describe('aiEngineOrder / aiEngineCard / toggleAiEngine', () => {
     assert.deepEqual(aiEngineOrder({ order: [], models: {}, tasks: {} }, 'anthropic_api'), ['anthropic_api']);
   });
 
+  const stored = (...order: AiProviderId[]) => ({ order, models: {}, tasks: {} });
+  // No .env, no key: the Anthropic API is the default engine and cannot run.
+  const BARE = { ...ENV, provider: 'anthropic_api' as const };
+
   it('a card reads the list its button edits: the last resort says Enable, and Enable adds it', () => {
-    const engine = resolveAiEngine(null, { ...ENV, provider: 'anthropic_api' });
-    assert.deepEqual(aiEngineCard(engine, 'claude_code', 'anthropic_api'), { enabled: false, position: -1, lastResort: true, canToggle: true });
-    assert.deepEqual(toggleAiEngine(engine.order, 'claude_code', 'anthropic_api'), ['anthropic_api', 'claude_code']);
-    assert.deepEqual(aiEngineCard(engine, 'anthropic_api', 'anthropic_api'), { enabled: true, position: 0, lastResort: false, canToggle: false });
+    assert.deepEqual(aiEngineCard(stored(), 'claude_code', BARE), { enabled: false, position: -1, lastResort: true, canToggle: true });
+    assert.deepEqual(aiEngineCard(stored(), 'anthropic_api', BARE), { enabled: true, position: 0, lastResort: false, canToggle: false });
+    const keyed = { ...BARE, hasAnthropicKey: true };
+    assert.deepEqual(toggleAiEngine(stored(), 'claude_code', keyed), ['anthropic_api', 'claude_code'], 'a .env engine that runs keeps its place');
+  });
+
+  it('Enable never stores a .env engine nobody chose that cannot run here in front of it (#647)', () => {
+    assert.deepEqual(toggleAiEngine(stored(), 'claude_code', BARE), ['claude_code']);
+    assert.deepEqual(toggleAiEngine(stored('gemini_cli'), 'claude_code', BARE), ['gemini_cli', 'claude_code'], 'a stored list is the person\'s');
   });
 
   it('removes an enabled engine, but not the .env engine alone in the list — an empty list seeds it back', () => {
-    assert.deepEqual(toggleAiEngine(['anthropic_api', 'claude_code'], 'anthropic_api', 'anthropic_api'), ['claude_code']);
-    assert.deepEqual(toggleAiEngine(['gemini_cli'], 'gemini_cli', 'anthropic_api'), []);
-    assert.equal(toggleAiEngine(['anthropic_api'], 'anthropic_api', 'anthropic_api'), null);
+    assert.deepEqual(toggleAiEngine(stored('anthropic_api', 'claude_code'), 'anthropic_api', BARE), ['claude_code']);
+    assert.deepEqual(toggleAiEngine(stored('gemini_cli'), 'gemini_cli', BARE), []);
+    assert.equal(toggleAiEngine(stored('anthropic_api'), 'anthropic_api', BARE), null);
+  });
+
+  it('Disable is refused for an engine that would answer every call as the last resort the moment it left (#647)', () => {
+    assert.equal(toggleAiEngine(stored('claude_code'), 'claude_code', BARE), null);
+    assert.equal(aiEngineCard(stored('claude_code'), 'claude_code', BARE).canToggle, false);
+    assert.equal(toggleAiEngine(stored('codex_cli', 'claude_code'), 'claude_code', BARE), null, 'Codex is signed out: nothing else runs');
+    // Something else that runs takes over, or the .env engine can: then it goes.
+    assert.deepEqual(toggleAiEngine(stored('gemini_cli', 'claude_code'), 'claude_code', BARE), ['gemini_cli']);
+    assert.deepEqual(toggleAiEngine(stored('claude_code'), 'claude_code', { ...BARE, hasAnthropicKey: true }), []);
+    // One that stands down for the last resort goes, and the last resort is somebody else.
+    assert.deepEqual(toggleAiEngine(stored('gemini_cli'), 'gemini_cli', BARE), []);
+    assert.equal(resolveAiEngine(stored(), BARE).lastResort, 'claude_code');
   });
 });
 

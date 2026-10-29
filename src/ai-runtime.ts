@@ -12,6 +12,7 @@ import { prisma } from './db';
 import { getAiProviderById } from './ai-provider';
 import { runChain } from './ai-failover';
 import { cliCommand } from './cli-command';
+import { refreshingCache } from './refreshing-cache';
 import { SETTINGS_ID } from './settings';
 import { aiKeySource, parseAiKeys, resolveAiKey, type AiKeys, type AiKeySource } from './ai-keys';
 import { createCooldownTracker } from './ai-cooldown';
@@ -204,18 +205,25 @@ const PROBE_TIMEOUT_MS = 5_000;
 const PROBE_TTL_MS = 60_000;
 
 // Kept per language: the details are sentences, and a page in another language asks for its own.
-let probeCache: { at: number; locale: Locale; statuses: Record<AiProviderId, AiProviderStatus> } | null = null;
+const probeCache = refreshingCache<Locale, Record<AiProviderId, AiProviderStatus>>(PROBE_TTL_MS);
 
 /**
  * Which backends this host can actually run: key present for the APIs,
- * binary on PATH + detectable auth for the CLIs. Cached briefly — the
- * settings page calls it on every render. A caller that already holds the
- * stored keys passes them in rather than paying for a second read.
+ * binary on PATH + detectable auth for the CLIs. Kept a minute, and read
+ * again behind the page past that (#649): spawning four CLIs took over half a
+ * second, which the Overview and every page that names an engine waited on
+ * once a minute. `fresh` waits for a reading under a minute old instead — the
+ * AI tab, which is about exactly this. A caller that already holds the stored
+ * keys passes them in rather than paying for a second read.
  */
 export async function probeAiProviders(
   stored?: AiKeys,
+  opts: { fresh?: boolean } = {},
 ): Promise<Record<AiProviderId, AiProviderStatus>> {
-  if (probeCache && probeCache.locale === currentLocale() && Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.statuses;
+  return probeCache.get(currentLocale(), () => probeNow(stored), opts);
+}
+
+async function probeNow(stored: AiKeys | undefined): Promise<Record<AiProviderId, AiProviderStatus>> {
   const [claude, gemini, agy, codex, keys, servers] = await Promise.all([
     probeCliBin(config.CLAUDE_CODE_BIN),
     probeCliBin(config.GEMINI_CLI_BIN),
@@ -242,13 +250,12 @@ export async function probeAiProviders(
     codex_cli: withCodexAuth(codex),
     local_api: await ollamaStatus(localAiBase(servers.localAiUrl)),
   };
-  probeCache = { at: Date.now(), locale: currentLocale(), statuses };
   return statuses;
 }
 
 /** Invalidates the probe cache so a just-saved key shows up immediately. */
 export function forgetAiProbe(): void {
-  probeCache = null;
+  probeCache.forget();
 }
 
 async function readAiKeys(): Promise<AiKeys> {

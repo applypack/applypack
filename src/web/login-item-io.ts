@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import dotenv from 'dotenv';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -46,16 +47,27 @@ function stableNode(): string {
   return process.execPath;
 }
 
+/** The checkout's `.env` as the launcher reads it; none, or one it cannot read, sets nothing. */
+function readDotEnv(root: string): Record<string, string> {
+  try {
+    return dotenv.parse(fs.readFileSync(path.join(root, '.env')));
+  } catch {
+    return {};
+  }
+}
+
 function currentItem(): { item: LoginItem; logFile: string } | null {
   const logFile = path.join(dataDirFor(process.platform, process.env, os.homedir()), 'logs', 'launcher.log');
+  // dist/web → dist/local/launcher.js, and the checkout above dist.
+  const root = path.resolve(__dirname, '..', '..');
   const item = loginItemFor({
     platform: process.platform,
     home: os.homedir(),
     env: process.env,
+    dotEnv: readDotEnv(root),
     node: stableNode(),
-    // dist/web → dist/local/launcher.js, and the checkout above dist.
     launcher: path.resolve(__dirname, '..', 'local', 'launcher.js'),
-    root: path.resolve(__dirname, '..', '..'),
+    root,
     logFile,
   });
   return item ? { item, logFile } : null;
