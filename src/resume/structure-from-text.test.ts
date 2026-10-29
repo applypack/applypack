@@ -217,6 +217,26 @@ test('joinWrapped keeps a finished sentence apart and joins a broken one', () =>
   ]);
 });
 
+test('joinWrapped joins a capitalised half after a word no line ends on, or inside a known name (#637)', () => {
+  assert.deepEqual(joinWrapped(['Six years in TypeScript, JavaScript, and', 'Node.js. Then more.']), ['Six years in TypeScript, JavaScript, and Node.js. Then more.']);
+  assert.deepEqual(joinWrapped(['Led the move of billing to the', 'Payments team.']), ['Led the move of billing to the Payments team.']);
+  assert.deepEqual(joinWrapped(['Prisma, Docker, GitHub', 'Actions, REST']), ['Prisma, Docker, GitHub Actions, REST']);
+  assert.deepEqual(joinWrapped(['Deployed on Amazon Web', 'Services and Google', 'Cloud Run']), ['Deployed on Amazon Web Services and Google Cloud Run']);
+  // A finished name, then a new line: nothing joins it.
+  assert.deepEqual(joinWrapped(['Docker, GitHub', 'React, Vue']), ['Docker, GitHub', 'React, Vue']);
+  assert.deepEqual(joinWrapped(['Software Engineer, Backend', 'Senior Developer at Acme']), ['Software Engineer, Backend', 'Senior Developer at Acme']);
+  // "Plan A" ends a line; a lower-case "a" does not.
+  assert.deepEqual(joinWrapped(['Shipped Plan A', 'Built the API']), ['Shipped Plan A', 'Built the API']);
+});
+
+test('the skills of a clean PDF read as one group once its GitHub / Actions wrap is joined (#637)', () => {
+  const r = structureFromText(
+    'Dana Ruiz\n\nSKILLS\nTypeScript, JavaScript, Node.js (Fastify, Express), React, Next.js, SQL, PostgreSQL, Prisma, Docker, GitHub\nActions, REST, GraphQL, JSON, Jest, AWS (ECS, RDS, S3)\n',
+  );
+  assert.equal(r.skills.length, 1);
+  assert.ok(r.skills[0]?.keywords.includes('GitHub Actions'));
+});
+
 test('a heading in ordinary case is a section when the whole line is one', () => {
   const r = structureFromText(
     'Dana Ruiz\nLisbon, Portugal | dana@example.com\n\nSummary\nFull-stack engineer.\n\nWork experience:\nSenior Developer - Harborline, 2022-present\n- Built the dispatch API\n\nEducation\nBSc Computer Science, 2019\n\nSkills & Tools\nTypeScript, React, PostgreSQL\n',

@@ -200,7 +200,12 @@ test('the text grammar round-trips every kind', () => {
   assert.deepEqual(years('3-5'), [3, 5, null]);
   assert.deepEqual(years('3 to 5 years'), [3, 5, null]);
   assert.deepEqual(years('5+ years: test automation'), [5, null, 'test automation']);
-  assert.deepEqual(years('at least 5 years of backend development'), [5, null, 'at least 5 years of backend development'], 'a sentence that names the years reads as the posting wrote it');
+  assert.deepEqual(years('at least 5 years of backend development'), [5, null, 'backend development'], 'a sentence that names the years keeps the kind of work it names');
+  // #645: the kind of work, wherever the sentence puts it; nothing when it names none.
+  assert.deepEqual(years('5+ years in test automation for web applications'), [5, null, 'test automation for web applications']);
+  assert.deepEqual(years('At least 3 years of professional experience with Node.js'), [3, null, 'Node.js']);
+  assert.deepEqual(years('Test automation: 5+ years'), [5, null, 'Test automation']);
+  assert.deepEqual(years('minimum 4 years of experience'), [4, null, null]);
 });
 
 test('a skill\'s recency window is typed into its text, and off unless it is', () => {
@@ -406,4 +411,35 @@ test('rubricEquals, rubricSummary, levelFromBrief', () => {
   assert.equal(rubricSummary(r), '5 gates · 8 scored');
   assert.equal(levelFromBrief('staff'), 'lead');
   assert.equal(levelFromBrief(null), null);
+});
+
+test('the posting\'s sector is one criterion, not a skill row per spelling of it (#645)', () => {
+  const brief = BriefSchema.parse({
+    ...EVERY_KIND,
+    company: { industry: 'fintech payments', product: null, audience: null, stage: null },
+    keywords: [
+      ...EVERY_KIND.keywords,
+      { term: 'fintech', priority: 4, requirement: 'nice', primary: false, aliases: [], group: null },
+      { term: 'payments', priority: 4, requirement: 'nice', primary: false, aliases: [], group: null },
+      { term: 'payment gateway integration', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: null },
+      { term: 'healthtech', priority: 4, requirement: 'nice', primary: false, aliases: [], group: null },
+    ],
+  });
+  const r = draftRubric(brief);
+  assert.deepEqual(byKind(r, 'industry').map((c) => c.label), ['fintech payments']);
+  const skills = byKind(r, 'skill').map((c) => criterionText(c));
+  assert.ok(!skills.includes('fintech') && !skills.includes('payments'), 'the industry row answers both');
+  // A skill that names the sector, and a sector the row does not name, stay rows of their own.
+  assert.ok(skills.includes('payment gateway integration'));
+  assert.ok(skills.includes('healthtech'));
+});
+
+test('a years row saved before #645 reads its kind of work, not its whole sentence', () => {
+  const stored = RubricSchema.parse({
+    criteria: [{ id: 'y', kind: 'years', label: 'At least 5 years in test automation', mode: 'gate', weight: 3, source: 'posting', spec: { min: 5, of: 'At least 5 years in test automation' } }],
+  });
+  assert.equal(readRubric(stored).criteria[0]!.spec.of, 'test automation');
+  // A band's own kind of work is the person's, and stays as typed.
+  const band = RubricSchema.parse({ criteria: [{ id: 'y', kind: 'years', label: '5+: QA', mode: 'gate', weight: 3, source: 'you', spec: { min: 5, of: 'QA' } }] });
+  assert.equal(readRubric(band).criteria[0]!.spec.of, 'QA');
 });

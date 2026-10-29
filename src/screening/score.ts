@@ -233,7 +233,11 @@ export function scoreScreening(input: ScreenScoreInput): ScreenBreakdown {
           const recency = SCREEN_SCORING.recency.find((r) => facts.recentMonths! <= r.months)?.credit ?? SCREEN_SCORING.recencyFloor;
           credit = over ? 0 : SCREEN_SCORING.yearsShare * share + SCREEN_SCORING.recencyShare * recency;
           answer = `${facts.years} years`;
-          detail = `${facts.years} relevant year${facts.years === 1 ? '' : 's'}${min !== null ? ` of ${min} asked` : ''}${max !== null ? `, at most ${max}` : ''}; last ended ${describeMonths(facts.recentMonths)}`;
+          // The roles the reading called relevant to the position: when the
+          // criterion names a narrower kind of work, the dates cannot tell it
+          // apart, and the row says so instead of passing quietly (#645).
+          const area = c.spec.of ? `; counted over every relevant role — the dates do not single out ${c.spec.of}` : '';
+          detail = `${facts.years} relevant year${facts.years === 1 ? '' : 's'}${min !== null ? ` of ${min} asked` : ''}${max !== null ? `, at most ${max}` : ''}; last ended ${describeMonths(facts.recentMonths)}${area}`;
           gate = over ? 'fail' : min !== null && facts.years + 0.5 < min ? 'fail' : 'pass';
         } else if (c.kind === 'industry') {
           const marked = facts.dated.filter((d) => d.role.sector !== null);
@@ -463,7 +467,7 @@ const DETAIL_STALE = new RegExp(`^last used ${WHEN} — past the (\\d+)-month wi
 const DETAIL_LAST_USED = /^last used (.+)$/s;
 const DETAIL_ASK = /^ask: (.+)$/s;
 const DETAIL_LEVEL = new RegExp(`^reads as ${LEVEL}; the criterion asks ${LEVEL}( or above| or below| \\(one rung either way\\)| exactly)$`);
-const DETAIL_YEARS = new RegExp(`^${NUMBER} relevant years?(?: of ${NUMBER} asked)?(?:, at most ${NUMBER})?; last ended ${WHEN}$`);
+const DETAIL_YEARS = new RegExp(`^${NUMBER} relevant years?(?: of ${NUMBER} asked)?(?:, at most ${NUMBER})?; last ended ${WHEN}(?:; counted over every relevant role — the dates do not single out (.+))?$`, 's');
 const DETAIL_INDUSTRY = new RegExp(`^${NUMBER} years? in (.+?)(?: of ${NUMBER} asked)?$`, 's');
 const DETAIL_NO_ROLE_IN = /^no role in (.+)$/s;
 const DETAIL_COMPANY = /^(\d+) of (\d+) dated roles at (.+) companies$/s;
@@ -496,7 +500,7 @@ export function detailParts(detail: string): DetailPart[] {
   if (m) return words('screening.detail.stale', { when: whenWords(m[1]!), window: Number(m[2]) });
   if ((m = DETAIL_LEVEL.exec(detail))) return words('screening.detail.level', { observed: m[1]!, wanted: m[2]!, tolerance: TOLERANCE[m[3]!] ?? 'exact' });
   if ((m = DETAIL_YEARS.exec(detail))) {
-    return words('screening.detail.years', { years: Number(m[1]), min: optional(m[2]), max: optional(m[3]), when: whenWords(m[4]!) });
+    return words('screening.detail.years', { years: Number(m[1]), min: optional(m[2]), max: optional(m[3]), when: whenWords(m[4]!), area: m[5] ?? 'none' });
   }
   if ((m = DETAIL_COMPANY.exec(detail))) return words('screening.detail.companyType', { n: Number(m[1]), total: Number(m[2]), items: m[3]! });
   if ((m = DETAIL_NO_ROLE_AT.exec(detail))) return words('screening.detail.noRoleAt', { items: m[1]! });

@@ -20,6 +20,7 @@ export function scanFields(resume: ResumeSummary): ScanForDraft {
     skills: resume.skills,
     primarySkills: resume.primarySkills,
     roleTypes: resume.roleTypes,
+    text: resume.text,
   };
 }
 

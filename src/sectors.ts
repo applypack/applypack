@@ -81,6 +81,30 @@ export function sectorGroups(text: string | null | undefined): string[] {
     .map((g) => g.label);
 }
 
+/** Every name in the vocabulary, longest first: "financial services" is taken out before "service" could be. */
+const NAMES = GROUPS.flatMap((g) => g.names).sort((a, b) => b.length - a.length);
+
+/** Words around a sector that name no other thing: "the payments domain", "fintech experience". */
+const FRAME = new Set(['the', 'a', 'an', 'or', 'in', 'of', 'domain', 'sector', 'space', 'experience', 'knowledge', 'background']);
+
+/**
+ * Is this a sector and nothing else — "payments", "fintech or banking", "the
+ * payments domain" — rather than a skill that happens to name one ("payment
+ * gateway integration")? The screening draft asks it of a posting's keywords,
+ * so the sector is one criterion, not three (#645).
+ */
+export function isSectorName(text: string): boolean {
+  let rest = words(text);
+  let named = false;
+  for (const name of NAMES) {
+    while (rest.includes(name)) {
+      rest = rest.replace(name, ' ');
+      named = true;
+    }
+  }
+  return named && rest.trim().split(' ').every((w) => w === '' || GENERIC.has(w) || FRAME.has(w));
+}
+
 /** How the career line names a role's sector: the vocabulary's labels, or the words as written when it knows none. */
 export function sectorLabels(text: string | null | undefined): string[] {
   const groups = sectorGroups(text);

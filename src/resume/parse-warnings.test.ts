@@ -38,6 +38,15 @@ test('missing contact details are flagged individually', () => {
   assert.ok(w.includes('no_phone'));
 });
 
+test('the no-phone warning stands on its own: an email can be there, and a phone left out on purpose (#642)', () => {
+  const noPhone = CLEAN.replace(' · +1 415 555 0100', '');
+  const w = parseWarnings(noPhone);
+  assert.deepEqual(w.map((x) => x.code).filter((c) => c === 'no_email' || c === 'no_phone'), ['no_phone']);
+  const message = w.find((x) => x.code === 'no_phone')!.message;
+  assert.doesNotMatch(message, /email/i);
+  assert.match(message, /left it out/);
+});
+
 test('glued words and over-length text are flagged', () => {
   const glued = `${CLEAN}\n${'Seniorbackendengineerwithagreatrecordofdelivery '.repeat(40)}`;
   assert.ok(codes(glued).includes('glued_words'));

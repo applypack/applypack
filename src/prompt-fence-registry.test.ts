@@ -293,7 +293,7 @@ const CASES: Record<string, Case> = {
     ],
   },
   buildVerifyPrompt: {
-    build: () => verifyMod.buildVerifyPrompt({ ...JOB, url: 'https://x.example/1', postedAt: new Date(0) }),
+    build: () => verifyMod.buildVerifyPrompt({ ...JOB, url: 'https://x.example/1', postedAt: new Date(0), postedAtKnown: true }),
     fenced: [
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],
