@@ -232,6 +232,7 @@ src/
   db.ts                        ← PrismaClient singleton
   types.ts                     ← NormalizedJob, ClaudeClassification, ClassifyInput, AlertJob
   http.ts                      ← fetchWithRetry, stripHtml, AbortController timeout
+  html-entities.ts             ← pure: HTML 4's named entities, the table decodeHtmlEntities reads
   app-version.ts               ← APP_VERSION from package.json: the sidebar, the User-Agent, the update check
   versions.ts                  ← pure: parseVersion, isNewer — release tags compared
   update-check.ts              ← the optional weekly look at GitHub's latest release (off by default)
@@ -494,6 +495,7 @@ src/
     fetch-tick.ts               ← the worker's own two fetch starters: the hourly tick (waits for the lock) and a folder check (asks once); the lock first, the run row after
     funnel-store.ts             ← addToFunnel (the fetch + HN wrappers) into funnel_day; loadFunnel, loadSourceYield for the pages
     employer-store.ts           ← the mute list, the tick's employer rules, the one-time fill of older rows' keys (ADR 0056)
+    stored-text.ts              ← pure: what the fetchers write now, applied to a stored row (scripts/backfill-descriptions.ts)
     fetch-pause.ts              ← makeFetchPauseProbe: a pause on /settings stops a running tick within seconds
     process-jobs.ts             ← processNormalizedJobs: the shared inner loop used by fetch + HN
     verdict-merge.ts            ← pure: one verdict per search, the winner, the score line (ADR 0028)
