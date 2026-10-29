@@ -87,8 +87,14 @@ const KEYWORDS_MAX = 80;
  * v18: the title action rewrites the headline the resume has rather than adding
  *     a second one (#591); an item that changes nothing is left out, and "why"
  *     is written for the candidate, not in this prompt's field names (#577).
+ * v19: a missing keyword goes into ONE bullet, never beside the term on the
+ *     line that implies it, and a figure stays with the work its own line names
+ *     (#632, #633). v15's "every rewrite carries a keyword" forced the repeats
+ *     once the rewrites outnumbered the missing terms; both rules are also
+ *     refused in code (replacement-gate.ts, fact-check.ts:detachedFigures), so
+ *     the prompt keeps them to spare the cards the gate would refuse.
  */
-export const PROMPT_VERSION = 18;
+export const PROMPT_VERSION = 19;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -714,7 +720,8 @@ const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: conc
    - "recent_role" graded below strong → rewrite the most recent role's leading bullets, up to 4, one action each WITH a replacement, so each opens with an outcome this employer scans for, in this posting's vocabulary.
    - a must-level or primary keyword whose evidence is "listed" → one action putting it inside a bullet where the work is described. "listed" is measured, not guessed: the term is named on a line of terms and shown nowhere else, which proves nothing to a human reader. A term already "described" or "measured" needs no such action.
    - a must-level keyword marked "add" → one action writing it into the text whose facts already evidence it.
-   KEYWORDS IN THE WORDING: a rewritten bullet, summary or title is where the posting's missing words go. Every "replacement" for an experience bullet or the summary carries at least one keyword from the table that the resume does not yet show in a sentence — one marked "add" first, then a "listed" one — in the posting's own spelling, on a line whose facts support it, and "why" names the keyword. Spread them across the rewrites rather than stacking one term everywhere, and never write in a keyword marked "cannot_claim": that is a claim the candidate has not made.
+   KEYWORDS IN THE WORDING: a rewritten bullet, summary or title is where the posting's missing words go — a keyword from the table that the resume does not yet show in a sentence ("add" first, then "listed"), in the posting's own spelling, on a line whose work used it, and "why" names the keyword. Each such keyword goes into ONE bullet, not several: once a rewrite carries it, the next one carries another or none. Never write a term in beside the term on the line that already implies it ("a PostgreSQL SQL database", "TypeScript, and JavaScript", "REST APIs exchanging JSON") — such a term goes on the skills line, and a bullet rewrite that lists it beside such a name, or changes nothing else, is refused. Never write in a keyword marked "cannot_claim": that is a claim the candidate has not made.
+   A FIGURE STAYS WITH ITS WORK: a number from the resume is written only about the work its own line describes. Never move a bullet's figure onto another bullet's work, and never put a figure on an activity its line does not name ("set up alerting; resolution fell from 90 to 35 minutes" never becomes "ran on-call rotations that cut resolution from 90 to 35 minutes").
    When all three grades are strong and no must-level keyword is buried, the short list IS the answer — say what already works in "strengths".
    THE ONE EXEMPTION is a different PROFESSION — a backend engineer against a paid-media role, a product manager against a principal engineer, a software engineer against clinical trial management. No wording bridges those: write NO actions and say plainly in "summary" and "cautions" what the resume is and what the posting wants.
    THE TEST FOR IT, so it is not a feeling: the exemption applies only when NOT ONE item of the posting's primary stack is "present" or "add" (and, for a posting with no primary stack, when fewer than two of its must-level keywords are). If even one is, this candidate already has part of the core of this job, and the actions above are owed however wide the rest of the gap looks.

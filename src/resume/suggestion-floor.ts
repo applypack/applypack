@@ -95,7 +95,7 @@ export function floorDemand(gaps: FloorSection[], terms: string[] = []): string 
     summary: 'the summary graded below strong and got no high-priority action with wording',
     experience: "the most recent role graded below strong and got no high-priority action rewriting its leading bullets",
     skills: 'a must-level term the resume names only on a skills line got no action putting it inside a bullet',
-    keywords: `must-level keywords marked "add" appear in no replacement (${terms.join(', ') || 'see the table'}) — write each into the bullet or summary rewrite whose facts back it`,
+    keywords: `must-level keywords marked "add" appear in no replacement (${terms.join(', ') || 'see the table'}) — write each in once: on the skills line, or into the one bullet whose work used it, in words that describe that work`,
   };
   return (
     'THE LAST REPLY MISSED REQUIRED COVERAGE. ' +

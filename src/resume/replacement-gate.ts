@@ -34,6 +34,26 @@
  *    number" to `why`, and the model still writes it, or a slot to fill in,
  *    into the wording itself — one press then put that sentence in the resume.
  *
+ *  - a true figure told about other work is refused (#632): factCheck proves
+ *    the number is in the resume, `detachedFigures` that the wording keeps it
+ *    with the work its own line names. A summary that "ran on-call for systems
+ *    serving 1.8M requests/day" took the figure of the dispatch API bullet and
+ *    the words of the runbooks one, and the letter written next repeated it.
+ *
+ *  - keyword stuffing is refused (#633). One comparison wrote JavaScript, SQL
+ *    and JSON onto the skills line and then into four bullets ("a PostgreSQL
+ *    SQL database", "Node.js, TypeScript, and JavaScript"), and Apply all took
+ *    every one. So a bullet rewrite that writes in a term the resume never
+ *    writes (an `add` the candidate did not confirm: implied by the line, as
+ *    the model's own note says) is refused when it changes nothing else, or
+ *    lists the term beside another name — that term goes on the skills line,
+ *    or into a bullet whose new words describe the work that used it. The
+ *    live check's "Node.js, JavaScript, and TypeScript, exchanging JSON …
+ *    with p95 latency" had one word of its own and passed the first test
+ *    alone. And a term the resume does not yet show in a
+ *    sentence goes into ONE bullet per report: the score reads its best line,
+ *    so a second bullet earns nothing and reads as stuffing.
+ *
  * A blocked action keeps everything but its replacement, which becomes an
  * explicit null — proposalOf reads that as "judged, do not parse `what`".
  *
@@ -56,7 +76,7 @@
  * highlighted, nothing is deletable in one press, and `why` says why.
  */
 
-import { factCheck } from './fact-check';
+import { factCheck, workWords } from './fact-check';
 import type { FactLike } from './facts';
 import { effectiveRequirement } from './keyword-overrides';
 import type { KeywordMatcher } from './keyword-matcher';
@@ -78,6 +98,11 @@ export interface GateReport {
   actions: MatchAction[];
   blocked: number;
   warned: number;
+}
+
+export interface GateOptions {
+  /** The rest of the report, already gated: the terms its wordings write in are taken (rewrite.ts). */
+  alongside?: MatchAction[];
 }
 
 export interface RemovalGateReport {
@@ -165,16 +190,84 @@ function factLines(facts: FactLike[]): string[] {
     .map((f) => (f.note ? `${f.term} — ${f.note}` : f.term));
 }
 
-export function gateActions(actions: MatchAction[], sources: GateSources): GateReport {
-  let blocked = 0;
-  let warned = 0;
+/**
+ * Words a rewrite adds to wedge a term in, saying nothing new about the work:
+ * "serving JSON over a PostgreSQL SQL database", "SQL-backed PostgreSQL storage".
+ */
+const WEDGE_WORDS = new Set([
+  'database', 'storage', 'store', 'backed', 'based', 'powered', 'driven', 'data', 'format', 'payload',
+  'layer', 'backend', 'back-end', 'exchanging', 'exchange', 'consuming', 'leveraging', 'involving',
+  'including', 'featuring', 'environment', 'technology', 'tooling', 'framework', 'language', 'skill',
+  'endpoint', 'modern', 'robust', 'scalable', 'efficient', 'reliable',
+]);
+
+/** A term the resume does not yet show in a sentence: one bullet per report may write it in. */
+const unwritten = (k: MatchKeyword) => k.status === 'add' || (k.status === 'present' && k.evidence === 'listed');
+/** An `add` the candidate never confirmed: the model read it off the text as implied ("PostgreSQL work demonstrates SQL"). */
+const impliedOnly = (k: MatchKeyword) => k.status === 'add' && !k.note?.startsWith('user-confirmed');
+
+const PRIORITY_RANK: Record<MatchAction['priority'], number> = { high: 0, medium: 1, low: 2 };
+/** Where an implied term belongs instead, said on both refusals. */
+const IMPLIED_HOME = 'a term the resume implies but never names goes on the skills line, or into a bullet whose own words show the work that used it';
+
+/** A name by its shape alone: "PostgreSQL", "Node.js", "AWS", "C#" — a capital inside it, a dot, plus or hash, or capitals throughout. */
+const NAME_SHAPE = /^(?:\p{L}+\p{Lu}[\p{L}\p{N}.+#-]*|[\p{L}\p{N}]*[.+#][\p{L}\p{N}.+#]*|\p{Lu}{2,}[\p{L}\p{N}-]*)$/u;
+/** A capitalised word is a name too, unless it opens the sentence ("Wrote SQL schema…"). */
+const CAPITALISED = /^\p{Lu}/u;
+/** What stands between two names in a list: "Node.js, TypeScript, and JavaScript". */
+const LIST_JOINERS = new Set(['and', 'or', 'a', 'an', 'the']);
+
+/**
+ * The name a term is listed beside, or null: the nearest word on either side,
+ * past list punctuation, the joiners and the wedge words ("SQL-backed
+ * PostgreSQL storage"), when it is a name too. A term beside the name that
+ * implies it ("a PostgreSQL SQL database") is that name said twice.
+ */
+function listedBeside(text: string, k: MatchKeyword, matcher: GateSources['matcher']): string | null {
+  const words = [...text.matchAll(/[^\s,;/&+()]+/g)].map((m) => ({ word: m[0].replace(/^-+|-+$/g, ''), at: m.index }));
+  const opensSentence = (at: number) => {
+    const head = text.slice(0, at).trimEnd();
+    return head === '' || /[.!?:]$/.test(head);
+  };
+  const nearest = (side: typeof words): string | null => {
+    for (const { word, at } of side) {
+      const lower = word.toLowerCase();
+      if (word === '' || LIST_JOINERS.has(lower) || WEDGE_WORDS.has(lower) || WEDGE_WORDS.has(lower.replace(/s$/, ''))) continue;
+      return NAME_SHAPE.test(word) || (CAPITALISED.test(word) && !opensSentence(at)) ? word : null;
+    }
+    return null;
+  };
+  for (const span of matcher.findTerm(text, k.term, k.aliases ?? [])) {
+    const before = words.filter((w) => w.at + w.word.length <= span.start).reverse();
+    const after = words.filter((w) => w.at >= span.end);
+    const name = nearest(before) ?? nearest(after);
+    if (name !== null) return name;
+  }
+  return null;
+}
+
+/** With every term it writes in taken out, does the rewrite say only what the quoted line said? */
+function onlyWritesIn(quote: string, text: string, terms: MatchKeyword[], matcher: GateSources['matcher']): boolean {
+  const spans = terms.flatMap((k) => matcher.findTerm(text, k.term, k.aliases ?? [])).sort((a, b) => b.start - a.start);
+  let rest = text;
+  let floor = Infinity;
+  for (const span of spans) {
+    if (span.end > floor) continue;
+    rest = `${rest.slice(0, span.start)} ${rest.slice(span.end)}`;
+    floor = span.start;
+  }
+  const had = workWords(quote);
+  return [...workWords(rest).keys()].every((w) => had.has(w) || WEDGE_WORDS.has(w));
+}
+
+export function gateActions(actions: MatchAction[], sources: GateSources, options: GateOptions = {}): GateReport {
   const hits = (text: string, k: MatchKeyword) => sources.matcher.findTerm(text, k.term, k.aliases ?? []).length;
   const has = (text: string, k: MatchKeyword) => hits(text, k) > 0;
   /** Does this term still stand somewhere in the resume outside the span being rewritten? */
   const elsewhereInResume = (quote: string, k: MatchKeyword) => hits(sources.resumeText, k) > hits(quote, k);
 
-  const gated = actions.map((action) => {
-    if (typeof action.replacement !== 'string' || action.replacement.trim() === '') return action;
+  const judged = actions.map((action): { action: MatchAction; verdict: 'pass' | 'warn' | 'block' } => {
+    if (typeof action.replacement !== 'string' || action.replacement.trim() === '') return { action, verdict: 'pass' };
     const text = toPlainPunctuation(action.replacement);
     const quote = action.quote ?? '';
     const blocks: string[] = [];
@@ -184,6 +277,8 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
       text,
       sources: [sources.resumeText, sources.posting, ...factLines(sources.facts)],
       facts: sources.facts,
+      resume: sources.resumeText,
+      replacing: quote,
     });
     // First on purpose: of the reasons a card can show, this one says the wording was never a line.
     const instruction = instructionIn(text, quote);
@@ -195,6 +290,8 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
     if (lost) blocks.push(`it changes or drops "${lost}" — keep the contact details exactly as they are`);
 
     if (check.verdict === 'block') blocks.push(...check.reasons);
+    // A true figure on other work is no invention, but one press would put the claim in the resume.
+    else if (check.detached.length > 0) blocks.push(check.detached[0]!.reason);
     else if (check.verdict === 'warn') warns.push(...check.reasons);
 
     for (const k of sources.keywords) {
@@ -218,18 +315,48 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
       }
     }
 
-    if (blocks.length > 0) {
-      blocked++;
-      return { ...action, replacement: null, why: `${action.why}${BLOCK_NOTE}${blocks[0]}` };
+    // Stuffing (#633): a bullet rewrite that writes in a term the line implies,
+    // as its only news or listed beside a name the line already gives.
+    if (action.section === 'experience' && quote) {
+      const writtenIn = sources.keywords.filter((k) => !has(quote, k) && has(text, k));
+      const implied = writtenIn.filter(impliedOnly);
+      const beside = implied.map((k) => [k, listedBeside(text, k, sources.matcher)] as const).find(([, name]) => name !== null);
+      if (beside) blocks.push(`it lists "${beside[0].term}" beside "${beside[1]}" — ${IMPLIED_HOME}`);
+      else if (implied.length > 0 && onlyWritesIn(quote, text, writtenIn, sources.matcher)) {
+        blocks.push(`it only writes "${implied[0]!.term}" into the line — ${IMPLIED_HOME}`);
+      }
     }
-    if (warns.length > 0) {
-      warned++;
-      return { ...action, replacement: text, why: `${action.why}${WARN_NOTE}${warns[0]}` };
-    }
-    return { ...action, replacement: text };
+
+    if (blocks.length > 0) return { action: { ...action, replacement: null, why: `${action.why}${BLOCK_NOTE}${blocks[0]}` }, verdict: 'block' };
+    if (warns.length > 0) return { action: { ...action, replacement: text, why: `${action.why}${WARN_NOTE}${warns[0]}` }, verdict: 'warn' };
+    return { action: { ...action, replacement: text }, verdict: 'pass' };
   });
 
-  return { actions: gated, blocked, warned };
+  // One bullet per term (#633): the score reads a term's best line, so a second
+  // bullet that writes the same unwritten term in earns nothing and reads as
+  // stuffing. The first in priority order keeps it.
+  const termsOf = (a: MatchAction): string[] =>
+    a.section === 'experience' && typeof a.replacement === 'string'
+      ? sources.keywords.filter((k) => unwritten(k) && !has(a.quote ?? '', k) && has(a.replacement!, k)).map((k) => k.term)
+      : [];
+  const taken = new Set((options.alongside ?? []).flatMap(termsOf));
+  const order = judged.map((_, i) => i).sort((i, j) => PRIORITY_RANK[actions[i]!.priority] - PRIORITY_RANK[actions[j]!.priority] || i - j);
+  for (const i of order) {
+    const terms = termsOf(judged[i]!.action);
+    const again = terms.find((t) => taken.has(t));
+    if (again === undefined) {
+      for (const t of terms) taken.add(t);
+      continue;
+    }
+    const why = `${actions[i]!.why}${BLOCK_NOTE}writes "${again}" into one more bullet — another edit here already writes it in, and once is enough`;
+    judged[i] = { action: { ...judged[i]!.action, replacement: null, why }, verdict: 'block' };
+  }
+
+  return {
+    actions: judged.map((j) => j.action),
+    blocked: judged.filter((j) => j.verdict === 'block').length,
+    warned: judged.filter((j) => j.verdict === 'warn').length,
+  };
 }
 
 /** Letters and digits alone, so "AI / LLM Automation" and "AI/LLM Automation" are one name. */

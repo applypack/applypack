@@ -73,13 +73,12 @@ export async function rewriteAction(
   // The target is the comparison's, not the model's: only the three written
   // fields are taken, so a reply that wandered to another line cannot move it.
   const rewritten = { ...action, what: answer.data.what, why: answer.data.why, replacement: answer.data.replacement };
-  const gate = gateActions([rewritten], {
-    resumeText: match.resumeText,
-    posting: `${job.title}\n${job.description}`,
-    facts,
-    keywords,
-    matcher: await loadKeywordMatcher(),
-  });
+  // The rest of the report stays as it is: a term another card already writes in is taken (#633).
+  const gate = gateActions(
+    [rewritten],
+    { resumeText: match.resumeText, posting: `${job.title}\n${job.description}`, facts, keywords, matcher: await loadKeywordMatcher() },
+    { alongside: actions.filter((_, i) => i !== index) },
+  );
   const next = actions.map((a, i) => (i === index ? gate.actions[0] ?? a : a));
   const row = await updateMatchActions(match.id, next);
   logger.info(
