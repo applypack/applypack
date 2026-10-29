@@ -17,7 +17,8 @@ import { listPickableJobs } from '../job-pick';
 import { idParam } from '../params';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage, type RunLanes } from '../pages/target-run';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { clearFlashCookie, flashRedirect, parseFlashCookie, refusedField } from '../flash';
+import { launcherRefusal } from '../form-refusal';
 import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields, type ResolvedResume } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
@@ -108,7 +109,10 @@ async function resumeLanes(): Promise<RunLanes> {
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = TargetFormSchema.safeParse(form);
-  if (!parsed.success) return flashRedirect('/target', 'err', t('target.flash.pickBoth'));
+  if (!parsed.success) {
+    const { issues } = parsed.error;
+    return flashRedirect('/target', 'err', launcherRefusal(issues, t('target.flash.pickBoth'), ['jobMode', 'resumeMode']), refusedField(c.req.path, issues));
+  }
   const f = parsed.data;
 
   if (f.jobMode === 'existing') {

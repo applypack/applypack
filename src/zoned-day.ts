@@ -54,3 +54,13 @@ export function dayStart(day: string | Date, timeZone: string): Date {
   const first = midnight - offsetMs(new Date(midnight), timeZone);
   return new Date(midnight - offsetMs(new Date(first), timeZone));
 }
+
+/** The earliest day an application form takes: before it is a slip of the keyboard, as a five-digit year is. */
+const EARLIEST_DAY = '1990-01-01';
+
+/** `text` as a day that has come, from 1990 to today in `timeZone` (#682), else null. */
+export function parsePastDay(text: string, now: Date, timeZone: string): string | null {
+  const day = parseDay(text);
+  // A day is a string "YYYY-MM-DD", so the order of the strings is the order of the days.
+  return day !== null && day >= EARLIEST_DAY && day <= dayIn(now, timeZone) ? day : null;
+}

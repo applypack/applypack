@@ -318,7 +318,9 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
 welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const form = await c.req.parseBody();
   const { profile } = await loadWelcomeContext();
-  const resume = await getResume(idParam(form.resumeId));
+  const resumeId = idParam(form.resumeId);
+  // A form with no resume id is not a resume to read (#682): the same answer as one not read yet, never a 500.
+  const resume = Number.isFinite(resumeId) ? await getResume(resumeId) : null;
   if (!profile) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.noPrimary'));
   if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   const draft = buildProfileDraft(profile, scanFields(resume));
@@ -344,7 +346,8 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
  */
 welcomeRoute.post('/welcome/profile/create', async (c) => {
   const form = await c.req.parseBody();
-  const resume = await getResume(idParam(form.resumeId));
+  const resumeId = idParam(form.resumeId);
+  const resume = Number.isFinite(resumeId) ? await getResume(resumeId) : null;
   if (!resume || resume.hidden || !resume.scannedAt) {
     return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   }

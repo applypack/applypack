@@ -445,12 +445,13 @@ const JobRail: FC<RailProps> = ({ job, appliedResumePicker, applicationTrackingE
             <Input
               type="text"
               name="recruiterContact"
+              maxlength={300}
               value={job.recruiterContact ?? ''}
               placeholder={t('job.janeAcmeComOrJane')}
             />
           </Field>
           <Field label={t('job.notes')}>
-            <Textarea name="applicationNotes" rows={3}>
+            <Textarea name="applicationNotes" rows={3} maxlength={10_000}>
               {job.applicationNotes ?? ''}
             </Textarea>
           </Field>

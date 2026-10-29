@@ -7,6 +7,7 @@ import { isProfileWorkplace } from '../location';
 import { parsePriorityRulesText } from '../priority-rules';
 import type { ProfileInput } from '../profiles';
 import { parseLineList, parseTagList, toStringArray } from '../text-utils';
+import { z } from 'zod';
 
 /*
  * The search editor's body read back for the editor (#549): a save the route
@@ -87,3 +88,16 @@ export function profileFieldLabel(field: string): string | undefined {
 export function reclassifyQuestion(jobs: number, cost: string): string {
   return jobs > 0 && cost ? `${t('settings.reclassifyConfirm', { n: jobs })} ${cost}` : t('settings.reclassifyConfirm', { n: jobs });
 }
+
+/** A search's fit threshold when the form leaves the field out. */
+const DEFAULT_MIN_FIT = 70;
+
+/**
+ * "Minimum fit score" as the save reads it (#682): emptied is refused, never
+ * read as 0 — 0 let every scored posting through the alert floor. A form
+ * without the field (the wizard's) still gets the default.
+ */
+export const minFitField = z.preprocess(
+  (v) => v ?? String(DEFAULT_MIN_FIT),
+  z.string().trim().min(1, { error: () => t('flash.issue.required') }).transform(Number).pipe(z.number().int().min(0).max(100)),
+);

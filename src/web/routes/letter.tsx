@@ -16,7 +16,8 @@ import { getLatestCompanySnapshot } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
 import { getSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { clearFlashCookie, flashRedirect, parseFlashCookie, refusedField } from '../flash';
+import { launcherRefusal } from '../form-refusal';
 import { claimRun, LETTER_FAILED, startRun, updateRun, type RunStep } from '../target-runs';
 import { listPickableJobs } from '../job-pick';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
@@ -64,7 +65,10 @@ letterRoute.get('/letter', async (c) => {
 letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = LetterFormSchema.safeParse(form);
-  if (!parsed.success) return flashRedirect('/letter', 'err', t('letter.flash.pickSourceAndResume'));
+  if (!parsed.success) {
+    const { issues } = parsed.error;
+    return flashRedirect('/letter', 'err', launcherRefusal(issues, t('letter.flash.pickSourceAndResume'), ['jobMode', 'resumeMode']), refusedField(c.req.path, issues));
+  }
   const f = parsed.data;
   const tone: CoverTone = COVER_TONES.includes(form.tone as CoverTone)
     ? (form.tone as CoverTone)
