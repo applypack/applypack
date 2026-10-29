@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.63.42] — 2026-10-29
+
+### Changed
+- The fit score is computed from facts instead of picked by the model
+  (ADR 0064). For each search the classifier reports what the posting
+  shows — the required technologies it uses, which of the search's role
+  types it is, the levels and years it asks for, the nice-to-haves, any
+  auto-reject signal — and code turns them into the number, so matches no
+  longer pile up on 92 and the same facts always give the same score. A job
+  category named in the title settles the role type. Location stays the
+  dismissal gate, no longer part of the number.
+- The facts are kept per search (`job_score.fitFacts`), the job page says
+  how each fit was worked out and which ceiling held it down, and after a
+  weight change or a search edit `rescore-fit-once.js --dry-run`, then
+  without the flag, re-scores stored jobs without AI and without changing
+  any status. Rows scored before this release keep their numbers until Save
+  & re-classify brings them onto the new scale.
+
 ## [2.63.41] — 2026-10-29
 
 ### Fixed
@@ -7116,6 +7134,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.63.42]: https://github.com/applypack/applypack/compare/v2.63.41...v2.63.42
 [2.63.41]: https://github.com/applypack/applypack/compare/v2.63.40...v2.63.41
 [2.63.40]: https://github.com/applypack/applypack/compare/v2.63.39...v2.63.40
 [2.63.39]: https://github.com/applypack/applypack/compare/v2.63.38...v2.63.39
