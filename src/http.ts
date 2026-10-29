@@ -165,11 +165,18 @@ const BLOCK_TAG_RE =
   /<\/?(?:p|div|section|article|header|footer|main|aside|table|thead|tbody|tr|ul|ol|dl|dt|dd|blockquote|figure|figcaption|form|fieldset|pre|h[1-6])(?:\s[^>]*)?\/?>/gi;
 
 /**
+ * Any other tag, its name captured. The name ends where a letter or digit
+ * does, so the two runs never trade characters back and forth.
+ */
+const ANY_TAG_RE = /<\/?([a-zA-Z][a-zA-Z0-9]*)(?:[^a-zA-Z0-9>][^>]*)?>/g;
+
+/**
  * Phrasing elements: a browser draws them inside the line, with no space of
  * their own.
  */
-const INLINE_TAG_RE =
-  /<\/?(?:a|abbr|b|bdi|bdo|cite|code|data|del|dfn|em|font|i|ins|kbd|mark|q|s|samp|small|span|strike|strong|sub|sup|time|tt|u|var)(?:\s[^>]*)?\/?>/gi;
+const INLINE_TAGS: ReadonlySet<string> = new Set(
+  'a abbr b bdi bdo cite code data del dfn em font i ins kbd mark q s samp small span strike strong sub sup time tt u var'.split(' '),
+);
 
 /**
  * Where an inline tag stood, until the characters around it are known. A
@@ -208,7 +215,7 @@ export function stripHtml(html: string): string {
   let text = decodeHtmlEntities(html).replace(/\s+/g, ' ');
   text = replaceUpTo(text, lastIndexOf(text, /-->/g), /<!--[\s\S]*?-->/g, ' ');
   // Every pattern given to this one ends in `>`.
-  const tags = (re: RegExp, to: string): void => {
+  const tags = (re: RegExp, to: string | ((tag: string, name: string) => string)): void => {
     text = replaceUpTo(text, lastIndexOf(text, />/g), re, to);
   };
   // Markup declarations — `<!DOCTYPE html>` and friends. The tag regex
@@ -220,9 +227,10 @@ export function stripHtml(html: string): string {
   tags(/<\/li>/gi, ' ');
   tags(/<br\s*\/?>/gi, '\n');
   tags(BLOCK_TAG_RE, '\n');
-  tags(INLINE_TAG_RE, INLINE_GAP);
-  // Only real tag shapes — "<3" or "a < b" in prose must survive.
-  tags(/<\/?[a-zA-Z][^>]*>/g, ' ');
+  // Only real tag shapes — "<3" or "a < b" in prose must survive. One pass
+  // for inline and other tags alike: a tag a feed cut short ('<br style="x
+  // -----<p>…<a href="…">') then runs to the next ">", as a browser reads it.
+  tags(ANY_TAG_RE, (_tag, name) => (INLINE_TAGS.has(name.toLowerCase()) ? INLINE_GAP : ' '));
   return decodeHtmlEntities(text)
     .replace(GAP_BEFORE_PUNCTUATION_RE, '')
     .replace(GAP_AFTER_PUNCTUATION_RE, '')
@@ -301,6 +309,8 @@ function lastIndexOf(text: string, closer: RegExp): number {
  * scans to the end of the text on its own: 300 kB of `<a ` took nine
  * seconds, which a posting from outside can be.
  */
-function replaceUpTo(text: string, end: number, re: RegExp, to: string): string {
-  return end === 0 ? text : text.slice(0, end).replace(re, to) + text.slice(end);
+function replaceUpTo(text: string, end: number, re: RegExp, to: string | ((match: string, name: string) => string)): string {
+  if (end === 0) return text;
+  const head = text.slice(0, end);
+  return (typeof to === 'string' ? head.replace(re, to) : head.replace(re, to)) + text.slice(end);
 }

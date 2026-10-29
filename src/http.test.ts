@@ -152,6 +152,12 @@ describe('stripHtml', () => {
     assert.equal(stripHtml("<a href=\"x\"><b>Google</b></a>'s team (<i>remote</i>), <b>full</b>-time, $<b>90k</b>"), "Google's team (remote), full-time, $90k");
   });
 
+  it('reads a tag a feed cut short to the next ">", as a browser does', () => {
+    // Arbeitnow, 2026-10-29: a contact block that ends inside an attribute.
+    const html = '<p>+49 (0)40 561 949 –284<br style="border:0px -----<p>Find more <a href="https://x.example">English Speaking Jobs</a> on Arbeitnow</a>';
+    assert.equal(stripHtml(html), '+49 (0)40 561 949 –284 English Speaking Jobs on Arbeitnow');
+  });
+
   it('keeps the space an inline tag stands for between two words, and the one the text wrote', () => {
     assert.equal(stripHtml('<span>Engineer</span><span>Berlin</span>'), 'Engineer Berlin');
     assert.equal(stripHtml('C# and <b>.NET</b> roles'), 'C# and .NET roles');
