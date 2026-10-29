@@ -118,9 +118,15 @@ export function isPrivateIp(ip: string): boolean {
   const zero = (from: number, to: number): boolean => h.slice(from, to).every((x) => x === 0);
   // IPv4 inside IPv6, in every form a host may route: compatible (::a.b.c.d,
   // which takes in :: and ::1), mapped (::ffff:a.b.c.d, which the URL parser
-  // writes as ::ffff:a9fe:a9fe), NAT64's well-known prefix (64:ff9b::/96) and
-  // 6to4 (2002:aabb:ccdd::/48 carries a.b.c.d after its prefix).
-  if (zero(0, 6) || (zero(0, 5) && h[5] === 0xffff) || (h[0] === 0x64 && h[1] === 0xff9b && zero(2, 6))) return isPrivateV4(v4(h[6]!, h[7]!));
+  // writes as ::ffff:a9fe:a9fe), translated (::ffff:0:a.b.c.d, RFC 2765),
+  // NAT64's well-known prefix (64:ff9b::/96) and 6to4 (2002:aabb:ccdd::/48
+  // carries a.b.c.d after its prefix).
+  const embedsV4 =
+    zero(0, 6) ||
+    (zero(0, 5) && h[5] === 0xffff) ||
+    (zero(0, 4) && h[4] === 0xffff && h[5] === 0) ||
+    (h[0] === 0x64 && h[1] === 0xff9b && zero(2, 6));
+  if (embedsV4) return isPrivateV4(v4(h[6]!, h[7]!));
   if (h[0] === 0x2002) return isPrivateV4(v4(h[1]!, h[2]!));
   return (
     (h[0] === 0x64 && h[1] === 0xff9b && h[2] === 1) || // NAT64 for local use (64:ff9b:1::/48)
@@ -166,7 +172,7 @@ const PRIVATE_NAME_SUFFIXES = ['.localhost', '.local', '.internal', '.lan', '.ho
 /** A hostname (or address literal) that must never be fetched: the pure half of the guard. */
 export function isPrivateHost(hostname: string): boolean {
   // A trailing dot is the same name to the resolver and a different string to a check.
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
   if (isIP(host)) return isPrivateIp(host);
   if (host === 'localhost' || PRIVATE_NAME_SUFFIXES.some((s) => host.endsWith(s))) return true;
   // A public name has a dot in it; a bare word is an intranet name.
