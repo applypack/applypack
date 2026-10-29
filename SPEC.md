@@ -455,6 +455,12 @@ the alert hours, while Alerts are off, or refused by every chat waits on the
 row (`pendingContentHash`, *notice waiting* on `/companies`) and goes out from
 the top of the first tick that may send it.
 
+A careers URL that now redirects to the site's front page (its root or a
+language's root, `www.monobank.ua/vacancies` → `monobank.ua/`) is refused
+rather than watched: a home page changes with every banner, and its text is
+no careers page (`resolve.ts:redirectedHome`, #639). A board the front page
+links still resolves.
+
 A page with **almost no text** and nothing machine-readable is a loading
 shell: it draws its jobs in the browser, and hashing it would report the
 shell. Such a page resolves to *Needs a browser* and goes on the watchlist

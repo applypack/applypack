@@ -804,6 +804,7 @@
   "watchlist.refused.noAnswer": "Ce site n'a pas répondu.",
   "watchlist.refused.http": "Cette URL a répondu HTTP {status} — vérifiez le lien.",
   "watchlist.refused.botCheck": "Cette page a répondu par un contrôle anti-robots — cherchez plutôt l'entreprise sur un ATS pris en charge.",
+  "watchlist.refused.homePage": "Cette page renvoie désormais vers l'accueil du site ({url}) : il n'y a plus de page carrières à surveiller.",
   "watchlist.flash.noUrls": "Aucune URL dans cette liste — une par ligne, ou « Nom — https://… ».",
   "watchlist.flash.expired": "Cette résolution a expiré — collez de nouveau la liste.",
   "watchlist.flash.addInvalid": "Rien n'a été ajouté ({issue}). Collez de nouveau la liste et ajoutez depuis son aperçu.",

@@ -804,6 +804,7 @@
   "watchlist.refused.noAnswer": "Ese sitio no respondió.",
   "watchlist.refused.http": "Esa URL respondió HTTP {status}: revisa el enlace.",
   "watchlist.refused.botCheck": "Esa página respondió con una verificación anti-bots: busca la empresa en un ATS compatible.",
+  "watchlist.refused.homePage": "Esa página ahora te lleva a la portada del sitio ({url}), así que ya no queda ninguna página de empleo que vigilar.",
   "watchlist.flash.noUrls": "No hay ninguna URL en esa lista: una por línea, o “Nombre — https://…”.",
   "watchlist.flash.expired": "Esa resolución ha caducado: vuelve a pegar la lista.",
   "watchlist.flash.addInvalid": "No se añadió nada ({issue}). Vuelve a pegar la lista y añade desde su vista previa.",

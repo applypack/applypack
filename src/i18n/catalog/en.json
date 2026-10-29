@@ -804,6 +804,7 @@
   "watchlist.refused.noAnswer": "That site did not answer.",
   "watchlist.refused.http": "That URL answered HTTP {status} — check the link.",
   "watchlist.refused.botCheck": "That page answered with a bot check — find the company on a supported ATS instead.",
+  "watchlist.refused.homePage": "That page now sends you to the site's home page ({url}), so there is no careers page left to watch.",
   "watchlist.flash.noUrls": "No URLs in that list — one per line, or \"Name — https://…\".",
   "watchlist.flash.expired": "That resolve run has expired — paste the list again.",
   "watchlist.flash.addInvalid": "Nothing was added ({issue}). Paste the list again and add from its preview.",
