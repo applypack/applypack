@@ -46,13 +46,15 @@ export const DEFAULT_WORK_STAGES: StageDef[] = [
 ];
 
 export const MAX_WORK_STAGES = 10;
+/** A column's name, at most: the stored list's schema, and the inputs' `maxlength`. */
+export const MAX_STAGE_LABEL = 40;
 const RESERVED_KEYS = new Set(['applied', 'rejected', 'ghosted', 'unfiled']);
 
 const StageListSchema = z
   .array(
     z.object({
       key: z.string().min(1).max(40).regex(/^[a-z0-9-]+$/),
-      label: z.string().min(1).max(40),
+      label: z.string().min(1).max(MAX_STAGE_LABEL),
     }),
   )
   .max(MAX_WORK_STAGES);
@@ -89,21 +91,39 @@ export type StageEditError =
   | 'limit'
   | 'unknown-key'
   | 'fixed-column'
+  | 'too-long'
   | 'last-column';
+
+/**
+ * A name the board already gives a column of its own (#646): Applied, the two
+ * closed ones and Unfiled, as the reader's language words them or as their
+ * keys spell them — "applied" next to Applied is the same column twice.
+ */
+function namesFixedColumn(label: string): boolean {
+  const lower = label.toLowerCase();
+  return RESERVED_KEYS.has(slugifyLabel(label)) || [...allStages([]), UNFILED_STAGE].some((s) => s.label.toLowerCase() === lower);
+}
+
+/** Why a column may not take this name in this list, if it may not: `except` is the column being renamed. */
+function labelRefusal(list: StageDef[], label: string, except?: string): StageEditError | null {
+  // Refused, not cut: a flash quoting the name as typed would name a column the board does not show.
+  if (label.length > MAX_STAGE_LABEL) return 'too-long';
+  const lower = label.toLowerCase();
+  return namesFixedColumn(label) || list.some((s) => s.key !== except && s.label.toLowerCase() === lower) ? 'duplicate-label' : null;
+}
 
 /** Append a new column; the key is a slug, unique against reserved + used. */
 export function addStage(list: StageDef[], label: string): StageDef[] | StageEditError {
   const trimmed = label.trim();
   if (!trimmed) return 'empty-label';
   if (list.length >= MAX_WORK_STAGES) return 'limit';
-  if (list.some((s) => s.label.toLowerCase() === trimmed.toLowerCase())) {
-    return 'duplicate-label';
-  }
+  const refused = labelRefusal(list, trimmed);
+  if (refused) return refused;
   const base = slugifyLabel(trimmed) || 'stage';
   const taken = new Set([...RESERVED_KEYS, ...list.map((s) => s.key)]);
   let key = base;
   for (let n = 2; taken.has(key); n++) key = `${base}-${n}`;
-  return [...list, { key, label: trimmed.slice(0, 40) }];
+  return [...list, { key, label: trimmed }];
 }
 
 /**
@@ -138,10 +158,7 @@ export function renameStage(
   // Applied, Rejected and Ghosted are not in the editable list, and they are not gone either (#683).
   if (key === ENTRY_STAGE.key || TERMINAL_KEYS.includes(key)) return 'fixed-column';
   if (!list.some((s) => s.key === key)) return 'unknown-key';
-  if (list.some((s) => s.key !== key && s.label.toLowerCase() === trimmed.toLowerCase())) {
-    return 'duplicate-label';
-  }
-  return list.map((s) => (s.key === key ? { ...s, label: trimmed.slice(0, 40) } : s));
+  return labelRefusal(list, trimmed, key) ?? list.map((s) => (s.key === key ? { ...s, label: trimmed } : s));
 }
 
 /** Ordered board columns: the fixed entry plus the configured work list. */

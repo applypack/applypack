@@ -7,7 +7,7 @@
 
 Single-user, locally hosted job-search assistant. Pulls listings from
 33 kinds of public source (twelve ATS vendors, twenty aggregators, any
-RSS/Atom feed), classifies each through the AI engine chain (five
+RSS/Atom feed), classifies each through the AI engine chain (seven
 backends, ADR 0013/0014) against every running **search profile** the
 user edits in a small dashboard, and
 fires Telegram or Discord alerts for matches. Designed to run continuously on a
@@ -52,7 +52,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | IMPORT             | your file     | none      | Rows the user uploads on `/jobs/import` — a JSON array, JSON Lines, CSV or TSV; the atsToken is the source's name as a slug and `sourceConfig` keeps the column mapping the user confirmed. **Never fetched** and never active: the rows go through `processNormalizedJobs` once, at the import, and carry many employers, each named on its row (ADR 0062) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
-| REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
+| REMOTIVE           | aggregator    | none      | `?category=software-dev`; read no sooner than six hours apart, as its notice asks (`source-order.ts:pollIntervalFloorMs`) |
 | ARBEITNOW          | aggregator    | none      | EU-skewed; **disabled by default**              |
 | DOU                | aggregator    | feed query (`category=PHP&remote`) | Ukraine's board via its RSS; one row per query; **disabled by default** (stage 3b) |
 | DJINNI             | aggregator    | feed filter (`primary_keyword=PHP&employment=remote&region=UKR`) | Ukraine's marketplace via its RSS; location comes from the filter; **disabled by default** (stage 3b) |
@@ -62,9 +62,9 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | JOBICY             | aggregator    | none      | RSS `?job_categories=dev`, custom `job_listing:` namespace |
 | HN_JOBS            | aggregator    | none      | Algolia `tags=job` → individual YC posts, 14-day window; URLs feed discovery harvest |
 | WORKINGNOMADS      | aggregator    | none      | `/api/exposed_jobs/` JSON, ~30 most recent, mixed categories |
-| HIMALAYAS          | aggregator    | none      | `/jobs/api?limit=20` JSON (limit cap 20), all categories, salary folded into description |
+| HIMALAYAS          | aggregator    | none      | `/jobs/api?limit=20` JSON (limit cap 20), all categories, salary folded into description; `nextCursor` followed back to the last good read less two hours (the first page is cached that long), ten pages at most |
 | FOURDAYWEEK        | aggregator    | none      | `4dayweek.io/api/v2/jobs?page=N` (the robots-allowed versioned API), 25/page, cap 3 pages; salary arrives in minor units (÷100) |
-| JOBTECH            | aggregator    | none      | `jobsearch.api.jobtechdev.se/search?<token>&published-after=<24 h ago>&sort=pubdate-desc&limit=100` + offset pages (cap 3); the token is the filter string (seed: `occupation-field=apaJ_2ja_LuF` = Data/IT); `workplace_address` municipality + country, SE hint from the taxonomy country code, `text` description, deadline in the head; CC0 ads; seeded off |
+| JOBTECH            | aggregator    | none      | `jobsearch.api.jobtechdev.se/search?<token>&published-after=<24 h, or back to the last good read + 1 h>&sort=pubdate-desc&limit=100` + offset pages (cap 10); the token is the filter string (seed: `occupation-field=apaJ_2ja_LuF` = Data/IT); `workplace_address` municipality + country, SE hint from the taxonomy country code, `text` description, deadline in the head; CC0 ads; seeded off |
 | ADZUNA             | aggregator    | **your key** | `api.adzuna.com/v1/api/jobs/<cc>/search/1` with the user's app_id + app_key (Settings → Sources; ADR 0034), one row per market (`de`, `gb`, `pl` …), IT category, last day, 50 newest; polled four times a day (00/06/12/18 UTC) and at most ten rows — the 2 500/month limit; descriptions are snippets and say so; every displayed listing carries "Jobs by Adzuna"; errors redacted of the keys |
 | FRANCETRAVAIL      | aggregator    | **your key** | `api.francetravail.io/partenaire/offresdemploi/v2/offres/search` with an OAuth client-credentials token (Settings → Sources; ADR 0034); the token is the filter (`codeROME=M1805`, `motsCles=…`), the fetcher adds `publieeDepuis=1`, `sort=1`, pages of 150 (cap 3); the offer is stored whole (`Job.sourcePayload`) and shown whole; the daily mirror (`jobs/france-travail-sync.ts`) re-checks every stored offer, deletes withdrawn ones or anonymises the user's own records; source + update date + licence link on every display; 4 calls/s |
 | LANDINGJOBS        | aggregator    | none      | Atom `https://landing.jobs/feed` (~55 newest; the JSON API is robots-disallowed); `lj:city` / `lj:country` / `lj:remote_policy` (Full remote → REMOTE, Partial remote → HYBRID) as hints, company from `<author>`, the full HTML posting as the description; seeded off |
@@ -95,7 +95,7 @@ NormalizedJob[]          unified shape (companyId, externalId, title, location, 
                          geo-filtered sources (Jobicy, Himalayas, 4dayweek) read the FetchContext —
                          the union of the running searches' countries + regions — instead of the whole feed
    ↓
-passesAnyBaseFilter()    admit if ANY running search admits it: a whole-word title hit on its
+anyBaseFilterReason()    admit if ANY running search admits it: a whole-word title hit on its
                          stackRequired OR roleTypes, no hit on its stackExclude, and a place and
                          arrangement that do not contradict its own (an unknown one passes)
    ↓

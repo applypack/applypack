@@ -58,6 +58,16 @@ describe('mapDouItem', () => {
     assert.deepEqual(lisbon?.locationHints, { workplace: 'UNKNOWN', countries: ['PT'] });
   });
 
+  it("decodes the title's second layer of entities before reading it (#659, #662)", () => {
+    // rss-parser's titles from the Node.js and bare feeds, 2026-10-29.
+    const svitla = mapDouItem({ ...starlight, title: 'Software Architect (Booking platform &amp; APIs) в Svitla Systems, Inc., віддалено' }, COMPANY_ID);
+    assert.equal(svitla?.title, 'Software Architect (Booking platform & APIs)');
+    assert.equal(svitla?.employer, 'Svitla Systems, Inc.');
+    const alesta = mapDouItem({ ...starlight, title: 'Head of Infrastructure Solutions в ALESTA LLC, від&nbsp;$5000, Київ' }, COMPANY_ID);
+    assert.equal(alesta?.location, 'Київ');
+    assert.match(alesta?.description ?? '', /^Hiring company: ALESTA LLC\. Salary: від \$5000\./);
+  });
+
   it('falls back to the feed key when the link has no vacancy id, and skips an item with nothing', () => {
     const odd = mapDouItem({ ...starlight, link: 'https://jobs.dou.ua/x' }, COMPANY_ID);
     assert.ok(odd && odd.externalId.length > 0);

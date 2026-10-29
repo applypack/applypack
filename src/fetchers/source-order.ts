@@ -73,6 +73,20 @@ const DECLARED_CRAWL_DELAY_MS: Partial<Record<AtsType, number>> = {
 };
 
 /**
+ * Feeds that ask to be read less often than the hourly heartbeat. Remotive
+ * says so in every answer (read 2026-10-29): "we advise max. 4 times a
+ * day", over a public feed of a dozen postings held back 24 hours (#661).
+ */
+const DECLARED_POLL_INTERVAL_MS: Partial<Record<AtsType, number>> = {
+  [AtsType.REMOTIVE]: 6 * 60 * 60 * 1000,
+};
+
+/** The shortest gap between two scheduled reads of this source; 0 = the row's own interval decides. */
+export function pollIntervalFloorMs(atsType: AtsType): number {
+  return DECLARED_POLL_INTERVAL_MS[atsType] ?? 0;
+}
+
+/**
  * How long to wait after this source before the next request goes out: the
  * vendor's declared pacing, and a site's own `Crawl-delay` read when its row
  * was added — any host a user adds can ask for one (ADR 0035's trigger).

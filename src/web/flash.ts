@@ -156,16 +156,22 @@ export interface Issue {
   code?: string;
 }
 
+/** The field an issue's path names, a place in a list left out: `fetch.days.0` is about the field `fetch.days`. */
+function fieldPath(path: readonly PropertyKey[]): string {
+  return path.filter((part): part is string => typeof part === 'string').join('.');
+}
+
 /**
  * The first thing a schema refused, as "field: reason" — so a flash can name
  * what was wrong instead of "Invalid form values". `label` gives a field the
- * name its form shows it under (#549); a field it does not name keeps its own.
+ * name its form shows it under (#549), asked by its `fieldPath`; a field it
+ * does not name keeps its own.
  */
 export function firstIssue(issues: readonly Issue[], label?: (field: string) => string | undefined): string {
   const first = issues[0];
   if (!first) return t('flash.formEmpty');
   const name = first.path.map(String).join('.');
-  const field = (label && label(name)) ?? name;
+  const field = (label && label(fieldPath(first.path))) ?? name;
   const reason = issueReason(first);
   const text = field ? `${field}: ${reason}` : reason;
   return text.length > MAX_ISSUE_CHARS ? `${text.slice(0, MAX_ISSUE_CHARS)}…` : text;
@@ -229,9 +235,17 @@ function boundReason(type: string, side: 'min' | 'max', n: number, exact: boolea
  * The field the first issue is about, in the form that posted to `form` — the
  * top of the issue's path, when it names one (TASKS U15). It is
  * `flashRedirect`'s options as it stands: `refusedField(c.req.path, issues)`.
+ * A schema that nests what its form keeps flat names the input through
+ * `inputOf`, asked by the issue's `fieldPath` (#648: `fetch.days` is the
+ * input `fetchDays` — there is no input called `fetch`).
  */
-export function refusedField(form: string, issues: readonly { path: readonly PropertyKey[] }[]): { field?: RefusedField } {
-  const name = issues[0]?.path[0];
+export function refusedField(
+  form: string,
+  issues: readonly { path: readonly PropertyKey[] }[],
+  inputOf?: (field: string) => string | undefined,
+): { field?: RefusedField } {
+  const path = issues[0]?.path;
+  const name = path && (inputOf?.(fieldPath(path)) ?? path[0]);
   return typeof name === 'string' && isRefusedField({ form, name }) ? { field: { form, name } } : {};
 }
 

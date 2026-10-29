@@ -199,6 +199,15 @@ describe('extractAtsToken', () => {
     });
   });
 
+  it('reads the EU instances of Lever and Greenhouse as the same vendors (#663)', () => {
+    assert.deepEqual(extractAtsToken('https://jobs.eu.lever.co/acme/5e7f6c91-d3a9'), { atsType: 'LEVER', atsToken: 'acme' });
+    assert.deepEqual(extractAtsToken('https://job-boards.eu.greenhouse.io/raisin/jobs/5017767101'), {
+      atsType: 'GREENHOUSE',
+      atsToken: 'raisin',
+    });
+    assert.deepEqual(extractAtsToken('https://boards.eu.greenhouse.io/raisin'), { atsType: 'GREENHOUSE', atsToken: 'raisin' });
+  });
+
   it('parses an ashby org URL', () => {
     assert.deepEqual(extractAtsToken('https://jobs.ashbyhq.com/buffer/123-abc'), {
       atsType: 'ASHBY',

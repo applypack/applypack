@@ -7,6 +7,7 @@ const MAC: LoginItemContext = {
   platform: 'darwin',
   home: '/Users/me',
   env: { PATH: '/opt/homebrew/bin:/usr/bin:/bin' },
+  dotEnv: {},
   node: '/opt/homebrew/bin/node',
   launcher: '/Users/me/apps/Apply & Pack/dist/local/launcher.js',
   root: '/Users/me/apps/Apply & Pack',
@@ -61,4 +62,44 @@ test('Windows: a script in the Startup folder that starts the launcher minimised
 
 test('a system it cannot write for gets no entry', () => {
   assert.equal(loginItemFor({ ...MAC, platform: 'freebsd' }), null);
+});
+
+test('the port, the zone and the folders set where it was started are carried, and .env keeps its own (#650)', () => {
+  const env = {
+    PATH: '/usr/bin',
+    WEB_PORT: '4848',
+    TZ: 'Europe/Kyiv',
+    APPLYPACK_SNAPSHOTS: '0',
+    APPLYPACK_INBOX_ROOTS: '/Users/me/inbox',
+    APPLYPACK_DATA_DIR: '/Users/me/ap-data',
+    // Read from .env again at login: written here too, it would outrank the next edit there.
+    LOG_LEVEL: 'debug',
+  };
+  const mac = loginItemFor({ ...MAC, env, dotEnv: { APPLYPACK_DATA_DIR: '/Users/me/ap-data', TZ: 'UTC' } })!.contents;
+  assert.match(mac, /<key>WEB_PORT<\/key><string>4848<\/string>/);
+  assert.match(mac, /<key>TZ<\/key><string>Europe\/Kyiv<\/string>/, 'the shell said another zone than .env, and the shell is what runs');
+  assert.match(mac, /<key>APPLYPACK_SNAPSHOTS<\/key><string>0<\/string>/);
+  assert.match(mac, /<key>APPLYPACK_INBOX_ROOTS<\/key><string>\/Users\/me\/inbox<\/string>/);
+  assert.ok(!mac.includes('APPLYPACK_DATA_DIR'), '.env sets the same folder, and .env is read at login');
+  assert.ok(!mac.includes('LOG_LEVEL'), 'only the launcher\'s own settings');
+  const linux = loginItemFor({ ...MAC, platform: 'linux', env, dotEnv: {} })!.contents;
+  assert.match(linux, /^Environment="WEB_PORT=4848"$/m);
+  assert.match(linux, /^Environment="APPLYPACK_DATA_DIR=\/Users\/me\/ap-data"$/m);
+  const win = loginItemFor({ ...MAC, platform: 'win32', home: 'C:\\Users\\me', env: { ...env, APPDATA: 'C:\\AppData' }, dotEnv: {} })!.contents;
+  assert.match(win, /set "TZ=Europe\/Kyiv"/);
+});
+
+test('no secret and no listening address is ever written into the entry (#650)', () => {
+  const env = {
+    PATH: '/usr/bin',
+    WEB_HOST: '0.0.0.0',
+    WEB_BASIC_AUTH: 'me:secret',
+    ANTHROPIC_API_KEY: 'sk-ant-secret',
+    TELEGRAM_BOT_TOKEN: '123:secret',
+    DATABASE_URL: 'postgresql://u:secret@127.0.0.1/db',
+  };
+  for (const platform of ['darwin', 'linux', 'win32'] as const) {
+    const contents = loginItemFor({ ...MAC, platform, env, dotEnv: {} })!.contents;
+    assert.ok(!/secret|WEB_HOST|0\.0\.0\.0/.test(contents), platform);
+  }
 });

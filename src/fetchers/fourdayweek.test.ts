@@ -43,6 +43,12 @@ describe('mapFourDayWeekPage', () => {
     assert.match(job.description, /Hours: 32\/week\./);
   });
 
+  it('decodes an entity in the markdown and keeps its lines (#659)', () => {
+    // Recorded live 2026-10-29.
+    const { jobs } = mapFourDayWeekPage({ data: [row({ description: '## Deployable Airframe &amp; Powerplant Specialist\n\n- Ship it' })] }, COMPANY_ID);
+    assert.match(jobs[0]!.description, /\n\n## Deployable Airframe & Powerplant Specialist\n\n- Ship it$/);
+  });
+
   it('keeps markdown newlines intact (no tag-strip on plaintext)', () => {
     const { jobs } = mapFourDayWeekPage({ data: [row()] }, COMPANY_ID);
     assert.match(jobs[0]!.description, /Build services\.\n\n- Node\.js\n- Postgres/);
@@ -114,6 +120,17 @@ describe('mapFourDayWeekPage — location hints (ADR 0031)', () => {
       countries: ['GB'],
       workplace: 'HYBRID',
     });
+  });
+});
+
+describe('mapFourDayWeekPage — the location string', () => {
+  it('names each place once (#662)', () => {
+    const states = ['California', 'New York', 'Texas'].map((state) => ({ state, country: 'United States', work_arrangement: 'remote' }));
+    const { jobs } = mapFourDayWeekPage(
+      { data: [row({ work_arrangement: 'remote', locations: [...states, { city: 'Toronto', country: 'Canada' }, { country: 'United States' }] })] },
+      COMPANY_ID,
+    );
+    assert.equal(jobs[0]?.location, 'Remote · United States / Toronto, Canada');
   });
 });
 
