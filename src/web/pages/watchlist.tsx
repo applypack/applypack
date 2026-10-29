@@ -28,7 +28,7 @@ import { wordedSource } from '../source-groups';
 import { sourceLabel } from '../source-names';
 import { CHECK_INTERVALS, intervalLabel } from '../../watchlist/interval';
 import { MAX_LINES } from '../../watchlist/parse-input';
-import { verdictLabel } from '../../watchlist/verdict';
+import { firstCheckSize, verdictLabel } from '../../watchlist/verdict';
 import type { ResolvedCompany } from '../../watchlist/resolve';
 import type { WatchlistRun } from '../watchlist-runs';
 import { t } from '../../i18n/t';
@@ -201,6 +201,13 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
   const rest = run.results.filter((r) => !isAddable(r));
   const watching = addable.filter((r) => r.resolution.kind === 'changeWatch').length;
   const browserOnly = addable.filter((r) => r.resolution.kind === 'needsBrowser').length;
+  const firstCheck = firstCheckSize(addable.map((r) => r.resolution));
+  // Each sentence only when it has something to say, one space between them.
+  const hint = [
+    firstCheck.boards > 0 && tRich('watchlist.preview.hint', firstCheck, STRONG_TAG),
+    watching > 0 && tRich('watchlist.preview.hintChangeWatch', { n: watching }, STRONG_TAG),
+    browserOnly > 0 && tRich('watchlist.preview.hintBrowser', { n: browserOnly }, STRONG_TAG),
+  ].filter((part) => part !== false);
   return (
     <Layout title={t('watchlist.addCompanies')} active="companies">
       <PageHeader
@@ -235,21 +242,11 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
               </label>
               <Button class="ml-auto">{t('watchlist.preview.addN', { n: addable.length })}</Button>
             </div>
-            <Hint class="border-b border-line px-5 py-3">
-              {tRich('watchlist.preview.hint', {}, STRONG_TAG)}
-              {watching > 0 && (
-                <>
-                  {' '}
-                  {tRich('watchlist.preview.hintChangeWatch', { n: watching }, STRONG_TAG)}
-                </>
-              )}
-              {browserOnly > 0 && (
-                <>
-                  {' '}
-                  {tRich('watchlist.preview.hintBrowser', { n: browserOnly }, STRONG_TAG)}
-                </>
-              )}
-            </Hint>
+            {hint.length > 0 && (
+              <Hint class="border-b border-line px-5 py-3">
+                {hint.flatMap((part, i) => (i === 0 ? [part] : [' ', part]))}
+              </Hint>
+            )}
             <Table
               columns={['', t('companies.name'), t('watchlist.col.found'), t('companies.col.source')]}
               widths={['w-[5%]', 'w-[28%]', 'w-[32%]', 'w-[35%]']}

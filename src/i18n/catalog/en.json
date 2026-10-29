@@ -758,7 +758,7 @@
   "watchlist.preview.check": "Check <select/>",
   "watchlist.preview.alertAbout": "Alert me about <select/>",
   "watchlist.preview.addN": "{n, plural, one {Add # company} other {Add # companies}}",
-  "watchlist.preview.hint": "“Every posting” ignores your filter and your fit threshold for these companies, so the <strong>first check scores everything they currently have up</strong> — on five companies that was 217 postings. A longer interval is the lever if that is more AI than you want.",
+  "watchlist.preview.hint": "“Every posting” ignores your filter and your fit threshold for these companies, so the <strong>first check scores everything they currently have up</strong>: {postings, plural, one {# posting} other {# postings}} on {boards, plural, one {# company} other {# companies}} in this list. A longer interval is the lever if that is more AI than you want.",
   "watchlist.preview.hintChangeWatch": "<strong>{n, plural, one {# of these publish no board and no feed} other {# of these publish no board and no feed}}</strong>, so they are watched a different way: we hash the page’s text and tell you when it changes, at most once a day. Those never produce postings and never cost AI — they say “have a look”.",
   "watchlist.preview.hintBrowser": "<strong>{n, plural, one {# draw their jobs in the browser} other {# draw their jobs in the browser}}</strong>, which ApplyPack cannot read. They go on your watchlist without a check: open the page when you like, copy its text into the row’s “Paste the page”, and it says what is new since the last paste.",
   "watchlist.col.found": "What we found",

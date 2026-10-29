@@ -27,6 +27,22 @@ export function verdictLabel(r: Resolution): string {
   }
 }
 
+/**
+ * What the first check of a batch scores on "Every posting": the postings its
+ * boards and feeds list right now, and on how many of them (#681). The change
+ * watch and a page drawn in the browser score nothing.
+ */
+export function firstCheckSize(resolutions: Resolution[]): { boards: number; postings: number } {
+  let boards = 0;
+  let postings = 0;
+  for (const r of resolutions) {
+    if (r.kind !== 'ats' && r.kind !== 'feed') continue;
+    boards += 1;
+    postings += r.kind === 'ats' ? r.jobs : r.items;
+  }
+  return { boards, postings };
+}
+
 /** One line for the progress list: what was found, or why nothing was. */
 export function verdictLine(r: Resolution): string {
   if (r.kind === 'ats' || r.kind === 'feed') return verdictLabel(r);

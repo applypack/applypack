@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AtsType } from '@prisma/client';
-import { boardMissReason, verdictLabel, verdictLine } from './verdict';
+import { boardMissReason, firstCheckSize, verdictLabel, verdictLine } from './verdict';
+import { t } from '../i18n/t';
 
 describe('verdictLabel', () => {
   it('names the vendor and counts the postings', () => {
@@ -53,5 +54,20 @@ describe('boardMissReason', () => {
 
   it('quotes the token that failed, so the user can check it', () => {
     assert.match(boardMissReason({ atsType: AtsType.ASHBY, atsToken: 'deno' }), /does not serve "deno"/);
+  });
+});
+
+describe('firstCheckSize (#681)', () => {
+  it("sums what this batch's boards and feeds list, and counts only them", () => {
+    const size = firstCheckSize([
+      { kind: 'ats', atsType: AtsType.GREENHOUSE, atsToken: 'gitlab', jobs: 234, via: 'x' },
+      { kind: 'ats', atsType: AtsType.ASHBY, atsToken: 'pleo', jobs: 35, via: 'x' },
+      { kind: 'feed', url: 'u', items: 32, via: 'u', crawlDelayMs: null },
+      { kind: 'changeWatch', url: 'u', chars: 900, crawlDelayMs: null },
+      { kind: 'needsBrowser', url: 'u' },
+    ]);
+    assert.deepEqual(size, { boards: 3, postings: 301 });
+    assert.match(t('watchlist.preview.hint', size), /: 301 postings on 3 companies in this list\./);
+    assert.match(t('watchlist.preview.hint', { boards: 1, postings: 1 }), /: 1 posting on 1 company in this list\./);
   });
 });
