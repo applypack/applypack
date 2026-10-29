@@ -153,6 +153,7 @@ import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SettingsTab, type SourceKeyRow } from '../pages/settings';
 import { minFitField, profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
+import { packFieldLabel, scheduleFieldLabel, scheduleInput } from '../form-fields';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -591,7 +592,8 @@ settingsRoute.post('/settings/schedule', async (c) => {
   const back = SCHEDULE_BACK[schedulePart(form.from) ?? part ?? 'fetch'];
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
-    return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    const { issues } = parsed.error;
+    return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(issues, scheduleFieldLabel) }), refusedField(c.req.path, issues, scheduleInput));
   }
   await setSchedule(parsed.data);
   if (part === 'zone') {
@@ -1131,7 +1133,7 @@ settingsRoute.post('/settings/pack', async (c) => {
   const form = packSettingsFromForm(await c.req.parseBody({ all: true }));
   // A value the form does not offer stores nothing — not even the switch — and the flash names the field (#383).
   if (!form.ok) {
-    return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues) }), refusedField(c.req.path, form.issues));
+    return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues, packFieldLabel) }), refusedField(c.req.path, form.issues));
   }
   const pack = switchedOn(form.settings, await getPackSettings(), new Date());
   await setPackSettings(pack);
