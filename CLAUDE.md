@@ -407,6 +407,12 @@
   PDF fonts into `dist/`), then `dist/local/launcher.js`. Data lives in the OS
   app-data folder (`APPLYPACK_DATA_DIR` moves it). `npm run db` runs the
   database alone; `npm run stop` stops a running launcher.
+- The build compiles `tsconfig.build.json`: everything but the tests and the
+  tools that only make sense in a checkout (benches, variance runs, the
+  exports audit), which run from source as `npm run <name>`. A new tool of
+  that kind goes in its `exclude`; a script a doc tells someone to run as
+  `node dist/scripts/<name>.js` must stay built — `src/build-config.test.ts`
+  holds both. `npm run lint:types` still checks every file.
 - Docker is the server option and does not use the launcher: compose sets
   `DATABASE_URL` and runs `node dist/index.js` / `node dist/web/server.js`.
   `NODE_ENV=production` there makes the logs JSON (`logger.ts`); both
