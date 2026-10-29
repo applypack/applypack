@@ -552,3 +552,120 @@ test('a rewrite of the contact line keeps every email, phone and profile link as
   const bullet = action({ quote: 'Shipped the CLI (github.com/alex/tool) to 2k users', replacement: 'Shipped a CLI used by 2k engineers' });
   assert.equal(gateActions([bullet], await sources({ resumeText: bullet.quote! })).blocked, 0);
 });
+
+/** The demo resume of the 2026-10-24 live check (#632, #633), the lines the edits touched. */
+const DEMO = [
+  'Dana Ruiz',
+  'Senior Full-Stack Developer',
+  '## SUMMARY',
+  'Full-stack engineer, six years building TypeScript products end to end.',
+  '## SKILLS',
+  'TypeScript, Node.js (Fastify, Express), React, PostgreSQL, Prisma, Docker, GitHub Actions, REST, GraphQL, Jest',
+  '## EXPERIENCE',
+  'Senior Full-Stack Developer - Harborline (remote) | 2022 – present',
+  '- Built the dispatch API in Node.js (Fastify) and TypeScript; 1.8M requests/day at p95 under 140 ms',
+  '- Designed the PostgreSQL schema and Prisma migrations for invoicing; the monthly run dropped from 35 minutes to 5',
+  '- Added GitHub Actions CI with Docker layer caching; build time halved',
+  '- Reviewed pull requests for a team of five and ran the weekly architecture hour',
+  'Full-Stack Developer - Lantern Rail (Lisbon) | 2019 – 2022',
+  '- Built REST and GraphQL APIs in Node.js/Express over PostgreSQL',
+  '- Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes',
+  '- Deployed to AWS ECS with RDS Postgres; wrote the runbooks the on-call rota still uses',
+].join('\n');
+
+/** The comparison's keywords, as it stored them: the three the resume implies are `add`, with the model's own notes. */
+const DEMO_KEYWORDS = [
+  keyword({ term: 'TypeScript', primary: true, evidence: 'measured', aliases: ['ts'] }),
+  keyword({ term: 'Node.js', primary: true, evidence: 'measured', aliases: ['node', 'nodejs'] }),
+  keyword({ term: 'JavaScript', status: 'add', primary: true, aliases: ['js'], note: 'TypeScript is a superset; implied by extensive TS/Node.js work.' }),
+  keyword({ term: 'SQL', status: 'add', note: 'PostgreSQL work demonstrates SQL proficiency.' }),
+  keyword({ term: 'JSON', status: 'add', note: 'Implicit in REST/GraphQL API work though not named.' }),
+  keyword({ term: 'REST', evidence: 'described', aliases: ['restful'] }),
+  keyword({ term: 'PostgreSQL', evidence: 'described', aliases: ['postgres'] }),
+  keyword({ term: 'Jest', requirement: 'preferred', evidence: 'listed' }),
+  keyword({ term: 'on-call', evidence: 'described', aliases: ['on call'] }),
+];
+
+test('a true figure told about other work is not applied with one press (#632)', async () => {
+  const src = await sources({ resumeText: DEMO, keywords: DEMO_KEYWORDS });
+  const summary = action({
+    section: 'summary',
+    quote: 'Full-stack engineer, six years building TypeScript products end to end.',
+    replacement:
+      'Backend engineer with six years in TypeScript and Node.js. Designed PostgreSQL schemas that cut a monthly invoicing run from 35 minutes to 5, and ran on-call for production systems serving 1.8M requests/day.',
+  });
+  const out = gateActions([summary], src);
+  assert.equal(out.blocked, 1);
+  assert.equal(out.actions[0]!.replacement, null);
+  assert.match(out.actions[0]!.why, /not applied — figure "1\.8M requests" is told about "on-call", but the resume gives it to "Built the dispatch API/);
+  // The same summary with the figure on its own work goes through.
+  const fair = action({
+    section: 'summary',
+    quote: summary.quote,
+    replacement: 'Backend engineer with six years in TypeScript and Node.js; built a dispatch API serving 1.8M requests/day at p95 under 140 ms.',
+  });
+  assert.equal(gateActions([fair], src).blocked, 0);
+});
+
+test('a bullet rewrite whose only news is a term the line implies is refused (#633)', async () => {
+  const src = await sources({ resumeText: DEMO, keywords: DEMO_KEYWORDS });
+  // The four of the issue, and the stored one that served JSON over the dispatch API.
+  const stuffed = [
+    ['Built REST and GraphQL APIs in Node.js/Express over PostgreSQL', 'Built REST and GraphQL APIs in Node.js, JavaScript, and Express, serving JSON over a PostgreSQL SQL database'],
+    ['Built the dispatch API in Node.js (Fastify) and TypeScript', 'Built the dispatch API in Node.js, TypeScript, and JavaScript with SQL-backed PostgreSQL storage'],
+    ['Reviewed pull requests for a team of five', 'Reviewed pull requests exchanging JSON across a team of five'],
+    ['Designed the PostgreSQL schema and Prisma migrations for invoicing', 'Designed SQL schema in PostgreSQL and wrote Prisma migrations for invoicing'],
+    [
+      'Built the dispatch API in Node.js (Fastify) and TypeScript; 1.8M requests/day at p95 under 140 ms',
+      'Built the dispatch REST API in Node.js (Fastify) and TypeScript, serving JSON over 1.8M requests/day at p95 under 140 ms',
+    ],
+  ];
+  for (const [quote, replacement] of stuffed) {
+    const out = gateActions([action({ quote, replacement })], src);
+    assert.equal(out.actions[0]!.replacement, null, replacement);
+    assert.match(out.actions[0]!.why, /not applied — it only writes "(?:JavaScript|SQL|JSON)" into the line/, replacement);
+  }
+});
+
+test('a term written in with words about the work, confirmed, or moved off the skills line stays applicable', async () => {
+  const confirmed = keyword({ term: 'Kafka', status: 'add', note: 'user-confirmed: event pipeline at Harborline' });
+  const src = await sources({ resumeText: DEMO, keywords: [...DEMO_KEYWORDS, confirmed] });
+  const fine = [
+    // The work that used the term, in words a person would write.
+    action({ quote: 'Built REST and GraphQL APIs in Node.js/Express over PostgreSQL', replacement: 'Built REST and GraphQL APIs in Node.js/Express, hand-writing the SQL reporting queries against PostgreSQL' }),
+    // The candidate said so.
+    action({ quote: 'Built the dispatch API in Node.js (Fastify) and TypeScript', replacement: 'Built the dispatch API in Node.js (Fastify) and TypeScript on Kafka' }),
+    // A term the skills line names and no bullet shows: the floor asks for exactly this.
+    action({ quote: 'Added GitHub Actions CI with Docker layer caching', replacement: 'Added GitHub Actions CI running Jest with Docker layer caching' }),
+    // The skills line is where an implied term goes.
+    action({ section: 'skills', quote: 'TypeScript, Node.js', replacement: 'TypeScript, JavaScript, Node.js' }),
+  ];
+  const out = gateActions(fine, src);
+  assert.equal(out.blocked, 0, out.actions.map((a) => a.why).join('\n'));
+});
+
+test('a term the resume does not show in a sentence goes into one bullet per report (#633)', async () => {
+  const src = await sources({ resumeText: DEMO, keywords: DEMO_KEYWORDS });
+  const skills = action({ section: 'skills', priority: 'medium', quote: 'PostgreSQL, Prisma', replacement: 'SQL, PostgreSQL, Prisma' });
+  const later = action({
+    priority: 'medium',
+    quote: 'Built REST and GraphQL APIs in Node.js/Express over PostgreSQL',
+    replacement: 'Built REST and GraphQL APIs in Node.js/Express, tuning the slow SQL joins in PostgreSQL',
+  });
+  const first = action({
+    priority: 'high',
+    quote: 'Designed the PostgreSQL schema and Prisma migrations for invoicing',
+    replacement: 'Designed the PostgreSQL schema, the SQL views and the Prisma migrations for invoicing',
+  });
+  const out = gateActions([skills, later, first], src);
+  assert.equal(out.actions[0]!.replacement, 'SQL, PostgreSQL, Prisma', 'the skills line is not a bullet');
+  assert.equal(out.actions[2]!.replacement, first.replacement, 'the high-priority bullet keeps the term');
+  assert.equal(out.actions[1]!.replacement, null);
+  assert.match(out.actions[1]!.why, /not applied — writes "SQL" into one more bullet/);
+  assert.equal(out.blocked, 1);
+
+  // A card rewritten on its own is judged against the rest of its report.
+  const alone = gateActions([later], src, { alongside: [first] });
+  assert.equal(alone.actions[0]!.replacement, null);
+  assert.equal(gateActions([later], src).blocked, 0);
+});
