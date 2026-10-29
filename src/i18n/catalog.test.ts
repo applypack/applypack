@@ -122,6 +122,16 @@ describe('the English the interface shows (#655)', () => {
   });
 });
 
+describe('uk.json in Ukrainian words (#653)', () => {
+  // Jargon and calques carried over from the English, each with the plain word that replaced it in docs/translating.md's voice.
+  const CARRIED_OVER =
+    /[Вв]оркер|[Пп]ромпт|(?<!\p{L})[Сс]лаг|[Кк]ласифікатор|[Пп]арсер|(?<!\p{L})хост|щаб[е]?л|[Оо]нсайт|(?<!\p{L})[Оо]фер(?!\p{L})|нечитабельн|загостр|вакансія (?:цього )?хоче|яких хоче|Сила резюме|Покриває підписка/u;
+
+  it('says none of the words a native reader flagged', () => {
+    for (const key of MESSAGE_KEYS) assert.doesNotMatch(ownMessage('uk', key) ?? '', CARRIED_OVER, key);
+  });
+});
+
 describe('a message on the page (#652)', () => {
   it('carries no Markdown: a backtick is drawn as it is, so a command is quoted as the language quotes', () => {
     for (const locale of LANGUAGES) {
