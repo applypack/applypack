@@ -7,8 +7,7 @@ import { extractJson } from './text-utils';
 import { getAiRuntime, type AiRuntime } from './ai-runtime';
 import type { AiProviderId } from './ai-engine';
 import { preClassify, prefilterMayJudge } from './classifier-prefilter';
-import { capFitForMissingStack } from './profile-guards';
-import { LEVELS, OFF_STACK, ROLE_FITS, STACK_ROLES, anchorFitFacts, fitFromFacts, techTags } from './fit-score';
+import { LEVELS, OFF_STACK, ROLE_FITS, STACK_ROLES, verdictFromFacts } from './fit-score';
 import { isCountryCode, isRegionCode, REGIONS } from './countries';
 import { arrangementOnly } from './location';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
@@ -254,10 +253,13 @@ export function buildClassifyPrompt(
  * answer accepted here would silently become a stored score. Missing entries
  * are a softer failure: what came back is kept, and the searches that got no
  * verdict simply stay unscored, exactly as a failed call would leave them.
+ * `title` is the posting's: where it names a job category, it decides the
+ * role type (fit-score.ts).
  */
 export function parseClassifications(
   text: string,
   profiles: Profile[],
+  title: string,
 ): Classifications | null {
   const json = extractJson(text);
   if (json === null) return null;
@@ -276,25 +278,10 @@ export function parseClassifications(
     const profile = wanted.get(entry.profile_id);
     if (!profile || out.has(entry.profile_id)) return null;
     // The model reports facts and the number is arithmetic (ADR 0064); the
-    // tags the stack facets read are the same facts, so the two cannot disagree.
-    const facts = anchorFitFacts(entry, parsed.data, profile);
-    // The stack rules are vacuous without a required stack (issue #50), so
-    // the blank-search cap is enforced in code too — gotcha 11.
-    out.set(
-      entry.profile_id,
-      capFitForMissingStack(
-        {
-          fit_score: fitFromFacts(facts, profile, salary),
-          fit_facts: facts,
-          location_match: entry.location_match,
-          ...salary,
-          tech_match: techTags(facts),
-          red_flags: entry.red_flags,
-          summary: entry.summary,
-        },
-        profile,
-      ),
-    );
+    // facts are kept as the reply gave them, so the row can be scored again.
+    const { profile_id: _id, location_match, red_flags, summary, ...facts } = entry;
+    const stored = { v: 1 as const, ...facts, levels: parsed.data.levels, min_years: parsed.data.min_years };
+    out.set(entry.profile_id, verdictFromFacts({ location_match, ...salary, red_flags, summary }, stored, title, profile));
   }
   return out.size > 0 ? { results: out, location: parsed.data.location ?? null } : null;
 }
@@ -322,7 +309,7 @@ async function classifyWithClaude(
     if (out === null) return { results: new Map(), location: null };
     call.ledgerIds.push(...out.ledgerIds);
 
-    const parsed = parseClassifications(out.text, profiles);
+    const parsed = parseClassifications(out.text, profiles, input.title);
     if (parsed) {
       logger.debug(
         { jobId: call.subject?.jobId, title: input.title, verdicts: [...parsed.results].map(([search, c]) => ({ search, fit: c.fit_score, facts: c.fit_facts })) },
@@ -374,7 +361,7 @@ export async function classifyOnEngine(
     engine,
     onError,
   });
-  return out && { parsed: parseClassifications(out.text, profiles) };
+  return out && { parsed: parseClassifications(out.text, profiles, input.title) };
 }
 
 /** One block per search — the only part of the prompt that repeats. */

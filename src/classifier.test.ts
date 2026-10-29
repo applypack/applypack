@@ -41,6 +41,9 @@ const BLANK_PROFILE = {
   notes: null,
 } as Profile;
 
+/** A title that names no job category, so the reply's own role types decide (fit-score.ts). */
+const TITLE = 'Senior Engineer';
+
 const input = (description: string) => ({
   title: 'Senior Backend Engineer',
   companyName: 'Acme',
@@ -163,6 +166,7 @@ test('every search gets its own verdict, salary is shared', () => {
   const out = parseClassifications(
     reply([entry(3), entry(9, { stack_used: [], stack_role: 'none', role_types: ['qa'], summary: 'off-stack' })], [120_000, 150_000]),
     [PROFILE, QA_PROFILE],
+    TITLE,
   );
   assert.ok(out);
   assert.equal(out.results.size, 2);
@@ -175,15 +179,15 @@ test('every search gets its own verdict, salary is shared', () => {
 });
 
 test('a verdict for a search we never asked about voids the whole reply', () => {
-  assert.equal(parseClassifications(reply([entry(3), entry(99)]), [PROFILE, QA_PROFILE]), null);
+  assert.equal(parseClassifications(reply([entry(3), entry(99)]), [PROFILE, QA_PROFILE], TITLE), null);
 });
 
 test('a duplicated search voids the reply — the model lost the roster', () => {
-  assert.equal(parseClassifications(reply([entry(3), entry(3, { off_stack: 'some' })]), [PROFILE, QA_PROFILE]), null);
+  assert.equal(parseClassifications(reply([entry(3), entry(3, { off_stack: 'some' })]), [PROFILE, QA_PROFILE], TITLE), null);
 });
 
 test('a partial reply keeps what came back; the rest stay unscored', () => {
-  const out = parseClassifications(reply([entry(3)]), [PROFILE, QA_PROFILE]);
+  const out = parseClassifications(reply([entry(3)]), [PROFILE, QA_PROFILE], TITLE);
   assert.ok(out);
   assert.equal(out.results.size, 1);
   assert.equal(out.results.has(9), false);
@@ -193,6 +197,7 @@ test('the blank-search cap is applied per search, not per reply (issue #50)', ()
   const out = parseClassifications(
     reply([entry(3), entry(12)], [150_000, 180_000]),
     [PROFILE, BLANK_PROFILE],
+    TITLE,
   );
   assert.ok(out);
   assert.equal(out.results.get(3)!.fit_score, 100, 'a search with a stack is untouched');
@@ -202,28 +207,28 @@ test('the blank-search cap is applied per search, not per reply (issue #50)', ()
 });
 
 test('malformed replies parse to null, not to a score', () => {
-  assert.equal(parseClassifications('not json at all', [PROFILE]), null);
-  assert.equal(parseClassifications(reply([]), [PROFILE]), null);
-  assert.equal(parseClassifications(reply([entry(3, { stack_role: 'primary' })]), [PROFILE]), null, 'a grade the facts do not have');
+  assert.equal(parseClassifications('not json at all', [PROFILE], TITLE), null);
+  assert.equal(parseClassifications(reply([]), [PROFILE], TITLE), null);
+  assert.equal(parseClassifications(reply([entry(3, { stack_role: 'primary' })]), [PROFILE], TITLE), null, 'a grade the facts do not have');
   assert.equal(
-    parseClassifications(reply([{ profile_id: 3, fit_score: 92, location_match: true, tech_match: [], red_flags: [], summary: 'x' }]), [PROFILE]),
+    parseClassifications(reply([{ profile_id: 3, fit_score: 92, location_match: true, tech_match: [], red_flags: [], summary: 'x' }]), [PROFILE], TITLE),
     null,
     'a number without the facts is the old shape: refused, not believed',
   );
   assert.equal(
-    parseClassifications(JSON.stringify({ levels: [], min_years: null, scores: [entry(3)] }), [PROFILE]),
+    parseClassifications(JSON.stringify({ levels: [], min_years: null, scores: [entry(3)] }), [PROFILE], TITLE),
     null,
     'salary keys are required — their absence means the shape drifted',
   );
   assert.equal(
-    parseClassifications(JSON.stringify({ salary_min: null, salary_max: null, scores: [entry(3)] }), [PROFILE]),
+    parseClassifications(JSON.stringify({ salary_min: null, salary_max: null, scores: [entry(3)] }), [PROFILE], TITLE),
     null,
     'so are the level keys',
   );
 });
 
 test('a reply wrapped in a code fence still parses', () => {
-  const out = parseClassifications('```json\n' + reply([entry(3)]) + '\n```', [PROFILE]);
+  const out = parseClassifications('```json\n' + reply([entry(3)]) + '\n```', [PROFILE], TITLE);
   assert.equal(out?.results.get(3)?.fit_score, 94);
 });
 
@@ -235,21 +240,33 @@ test('the fit is computed from the facts, and a fit_score the reply adds is not 
   const out = parseClassifications(
     reply([entry(3, { fit_score: 100, stack_used: ['PHP'], nice_used: ['Vue.js'], stack_role: 'CORE' })], [null, null], { levels: [], min_years: null }),
     [PROFILE],
+    TITLE,
   );
   const c = out?.results.get(3);
   assert.ok(c);
   // core 40 + half the required list 5 + type 15 + level unstated 10 + no salary 4 + nice 5 + nothing off-stack 5.
   assert.equal(c.fit_score, 84);
-  assert.deepEqual(c.fit_facts?.stackUsed, ['php']);
-  assert.equal(c.fit_facts?.seniority, 'unstated');
+  // The facts are kept as the reply gave them, with the posting's level, so the row can be scored again.
+  assert.deepEqual(c.fit_facts, {
+    v: 1,
+    stack_used: ['PHP'],
+    stack_role: 'core',
+    role_types: ['backend'],
+    role_type: 'match',
+    nice_used: ['Vue.js'],
+    excluded: [],
+    off_stack: 'none',
+    levels: [],
+    min_years: null,
+  });
   // The facets' tags are the same facts, in the search's spelling.
   assert.deepEqual(c.tech_match, ['php', 'vue']);
 });
 
 test('the same facts give the same score on every posting; one fact apart, the scores part', () => {
-  const a = parseClassifications(reply([entry(3)]), [PROFILE])?.results.get(3)?.fit_score;
-  const b = parseClassifications(reply([entry(3, { summary: 'worded otherwise', red_flags: ['no-salary-listed'] })]), [PROFILE])?.results.get(3)?.fit_score;
-  const c = parseClassifications(reply([entry(3, { off_stack: 'some' })]), [PROFILE])?.results.get(3)?.fit_score;
+  const a = parseClassifications(reply([entry(3)]), [PROFILE], TITLE)?.results.get(3)?.fit_score;
+  const b = parseClassifications(reply([entry(3, { summary: 'worded otherwise', red_flags: ['no-salary-listed'] })]), [PROFILE], TITLE)?.results.get(3)?.fit_score;
+  const c = parseClassifications(reply([entry(3, { off_stack: 'some' })]), [PROFILE], TITLE)?.results.get(3)?.fit_score;
   assert.equal(a, b);
   assert.ok(c !== undefined && a !== undefined && c < a);
 });
@@ -368,11 +385,11 @@ test('the location block is read once, codes validated, and optional', () => {
     location: { workplace: 'remote', countries: ['pl', 'XX', 'de', 'pl'], regions: ['eu', 'MARS'], note: '  Poland or Germany residents  ' },
     scores: [entry(3)],
   });
-  const out = parseClassifications(withLocation, [PROFILE]);
+  const out = parseClassifications(withLocation, [PROFILE], TITLE);
   assert.deepEqual(out?.location, { workplace: 'REMOTE', countries: ['PL', 'DE'], regions: ['EU'], note: 'Poland or Germany residents' });
-  const odd = parseClassifications(withLocation.replace('"remote"', '"office"'), [PROFILE]);
+  const odd = parseClassifications(withLocation.replace('"remote"', '"office"'), [PROFILE], TITLE);
   assert.equal(odd?.location?.workplace, 'UNKNOWN');
-  assert.equal(parseClassifications(reply([entry(3)]), [PROFILE])?.location, null);
+  assert.equal(parseClassifications(reply([entry(3)]), [PROFILE], TITLE)?.location, null);
 });
 
 /* ---------------------------------------------------------------------- *
