@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildProfileDraft, NICE_TO_HAVE_MAX, readsAsNonEngineering, type ProfileForDraft, type ScanForDraft } from './profile-draft';
+import { buildProfileDraft, NICE_TO_HAVE_MAX, readsAsNonEngineering, residenceStated, type ProfileForDraft, type ScanForDraft } from './profile-draft';
 import { titleHasKeyword } from '../filter';
 
 const PROFILE: ProfileForDraft = {
@@ -9,6 +9,7 @@ const PROFILE: ProfileForDraft = {
   stackNiceToHave: ['mysql'],
   roleTypes: ['backend'],
   seniority: ['senior'],
+  residence: null,
 };
 
 const SCAN: ScanForDraft = {
@@ -17,6 +18,7 @@ const SCAN: ScanForDraft = {
   skills: ['php', 'laravel', 'vue', 'mysql', 'docker'],
   primarySkills: ['php', 'laravel', 'vue'],
   roleTypes: ['full-stack', 'backend'],
+  text: '',
 };
 
 test('maps primary skills to required, the rest to nice-to-have', () => {
@@ -53,6 +55,7 @@ test('a scan matching the profile changes nothing', () => {
     skills: ['PHP', 'Laravel', 'MySQL'], // case differs — still equal
     primarySkills: ['Laravel', 'php'],
     roleTypes: ['backend'],
+    text: '',
   });
   assert.deepEqual(d.changed, []);
   assert.deepEqual(d.changes, {});
@@ -65,19 +68,21 @@ test('unknown seniority and empty scan lists are ignored', () => {
     skills: [],
     primarySkills: [],
     roleTypes: [],
+    text: '',
   });
   assert.deepEqual(d.changed, []);
   assert.equal(d.warnings.length, 1);
 });
 
 test('a blank base takes everything the scan speaks for — the new-profile case', () => {
-  const blank = { name: 'New profile', stackRequired: [], stackNiceToHave: [], roleTypes: [], seniority: [] };
+  const blank = { name: 'New profile', stackRequired: [], stackNiceToHave: [], roleTypes: [], seniority: [], residence: null };
   const d = buildProfileDraft(blank, {
     title: 'Senior Backend Engineer',
     seniority: 'senior',
     skills: ['PHP', 'Laravel', 'Redis'],
     primarySkills: ['PHP', 'Laravel'],
     roleTypes: ['backend'],
+    text: '',
   });
   assert.deepEqual(d.changes, {
     name: 'Senior Backend Engineer',
@@ -125,4 +130,25 @@ test('role words joined with a slash become one each, so a title can carry them 
   assert.equal(titleHasKeyword('senior qa engineer', 'qa'), true);
   assert.equal(titleHasKeyword('test automation engineer', 'test automation'), true);
   assert.equal(titleHasKeyword('test automation engineer', 'qa/test automation'), false, 'the joined pair matched no title');
+});
+
+const HEADER = 'Dana Ruiz\nSoftware Engineer, Backend\nLisbon, Portugal · dana.ruiz@example.com · github.com/danaruiz-dev\n\n## SUMMARY\nBackend engineer.\n';
+
+test('the country the resume header states becomes "I live in" when it is not set (#640)', () => {
+  const d = buildProfileDraft(PROFILE, { ...SCAN, text: HEADER });
+  assert.equal(d.changes.residence, 'PT');
+  assert.ok(d.changed.includes('where you live'));
+  // Set by the person, it stays: a header line can be a year old.
+  const set = buildProfileDraft({ ...PROFILE, residence: 'ES' }, { ...SCAN, text: HEADER });
+  assert.equal(set.changes.residence, undefined);
+  assert.ok(!set.changed.includes('where you live'));
+});
+
+test('residenceStated reads one country off the header, and says nothing it cannot be sure of', () => {
+  assert.equal(residenceStated(HEADER), 'PT');
+  assert.equal(residenceStated('Nazar Boyko\nSenior Software Engineer\nAustin, Texas, 78758 ∙ nazar@example.com ∙ +1 (612) 267-5544\n'), 'US');
+  // No place line, a place nobody can place, or two countries: the field stays the person's to fill.
+  assert.equal(residenceStated('Dana Ruiz\ndana@example.com\n\n## SUMMARY\nWorked in Portugal and Spain.\n'), null);
+  assert.equal(residenceStated('Dana Ruiz\nAtlantis · dana@example.com\n'), null);
+  assert.equal(residenceStated('Dana Ruiz\nLisbon, Portugal / Madrid, Spain · dana@example.com\n'), null);
 });

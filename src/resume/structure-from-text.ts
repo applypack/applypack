@@ -1,4 +1,6 @@
+import { isTermList } from './evidence';
 import { emptyResume, JsonResumeSchema, type JsonResume } from './json-resume';
+import { ALIAS_GROUPS } from './keyword-aliases';
 import type { PdfLayout } from './pdf-layout';
 import { parseLocation } from '../location';
 
@@ -556,27 +558,79 @@ function languagesFrom(lines: string[]): JsonResume['languages'] {
 /* ---------- wrapping ---------- */
 
 /**
+ * Words no line ends on of its own accord: a line that stops on one was cut
+ * at the page width, whatever the next one opens with ("…TypeScript,
+ * JavaScript, and" / "Node.js."). Lower case only — "Plan A" ends a line.
+ */
+const DANGLING_WORDS = new Set([
+  'a', 'an', 'the', 'and', 'or', 'nor', 'of', 'to', 'in', 'on', 'at', 'by', 'for', 'from', 'with', 'into', 'via', 'as', 'than', 'including', '&',
+]);
+
+/** A word as two lines are compared on: lower case, the punctuation around it off ("(Amazon" and "Actions," are words). */
+const bare = (word: string): string => word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, '');
+
+/**
+ * The known names of more than one word, in words: a page that breaks
+ * "GitHub" from "Actions" breaks one technology in two, and the half below
+ * opens with a capital like any new line does.
+ */
+const MULTI_WORD_TERMS: readonly string[][] = [
+  ...new Set(ALIAS_GROUPS.flat().filter((name) => /\s/.test(name))),
+].map((name) => name.split(/\s+/).map(bare).filter(Boolean)).filter((words) => words.length > 1);
+
+/** Does the break between these two lines fall inside one of `MULTI_WORD_TERMS`? */
+function splitsTerm(previous: string, line: string): boolean {
+  const before = previous.split(/\s+/).map(bare);
+  const after = line.split(/\s+/).map(bare);
+  return MULTI_WORD_TERMS.some((term) => {
+    for (let cut = 1; cut < term.length; cut++) {
+      const head = term.slice(0, cut);
+      const tail = term.slice(cut);
+      if (head.length > before.length || tail.length > after.length) continue;
+      if (head.every((w, i) => before[before.length - head.length + i] === w) && tail.every((w, i) => after[i] === w)) return true;
+    }
+    return false;
+  });
+}
+
+/** A line that opens with its own label ("Frameworks: React, Vue") starts a group, whatever ran above it. */
+const LABELLED = /^[^,:]{1,40}:\s/;
+
+interface WrapOptions {
+  /**
+   * A PDF's page width, as the characters of its longest lines (pdf-text.ts):
+   * a list of terms that runs at least this far and stops without a comma was
+   * cut inside an item ("…, Prompt" / "Engineering, RAG"). Unset, nothing is
+   * judged by its width — a .docx line is a paragraph, however long.
+   */
+  fullWidth?: number;
+}
+
+/**
  * A PDF's text layer breaks a bullet across lines at the page width, so a
  * continuation line is one that does not start a new item and follows a line
  * that did not end a sentence. Joining them back is what makes a bullet a
  * bullet again (measured on resumes 5 and 8).
  */
-export function joinWrapped(lines: string[]): string[] {
+export function joinWrapped(lines: string[], options: WrapOptions = {}): string[] {
   const out: string[] = [];
+  // The last line as the page drew it: the line above may already be several joined.
+  let drawn = '';
   for (const raw of lines) {
     const line = raw.trim();
     if (line.length === 0) continue;
     const previous = out[out.length - 1];
-    if (previous !== undefined && isContinuation(previous, line)) {
+    if (previous !== undefined && isContinuation(previous, line, drawn, options)) {
       out[out.length - 1] = `${previous} ${line}`;
-      continue;
+    } else {
+      out.push(line);
     }
-    out.push(line);
+    drawn = line;
   }
   return out;
 }
 
-function isContinuation(previous: string, line: string): boolean {
+function isContinuation(previous: string, line: string, drawn: string, { fullWidth }: WrapOptions): boolean {
   if (BULLET.test(line)) return false;
   // A contact line starts lower-case ("dana@…", "github.com/…") and follows a
   // title with no full stop: joined, the title was read as part of an address
@@ -586,7 +640,11 @@ function isContinuation(previous: string, line: string): boolean {
   // is a new item, not a wrap.
   if (/[.:;!?]$/.test(previous)) return false;
   if (DATE_RANGE.test(line)) return false;
-  return /^[\p{Ll}\p{N}(]/u.test(line) || previous.endsWith(',');
+  if (/^[\p{Ll}\p{N}(]/u.test(line) || previous.endsWith(',')) return true;
+  // A capital after a word no line ends on, or after the first half of a name: still the same sentence or list.
+  if (DANGLING_WORDS.has(previous.slice(previous.lastIndexOf(' ') + 1))) return true;
+  if (splitsTerm(previous, line)) return true;
+  return fullWidth !== undefined && drawn.length >= fullWidth && !LABELLED.test(line) && isTermList(previous) && isTermList(line);
 }
 
 /**

@@ -30,6 +30,7 @@ import type { FlashMessage } from '../flash';
 
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { techLabels } from '../tech-label';
 import { t } from '../../i18n/t';
 
 export interface ResumeRow {
@@ -284,7 +285,7 @@ const PrimaryStack: FC<{ resume: ResumeRow }> = ({ resume }) => {
   }
   return (
     <div class="flex flex-wrap items-center gap-1" translate="no">
-      {core.map((skill) => (
+      {techLabels(core).map((skill) => (
         <Tag>{skill}</Tag>
       ))}
       {rest > 0 && <span class="text-meta text-ink-faint">+{rest}</span>}
