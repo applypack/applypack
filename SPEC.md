@@ -243,7 +243,11 @@ against every running search and returns a verdict each; those land in
 sorting. A posting is admitted when any search's base filter admits it, and
 dismissed only when every search rejects it. Alerts are one per posting,
 named for the winner and routed to that search's `notificationTargetId`.
-"Save & re-classify" reruns the classifier across existing jobs.
+"Save & re-classify" reruns the classifier across existing jobs. Each
+`JobScore` keeps the facts its fit was computed from (`fitFacts`, ADR 0064):
+the job page words them per search, and `dist/scripts/rescore-fit-once.js`
+makes every fit again from them after a weight change or a search edit, with
+no AI call and no status change.
 
 Profile fields that drive matching:
 - `stackRequired` — actual technologies (e.g. `php`, `laravel`, `javascript`, `go`)
