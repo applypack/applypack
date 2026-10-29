@@ -1,0 +1,66 @@
+[
+  {
+    "id": "71ea792e-bce9-45f5-93d9-b86aa6bbb101",
+    "text": "Senior Accountant",
+    "categories": {
+      "commitment": "Full-Time",
+      "department": "Finance",
+      "location": "Minneapolis, MN",
+      "team": "Accounting",
+      "allLocations": [
+        "Minneapolis, MN"
+      ]
+    },
+    "country": "US",
+    "workplaceType": "hybrid",
+    "createdAt": 1790869891966,
+    "hostedUrl": "https://jobs.lever.co/perforce/71ea792e-bce9-45f5-93d9-b86aa6bbb101",
+    "descriptionPlain": "Position Summary:\nPerforce is looking for a Senior Accountant that will be a key member of a growing accounting team reporting to the Accounting Manager. The position will be responsible for accurate and timely month-end close and financial reporting and will work closely with management to analyze overall operational performance.  This will be a key position in the group and will be heavily relied upon to ensure accurate financial information is produced and appropriate accounting controls are followed.  The candidate must demonstrate the ability to use accounting knowledge and previous experience to add value and assist in meeting the department's objectives while working in a fast-paced, continually changing, and high-growth environment.\n",
+    "lists": [
+      {
+        "text": "Responsibilities:",
+        "content": "\n<li>Perform normal month-end closing procedures including journal entry preparation, reconciliations and variance analysis of expenses.</li>\n<li>Provide supporting schedules and analysis during the annual external audits.</li>\n"
+      },
+      {
+        "text": "Requirements:",
+        "content": "\n<li>3+ years of accounting experience at a staff accountant level or higher.</li>\n<li>Operational experience with a major accounting system (ex: NetSuite, Intacct, Oracle, SAP etc.)</li>\n<li>Strong knowledge of U.S. GAAP and have the ability to interpret and implement new accounting guidance in an increasingly complex business environment.</li>\n"
+      }
+    ],
+    "additionalPlain": "Additionally, this position is eligible for benefits including, but not limited to, medical, dental, vision, retirement benefits, life insurance, wellness programs, total time off, and other employee perks that may be offered by Perforce from time to time. The actual offer will depend on a number of factors including, but not limited to, a candidate’s education, skills, qualifications, depth of experience and other relevant business considerations. Perforce reserves the right to amend or modify employee perks and benefits at any time. \n",
+    "salaryRange": {
+      "min": 82550,
+      "max": 99000,
+      "currency": "USD",
+      "interval": "per-year-salary"
+    }
+  },
+  {
+    "id": "0a220806-406f-4e20-adf1-ee72259179e2",
+    "text": "Software Engineer, Backend",
+    "categories": {
+      "commitment": "Full-time",
+      "department": "Product Development",
+      "location": "Sofia",
+      "team": "Engineering",
+      "allLocations": [
+        "Sofia"
+      ]
+    },
+    "country": "BG",
+    "workplaceType": "hybrid",
+    "createdAt": 1789809908754,
+    "hostedUrl": "https://jobs.lever.co/siteground/0a220806-406f-4e20-adf1-ee72259179e2",
+    "descriptionPlain": "",
+    "lists": [
+      {
+        "text": "YOUR ROLE:",
+        "content": "<div>\n<p>We're hiring a <strong>Software Engineer</strong> to play a pivotal role in shaping the backbone of our innovative <strong>Software as a Service (SaaS) products</strong>. This isn't a typical backend role: we're looking for someone who's already adapted to building software in the AI era – who thinks in systems, moves comfortably across the stack, and treats AI tools as part of the craft, not a shortcut around it. Someone willing to contribute to the entire development lifecycle – from conceptualization to deployment and deliver solutions that exceed our users' expectations in speed and reliability.</p>\n</div>"
+      },
+      {
+        "text": "OUR EXPECTATIONS:",
+        "content": "\n<li>Deep understanding of the HTTP stack, networking fundamentals, CI/CD pipelines, software testing, observability, and distributed systems;</li>\n<li>Strong understanding of software architecture, APIs, databases, caching, messaging, and asynchronous processing;</li>\n"
+      }
+    ],
+    "additionalPlain": "Come and make a difference at SiteGround with people who inspire you to grow!\n \nPlease note: only shortlisted candidates will be contacted for further steps.\n \n \n"
+  }
+]
