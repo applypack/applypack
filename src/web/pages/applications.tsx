@@ -15,6 +15,8 @@ import {
 } from '../stage-config';
 import type { StageTimeLine } from '../stage-time';
 import { t } from '../../i18n/t';
+import { displayZone } from '../display-zone';
+import { dayIn } from '../../zoned-day';
 
 export interface ApplicationCard {
   id: number;
@@ -66,7 +68,7 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
           class={`min-w-0 truncate text-meta ${
             card.stageLine?.stale ? 'font-medium text-warn' : 'text-ink-faint'
           }`}
-          title={card.stageLine?.since.toISOString().slice(0, 10)}
+          title={card.stageLine ? dayIn(card.stageLine.since, displayZone()) : undefined}
         >
           {card.stageLine?.text ?? t('applications.noApplyDate')}
           {card.recruiterContact ? ` · ${card.recruiterContact}` : ''}

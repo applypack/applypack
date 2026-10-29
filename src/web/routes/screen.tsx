@@ -75,6 +75,8 @@ import { MAX_UPLOAD_MB } from '../upload';
 import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { companyForPage } from '../../employer';
+import { displayZone } from '../display-zone';
+import { dayIn } from '../../zoned-day';
 
 /*
  * Employer mode (TASKS §19, ADR 0049): every route here sits behind
@@ -174,7 +176,7 @@ screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', ()
   const settings = await getSettings();
   const screening = await createScreening({
     jobId,
-    title: `${jobTitle} — ${new Date().toISOString().slice(0, 10)}`,
+    title: `${jobTitle} — ${dayIn(new Date(), displayZone())}`,
     postingText,
     rubric: draftRubric(null),
     retainUntil: new Date(Date.now() + settings.screeningRetentionDays * DAY_MS),
@@ -836,7 +838,7 @@ async function exportRowsFor(id: number) {
     jobTitle: screening.job.title,
     companyName: screening.job.employer ?? screening.job.company.name,
     gates: rubricOf(screening).criteria.filter((x) => x.mode === 'gate').map((x) => x.label),
-    createdAt: screening.createdAt,
+    screenedOn: dayIn(screening.createdAt, displayZone()),
   };
   return {
     meta,

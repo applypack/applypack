@@ -43,7 +43,8 @@ export interface ExportScreening {
   jobTitle: string;
   companyName: string;
   gates: string[];
-  createdAt: Date;
+  /** The day it was screened, in the dashboard's zone: "2026-09-09". */
+  screenedOn: string;
 }
 
 export const GATE_MARK: Record<GateStatus, string> = { pass: '✓', unknown: '?', fail: '✗' };
@@ -115,7 +116,7 @@ export function toMarkdown(screening: ExportScreening, rows: ExportRow[], calibr
   const out: string[] = [
     `# ${screening.title}`,
     '',
-    `Position: ${screening.jobTitle} — ${screening.companyName}. Screened ${screening.createdAt.toISOString().slice(0, 10)}.`,
+    `Position: ${screening.jobTitle} — ${screening.companyName}. Screened ${screening.screenedOn}.`,
     '',
     'The order is a priority to talk to, read off the resumes against the rubric; a person decides. Names were never seen by the model.',
     '',

@@ -1,4 +1,5 @@
 import { csvTable } from '../csv';
+import { dayIn } from '../zoned-day';
 
 /*
  * The applications board as a file (TASKS N7): CSV for a spreadsheet, and
@@ -29,17 +30,6 @@ export interface ApplicationExportRow {
 }
 
 const HEAD = ['Stage', 'Company', 'Source', 'Title', 'Applied on', 'In this stage since', 'Fit', 'Applied with', 'Recruiter contact', 'Notes', 'Posting'];
-
-/** The calendar day a moment fell on in the user's time zone: "2026-09-28". */
-export function dayIn(date: Date | null, timeZone: string): string {
-  if (date === null) return '';
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
-      .formatToParts(date)
-      .map((p) => [p.type, p.value]),
-  );
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
 
 export function applicationsCsv(rows: readonly ApplicationExportRow[], timeZone: string): string {
   return csvTable(

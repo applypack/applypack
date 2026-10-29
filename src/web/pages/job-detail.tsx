@@ -26,6 +26,8 @@ import {
 } from '../ui';
 import { toCheckInterval } from '../../watchlist/interval';
 import { formatDate, formatPosted, formatRelative, formatSalary, safeHref } from '../format';
+import { displayZone } from '../display-zone';
+import { dayIn } from '../../zoned-day';
 import { techLabels } from '../tech-label';
 import { sourceLabel } from '../source-names';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
@@ -435,7 +437,7 @@ const JobRail: FC<RailProps> = ({ job, appliedResumePicker, applicationTrackingE
             <Input
               type="date"
               name="appliedAt"
-              value={job.appliedAt ? job.appliedAt.toISOString().slice(0, 10) : ''}
+              value={dayIn(job.appliedAt, displayZone())}
             />
           </Field>
           <AppliedWithField job={job} picker={appliedResumePicker} />
