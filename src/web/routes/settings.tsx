@@ -57,6 +57,7 @@ import { alertsSwitchedLine } from '../held-line';
 import {
   addStage,
   allStages,
+  MAX_STAGE_LABEL,
   moveStage,
   parseStageConfig,
   removeStage,
@@ -138,7 +139,7 @@ import {
 import { countReclassifyAll, runReclassifyAll } from '../../jobs/reclassify-job';
 import { spendHint } from '../cost-hint';
 import { recordCronRun } from '../../jobs/cron-run';
-import { parseLineList, parseTagList, toStringArray } from '../../text-utils';
+import { parseTagList, toStringArray } from '../../text-utils';
 import { isCountryCode, isRegionCode, resolveCountries } from '../../countries';
 import { isRelocation, parseResidence } from '../../eligibility';
 import { isProfileWorkplace } from '../../location';
@@ -152,8 +153,9 @@ import { filterChanged } from '../../filter';
 import { foldersReadAgainHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type ProfileDraftNotice, type SettingsProps, type SettingsTab, type SourceKeyRow } from '../pages/settings';
-import { minFitField, profileFieldLabel, reclassifyQuestion, sentProfile } from '../profile-form';
+import { blankSearchToReuse, lineListField, minFitField, minSalaryField, profileFieldLabel, reclassifyQuestion, sentProfile, seniorityField, tagListField } from '../profile-form';
 import { packFieldLabel, scheduleFieldLabel, scheduleInput } from '../form-fields';
+import { retentionParam } from '../retention-choices';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -213,12 +215,12 @@ const DiscordTargetSchema = z.object({
 
 const ProfileFormSchema = z.object({
   name: z.string().min(1).max(100),
-  stackRequired: z.string().optional().default(''),
-  roleTypes: z.string().optional().default(''),
-  stackNiceToHave: z.string().optional().default(''),
-  stackExclude: z.string().optional().default(''),
+  stackRequired: tagListField,
+  roleTypes: tagListField,
+  stackNiceToHave: tagListField,
+  stackExclude: tagListField,
   notes: z.string().max(4_000).optional().default(''),
-  seniority: z.union([z.string(), z.array(z.string())]).optional(),
+  seniority: seniorityField,
   // ADR 0032: chips post one value each, the no-JS textarea posts a list.
   countries: z.union([z.string(), z.array(z.string())]).optional(),
   regions: z.union([z.string(), z.array(z.string())]).optional(),
@@ -226,8 +228,8 @@ const ProfileFormSchema = z.object({
   // ADR 0033: where the candidate lives, and whether they would move.
   residence: z.string().optional().default(''),
   relocation: z.string().optional().default('no'),
-  onsiteCities: z.string().optional().default(''),
-  minSalaryUsd: z.coerce.number().int().min(0).default(0),
+  onsiteCities: lineListField,
+  minSalaryUsd: minSalaryField,
   minFitScore: minFitField,
   notificationTargetId: z.string().optional().default(''),
   resumeId: z.string().optional().default(''),
@@ -1011,6 +1013,7 @@ const STAGE_ERROR_TEXT = {
   limit: 'settingsRoute.stages.limit',
   'unknown-key': 'settingsRoute.stages.unknownKey',
   'fixed-column': 'settingsRoute.stages.fixedColumn',
+  'too-long': 'settingsRoute.stages.tooLong',
   'last-column': 'settingsRoute.stages.lastColumn',
 } as const satisfies Record<StageEditError, MessageKey>;
 
@@ -1024,7 +1027,7 @@ async function applyStageEdit(
   const work = parseStageConfig(settings.pipelineStages);
   const next = edit(work);
   if (typeof next === 'string') {
-    return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[next]));
+    return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[next], { n: MAX_STAGE_LABEL }));
   }
   await setPipelineStages(next);
   return flashRedirect(STAGES_BACK, 'ok', okText);
@@ -1209,11 +1212,10 @@ settingsRoute.post('/settings/employer-mode-toggle', async (c) => {
 
 settingsRoute.post('/settings/screening-retention', async (c) => {
   const form = await c.req.parseBody();
-  const days = Number(form.days);
-  if (!Number.isFinite(days)) return flashRedirect('/settings?tab=screening', 'err', t('settingsRoute.retention.enterDays'));
+  const days = retentionParam(form.days, (await getSettings()).screeningRetentionDays, SCREENING_RETENTION_DAYS);
+  if (days === null) return flashRedirect('/settings?tab=screening', 'err', t('http.noChoice'));
   await setScreeningRetentionDays(days);
-  const saved = (await getSettings()).screeningRetentionDays;
-  return flashRedirect('/settings?tab=screening', 'ok', t('settingsRoute.retention.saved', { days: saved }));
+  return flashRedirect('/settings?tab=screening', 'ok', t('settingsRoute.retention.saved', { days }));
 });
 
 settingsRoute.post('/settings/source-health-toggle', async (c) => {
@@ -1357,7 +1359,9 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
 
 // --- Profiles ---------------------------------------------------------------
 
-settingsRoute.post('/settings/profiles/new', async (c) => {
+settingsRoute.post('/settings/profiles/new', onceGuard(() => 'profiles:new', () => '/settings?tab=profile'), async (c) => {
+  const blank = blankSearchToReuse(await listProfiles());
+  if (blank !== null) return flashRedirect(`/settings?tab=profile&profile=${blank}`, 'warn', t('settingsRoute.search.blankOpened'));
   const profile = await createProfile(blankProfileInput());
   // Born inactive (issue #50): a blank profile must never become the
   // scoring profile. The first save with real content activates it.
@@ -1510,18 +1514,18 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
 
   const input = {
     name: f.name,
-    stackRequired: parseTagList(f.stackRequired),
-    roleTypes: parseTagList(f.roleTypes),
-    stackNiceToHave: parseTagList(f.stackNiceToHave),
-    stackExclude: parseTagList(f.stackExclude),
+    stackRequired: f.stackRequired,
+    roleTypes: f.roleTypes,
+    stackNiceToHave: f.stackNiceToHave,
+    stackExclude: f.stackExclude,
     notes: f.notes && f.notes.trim().length > 0 ? f.notes.trim() : null,
-    seniority: toStringArray(f.seniority),
+    seniority: f.seniority,
     countries: countries.codes,
     regions: toStringArray(f.regions).filter(isRegionCode),
     workplace: toStringArray(f.workplace).filter(isProfileWorkplace),
     residence: parseResidence(f.residence, isCountryCode),
     relocation: isRelocation(f.relocation) ? f.relocation : 'no',
-    onsiteCities: parseLineList(f.onsiteCities),
+    onsiteCities: f.onsiteCities,
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
     notificationTargetId,

@@ -77,9 +77,20 @@ test('addStage suffixes a taken key and falls back for non-ascii labels', () => 
   assert.deepEqual(cyrillic, [{ key: 'stage', label: 'Співбесіда' }]);
 });
 
-test('addStage never mints a reserved key', () => {
-  const next = addStage([], 'Applied') as { key: string }[];
-  assert.equal(next[0]!.key, 'applied-2');
+test('a work column never takes the name of a column the board has of its own (#646)', () => {
+  for (const name of ['Applied', 'applied', 'Rejected', 'GHOSTED', 'Ghosted!', 'Unfiled']) {
+    assert.equal(addStage(W('screen'), name), 'duplicate-label', name);
+    assert.equal(renameStage(W('screen'), 'screen', name), 'duplicate-label', name);
+  }
+  // In the reader's language too: the board shows the fixed columns in it.
+  withLocale('uk', () => assert.equal(addStage(W('screen'), t('stages.rejected')), 'duplicate-label'));
+  assert.ok(Array.isArray(addStage(W('screen'), 'Rejected by HR')), 'a name that only starts like one is its own');
+});
+
+test('a column name past the limit is refused, not cut to it (#646)', () => {
+  assert.equal(addStage(W('screen'), 'x'.repeat(41)), 'too-long');
+  assert.equal(renameStage(W('screen'), 'screen', 'x'.repeat(300)), 'too-long');
+  assert.deepEqual(addStage([], `  ${'x'.repeat(40)}  `), [{ key: 'x'.repeat(36), label: 'x'.repeat(40) }]);
 });
 
 test('addStage guards empty, duplicate and the cap', () => {
