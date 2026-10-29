@@ -65,11 +65,14 @@ export function inboxRoots(value: string | undefined, p: PathApi = path): string
 }
 
 /**
- * A named root always may be read: whoever runs the machine chose it. Without
+ * ApplyPack's own folder is never read: it holds the database and `db.json`,
+ * its password, so even a named root around it does not open it. Past that, a
+ * named root always may be read: whoever runs the machine chose it. Without
  * one, only a local install reads a folder, and only one inside the home
- * directory that is not hidden, not the system's and not ApplyPack's own.
+ * directory that is not hidden and not the system's.
  */
 export function folderAllowed(folder: string, rules: FolderRules, p: PathApi = path): FolderVerdict {
+  if (within(folder, rules.dataDir, p) || within(rules.dataDir, folder, p)) return { ok: false, reason: t('datasets.folder.dataDir') };
   if (rules.roots.some((root) => within(root, folder, p))) return { ok: true };
   if (!rules.launcher) {
     return {
@@ -84,6 +87,5 @@ export function folderAllowed(folder: string, rules: FolderRules, p: PathApi = p
   const parts = p.relative(rules.home, folder).split(p.sep);
   if (parts.some((part) => part.startsWith('.'))) return { ok: false, reason: t('datasets.folder.hidden') };
   if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: t('datasets.folder.system', { env: INBOX_ROOTS_ENV, folder }) };
-  if (within(folder, rules.dataDir, p) || within(rules.dataDir, folder, p)) return { ok: false, reason: t('datasets.folder.dataDir') };
   return { ok: true };
 }

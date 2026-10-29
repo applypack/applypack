@@ -70,6 +70,15 @@ describe('folderAllowed on a local install', () => {
     assert.match(reason('/Users/sam/apps', moved), /its own database/);
   });
 
+  it('refuses the data folder under a named root that holds it too', () => {
+    // The system-folder refusal names the root to add; adding ~/Library must not open db.json.
+    const library: FolderRules = { ...local, roots: ['/Users/sam/Library'] };
+    assert.equal(allowed('/Users/sam/Library/Application Support/ApplyPack', library), false);
+    assert.equal(allowed('/Users/sam/Library/Application Support', library), false);
+    assert.equal(allowed('/Users/sam/Library/CloudStorage/Dropbox', library), true);
+    assert.equal(allowed('/data', { ...server, roots: ['/'] }), false);
+  });
+
   it('reads a named root outside home as well', () => {
     const withRoot: FolderRules = { ...local, roots: ['/Volumes/disk/jobs'] };
     assert.equal(allowed('/Volumes/disk/jobs', withRoot), true);
