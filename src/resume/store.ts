@@ -682,6 +682,18 @@ export async function getLatestMatchForResumeAndJob(
 }
 
 /**
+ * The newest comparison of this resume against this posting, older than
+ * `before`, that carries strengths — the full report a later quick check's
+ * text was tailored from (match-mode.ts:strengthsReport, #642).
+ */
+export async function getEarlierStrengths(jobId: number, resumeId: number, before: number): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findFirst({
+    where: { jobId, resumeId, id: { lt: before }, strengths: { isEmpty: false } },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+/**
  * Every edit any comparison of this resume suggested, whatever the posting —
  * what a letter's gate puts back to the resume's own words (applied.ts).
  */

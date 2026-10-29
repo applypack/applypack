@@ -70,3 +70,23 @@ export function withSuggestionsMode(breakdown: unknown, verificationId: number |
   const base = typeof breakdown === 'object' && breakdown !== null ? (breakdown as Record<string, unknown>) : {};
   return { ...base, mode: 'full', verificationId };
 }
+
+/**
+ * The comparison a cover letter takes its strengths from (#642). A quick
+ * check carries none, and Save as vN scores the saved text as one — so the
+ * letter written a minute after tailoring asked for suggestions again, while
+ * the full report the edits came from sat one row below. The newest full
+ * report of an earlier text of the SAME resume lends its strengths; the quick
+ * check still gives the verdict and the keywords, which judged the text the
+ * letter is written from. A one-off file's row lends nothing: its earlier
+ * texts were other files. `earlier` is newest first; null = no strengths.
+ */
+export function strengthsReport<T extends { id: number; resumeId: number; strengths: string[]; breakdown: unknown }>(
+  latest: T,
+  earlier: readonly T[],
+  oneOff: boolean,
+): T | null {
+  if (readMatchMode(latest.breakdown) === 'full') return latest;
+  if (oneOff) return null;
+  return earlier.find((m) => m.resumeId === latest.resumeId && m.id < latest.id && m.strengths.length > 0 && readMatchMode(m.breakdown) === 'full') ?? null;
+}
