@@ -74,14 +74,14 @@
     "prisma": true
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.2.0",
-    "@hono/node-server": "^2.1.5",
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@hono/node-server": "^2.1.6",
     "@prisma/client": "^6.1.0",
     "@xmldom/xmldom": "0.9.12",
-    "docx": "9.14.0",
+    "docx": "9.15.2",
     "dotenv": "^18.0.9",
     "embedded-postgres": "16.14.0-beta.17",
-    "hono": "^4.13.13",
+    "hono": "^4.13.16",
     "jszip": "3.10.2",
     "node-cron": "^4.6.0",
     "pdfkit": "0.20.2",
