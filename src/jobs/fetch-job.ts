@@ -40,6 +40,8 @@ export interface FetchJobOptions {
   /** The wizard's test search: a subset of the sources, a place typed before any search exists. */
   only?: FetchWalkOptions['only'];
   places?: FetchWalkOptions['places'];
+  /** Store what passes the filter and score nothing, whatever the pause says: setup's last step scores the best of it itself (#535). */
+  unscored?: boolean;
   /**
    * The fetch lock, already taken by the caller, who then records the run
    * knowing it will happen (jobs/fetch-tick.ts): a run that only met another
@@ -110,7 +112,7 @@ async function fetchUnderLock(opts: FetchJobOptions) {
     logger.info({ schedule: describeSchedule(schedule) }, 'fetch-job: skipped (outside the schedule)');
     return { stats: { skipped: 1, reason: 'outside-schedule', ...licence, ...delivery } };
   }
-  const classify = settings.fetchingEnabled;
+  const classify = settings.fetchingEnabled && opts.unscored !== true;
 
   const profiles = await listActiveProfiles();
   if (profiles.length === 0) {

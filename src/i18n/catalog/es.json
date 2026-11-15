@@ -1934,6 +1934,7 @@
   "welcome.scoreRun.running": "Puntuando las ofertas encontradas",
   "welcome.scoreRun.failed": "La puntuación falló",
   "welcome.scoreRun.subtitle": "Las {n} ofertas guardadas que mejor encajan con tu perfil — de unos segundos a medio minuto cada una.",
+  "welcome.scoreRun.reading": "Primero se {n, plural, one {lee # portal} many {leen # de portales} other {leen # portales}} que acabas de activar, para que sus ofertas también cuenten…",
   "welcome.scoreRun.skippedBlank": "Puntuación omitida — el perfil aún no tiene tecnologías ni palabras del puesto.",
   "welcome.scoreRun.skippedNoSearch": "Puntuación omitida — no hay ninguna búsqueda activa. Crea una en Configuración → Búsqueda de empleo.",
   "welcome.scoreRun.scored": "{scored, plural, one {# oferta puntuada} many {# de ofertas puntuadas} other {# ofertas puntuadas}} — {matches, plural, one {# parece una coincidencia} many {# parecen coincidencias} other {# parecen coincidencias}}",

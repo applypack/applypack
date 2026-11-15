@@ -1,3 +1,4 @@
+import { logger } from '../logger';
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { withoutMuted } from '../employer';
@@ -24,13 +25,23 @@ export function liveScoreRun(): TargetRun | null {
  * lands on `resultUrl` as a flash.
  */
 export function beginScoreUnscored(
-  opts: { limit: number; resultUrl: string } & Pick<TargetRun, 'heading' | 'subtitle' | 'backUrl' | 'backLabel'>,
+  opts: {
+    limit: number;
+    resultUrl: string;
+    /** Something to do before the scoring starts, under the same run — setup reads the boards it has just switched on (#535). */
+    before?: (say: (subtitle: string) => void) => Promise<void>;
+  } & Pick<TargetRun, 'heading' | 'subtitle' | 'backUrl' | 'backLabel'>,
 ): { run: TargetRun; joined: boolean } {
-  const { limit, resultUrl, ...page } = opts;
+  const { limit, resultUrl, before, ...page } = opts;
   const claimed = claimRun(SCORE_RUN_KEY, { steps: ['score'], jobTitle: '', resumeName: '', ...page });
   if (claimed.joined) return claimed;
   const { run } = claimed;
   startRun(run.id, async () => {
+    if (before) {
+      // A board that does not answer must not cost the person their first matches: what is stored is scored either way.
+      await before((subtitle) => updateRun(run.id, { subtitle })).catch((err) => logger.warn({ err }, 'score-run: the step before scoring failed'));
+      updateRun(run.id, { subtitle: page.subtitle });
+    }
     let stats: CronStats = {};
     await recordCronRun('score-unscored', async () => {
       const out = await runScoreUnscored({ limit, onProgress: (done, total) => updateRun(run.id, { progress: { done, total } }) });
