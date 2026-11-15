@@ -191,3 +191,32 @@ test('dismiss reasons keep their order of precedence', () => {
   assert.equal(decideDismissReason(classification(80, { salary_min: 60_000 }), p), 'low-salary');
   assert.equal(decideDismissReason(classification(80, { salary_min: 120_000 }), p), null);
 });
+
+test('a snippet that names no stack is kept unjudged, not dismissed as a miss (#531)', () => {
+  const flagged = classification(25, { red_flags: ['stack-not-stated'] });
+  const short = { ...JOB, description: 'Full-Stack Engineer at a voice AI company. Remote.' };
+  const { verdicts } = buildVerdicts(new Map([[1, flagged]]), [profile(1, { minFitScore: 70 })], short, PLACE);
+  assert.equal(verdicts[0]?.dismissReason, null);
+  assert.equal(verdicts[0]?.unjudged, true);
+  assert.equal(mergeVerdicts(verdicts)?.kept, true);
+});
+
+test('the snippet rule needs both halves, and never overrules a location or a real match', () => {
+  const short = { ...JOB, description: 'Two lines.' };
+  const long = { ...JOB, description: 'x'.repeat(600) };
+  const one = [profile(1, { minFitScore: 70 })];
+  const flag = { red_flags: ['stack-not-stated'] };
+  // Long text with the flag: the model had the posting and still scored it low.
+  assert.equal(buildVerdicts(new Map([[1, classification(25, flag)]]), one, long, PLACE).verdicts[0]?.dismissReason, 'low-fit');
+  // Short text without the flag: the model saw a stack it did not like.
+  assert.equal(buildVerdicts(new Map([[1, classification(25)]]), one, short, PLACE).verdicts[0]?.dismissReason, 'low-fit');
+  // A place the search does not take is still a dismissal.
+  assert.equal(
+    buildVerdicts(new Map([[1, classification(80, { ...flag, location_match: false })]]), one, short, PLACE).verdicts[0]?.dismissReason,
+    'location-mismatch',
+  );
+  // Over the floor it is simply a match.
+  const kept = buildVerdicts(new Map([[1, classification(80, flag)]]), one, short, PLACE).verdicts[0];
+  assert.equal(kept?.dismissReason, null);
+  assert.equal(kept?.unjudged, undefined);
+});
