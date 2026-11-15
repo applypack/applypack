@@ -3780,6 +3780,7 @@
   "folders.rows.includeHint": "Pour un dossier mixte : jobs-*.json. Vide, tous les fichiers de lignes sont lus.",
   "folders.nextCheck": "Ce que fera la prochaine vérification",
   "folders.rows.nothing": "Rien : chaque fichier ici a déjà été lu et n'a pas changé.",
+  "folders.rows.nothingYet": "Rien pour l'instant : {n, plural, one {# fichier vient de changer et sera lu quand il aura cessé de changer} many {# de fichiers viennent de changer et seront lus quand ils auront cessé de changer} other {# fichiers viennent de changer et seront lus quand ils auront cessé de changer}}. Appuyez sur Vérifier à nouveau dans une minute.",
   "folders.rows.usable": "{usable, plural, one {# ligne des fichiers qu'elle lit est une offre} many {# de lignes des fichiers qu'elle lit sont des offres} other {# lignes des fichiers qu'elle lit sont des offres}}{stored, plural, =0 {} one { ; # déjà enregistrée} many { ; # de lignes déjà enregistrées} other { ; # déjà enregistrées}}.",
   "folders.rows.cost": "Chaque ligne enregistrée est notée : environ {n, plural, one {# appel à l'IA} many {# d'appels à l'IA} other {# appels à l'IA}} lors de cette vérification, puis un pour chaque nouvelle ligne ensuite.",
   "folders.rows.paused": "La récupération des offres est en pause : la vérification horaire ne s'exécute pas. « Vérifier maintenant » lit quand même le dossier et enregistre les lignes non notées, sans consommer d'IA.",

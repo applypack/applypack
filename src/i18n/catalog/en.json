@@ -3780,6 +3780,7 @@
   "folders.rows.includeHint": "For a mixed folder: jobs-*.json. Empty reads every file of rows.",
   "folders.nextCheck": "What the next check does",
   "folders.rows.nothing": "Nothing: every file here was read before and has not changed.",
+  "folders.rows.nothingYet": "Nothing yet: {n, plural, one {# file changed a moment ago and is read once it has stopped changing} other {# files changed a moment ago and are read once they have stopped changing}}. Press Check again in a minute.",
   "folders.rows.usable": "{usable, plural, one {# row of the files it reads is a job} other {# rows of the files it reads are jobs}}{stored, plural, =0 {} one {; # already stored} other {; # already stored}}.",
   "folders.rows.cost": "Each stored row is scored: about {n, plural, one {# AI call} other {# AI calls}} at that check, and one for every new row after it.",
   "folders.rows.paused": "Fetching is paused: the hourly check does not run. “Check now” still reads the folder and stores the rows unscored, with no AI spent.",
