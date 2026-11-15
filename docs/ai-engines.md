@@ -149,7 +149,9 @@ Runs `claude -p` per call on the subscription the CLI is logged into. Slower
 2. Run `claude` once and log in with your Claude.ai account.
 3. Enable + **Test** on `/settings`.
 
-**Docker:** the image already ships the CLI. macOS keeps the interactive
+**Docker:** the image carries the CLI only when it is built with it: add
+`WITH_CLI_ENGINES=1` to `.env` and run `docker compose up -d --build`
+([below](#cli-engines-in-the-docker-image)). macOS keeps the interactive
 login in the Keychain, so mounting `~/.claude` does **not** carry auth into
 the container. Instead:
 1. On the host: `claude setup-token` (opens a browser login, prints a token).
@@ -170,7 +172,9 @@ for the classifier.
 - *API key:* get one at <https://aistudio.google.com/apikey> and add
   `GEMINI_API_KEY=...` to `.env`. No login needed.
 
-**Docker:** the image ships the CLI. Either:
+**Docker:** the image carries the CLI only when it is built with it: add
+`WITH_CLI_ENGINES=1` to `.env` and run `docker compose up -d --build`
+([below](#cli-engines-in-the-docker-image)). Then either:
 - add `GEMINI_API_KEY=...` to `.env` and `docker compose up -d` (simplest), or
 - log in locally first, then mount the credentials — uncomment in
   `docker-compose.yml` under both `app` and `web`:
@@ -296,7 +300,9 @@ Runs `codex exec` per call on a ChatGPT Plus/Pro subscription.
 2. `codex login` (browser sign-in with your ChatGPT account).
 3. Enable + **Test**.
 
-**Docker:** the image ships the CLI. Log in locally first, then mount the
+**Docker:** the image carries the CLI only when it is built with it: add
+`WITH_CLI_ENGINES=1` to `.env` and run `docker compose up -d --build`
+([below](#cli-engines-in-the-docker-image)). Log in locally first, then mount the
 credentials — uncomment in `docker-compose.yml` under both services:
 ```yaml
 volumes:
@@ -307,25 +313,29 @@ works on macOS too.)
 
 ---
 
-## A Docker image without the CLI engines
+## CLI engines in the Docker image
 
-The image installs the three CLI engines (Claude Code, Gemini CLI, Codex) —
-about 970 MB of its 2.25 GB. A server that runs on an API key, on an
-OpenAI-compatible server or on a model on the host never starts them. To
-build without them, add one line to `.env` and rebuild:
+The image is built without the three CLI engines (Claude Code, Gemini CLI,
+Codex): they take about 1.5 GB (the image is 760 MB without them, 2.26 GB
+with), and a server that runs on an API key, on an
+OpenAI-compatible server or on a model on the host never starts them. To use
+one of them in Docker, add one line to `.env` and rebuild:
 
 ```
-WITH_CLI_ENGINES=0
+WITH_CLI_ENGINES=1
 ```
 
 ```bash
 docker compose up -d --build
 ```
 
-The cards of the three CLI engines then say the CLI is not installed, as on
-any machine without it; every other engine works as before. Remove the line
-(or set it to `1`) and rebuild to bring them back. The default stays `1`, so
-an install that uses a CLI engine changes nothing by upgrading.
+Without the line the cards of the three CLI engines say the CLI is not
+installed, as on any machine without it; every other engine works as before.
+
+**Upgrading from 2.69 or earlier:** the image used to carry the CLIs. If your
+Docker install runs Claude Code, the Gemini CLI or Codex, add the line before
+you rebuild — otherwise that engine stops answering and the next one in your
+list takes its calls. `npm start` installs are not affected.
 
 ## When a call fails
 

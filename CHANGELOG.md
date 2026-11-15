@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.70.0] — 2026-11-15
+
+### Changed
+- **Docker: the image is built without the three CLI engines** (Claude
+  Code, Gemini CLI, Codex): 760 MB in place of 2.26 GB (#525). **If your
+  Docker install runs one of them, add `WITH_CLI_ENGINES=1` to `.env`
+  before you rebuild** — otherwise that engine stops answering and the next
+  one in your list takes its calls. API keys, an OpenAI-compatible server,
+  a local model and every `npm start` install are not affected.
+
 ## [2.69.1] — 2026-11-15
 
 ### Fixed
@@ -7273,6 +7283,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.70.0]: https://github.com/applypack/applypack/compare/v2.69.1...v2.70.0
 [2.69.1]: https://github.com/applypack/applypack/compare/v2.69.0...v2.69.1
 [2.69.0]: https://github.com/applypack/applypack/compare/v2.68.0...v2.69.0
 [2.68.0]: https://github.com/applypack/applypack/compare/v2.67.0...v2.68.0
