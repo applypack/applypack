@@ -30,7 +30,8 @@ import { rescoreFlash } from '../rescore-flash';
 import { locationMismatchReason, openThroughLine } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
-import { createManualJob, ManualJobSchema, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
+import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { onceGuard } from '../once-guard';
 import { fetchPostingText } from '../../jobs/posting-url';
 import { describeRefresh, foldOps, normaliseDescription, planRefresh, refreshFlash, restoreFlash } from '../../jobs/description-diff';
@@ -373,14 +374,33 @@ jobsRoute.get('/jobs/new', (c) =>
   }),
 );
 
+/** Paste a job: the posting, and optionally what it is called — anything left empty is read from the text (#545). */
+const PastedJobSchema = ManualJobSchema.extend({
+  companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
+  title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
+});
+/** What a posting that names no employer is stored under — Tailor resume's own word for it. */
+const UNKNOWN_COMPANY = 'Unknown company';
+
 jobsRoute.post('/jobs/new', async (c) => {
-  const parsed = ManualJobSchema.safeParse(await c.req.parseBody());
+  const parsed = PastedJobSchema.safeParse(await c.req.parseBody());
   if (!parsed.success) {
     const { issues } = parsed.error;
     const required = t('jobRoute.new.required', { min: MIN_DESCRIPTION_CHARS });
-    return flashRedirect('/jobs/new', 'err', launcherRefusal(issues, required, ['companyName', 'title', 'description']), refusedField(c.req.path, issues));
+    return flashRedirect('/jobs/new', 'err', launcherRefusal(issues, required, ['description']), refusedField(c.req.path, issues));
   }
-  const result = await createManualJob(parsed.data);
+  // The posting is the one thing asked for (#545): whatever of the company, the title and the place was left
+  // empty is read from it, as Tailor resume reads a pasted posting — one AI call, or the first line with none.
+  const typed = parsed.data;
+  const facts = typed.companyName && typed.title ? null : await extractPostingFacts(typed.description);
+  const result = await createManualJob({
+    ...typed,
+    companyName: typed.companyName || facts?.company || UNKNOWN_COMPANY,
+    title: typed.title || facts?.title || fallbackTitle(typed.description),
+    location: typed.location || facts?.location || '',
+    salaryMin: typed.salaryMin ?? facts?.salaryMin ?? undefined,
+    salaryMax: typed.salaryMax ?? facts?.salaryMax ?? undefined,
+  });
   if (result.kind === 'existing') {
     return flashRedirect(`/jobs/${result.job.id}`, 'ok', t('jobRoute.new.existing'));
   }
