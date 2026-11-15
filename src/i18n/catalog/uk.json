@@ -3129,6 +3129,7 @@
   "pack.card.prepared": "підготовлено <when/>",
   "pack.card.preparedFrom": "підготовлено <when/> · з резюме {resume}",
   "pack.card.downloadPdf": "Завантажити .pdf",
+  "pack.card.pdfFromWord": "Потрібен PDF? Відкрийте цей .docx у Word, Pages чи Google Docs і збережіть як PDF — так збережеться ваше власне оформлення.",
   "pack.card.openPosting": "Відкрити вакансію",
   "pack.card.failed": "Пакет не вдалося підготувати: {why} Нічого вашого не змінено; можна спробувати ще раз.",
   "pack.card.noReason": "причину не записано",
