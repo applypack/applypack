@@ -1,9 +1,9 @@
 # The README's screenshots and the tour GIF
 
 Everything here is shot on a **scratch install with synthetic data**, never
-on the owner's database. `overview-dashboard.png`, `jobs-ranked.png`,
-`tailor-score.png` and `tailor-document.png` are the 1440×900 fold;
-`applypack-tour.gif` is a 33-second screencast (1440×966, the caption band
+on the owner's database. `overview-dashboard-2.png`, `jobs-ranked-2.png`,
+`tailor-score-2.png` and `tailor-document-2.png` are the 1440×900 fold;
+`applypack-tour-2.gif` is a 37-second screencast (1440×966, the caption band
 under the page). Re-shoot them after a UI change that moves what they show,
 and give a retaken file a new name: github.com serves README images through
 a cache keyed by the URL, and a new file at an old path shows the old one
@@ -59,11 +59,13 @@ done
 curl -H "Origin: $B" --data-urlencode resumeId=1 --data-urlencode tone=warm --data-urlencode saveAngles=1 \
   --data-urlencode "whyCompany=Scheduling software for small clinics is the kind of unglamorous, useful product I like owning end to end." "$B/jobs/14/cover"
 curl -H "Origin: $B" --data-urlencode status=ALERTED "$B/jobs/14/status"
+curl -H "Origin: $B" -F jobId=14 -F "title=Dispatch board rewrite" -F "text=…a project in your own words…" "$B/career/notes"
+curl -H "Origin: $B" --data-urlencode language=en --data-urlencode resumeId=1 "$B/jobs/14/interview"   # the Interview scene
 ```
 
 Each upload, comparison and letter answers with a redirect to
 `/target/runs/<id>`; `GET /target/runs/<id>/state` says `"stage":"done"`
-when it has finished. On 2026-09-30 the three comparisons scored 85, 90
+when it has finished. On 2026-11-15 the three comparisons scored 91, 90
 and 0 (the PHP posting: no core stack, a failed gate), and the whole set
 took about three minutes.
 
@@ -79,18 +81,19 @@ node docs/screenshots/record.js gif /tmp/ap-frames         # the screencast, fra
 python3 docs/screenshots/build-gif.py /tmp/ap-frames /tmp/ap-seq 15   # 15 fps on the real timeline + caption band (Pillow)
 ffmpeg -framerate 15 -i /tmp/ap-seq/%04d.png \
   -vf "split[a][b];[a]palettegen=max_colors=192:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" \
-  -loop 0 docs/screenshots/applypack-tour.gif
+  -loop 0 docs/screenshots/applypack-tour-2.gif
 ```
 
 The scenes and their captions are the `caption(...)` calls in `record.js`:
 the Overview, the jobs list, one posting's verdict, the comparison, **Apply
-all suggestions** on Tailor resume (85 → 88), the Document view with the
-changes marked, the letter, and the resume's Comparisons card (90, 85, 0).
+all suggestions** on Tailor resume (91 → 95), the Document view with the
+changes marked, the letter, the Interview tab's questions, and the resume's
+Comparisons card (91, 90, 0).
 The cursor and the click ripple are drawn into the page; the caption band
 is drawn under each frame by `build-gif.py`, so nothing covers the UI.
 `diff_mode=rectangle` and no dithering keep the GIF near 2 MB.
 
-The site serves the same tour as a 25-second video, sped up by a quarter
+The site serves the same tour as a 28-second video, sped up by a quarter
 from the same frames (`site/public/tour.webm` for the launch posts and the
 landing's Tour section, `tour.mp4` for Safari, about 1 MB each), with its
 first frame as the poster:
