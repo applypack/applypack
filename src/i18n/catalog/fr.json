@@ -3723,6 +3723,7 @@
   "engine.probe.ollamaEmpty": "Ollama · {host} répond, mais n'a encore aucun modèle — téléchargez-en un avec ollama pull",
   "engine.probe.ollama": "Ollama · {host} · {n, plural, one {# modèle} many {# de modèles} other {# modèles}} — gratuit, sur cet ordinateur",
   "engine.probe.notOnPath": "{bin} n'est pas installé sur cet ordinateur",
+  "engine.probe.cliInstalled": "Installé : {version}",
   "engine.probe.cliKeySaved": "{version} · clé d'API enregistrée ici",
   "engine.probe.cliTokenSaved": "{version} · token enregistré ici",
   "engine.probe.geminiNoAuth": "{version} installé — collez une clé d'API, ou connectez-vous une fois avec « gemini »",

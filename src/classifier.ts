@@ -31,7 +31,7 @@ const MAX_DESC_CHARS = 4000;
 // v6: each search names the groups that hold its countries (#530).
 // v7: an unstated stack has its own tag, which the code reads (#531).
 // v8: facts per search instead of a fit score; code computes it (ADR 0064).
-const CLASSIFIER_PROMPT_VERSION = 8;
+const CLASSIFIER_PROMPT_VERSION = 9;
 // The parsed line's words for a bare "Remote"; the location rules quote them.
 const NO_PLACE_NAMED = 'no country named';
 // #386: left to the rules, one posting scored 92 nine times and 45 once on a
@@ -461,7 +461,7 @@ OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this
 
 Salary, location and level belong to the posting, not to a search: read each once and report it at the top level — salary null when not disclosed, location with empty arrays and "UNKNOWN" when the posting names no place. Report salary EXACTLY as the posting states it — its own numbers, currency and period ("20 200 - 27 600 PLN/month" → 20200, 27600, "PLN", "month"). Never convert or annualise: that is what the two extra fields are for.
 
-FACTS (per search). Report what the posting shows, each fact on its own: the role type never empties the stack facts, and the fit score is computed from them, so never shade one fact to make up for another.
+FACTS (per search). Report what the posting shows, each fact on its own: the role type, the level and an auto-reject signal never empty the stack facts, and the fit score is computed from them, so never shade one fact to make up for another.
 - stack_used: every one of that search's REQUIRED items the role uses (one is enough to list it), spelled as the search lists them. A technology named only as a plus, in a client list or for another team is not used. [] only when none is.
 - stack_role: "core" — the role's main language or framework is in stack_used (in the title, or most of the work); "secondary" — a required item is used, but the role's main stack is something else; "none" — stack_used is [].
 - role_types: that search's acceptable role types the job is, spelled as the search lists them — judge by that list, never by the search's name (a backend role is backend in a search called "Full-Stack"); [] when it is none of them.

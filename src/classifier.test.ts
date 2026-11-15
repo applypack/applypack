@@ -277,6 +277,8 @@ test('the prompt asks for facts per search and never for a number', () => {
   assert.match(system, /"stack_role": "core" \| "secondary" \| "none"/);
   assert.match(system, /"levels": the seniority levels the posting names for the role — "intern" \| "junior" \| "mid"/);
   assert.match(system, /never shade one fact to make up for another/);
+  // A junior posting on the search's own stack came back with no stack: the level had emptied it.
+  assert.match(system, /the role type, the level and an auto-reject signal never empty the stack facts/);
   // Stated once for every search, as the location rules are.
   assert.equal(system.split('FACTS (per search)').length - 1, 1);
 });
