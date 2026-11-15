@@ -152,13 +152,13 @@ const STEP_TITLES = {
 } as const satisfies Record<WelcomeStep, MessageKey>;
 
 /** Plain-language setup cards for the "nothing detected" state, in the order a newcomer reads them. */
-const ENGINE_CARDS: { id: AiProviderId; title: MessageKey; how: MessageKey; env: string | null; install?: string }[] = [
-  { id: 'claude_code', title: 'welcome.engine.claude_code.title', how: 'welcome.engine.claude_code.how', env: 'CLAUDE_CODE_OAUTH_TOKEN', install: 'npm install -g @anthropic-ai/claude-code' },
-  { id: 'anthropic_api', title: 'welcome.engine.anthropic_api.title', how: 'welcome.engine.anthropic_api.how', env: 'ANTHROPIC_API_KEY' },
-  { id: 'gemini_cli', title: 'welcome.engine.gemini_cli.title', how: 'welcome.engine.gemini_cli.how', env: 'GEMINI_API_KEY', install: 'npm install -g @google/gemini-cli' },
-  { id: 'agy_cli', title: 'welcome.engine.agy_cli.title', how: 'welcome.engine.agy_cli.how', env: null },
-  { id: 'openai_api', title: 'welcome.engine.openai_api.title', how: 'welcome.engine.openai_api.how', env: 'OPENAI_API_KEY' },
-  { id: 'codex_cli', title: 'welcome.engine.codex_cli.title', how: 'welcome.engine.codex_cli.how', env: null, install: 'npm install -g @openai/codex' },
+const ENGINE_CARDS: { id: AiProviderId; title: MessageKey; how: MessageKey; install?: string }[] = [
+  { id: 'claude_code', title: 'welcome.engine.claude_code.title', how: 'welcome.engine.claude_code.how', install: 'npm install -g @anthropic-ai/claude-code' },
+  { id: 'anthropic_api', title: 'welcome.engine.anthropic_api.title', how: 'welcome.engine.anthropic_api.how' },
+  { id: 'gemini_cli', title: 'welcome.engine.gemini_cli.title', how: 'welcome.engine.gemini_cli.how', install: 'npm install -g @google/gemini-cli' },
+  { id: 'agy_cli', title: 'welcome.engine.agy_cli.title', how: 'welcome.engine.agy_cli.how' },
+  { id: 'openai_api', title: 'welcome.engine.openai_api.title', how: 'welcome.engine.openai_api.how' },
+  { id: 'codex_cli', title: 'welcome.engine.codex_cli.title', how: 'welcome.engine.codex_cli.how', install: 'npm install -g @openai/codex' },
 ];
 
 /** What a source's badge says for its state here. */
@@ -421,11 +421,6 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
                   )}
                   {status && !status.missing && (
                     <p data-ui="hint" class="mt-2 text-meta text-ink-faint">{t('welcome.ai.rightNow', { detail: status.detail })}</p>
-                  )}
-                  {card.env && !status?.missing && (
-                    <p data-ui="hint" class="mt-1 text-meta text-ink-faint">
-                      {tRich('welcome.ai.envFile', { name: card.env }, { code: asCode })}
-                    </p>
                   )}
                 </li>
               );
