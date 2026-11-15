@@ -621,6 +621,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       applicationPack={applicationPack}
       interview={interview}
       coverLetters={{
+        copyResumeId: tailoredCopy?.resumeId ?? null,
         jobId: id,
         resumes: resumeOptions,
         suggestedResumeId: coverResumeId,
@@ -1062,8 +1063,10 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
+    // The copy tailored for this posting is what goes to this employer: its letter is written from that text (ADR 0066).
+    const copy = await getTailoredCopy(id);
     const outcome = await generateCoverLetter(
-      { id: resume.id, text: resume.text, version: resume.version, hidden: resume.hidden },
+      { id: resume.id, text: copy && copy.resumeId === resume.id ? copy.text : resume.text, version: resume.version, hidden: resume.hidden },
       // The letter goes to an employer: never addressed to a folder's or a feed's own name (#401).
       { id: job.id, title: job.title, companyName: companyForPrompt(job.employer, job.company), location: job.location, description: job.description },
       { tone, angles, addressee },

@@ -24,6 +24,8 @@ export interface CoverLetterCardProps {
   resumes: { id: number; label: string }[];
   /** Preselected: the resume of the letter on show, else the match card's (#581). */
   suggestedResumeId: number | null;
+  /** The resume this job's tailored copy was made from: a letter with that resume is written from the copy (ADR 0066). */
+  copyResumeId: number | null;
   letters: CoverLetterWithResume[];
   selected: CoverLetterWithResume | null;
   /** A stored verification snapshot exists — company facts beyond the posting. */
@@ -75,6 +77,7 @@ const FINDING_SHOWN_CHARS = 200;
 const SUBHEAD = 'mb-2 text-note font-medium text-ink-muted';
 
 export const CoverLetterCard: FC<CoverLetterCardProps> = ({
+  copyResumeId,
   jobId,
   resumes,
   suggestedResumeId,
@@ -185,6 +188,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
           </details>
           <Hint>
             {t('letter.howItWorks')}
+            {copyResumeId !== null && <> {t('letter.fromCopy')}</>}
             {!hasCompanyFacts && (
               <>
                 {' '}
