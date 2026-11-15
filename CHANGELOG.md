@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.65.0] — 2026-11-15
+
+### Changed
+- Setup step 1 puts the two ways that need nothing installed first (an
+  Anthropic key, an OpenAI-style key); the ones that work through a program
+  and a model on this computer wait behind one press. A pasted key is
+  checked with one small test call as it is saved: a key the provider
+  refuses is not kept, and the step says so (#718).
+- An install that skipped setup reads what is left on the Overview —
+  connect an AI, add your resume, say what you look for, switch the search
+  on — with a link into each, in place of four zeros (#716).
+- Settings shows fewer fields at once: the schedule's controls fold while
+  the schedule is the default, engines that are neither chosen nor able to
+  run wait under "Other engines", and a search's secondary fields are one
+  press away. Nothing is removed, and a folded field still saves (#720).
+- Plain words on the main path: no PATH, `.env`, "headless" or "resume
+  model" in what a new user reads, in all four languages (#714).
+
 ## [2.64.0] — 2026-11-15
 
 ### Added
@@ -7140,6 +7158,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.65.0]: https://github.com/applypack/applypack/compare/v2.64.0...v2.65.0
 [2.64.0]: https://github.com/applypack/applypack/compare/v2.63.41...v2.64.0
 [2.63.41]: https://github.com/applypack/applypack/compare/v2.63.40...v2.63.41
 [2.63.40]: https://github.com/applypack/applypack/compare/v2.63.39...v2.63.40
