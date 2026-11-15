@@ -440,7 +440,9 @@
 - Multi-stage Dockerfile: `deps → build → runtime`; `npm ci` from the
   lockfile, the build stage prunes the dev dependencies and deletes the
   built-in database's binaries, and the three CLI engines are pinned
-  (`ARG CLAUDE_CODE_VERSION` …) — bump them together.
+  (`ARG CLAUDE_CODE_VERSION` …) — bump them together. They are installed only
+  with `--build-arg WITH_CLI_ENGINES=1` (compose reads it from `.env`); the
+  default image has none (#525).
 - Runtime image: `node:24-alpine`.
 - `init.ts` runs `prisma migrate deploy` if `prisma/migrations/` exists,
   else falls back to `prisma db push`. Real migrations exist from

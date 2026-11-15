@@ -22,6 +22,7 @@ const READ_ELSEWHERE: Record<string, string> = {
   [DATA_DIR_ENV]: 'the launcher, which reads .env itself (local/data-dir.ts)',
   APPLYPACK_NO_OPEN: 'the launcher (local/launcher.ts)',
   APPLYPACK_SNAPSHOTS: 'the launcher (local/launcher.ts)',
+  WITH_CLI_ENGINES: 'docker compose, as the image\'s build argument (docker-compose.yml)',
 };
 
 /** Read off `process.env` and deliberately not in `.env.example`, with the reason. */

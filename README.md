@@ -180,6 +180,10 @@ cp .env.example .env
 docker compose up -d    # postgres + worker + dashboard → http://localhost:4747
 ```
 
+The image runs on an API key or a model on your computer. To use Claude Code,
+the Gemini CLI or Codex in Docker, set `WITH_CLI_ENGINES=1` in `.env` first
+([docs/ai-engines.md](./docs/ai-engines.md#cli-engines-in-the-docker-image)).
+
 Every page of the dashboard, backups, the worker's schedule, your own
 Postgres, development and hosting for other people:
 [docs/operations.md](./docs/operations.md).

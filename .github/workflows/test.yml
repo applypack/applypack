@@ -109,6 +109,8 @@ jobs:
 
       - name: Build the image
         run: docker build --tag applypack:ci .
+      - name: Build it with the CLI engines
+        run: docker build --build-arg WITH_CLI_ENGINES=1 --tag applypack:ci-cli .
 
   local-start:
     # The default install (ADR 0054): `npm start` with the built-in database,
