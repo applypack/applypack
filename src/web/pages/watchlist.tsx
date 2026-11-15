@@ -28,7 +28,7 @@ import { wordedSource } from '../source-groups';
 import { sourceLabel } from '../source-names';
 import { CHECK_INTERVALS, intervalLabel } from '../../watchlist/interval';
 import { MAX_LINES } from '../../watchlist/parse-input';
-import { firstCheckSize, verdictLabel } from '../../watchlist/verdict';
+import { defaultAlertPolicy, EVERY_POSTING_CEILING, firstCheckSize, verdictLabel } from '../../watchlist/verdict';
 import type { ResolvedCompany } from '../../watchlist/resolve';
 import type { WatchlistRun } from '../watchlist-runs';
 import { t } from '../../i18n/t';
@@ -203,8 +203,10 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
   const browserOnly = addable.filter((r) => r.resolution.kind === 'needsBrowser').length;
   const firstCheck = firstCheckSize(addable.map((r) => r.resolution));
   // Each sentence only when it has something to say, one space between them.
+  const policy = defaultAlertPolicy(firstCheck.postings);
   const hint = [
     firstCheck.boards > 0 && tRich('watchlist.preview.hint', firstCheck, STRONG_TAG),
+    policy === 'matches' && t('watchlist.preview.hintMatchesFirst', { n: EVERY_POSTING_CEILING }),
     watching > 0 && tRich('watchlist.preview.hintChangeWatch', { n: watching }, STRONG_TAG),
     browserOnly > 0 && tRich('watchlist.preview.hintBrowser', { n: browserOnly }, STRONG_TAG),
   ].filter((part) => part !== false);
@@ -238,7 +240,7 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
                 {tRich('watchlist.preview.check', {}, { select: () => INTERVAL_SELECT('checkEvery', 'day') })}
               </label>
               <label class="flex items-center gap-2 text-sm text-ink-muted">
-                {tRich('watchlist.preview.alertAbout', {}, { select: () => POLICY_SELECT('alertPolicy', 'all') })}
+                {tRich('watchlist.preview.alertAbout', {}, { select: () => POLICY_SELECT('alertPolicy', policy) })}
               </label>
               <Button class="ml-auto">{t('watchlist.preview.addN', { n: addable.length })}</Button>
             </div>
