@@ -10,6 +10,7 @@ import { formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
+import { signalWord, verdictWord } from '../verify-words';
 import { tRich } from '../rich';
 
 export interface JobLivenessView {
@@ -64,8 +65,8 @@ const CHECK_LABEL = {
   other: 'verify.check.other',
 } as const satisfies Record<VerificationEvidence['check'], MessageKey>;
 
-/** A word the verifier chose (a verdict, a signal): what a model wrote, shown as written. */
-const ModelWord: FC<{ word: string }> = ({ word }) => <span lang="en">{word}</span>;
+/** A word from the verifier's closed lists, in the reader's language; one outside them is shown as it was written. */
+const ModelWord: FC<{ word: string; worded: string | null }> = ({ word, worded }) => (worded === null ? <span lang="en">{word}</span> : <>{worded}</>);
 
 function livenessWord(liveness: string): string {
   const view = LIVENESS_VIEW[liveness];
@@ -101,7 +102,7 @@ export const VerificationCard: FC<VerificationCardProps> = ({
               {verification && (
                 <>
                   <Badge tone={VERDICT_TONE[verification.verdict] ?? 'neutral'}>
-                    <ModelWord word={verification.verdict} />
+                    <ModelWord word={verification.verdict} worded={verdictWord(verification.verdict)} />
                   </Badge>
                   <Badge tone={RECOMMENDATION_VIEW[verification.recommendation]?.tone ?? 'neutral'}>
                     {recommendationWord(verification.recommendation)}
@@ -229,7 +230,7 @@ const EvidenceList: FC<{ items: VerificationEvidence[] }> = ({ items }) =>
           <li class="flex flex-col gap-1 p-3 sm:flex-row sm:items-start sm:gap-3">
             <div class="flex shrink-0 items-center gap-2 sm:w-48">
               <Badge tone={SIGNAL_TONE[e.signal]}>
-                <ModelWord word={e.signal} />
+                <ModelWord word={e.signal} worded={signalWord(e.signal)} />
               </Badge>
               <span class="text-meta text-ink-muted">{t(CHECK_LABEL[e.check])}</span>
             </div>

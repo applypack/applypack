@@ -4,6 +4,7 @@ import type { DiffOp } from '../../resume/line-diff';
 import type { PackRow } from '../../pack/store';
 import { HELD_WORDS, packBusy, preparingLine, stopTitle, unplacedLines, type PackEdits } from '../../pack/view';
 import { t } from '../../i18n/t';
+import { verdictWord } from '../verify-words';
 import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, ConfirmAction, Hint, Notice, SectionTitle, When } from '../ui';
 import { packChoiceValue } from '../applied-resume';
@@ -145,7 +146,7 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
                 <>
                   {/* The verdict is the verifier's own word, shown as written (verification-card.tsx). */}
                   <Badge tone={VERDICT_TONE[company.verdict] ?? 'neutral'}>
-                    <span lang="en">{company.verdict}</span>
+                    {verdictWord(company.verdict) ?? <span lang="en">{company.verdict}</span>}
                   </Badge>
                   <Badge tone={company.recommendation === 'apply' ? 'ok' : 'neutral'}>
                     {t('pack.card.recommendation', { recommendation: company.recommendation })}

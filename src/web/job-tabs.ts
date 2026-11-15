@@ -1,3 +1,4 @@
+import { verdictWord } from './verify-words';
 import { t } from '../i18n/t';
 
 /*
@@ -90,8 +91,8 @@ export interface JobTabFacts {
  * while there is nothing yet. The resume score's tab says on hover that it is not the fit beside the title (#655).
  */
 export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string; title?: string }[] {
-  // The verdict is the verifier's own word, shown as it wrote it.
-  const verdict = facts.verdict ? facts.verdict.replace(/_/g, ' ').toLowerCase() : null;
+  // One of three words the verifier may answer with, in the reader's language; any other as it was written.
+  const verdict = facts.verdict ? (verdictWord(facts.verdict) ?? facts.verdict.replace(/_/g, ' ').toLowerCase()) : null;
   return [
     { tab: 'posting', label: t('job.tab.posting') },
     {
