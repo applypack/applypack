@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { verdictWord } from '../verify-words';
 import { Hono } from 'hono';
 import { jobSpend, typicalCost } from '../../ai-ledger';
 import { costHintText, jobSpendText } from '../../ai-spend';
@@ -865,7 +866,7 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
         ? {
             stage: 'done',
             resultUrl: back,
-            flash: t('jobRoute.verify.done', { verdict: row.verdict, confidence: row.confidence, recommendation: row.recommendation }),
+            flash: t('jobRoute.verify.done', { verdict: verdictWord(row.verdict) ?? row.verdict, confidence: row.confidence, recommendation: row.recommendation }),
           }
         : { stage: 'error', error: runFailure(t('jobRoute.verify.failedWhat'), reason ?? '', t('jobRoute.verify.failedNext')) },
     );

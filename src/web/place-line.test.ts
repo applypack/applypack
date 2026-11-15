@@ -77,6 +77,8 @@ describe('techLabel', () => {
     assert.equal(techLabel('typescript'), 'TypeScript');
     assert.equal(techLabel('node'), 'Node.js');
     assert.equal(techLabel('aws'), 'AWS');
+    assert.equal(techLabel('tailwind css'), 'Tailwind CSS');
+    assert.equal(techLabel('aws-lambda'), 'AWS Lambda');
     assert.equal(techLabel('postgresql'), 'PostgreSQL');
     assert.equal(techLabel('next.js'), 'Next.js');
   });

@@ -581,12 +581,12 @@ const TimeZoneForm: FC<{ view: ScheduleView }> = ({ view }) => (
 );
 
 /** The answer to "who does this, and does it cost me", in words above the table that proves it. */
-const AiSummary: FC<{ plan: AiPlanRow[]; billedMicro: number }> = ({ plan, billedMicro }) => {
-  const summary = planSummary(plan);
+const AiSummary: FC<{ plan: AiPlanRow[]; engines: AiEngineRow[]; billedMicro: number }> = ({ plan, engines, billedMicro }) => {
+  const summary = planSummary(plan, (id) => engines.some((e) => e.id === id && e.ok));
   return (
     <div class="rounded-md bg-surface-overlay px-4 py-3">
       {summary && (
-        <p class="text-sm text-ink">
+        <p class={`text-sm ${summary.notReady ? 'text-warn' : 'text-ink'}`}>
           {summary.lead}
           {summary.fallback && <> {summary.fallback}</>}
         </p>
@@ -1411,7 +1411,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         <div class="space-y-3">
           {/* settings-models.mjs redraws this block after a card saves: the table and the note read off it. */}
           <div data-ai-plan class="space-y-3">
-            <AiSummary plan={aiStatus.plan} billedMicro={aiBudget.billedThisMonthMicro} />
+            <AiSummary plan={aiStatus.plan} engines={aiEngines} billedMicro={aiBudget.billedThisMonthMicro} />
             <AiPlan plan={aiStatus.plan} />
             {aiStatus.billingNotes.map((note) => (
               <Notice tone="warn">{note}</Notice>

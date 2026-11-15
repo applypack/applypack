@@ -48,6 +48,7 @@ import { AdzunaLabel, FranceTravailLine } from './attribution';
 import { VERDICT_TONE } from './verification-card';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
+import { verdictWord } from '../verify-words';
 import { tRich } from '../rich';
 import { UnscoredNotice } from './unscored-notice';
 import type { UnscoredView } from '../score-run';
@@ -466,8 +467,8 @@ export const JobsListPage: FC<JobsListProps> = ({
                               tone={VERDICT_TONE[j.verifications[0].verdict] ?? 'neutral'}
                               wrap
                             >
-                              {/* The verifier's own word (legit / suspicious / fake): what a model wrote, left as written. */}
-                              <span lang="en">{j.verifications[0].verdict}</span>
+                              {/* One of three words the verifier may answer with: said in the reader's language. */}
+                              {verdictWord(j.verifications[0].verdict) ?? <span lang="en">{j.verifications[0].verdict}</span>}
                             </Badge>
                           </div>
                         )}

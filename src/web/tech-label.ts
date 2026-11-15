@@ -132,7 +132,8 @@ export function techLabel(tag: string): string {
   // "github-actions", "aws-lambda": a name this table spells, then the rest of
   // the product's name. "full-stack" opens with no such name and stays a word.
   const [head = '', ...rest] = key.split(/[-\s]+/);
-  if (rest.length > 0 && LABELS[head]?.toLowerCase() === head) return [LABELS[head], ...rest.map(capital)].join(' ');
+  // The rest is spelled by the table where it knows the word: "tailwind css" is Tailwind CSS, never "Tailwind Css" (#727).
+  if (rest.length > 0 && LABELS[head]?.toLowerCase() === head) return [LABELS[head], ...rest.map((word) => LABELS[word] ?? capital(word))].join(' ');
   return capital(key);
 }
 
