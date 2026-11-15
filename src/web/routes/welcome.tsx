@@ -224,7 +224,7 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
   // A key for an engine that still cannot run (its program is missing, say) is not a step forward: say what is in the way.
   const status = (await probeAiProviders(undefined, { fresh: true }))[provider];
   const engine = AI_PROVIDER_LABELS[provider];
-  if (!status.ok) return flashRedirect('/welcome?step=ai', 'warn', t('welcome.flash.keySavedNotReady', { engine, detail: status.detail }));
+  if (!status.ok) return flashRedirect('/welcome?step=ai', 'warn', t('welcome.flash.keySavedNotReady', { engine, detail: status.detail.replace(/\.$/, '') }));
   return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keySaved', { engine }));
 });
 
