@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.69.0] — 2026-11-15
+
+### Changed
+- **Fit scores rank.** A fit is computed from the facts the model reports
+  for each search — stack, role type, level, pay, preferred skills — and no
+  longer from a band number it picked, so matches stop tying at 92 and the
+  same facts give the same score (ADR 0064, classifier prompt v8, #634).
+  **Scores move for everybody**: with a search that names one level, a
+  posting a level off now sits just over the floor instead of at 92. Jobs
+  already stored keep their old numbers until **Save & re-classify** on
+  Settings → Searches (one AI call a job).
+- A posting closed to your location is dismissed for location, no longer
+  scored down to "low fit".
+- The empty search editor says the list of searches is above it (#762).
+
+### Added
+- The job page says how each fit came about and which ceiling held it down.
+- `node dist/scripts/rescore-fit-once.js --dry-run` (then without the flag)
+  re-scores stored jobs from their facts after a weight change or a search
+  edit: no AI, no status change.
+- Docker: `--build-arg WITH_CLI_ENGINES=0` builds the image without the
+  three CLI engines, for an install that uses API keys or a local model
+  (#525). The default is unchanged.
+
+### Schema
+- `job_score.fitFacts` (JSONB, nullable); rows scored before this release
+  stay NULL until they are re-classified.
+
+### Docs
+- Install guide: how to switch off Prisma's version check during `npm install` (#620).
+
 ## [2.68.0] — 2026-11-15
 
 ### Changed
@@ -7233,6 +7264,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.69.0]: https://github.com/applypack/applypack/compare/v2.68.0...v2.69.0
 [2.68.0]: https://github.com/applypack/applypack/compare/v2.67.0...v2.68.0
 [2.67.0]: https://github.com/applypack/applypack/compare/v2.66.0...v2.67.0
 [2.66.0]: https://github.com/applypack/applypack/compare/v2.65.0...v2.66.0
