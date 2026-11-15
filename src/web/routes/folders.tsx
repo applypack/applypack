@@ -39,7 +39,7 @@ import {
   type SourceConfig,
 } from '../../datasets/map';
 import { needsModel, readPostingFile } from '../../datasets/posting-file';
-import { previewCounts } from '../../datasets/preview';
+import { previewCounts, setAsideWhy } from '../../datasets/preview';
 import { decodeBody, type Row, type RowFormat } from '../../datasets/rows';
 import { isUniqueViolation, prisma } from '../../db';
 import { employerGate, hiringKey } from '../../employer';
@@ -221,7 +221,10 @@ async function previewRows(
     existingId === null ? new Set<string>() : knownIds(existingId, jobs.map((j) => j.externalId)),
   ]);
   const unique = [...new Map(jobs.map((j) => [j.externalId, j])).values()];
-  const counts = previewCounts(unique, roster, stored, (job) => employerGate(hiringKey(job.employer, base.name, true), employers) !== null);
+  const counts = {
+    ...previewCounts(unique, roster, stored, (job) => employerGate(hiringKey(job.employer, base.name, true), employers) !== null),
+    why: setAsideWhy(unique, roster, stored),
+  };
   return {
     ...base,
     holds: 'rows',

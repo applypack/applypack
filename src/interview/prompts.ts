@@ -49,9 +49,11 @@ type ReplyQuestion = z.infer<typeof QuestionSchema>;
 /** A question as the page reads it: the reply's, plus the figures no source of the person's states. */
 export interface PrepQuestion extends ReplyQuestion {
   unbacked: string[];
+  /** Of the figures the person's material does not state, the ones the posting does: the employer's own number, said as such (#734). */
+  posted: string[];
 }
 
-const StoredSchema = z.array(QuestionSchema.extend({ unbacked: z.array(z.string()).catch([]) }));
+const StoredSchema = z.array(QuestionSchema.extend({ unbacked: z.array(z.string()).catch([]), posted: z.array(z.string()).catch([]) }));
 
 export function parseInterviewResponse(reply: string): ParseResult<ReplyQuestion[]> {
   const json = extractJson(reply);
@@ -177,7 +179,10 @@ export function settleQuestions(questions: readonly ReplyQuestion[], input: Inte
       const title = titles.get(key);
       if (title) basedOn.add(title);
     }
-    return { ...q, based_on: [...basedOn], unbacked: unbackedFigures(q.answer.join('\n'), sources) };
+    // Still no source for a claim about the person; but a figure the posting states is the employer's, and the page says whose it is.
+    const none = unbackedFigures(q.answer.join('\n'), sources);
+    const invented = new Set(unbackedFigures(none.join(' '), [input.job.description]));
+    return { ...q, based_on: [...basedOn], unbacked: none.filter((f) => invented.has(f)), posted: none.filter((f) => !invented.has(f)) };
   });
 }
 
