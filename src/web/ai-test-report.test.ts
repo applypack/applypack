@@ -42,3 +42,12 @@ test('a failed call on a server that does not list the model says so', () => {
   const { result } = testReport(facts({ attempt: { text: null }, offered: ['other'], unlistable: '' }));
   assert.match(result.text, /no reason reported .* The server does not list "stand-in"\. The server offers 1 model: other\.$/);
 });
+
+test('a refused credential is marked, so setup can decline to keep the key; a busy server is not', () => {
+  const refused = testReport(facts({ attempt: { text: null, outcome: 'unauthorized' }, failure: 'the key was refused' })).result;
+  assert.equal(refused.ok, false);
+  assert.equal(refused.refused, true);
+  const busy = testReport(facts({ attempt: { text: null, outcome: 'rate_limited' }, failure: 'rate limited' })).result;
+  assert.equal(busy.refused, undefined);
+  assert.equal(testReport(facts({ attempt: { text: 'OK', outcome: 'ok' } })).result.refused, undefined);
+});

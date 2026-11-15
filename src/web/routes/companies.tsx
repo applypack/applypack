@@ -428,6 +428,8 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
   const form = await c.req.parseBody({ all: true });
   const picks = toStringArray(form.pick);
   const next = packOrigin(form.next);
+  // "Add and switch on" (#545): the preview has just shown each board answering, so one press may do both.
+  const enable = form.enable === '1';
   if (picks.length === 0) {
     return redirectWithFlash('err', t('packs.flash.nonePicked'));
   }
@@ -464,9 +466,9 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
           atsType: attempt.atsType,
           atsToken: attempt.atsToken,
           careerUrl: boardUrl(attempt.atsType, attempt.atsToken),
-          // Inactive on purpose: a whole pack going live inside the next tick
-          // would swamp the classifier (ADR 0017).
-          active: false,
+          // Off unless the person pressed "Add and switch on" (ADR 0017 addendum): the base filter
+          // turns most of a board away before any AI, and the preview says what switching on costs.
+          active: enable,
         },
         select: { id: true, name: true, atsType: true, atsToken: true },
       });
@@ -479,7 +481,11 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
     }
   }
 
-  logger.info({ added: added.length, skipped }, 'starter-pack: imported');
+  logger.info({ added: added.length, skipped, enable }, 'starter-pack: imported');
+  if (enable && added.length > 0) {
+    const text = t('packs.flash.addedOn', { n: added.length });
+    return next === 'welcome' ? flashRedirect('/welcome?step=sources', 'ok', text) : redirectWithFlash('ok', text);
+  }
   return c.html(<StarterPackResultPage added={added} skipped={skipped} next={next} />);
 });
 

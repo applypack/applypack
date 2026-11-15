@@ -20,7 +20,7 @@ import {
   type SourceConfig,
 } from '../../datasets/map';
 import { decodeText } from '../../datasets/decode';
-import { defaultImportAlerts, importBlock, packsUpTo, passingRows, previewCounts } from '../../datasets/preview';
+import { defaultImportAlerts, importBlock, packsUpTo, passingRows, previewCounts, setAsideWhy } from '../../datasets/preview';
 import { readingOf } from '../../datasets/read-notes';
 import { MAX_BODY_MB } from '../../datasets/rows';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
@@ -178,7 +178,7 @@ async function previewFacts(stash: ImportStash) {
   const roster = scoring ? active.filter((p) => !isBlankProfile(p)) : active;
   // The employer gate as the tick applies it: these rows always name their own employer, or nobody (ADR 0056).
   const turnsAway = (job: (typeof mapped.jobs)[number]): boolean => employerGate(hiringKey(job.employer, stash.source.name, true), employers) !== null;
-  const counts = previewCounts(mapped.jobs, roster, storedIds, turnsAway);
+  const counts = { ...previewCounts(mapped.jobs, roster, storedIds, turnsAway), why: setAsideWhy(mapped.jobs, roster, storedIds) };
   // What the Alerts choice is about, read only when there is something to choose: who would hear, and how many packs.
   const choosing = scoring && counts.passing > 0;
   const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(), getPackSettings(), autoPacksToday(now)]) : [null, null, 0];

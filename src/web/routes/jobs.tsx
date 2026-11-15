@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { verdictWord } from '../verify-words';
 import { Hono } from 'hono';
 import { jobSpend, typicalCost } from '../../ai-ledger';
 import { costHintText, jobSpendText } from '../../ai-spend';
@@ -10,7 +11,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
-import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
+import { appliedResumeColumns, copyAsShown, copyChoiceValue, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
   jobsHref,
   parsePlaces,
@@ -30,7 +31,8 @@ import { locationMismatchReason, openThroughLine } from '../../jobs/location-rea
 import { fitWhy } from '../fit-why';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
-import { createManualJob, ManualJobSchema, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
+import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { onceGuard } from '../once-guard';
 import { fetchPostingText } from '../../jobs/posting-url';
 import { describeRefresh, foldOps, normaliseDescription, planRefresh, refreshFlash, restoreFlash } from '../../jobs/description-diff';
@@ -46,6 +48,7 @@ import { jobHref, jobTabLabels, resolveJobTab, shownMatch, type JobTab } from '.
 import { getPack, markPackSent, type PackRow } from '../../pack/store';
 import { packFact, tailorSeed } from '../../pack/view';
 import { loadPackView } from './pack';
+import { loadInterviewView } from './interview';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
@@ -63,6 +66,7 @@ import {
   getLatestCompanySnapshot,
   getMatch,
   getResume,
+  getTailoredCopy,
   listCoverLettersForJob,
   listFacts,
   listMatchesForJob,
@@ -197,7 +201,8 @@ jobsRoute.get('/jobs', async (c) => {
   const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open, watched, muted, panel } = parsed.data;
   const now = new Date();
 
-  const where: Prisma.JobWhereInput = {};
+  // A posting pasted for a screening is the employer side's, never the search's (#567).
+  const where: Prisma.JobWhereInput = { forScreening: false };
   // The first tab is what is still in play; a dismissed posting waits on its own tab (a fresh install's first
   // look was 461 dismissed rows around 2 matches).
   where.status = status ? (status as JobStatus) : { not: JobStatus.DISMISSED };
@@ -371,14 +376,33 @@ jobsRoute.get('/jobs/new', (c) =>
   }),
 );
 
+/** Paste a job: the posting, and optionally what it is called — anything left empty is read from the text (#545). */
+const PastedJobSchema = ManualJobSchema.extend({
+  companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
+  title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
+});
+/** What a posting that names no employer is stored under — Tailor resume's own word for it. */
+const UNKNOWN_COMPANY = 'Unknown company';
+
 jobsRoute.post('/jobs/new', async (c) => {
-  const parsed = ManualJobSchema.safeParse(await c.req.parseBody());
+  const parsed = PastedJobSchema.safeParse(await c.req.parseBody());
   if (!parsed.success) {
     const { issues } = parsed.error;
     const required = t('jobRoute.new.required', { min: MIN_DESCRIPTION_CHARS });
-    return flashRedirect('/jobs/new', 'err', launcherRefusal(issues, required, ['companyName', 'title', 'description']), refusedField(c.req.path, issues));
+    return flashRedirect('/jobs/new', 'err', launcherRefusal(issues, required, ['description']), refusedField(c.req.path, issues));
   }
-  const result = await createManualJob(parsed.data);
+  // The posting is the one thing asked for (#545): whatever of the company, the title and the place was left
+  // empty is read from it, as Tailor resume reads a pasted posting — one AI call, or the first line with none.
+  const typed = parsed.data;
+  const facts = typed.companyName && typed.title ? null : await extractPostingFacts(typed.description);
+  const result = await createManualJob({
+    ...typed,
+    companyName: typed.companyName || facts?.company || UNKNOWN_COMPANY,
+    title: typed.title || facts?.title || fallbackTitle(typed.description),
+    location: typed.location || facts?.location || '',
+    salaryMin: typed.salaryMin ?? facts?.salaryMin ?? undefined,
+    salaryMax: typed.salaryMax ?? facts?.salaryMax ?? undefined,
+  });
   if (result.kind === 'existing') {
     return flashRedirect(`/jobs/${result.job.id}`, 'ok', t('jobRoute.new.existing'));
   }
@@ -531,6 +555,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
   // ?match=<id> shows another comparison; default is the linked resume's latest (shownMatch). Same for ?letter.
   const requestedMatch = idParam(c.req.query('match'));
   const applicationPack = await loadPackView(id, job.url);
+  // The copy Save on the Tailor page kept for this posting (ADR 0066).
+  const tailoredCopy = await getTailoredCopy(id);
   const selected = shownMatch(matches, requestedMatch, linkedResumeId);
   const requestedLetter = idParam(c.req.query('letter'));
   const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
@@ -554,6 +580,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
       ? { matchId: coverMatch.id, resumeName: coverMatch.resume.name }
       : null;
 
+  const interview = await loadInterviewView(job, resumeOptions, suggested?.id ?? null);
+
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
   const selectedKeywords = await orderedKeywords(selected, job.description);
   const selectedSummaryGuide = selected
@@ -571,13 +599,17 @@ jobsRoute.get('/jobs/:id', async (c) => {
         letters: letters.length,
         verdict: verifications[0]?.verdict ?? null,
         pack: packFact(applicationPack.pack),
+        questions: interview.prep?.questions.length ?? 0,
       })}
       job={job}
       appliedResumePicker={{
         resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
         suggestedId: appliedPick?.id ?? null,
         packValue: packChoiceValue(applicationPack.pack),
+        copyValue: copyChoiceValue(tailoredCopy),
+        copyName: tailoredCopy?.resumeName ?? null,
       }}
+      tailoredCopy={tailoredCopy}
       profileScores={job.scores.map((sc) => ({
         profileId: sc.profileId,
         name: sc.profile.name,
@@ -617,7 +649,9 @@ jobsRoute.get('/jobs/:id', async (c) => {
         rebuildCost: await spendHint('resume-match'),
       }}
       applicationPack={applicationPack}
+      interview={interview}
       coverLetters={{
+        copyResumeId: tailoredCopy?.resumeId ?? null,
         jobId: id,
         resumes: resumeOptions,
         suggestedResumeId: coverResumeId,
@@ -688,9 +722,13 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
       // Prepared again since the page was drawn, or not ready: its file is not the one the person looked at.
       if (!sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
     }
-    const requested = sentPack?.resumeId ?? parsed.data.appliedResumeId;
+    // "The copy tailored for this job" (ADR 0066): the same rule — what went out is the copy's text.
+    const sentCopy = choice.kind === 'copy' ? copyAsShown(await getTailoredCopy(id), choice.at) : null;
+    if (choice.kind === 'copy' && !sentCopy) return flashRedirect(jobHref(id, 'match'), 'err', t('copy.flash.changed'));
+    const sent = sentPack ?? sentCopy;
+    const requested = sent?.resumeId ?? parsed.data.appliedResumeId;
     const picked = requested ? await getResume(requested) : null;
-    const columns = appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
+    const columns = appliedResumeColumns(picked && sent ? { ...picked, text: sent.text } : picked);
     data.appliedResume = columns.appliedResumeId
       ? { connect: { id: columns.appliedResumeId } }
       : { disconnect: true };
@@ -869,7 +907,7 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
         ? {
             stage: 'done',
             resultUrl: back,
-            flash: t('jobRoute.verify.done', { verdict: row.verdict, confidence: row.confidence, recommendation: row.recommendation }),
+            flash: t('jobRoute.verify.done', { verdict: verdictWord(row.verdict) ?? row.verdict, confidence: row.confidence, recommendation: row.recommendation }),
           }
         : { stage: 'error', error: runFailure(t('jobRoute.verify.failedWhat'), reason ?? '', t('jobRoute.verify.failedNext')) },
     );
@@ -1055,8 +1093,10 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
+    // The copy tailored for this posting is what goes to this employer: its letter is written from that text (ADR 0066).
+    const copy = await getTailoredCopy(id);
     const outcome = await generateCoverLetter(
-      { id: resume.id, text: resume.text, version: resume.version, hidden: resume.hidden },
+      { id: resume.id, text: copy && copy.resumeId === resume.id ? copy.text : resume.text, version: resume.version, hidden: resume.hidden },
       // The letter goes to an employer: never addressed to a folder's or a feed's own name (#401).
       { id: job.id, title: job.title, companyName: companyForPrompt(job.employer, job.company), location: job.location, description: job.description },
       { tone, angles, addressee },
@@ -1224,6 +1264,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       verification={verifications[0] ?? null}
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
+      tailoredCopy={resume.hidden ? null : await getTailoredCopy(id)}
       seed={seed}
       packScore={seed ? (pack?.scoreAfter ?? null) : null}
       rebuildCost={await spendHint('resume-match')}

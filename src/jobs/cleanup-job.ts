@@ -41,6 +41,8 @@ export async function runCleanupJob() {
   // Employer mode (ADR 0048): a screening past its date goes with every
   // applicant file and verdict — the cascade is the retention policy.
   const screenings = await prisma.screening.deleteMany({ where: { retainUntil: { lt: new Date() } } });
+  // …and so does the posting that was pasted only for it (#567).
+  await prisma.job.deleteMany({ where: { forScreening: true, screenings: { none: {} } } });
 
   // Run history. A run still going is never swept, however old its row looks:
   // a tick that outlived the cutoff is a tick to investigate, not to delete.

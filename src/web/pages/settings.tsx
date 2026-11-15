@@ -46,7 +46,7 @@ import type { TrialView } from '../engine-trial-run';
 import { TRIAL_SIZE } from '../engine-trial';
 import { describeCount, wordedSource, type SourceGroup } from '../source-groups';
 import { dotClassFor, MAX_STAGE_LABEL, MAX_WORK_STAGES } from '../stage-config';
-import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
+import { formatPriorityRulesText, parsePriorityRules, ruleRows, type RuleRow } from '../../priority-rules';
 import { COUNTRIES, REGIONS } from '../../countries';
 import { RELOCATION_CODES, RELOCATION_LABEL } from '../../eligibility';
 import { PROFILE_WORKPLACES } from '../../location';
@@ -56,6 +56,7 @@ import { retentionChoices } from '../retention-choices';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { placeExtrasSet, searchScheduleIsDefault, splitEngines } from '../settings-fold';
 import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
@@ -443,6 +444,9 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
           {nextFetch ? t('settings.scheduleWithNext', { schedule: describeSchedule(s), next: nextFetch }) : describeSchedule(s)}
         </Hint>
       </div>
+      {/* The line above already says the schedule; its controls wait behind one press while it is the default (#720). */}
+      <Disclosure variant="quiet" summary={t('settings.changeSchedule')} open={!searchScheduleIsDefault(s)}>
+      <div class="mt-3 space-y-3">
       <div class="flex flex-wrap items-end gap-3">
         <Field label={t('settings.howOften')} class="w-44">
           <Select name="fetchEvery">
@@ -460,6 +464,8 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
       <ZoneLine zone={view.zone} />
       <Hint>{t('settings.fetchNowIgnoresTheSchedule')}</Hint>
       <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
+      </div>
+      </Disclosure>
     </form>
   );
 };
@@ -575,12 +581,12 @@ const TimeZoneForm: FC<{ view: ScheduleView }> = ({ view }) => (
 );
 
 /** The answer to "who does this, and does it cost me", in words above the table that proves it. */
-const AiSummary: FC<{ plan: AiPlanRow[]; billedMicro: number }> = ({ plan, billedMicro }) => {
-  const summary = planSummary(plan);
+const AiSummary: FC<{ plan: AiPlanRow[]; engines: AiEngineRow[]; billedMicro: number }> = ({ plan, engines, billedMicro }) => {
+  const summary = planSummary(plan, (id) => engines.some((e) => e.id === id && e.ok));
   return (
     <div class="rounded-md bg-surface-overlay px-4 py-3">
       {summary && (
-        <p class="text-sm text-ink">
+        <p class={`text-sm ${summary.notReady ? 'text-warn' : 'text-ink'}`}>
           {summary.lead}
           {summary.fallback && <> {summary.fallback}</>}
         </p>
@@ -1405,7 +1411,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         <div class="space-y-3">
           {/* settings-models.mjs redraws this block after a card saves: the table and the note read off it. */}
           <div data-ai-plan class="space-y-3">
-            <AiSummary plan={aiStatus.plan} billedMicro={aiBudget.billedThisMonthMicro} />
+            <AiSummary plan={aiStatus.plan} engines={aiEngines} billedMicro={aiBudget.billedThisMonthMicro} />
             <AiPlan plan={aiStatus.plan} />
             {aiStatus.billingNotes.map((note) => (
               <Notice tone="warn">{note}</Notice>
@@ -1419,11 +1425,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         </div>
         {/* The engines are rows of the section, a hairline between each — the
             priority badge says where each stands, so none needs a box. */}
-        <div class="divide-y divide-line border-t border-line">
-          {aiEngines.map((e) => (
-            <AiEngine engine={e} />
-          ))}
-        </div>
+        <EngineList engines={aiEngines} />
       </Section>
 
       <Section
@@ -1947,6 +1949,33 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
  * section draws the hairline between engines, so nothing inside one draws
  * another — a rule above the model pickers would read as the next engine.
  */
+/**
+ * The engines as rows of the section, a hairline between each. One nobody chose
+ * and that cannot run here waits behind one press (#720); with none in sight
+ * that can run, those stand open — they are the way out.
+ */
+const EngineList: FC<{ engines: AiEngineRow[] }> = ({ engines }) => {
+  const { shown, folded, open } = splitEngines(engines);
+  return (
+    <>
+      <div class="divide-y divide-line border-t border-line">
+        {shown.map((e) => (
+          <AiEngine engine={e} />
+        ))}
+      </div>
+      {folded.length > 0 && (
+        <Disclosure variant="button" summary={t('settings.otherEngines', { n: folded.length })} open={open} class="border-t border-line pt-4">
+          <div class="mt-2 divide-y divide-line">
+            {folded.map((e) => (
+              <AiEngine engine={e} />
+            ))}
+          </div>
+        </Disclosure>
+      )}
+    </>
+  );
+};
+
 const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <Card variant="flat" class={`py-5 last:pb-0 ${e.enabled || e.lastResort ? '' : 'opacity-75'}`}>
     <div class="flex flex-wrap items-center gap-2">
@@ -2213,6 +2242,8 @@ const ProfileEditor: FC<{
   sent?: ProfileSentText | null;
   reclassifyQuestion: string;
 }> = ({ profile, availableTargets, resumes, draft, sent, reclassifyQuestion }) => {
+  // A draft from a resume, or a save that was refused, is read before it is kept: nothing of it stays folded (ADR 0015).
+  const reviewing = Boolean(draft) || Boolean(sent);
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
   // Open the advanced block only when free-form content lives in it. The alert
   // destination deliberately doesn't count: one picked target is not something
@@ -2291,14 +2322,19 @@ const ProfileEditor: FC<{
         chipLabel={techLabel}
         placeholder={t('settings.phpLaravelMysql')}
       />
-      <TagListInput
-        label={t('settings.stackNiceToHave')}
-        hint={t('settings.raiseTheFitScoreWhen')}
-        name="stackNiceToHave"
-        values={profile.stackNiceToHave}
-        chipLabel={techLabel}
-        placeholder={t('settings.dockerAws')}
-      />
+      {/* Secondary to the three above: one press away, with how many are set on the closed line (#720). */}
+      <Disclosure variant="quiet" summary={t('settings.stackNiceToHave')} count={profile.stackNiceToHave.length} open={reviewing}>
+        <div class="mt-2">
+          <TagListInput
+            label={t('settings.stackNiceToHave')}
+            hint={t('settings.raiseTheFitScoreWhen')}
+            name="stackNiceToHave"
+            values={profile.stackNiceToHave}
+            chipLabel={techLabel}
+            placeholder={t('settings.dockerAws')}
+          />
+        </div>
+      </Disclosure>
     </fieldset>
 
     <fieldset class="space-y-3">
@@ -2325,6 +2361,9 @@ const ProfileEditor: FC<{
         rows={2}
         picker="countries"
       />
+      {/* Regions tick open by themselves when one is set: a place the search hunts in is never out of sight. */}
+      <Disclosure variant="quiet" summary={t('settings.morePlaces')} count={placeExtrasSet(profile)} open={reviewing || profile.regions.length > 0}>
+      <div class="mt-3 space-y-3">
       <div>
         <div class="text-label text-ink">{t('settings.regions')}</div>
         <Hint class="mt-0.5">{t('settings.aGroupCountsAsA')}</Hint>
@@ -2366,6 +2405,8 @@ const ProfileEditor: FC<{
           ))}
         </div>
       </div>
+      </div>
+      </Disclosure>
     </fieldset>
 
     {/* The two numbers that decide what reaches you sit in sight; before 2.54 they hid under Advanced. */}
@@ -2461,6 +2502,8 @@ const ProfileEditor: FC<{
 const PriorityRulesEditor: FC<{ profile: Profile; typed?: string }> = ({ profile, typed }) => {
   const rules = parsePriorityRules(profile.priorityRules);
   const text = typed ?? formatPriorityRulesText(rules);
+  // One row per rule and an empty one to add the next (#560): no rule language to write.
+  const rows: RuleRow[] = [...ruleRows(text), { label: '', techs: '', regions: '', floor: '' }];
   return (
     <details class="rounded-md border border-line" open={text.trim().length > 0}>
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-note font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
@@ -2470,33 +2513,48 @@ const PriorityRulesEditor: FC<{ profile: Profile; typed?: string }> = ({ profile
         </span>
       </summary>
       <div class="border-t border-line px-4 py-4">
-        {/* The rule grammar and its sample values are written in code: the sentence places them, a translator never retypes them. */}
-        <Hint>
-          {tRich('settings.priorityRulesHint', {}, {
-            format: () => <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>,
-            hash: () => <Code>#</Code>,
+        <Hint>{t('settings.rules.intro')}</Hint>
+        <Hint class="mt-1">
+          {tRich('settings.priorityRulesRegions', {}, {
+            phrase: () => <Code>Remote US</Code>,
+            bare: () => <Code>Remote</Code>,
+            list: () => <Code>Remote US, United States, USA, Worldwide</Code>,
           })}
         </Hint>
-        {rules.length > 0 && (
-          <Hint class="mt-1 text-warn">
-            {tRich('settings.priorityRulesRegions', {}, {
-              phrase: () => <Code>Remote US</Code>,
-              bare: () => <Code>Remote</Code>,
-              list: () => <Code>Remote US,United States,USA,Worldwide</Code>,
-            })}
-          </Hint>
-        )}
-        <Textarea
-          name="priorityRules"
-          aria-label={t('settings.priorityRules')}
-          rows={Math.max(3, rules.length + 1)}
-          placeholder="Python remote-US | python | Remote US,United States,USA,Worldwide | 90"
-          class="mt-1.5"
-          mono
-          translate="no"
-        >
-          {text}
-        </Textarea>
+        <div class="mt-3 space-y-3">
+          {rows.map((row, i) => {
+            const fresh = i === rows.length - 1;
+            return (
+              <fieldset class="rounded-md border border-line p-3">
+                <legend class="px-1 text-meta text-ink-faint">
+                  {fresh ? t('settings.rules.new') : t('settings.rules.rule', { n: i + 1 })}
+                </legend>
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_7rem_minmax(0,1.5fr)]">
+                  <Field label={t('settings.rules.techs')}>
+                    <Input name="ruleTechs" value={row.techs} placeholder="php, laravel" translate="no" />
+                  </Field>
+                  <Field label={t('settings.rules.regions')}>
+                    <Input name="ruleRegions" value={row.regions} placeholder="Remote US, United States" translate="no" />
+                  </Field>
+                  <Field label={t('settings.rules.floor')}>
+                    <Input name="ruleFloor" value={row.floor} placeholder="90" inputmode="numeric" translate="no" />
+                  </Field>
+                  <Field label={t('settings.rules.label')}>
+                    <Input name="ruleLabel" value={row.label} maxlength={80} translate="no" />
+                  </Field>
+                </div>
+                {!fresh && (
+                  <div class="mt-2">
+                    <Checkbox name="ruleRemove" value={String(i)}>
+                      {t('settings.rules.remove')}
+                    </Checkbox>
+                  </div>
+                )}
+              </fieldset>
+            );
+          })}
+        </div>
+        <Hint class="mt-2">{t('settings.rules.addHint')}</Hint>
         {rules.length > 0 && (
           <div class="mt-2 flex flex-wrap gap-1.5" translate="no">
             {rules.map((r) => (

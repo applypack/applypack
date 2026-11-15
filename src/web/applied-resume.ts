@@ -19,9 +19,12 @@ export type AppliedResumeChoice =
   | { kind: 'clear' }
   | { kind: 'set'; id: number }
   /** The application pack's file (ADR 0063), as it was prepared at `at`: what the page showed when the choice was made. */
-  | { kind: 'pack'; at: number };
+  | { kind: 'pack'; at: number }
+  /** The copy tailored for this posting (ADR 0066), as it was saved at `at`. */
+  | { kind: 'copy'; at: number };
 
 const PACK_CHOICE = 'pack-';
+const COPY_CHOICE = 'copy-';
 
 /** As much of a pack as saying "this file went out" reads. */
 interface SendablePack {
@@ -53,6 +56,23 @@ export function packChoiceValue(pack: SendablePack | null): string | null {
   return at !== undefined && packAsShown(pack, at) ? `${PACK_CHOICE}${at}` : null;
 }
 
+/** As much of a tailored copy as saying "this is what I sent" reads. */
+interface SendableCopy {
+  text: string;
+  resumeId: number;
+  updatedAt: Date;
+}
+
+/** The picker's value for "the copy tailored for this job"; null when there is none. It names the save the page shows. */
+export function copyChoiceValue(copy: SendableCopy | null): string | null {
+  return copy ? `${COPY_CHOICE}${copy.updatedAt.getTime()}` : null;
+}
+
+/** The copy a form named, when it is still the one the page showed: saved again since, its text is not what the person looked at. */
+export function copyAsShown<T extends SendableCopy>(copy: T | null, at: number): T | null {
+  return copy !== null && copy.updatedAt.getTime() === at ? copy : null;
+}
+
 /**
  * A form field that is not there has said nothing — a page with no resume
  * picker must not silently erase what another page recorded. An empty value
@@ -63,6 +83,7 @@ export function readAppliedResumeChoice(raw: unknown): AppliedResumeChoice {
   const value = String(raw).trim();
   if (value.length === 0) return { kind: 'clear' };
   if (value.startsWith(PACK_CHOICE)) return { kind: 'pack', at: Number(value.slice(PACK_CHOICE.length)) };
+  if (value.startsWith(COPY_CHOICE)) return { kind: 'copy', at: Number(value.slice(COPY_CHOICE.length)) };
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? { kind: 'set', id } : { kind: 'keep' };
 }

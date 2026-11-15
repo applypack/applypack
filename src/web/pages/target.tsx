@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
+import type { TailoredCopy } from '../../resume/store';
+import { TailoredCopyCard } from './tailored-copy-card';
 import { Layout } from '../layout';
 import { Badge, Button, Card, FitBadge, Flash, Hint, HistoryChip, inEnglish, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
 import type { FlashMessage } from '../flash';
@@ -77,6 +79,8 @@ export interface TargetPageProps {
   summaryGuide?: SummaryGuide | null;
   /** The latest "Is this job real?" verdict — one line under the title, findings among the cautions (#162). */
   verification: VerificationForHint | null;
+  /** The copy Save kept for this posting (ADR 0066), when there is one. */
+  tailoredCopy: TailoredCopy | null;
   flash?: FlashMessage | null;
   /** What a Save can do with this resume's file — one sentence (docx-structure.ts, ADR 0038). */
   fileVerdict: string;
@@ -136,6 +140,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   cleanHref,
   seed = null,
   packScore = null,
+  tailoredCopy,
   flash,
   rebuildCost,
 }) => {
@@ -432,7 +437,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     {t('target.reupload.compare')}
                   </Button>
                   <Hint>
-                    {resume.ephemeral ? t('target.reupload.hintOneOff') : t('target.reupload.hintSaved', { version: resume.version + 1 })}
+                    {resume.ephemeral ? t('target.reupload.hintOneOff') : t('target.reupload.hintSaved')}
                   </Hint>
                 </form>
               </div>
@@ -488,9 +493,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                       class="w-full"
                       data-save-button
                       disabled
-                      title={t('target.save.title', { version: resume.version + 1 })}
+                      title={t('target.save.title')}
                     >
-                      {t('target.save.button', { version: resume.version + 1 })}
+                      {t('target.save.button')}
                     </Button>
                   </form>
                 )}
@@ -546,6 +551,8 @@ export const TargetPage: FC<TargetPageProps> = ({
         </div>
       </Card>
 
+      {tailoredCopy && <TailoredCopyCard jobId={job.id} copy={tailoredCopy} onTailor class="mb-4" />}
+
       {(asks.length > 0 || unproven.length > 0) && (
         <Card class="mb-4">
           <ConfirmFacts
@@ -584,7 +591,7 @@ export const TargetPage: FC<TargetPageProps> = ({
         </label>
       </div>
 
-      <div id="panes" class="show-matched grid gap-4 lg:grid-cols-2" data-view="both" role="tabpanel" aria-labelledby="view-tab-both">
+      <div id="panes" class="show-matched grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" data-view="both" role="tabpanel" aria-labelledby="view-tab-both">
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="text-label text-ink">{t('target.jobDescription')}</div>
@@ -842,9 +849,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                 variant="primary"
                 size="sm"
                 form="save-form"
-                title={t('target.save.barTitle', { version: resume.version + 1 })}
+                title={t('target.save.barTitle')}
               >
-                {t('target.save.button', { version: resume.version + 1 })}
+                {t('target.save.button')}
               </Button>
             )}
           </div>

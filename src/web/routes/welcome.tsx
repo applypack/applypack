@@ -23,11 +23,12 @@ import { resolveCountries } from '../../countries';
 import { isProfileWorkplace } from '../../location';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
+import { runFetchJob } from '../../jobs/fetch-job';
 import { beginFetchNow } from '../fetch-now';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
 import { hashShortId, parseTagList, toStringArray } from '../../text-utils';
-import { forgetAiProbe, getAiEngineEnv, localAiBase } from '../../ai-runtime';
+import { forgetAiProbe, getAiEngineEnv, localAiBase, probeAiProviders } from '../../ai-runtime';
 import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_LABELS,
@@ -72,6 +73,7 @@ import { currentLocale } from '../../i18n/locale';
 import { countryChip } from '../../i18n/places';
 import { t } from '../../i18n/t';
 import { companyForPage } from '../../employer';
+import { rowsToRead, withoutCopies } from '../copies';
 
 const TOP_MATCHES = 5;
 const AI_STEP = '/welcome?step=ai';
@@ -99,8 +101,17 @@ welcomeRoute.get('/welcome', async (c) => {
     prisma.job.findMany({
       where: { fitScore: { not: null }, status: { not: JobStatus.DISMISSED } },
       orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
-      take: TOP_MATCHES,
-      select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true, atsType: true } } },
+      // A posting several sources carry shows once (#529).
+      take: rowsToRead(TOP_MATCHES),
+      select: {
+        id: true,
+        title: true,
+        employer: true,
+        fitScore: true,
+        company: { select: { name: true, atsType: true } },
+        crossListedOfJobId: true,
+        crossListedOf: { select: { title: true } },
+      },
     }),
     profile && facts.profileReady ? countWaitingUnscored(profile) : 0,
     // One local request per default address, on step 1 only — no other step asks.
@@ -157,7 +168,7 @@ welcomeRoute.get('/welcome', async (c) => {
         scoredCount: facts.scoredCount,
         matchCount,
         minFitScore: profile?.minFitScore ?? 0,
-        top: top.map((j) => ({ id: j.id, title: j.title, companyName: companyForPage(j.employer, j.company), fitScore: j.fitScore })),
+        top: withoutCopies(top, TOP_MATCHES).map((j) => ({ id: j.id, title: j.title, companyName: companyForPage(j.employer, j.company), fitScore: j.fitScore })),
         waiting,
         runningRunId: liveScoreRun()?.id ?? null,
         scoreCost: await spendHint('classifier'),
@@ -221,7 +232,20 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
   }
   await setAiKey(provider, key);
   forgetAiProbe();
-  return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keySaved', { engine: AI_PROVIDER_LABELS[provider] }));
+  // A key for an engine that still cannot run (its program is missing, say) is not a step forward: say what is in the way.
+  const status = (await probeAiProviders(undefined, { fresh: true }))[provider];
+  const engine = AI_PROVIDER_LABELS[provider];
+  if (!status.ok) return flashRedirect('/welcome?step=ai', 'warn', t('welcome.flash.keySavedNotReady', { engine, detail: status.detail.replace(/\.$/, '') }));
+  // One tiny call proves the key before the step is ticked (#718): a mistyped key used to pass, and fail at the resume.
+  const test = await testAiEngine(provider);
+  if (test.ok) return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keyWorks', { engine }));
+  if (test.refused) {
+    // A key the engine refuses is not kept: the step stays open with its field, and nothing later trips over it.
+    await setAiKey(provider, '');
+    forgetAiProbe();
+    return flashRedirect('/welcome?step=ai', 'err', t('welcome.flash.keyRefused', { engine }));
+  }
+  return flashRedirect('/welcome?step=ai', 'warn', t('welcome.flash.keyUntested', { engine, reason: test.text }));
 });
 
 /**
@@ -438,6 +462,9 @@ welcomeRoute.post('/welcome/score', async (c) => {
     return flashRedirect(AI_STEP, 'err', t('welcome.flash.noAi'));
   }
   const { run } = beginScoreUnscored({
+    // The boards step 4 switched on have not been read yet: without them "first matches" leaves out most of what
+    // the person's countries offer (#535). Stored unscored — the pass below scores the best of everything.
+    before: readUnreadSources,
     limit: SCORE_BATCH,
     heading: { running: t('welcome.scoreRun.running'), failed: t('welcome.scoreRun.failed') },
     subtitle: t('welcome.scoreRun.subtitle', { n: SCORE_BATCH }),
@@ -449,6 +476,15 @@ welcomeRoute.post('/welcome/score', async (c) => {
 });
 
 /* ---------- helpers ---------- */
+
+/** The sources that are on and were never read — what step 4 has just enabled — read once, scoring nothing. */
+async function readUnreadSources(say: (subtitle: string) => void): Promise<void> {
+  const unread = await prisma.company.findMany({ where: { active: true, lastFetchedAt: null }, select: { id: true } });
+  if (unread.length === 0) return;
+  const ids = new Set(unread.map((c) => c.id));
+  say(t('welcome.scoreRun.reading', { n: unread.length }));
+  await runFetchJob({ manual: true, unscored: true, only: (c) => ids.has(c.id) });
+}
 
 /** The aggregators switched on — what step 2 asks. */
 async function countAggregators(): Promise<number> {

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { sameTextAs } from './duplicate';
-import type { CandidateFact, CoverLetter, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
+import type { CandidateFact, CoverLetter, Resume, ResumeMatch, ResumeReview, TailoredResume } from '@prisma/client';
+import type { CopyDocument } from './tailored';
 import { prisma } from '../db';
 import { withGlobalWriteLock } from '../settings';
 import { logger } from '../logger';
@@ -846,4 +847,45 @@ export async function listOtherResumeSkills(
     }
   }
   return [...seen].map(([skill, resumeName]) => ({ skill, resumeName }));
+}
+
+/** A tailored copy as pages read it: everything but the file's bytes. */
+export type TailoredCopy = Omit<TailoredResume, 'file'>;
+
+const WITHOUT_FILE = { file: true } as const;
+
+/**
+ * Keeps the resume as tailored for one posting (ADR 0066) — one copy a job,
+ * the next Save replacing it. The resume itself is not written to.
+ */
+export async function saveTailoredCopy(input: {
+  jobId: number;
+  resumeId: number;
+  resumeName: string;
+  baseVersion: number;
+  text: string;
+  file: Buffer;
+  fileName: string;
+  mimeType: string;
+  document: CopyDocument;
+}): Promise<TailoredCopy> {
+  const data = { ...input, file: new Uint8Array(input.file), matchId: null };
+  const row = await prisma.tailoredResume.upsert({ where: { jobId: input.jobId }, create: data, update: data, omit: WITHOUT_FILE });
+  logger.info({ jobId: input.jobId, resumeId: input.resumeId, chars: input.text.length, document: input.document }, 'resume: tailored copy saved');
+  return row;
+}
+
+/** The copy kept for a job, without its bytes; null when none was saved. */
+export async function getTailoredCopy(jobId: number): Promise<TailoredCopy | null> {
+  return prisma.tailoredResume.findUnique({ where: { jobId }, omit: WITHOUT_FILE });
+}
+
+/** The copy's file, for a download or for making it the resume. */
+export async function getTailoredCopyFile(jobId: number): Promise<TailoredResume | null> {
+  return prisma.tailoredResume.findUnique({ where: { jobId } });
+}
+
+/** The comparison of a copy's text, once it has run: where the Tailor page goes on from. */
+export async function setTailoredCopyMatch(jobId: number, matchId: number): Promise<void> {
+  await prisma.tailoredResume.updateMany({ where: { jobId }, data: { matchId } });
 }

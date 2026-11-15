@@ -45,6 +45,9 @@ import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
 import { hardcodedText } from '../i18n/pseudo';
 import { SETTINGS_ID, setLocale } from '../settings';
+import { interviewLanguage } from '../interview/languages';
+import { INTERVIEW_PROMPT_VERSION, settleQuestions } from '../interview/prompts';
+import { createCareerNote, saveInterviewPrep } from '../interview/store';
 
 /** What a page may answer: itself, or a redirect to where the state lives. */
 const ACCEPT = new Set([200, 302, 303]);
@@ -59,6 +62,8 @@ const MAY_404 = new Set([
   // A pack keeps a file only once the worker has prepared it (ADR 0063); nothing here runs one.
   '/jobs/:id/pack/resume.docx',
   '/jobs/:id/pack/resume.pdf',
+  // The copy Save on the Tailor page keeps (ADR 0066): the fixtures tailor nothing.
+  '/jobs/:id/copy/file',
   // Nor a state to ask for until a pack is queued; the queued one is asked below.
   '/jobs/:id/pack/state',
   // The fixture company is a pasted job's, not a folder; the folder walk below asks a real one.
@@ -75,6 +80,7 @@ const QUERY_VARIANTS = [
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
   '/jobs/:id?tab=pack',
+  '/jobs/:id?tab=interview',
   '/jobs/:id?tab=nonsense',
   // The AI ledger over each period, and a period nobody offers (ADR 0055).
   '/ai?period=month',
@@ -101,6 +107,7 @@ const PSEUDO_VARIANTS = [
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
   '/jobs/:id?tab=pack',
+  '/jobs/:id?tab=interview',
   '/settings?tab=sources',
   '/settings?tab=notifications',
   '/settings?tab=applications',
@@ -237,6 +244,28 @@ async function fixtures(): Promise<Fixtures> {
     frame: 'first-run',
     verificationId: null,
     evidence: 'own',
+  });
+  // ADR 0065: a note of the history and one stored preparation, so the Interview tab draws a question with its marks.
+  const note = { title: 'Smoke marketplace', text: 'Rewrote the booking queue; processing time fell from 900 ms to 120 ms.' };
+  await createCareerNote(note.title, note.text);
+  const interviewInput = {
+    job: { title: 'Backend Engineer', companyName: 'Smoke Co', location: 'Remote', description: POSTING },
+    language: interviewLanguage('uk')!,
+    resumeText: RESUME,
+    notes: [note],
+    confirmedFacts: [],
+    companySnapshot: null,
+  };
+  await saveInterviewPrep({
+    jobId: job.job.id,
+    language: 'uk',
+    questions: settleQuestions(
+      [{ kind: 'technical', question: 'Як ви масштабували черги?', why: 'Вакансія наголошує на чергах.', answer: ['Я переписав чергу бронювань і підняв конверсію на 35%.'], based_on: [note.title, 'resume'], missing: 'Пригадайте розмір команди.' }],
+      interviewInput,
+    ),
+    sourceKey: 'smoke',
+    model: 'smoke',
+    promptVersion: INTERVIEW_PROMPT_VERSION,
   });
   const browserPage = await prisma.company.create({
     data: { name: 'Smoke Page', atsType: 'BROWSER_PAGE', atsToken: 'https://smoke.example/careers', watched: true, active: false },
@@ -687,6 +716,20 @@ async function main(): Promise<void> {
       init: form({ status: 'APPLIED', appliedResumeId: 'pack-1', tab: 'pack' }),
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack` && (res.headers.get('set-cookie') ?? '').includes('flash='),
     },
+    {
+      // ADR 0065: a note in any language joins the history and leads back to the job's Interview tab.
+      name: 'POST /career/notes (a note typed in Ukrainian)',
+      init: form({ jobId: String(f.jobId), title: '', text: 'Переписав чергу бронювань.\nЧас обробки впав з 900 мс до 120 мс.' }),
+      expect: async (res) =>
+        res.status === 303 &&
+        res.headers.get('location') === `/jobs/${f.jobId}?tab=interview#history` &&
+        (await prisma.careerNote.count({ where: { title: 'Переписав чергу бронювань.' } })) === 1,
+    },
+    {
+      name: 'POST /career/notes with no text (refused, nothing stored)',
+      init: form({ jobId: String(f.jobId), title: 'Empty', text: '  ' }),
+      expect: async (res) => res.status === 303 && flashOf(res).includes('not saved') && (await prisma.careerNote.count({ where: { title: 'Empty' } })) === 0,
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -742,6 +785,8 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}?tab=pack`,
     `/jobs/${f.jobId}/pack/state`,
     `/jobs/${f.jobId}/status`,
+    '/career/notes',
+    '/career/notes',
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);

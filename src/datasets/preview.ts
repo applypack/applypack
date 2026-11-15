@@ -6,6 +6,7 @@
  */
 
 import { anyBaseFilterReason, type FilterProfile } from '../filter';
+import { FILTER_KEY, filteredReasons, reasonsText, type FunnelCounts } from '../funnel';
 import { parseLocation } from '../location';
 import type { PackSettings } from '../pack/settings';
 import { ageCountsFrom, autoPack } from '../pack/trigger';
@@ -21,6 +22,8 @@ export interface PreviewCounts {
   turnedAway: number;
   /** New rows that would be stored, and scored. */
   passing: number;
+  /** Why the filter sets the rest aside, in words (`setAsideWhy`); absent where nobody asked. */
+  why?: string | null;
 }
 
 /**
@@ -39,6 +42,29 @@ export function previewCounts(
   const admitted = fresh.filter((job) => anyBaseFilterReason({ ...job, ...parseLocation(job.location, job.locationHints) }, profiles) === null);
   const turnedAway = admitted.filter(turnsAway).length;
   return { usable: jobs.length, stored: jobs.length - fresh.length, turnedAway, passing: admitted.length - turnedAway };
+}
+
+/** As many reasons as a preview line names before "and N more". */
+const PREVIEW_REASONS = 3;
+
+/**
+ * Why the running searches' filter sets new rows aside, as the import's flash
+ * says it after the fact — "1 outside your places, 1 without a title keyword"
+ * — so a preview that reads "0 pass" names the gate (#734). Null when the
+ * filter sets nothing aside.
+ */
+export function setAsideWhy(jobs: readonly NormalizedJob[], profiles: readonly FilterProfile[], storedIds: ReadonlySet<string>): string | null {
+  const counts: FunnelCounts = {};
+  let total = 0;
+  for (const job of jobs) {
+    if (storedIds.has(job.externalId)) continue;
+    const reason = anyBaseFilterReason({ ...job, ...parseLocation(job.location, job.locationHints) }, profiles);
+    if (reason === null) continue;
+    const key = FILTER_KEY[reason];
+    counts[key] = (counts[key] ?? 0) + 1;
+    total += 1;
+  }
+  return total === 0 ? null : reasonsText(filteredReasons(counts), { max: PREVIEW_REASONS, total });
 }
 
 /** The rows `PreviewCounts.passing` counts: new, admitted by a running search, at a company nothing turns away. */

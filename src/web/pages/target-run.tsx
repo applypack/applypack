@@ -23,6 +23,7 @@ const STEPS = [
   'suggestions',
   'verify',
   'letter',
+  'interview',
   'review',
   'score',
   'compare',
@@ -138,6 +139,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
 };
 
 function runCopy(steps: RunStep[]): { running: string; failed: string } {
+  if (steps.includes('interview')) return { running: t('target.run.interview.running'), failed: t('target.run.interview.failed') };
   if (steps.includes('letter')) return { running: t('target.run.letter.running'), failed: t('target.run.letter.failed') };
   if (steps.includes('structure')) return { running: t('target.run.structure.running'), failed: t('target.run.structure.failed') };
   if (steps.includes('suggestions')) return { running: t('target.run.suggestions.running'), failed: t('target.run.suggestions.failed') };

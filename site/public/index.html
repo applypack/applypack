@@ -103,14 +103,14 @@
   <section id="tour" aria-labelledby="tour-h">
     <div class="wrap wide">
       <h2 id="tour-h">The whole loop, recorded</h2>
-      <p class="lead">The real app on a synthetic resume, with real AI calls and no cuts. Twenty-five seconds.</p>
+      <p class="lead">The real app on a synthetic resume, with real AI calls and no cuts. Twenty-eight seconds.</p>
       <figure class="shot tour">
         <video controls muted playsinline preload="none" poster="img/tour-poster.webp" width="1440" height="966" aria-describedby="tour-cap">
           <source src="tour.webm" type="video/webm">
           <source src="tour.mp4" type="video/mp4">
         </video>
       </figure>
-      <p id="tour-cap" class="demo-hint">The Overview, the jobs it ranked, one posting's verdict, the resume compared with it, every suggestion applied in one press (85 to 88, no AI call), the resume as the document itself with the changes marked, the fact-checked letter, and one resume against three postings: 90, 85, and a straight 0 where the stack is PHP.</p>
+      <p id="tour-cap" class="demo-hint">The Overview, the jobs it ranked, one posting's verdict, the resume compared with it, every suggestion applied in one press (91 to 95, no AI call), the resume as the document itself with the changes marked, the fact-checked letter, the interview questions answered from your own history, and one resume against three postings: 91, 90, and a straight 0 where the stack is PHP.</p>
     </div>
   </section>
 
@@ -149,7 +149,7 @@
           </ul>
         </div>
         <figure class="shot">
-          <img src="img/jobs.webp" srcset="img/jobs-720.webp 720w, img/jobs.webp 1440w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1440" height="900" alt="The Jobs list: fourteen postings ranked by fit from 92 down, each with its stack, company, place, salary, status and when it was fetched" loading="lazy" decoding="async">
+          <img src="img/jobs.webp" srcset="img/jobs-720.webp 720w, img/jobs.webp 1440w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1440" height="900" alt="The Jobs list: ten active postings ranked by fit from 95 down, each with its stack, company, place, salary, status and when it was fetched" loading="lazy" decoding="async">
         </figure>
       </div>
 
@@ -160,12 +160,12 @@
             <li><b>Every keyword the posting wants,</b> graded must / preferred / nice and marked present, missing or confirm-with-you.</li>
             <li><b>The model marks facts, code computes the score.</b> No core-stack overlap caps it at 30, Vue is not React, and an unknown becomes a question instead of a guess.</li>
             <li><b>Apply every suggestion in one press</b> and watch the score move, free of AI calls; each one keeps its own Undo. Or edit side by side, the score updating on every keystroke.</li>
-            <li><b>See the resume as the document it is.</b> Your own .docx with the edits written into it and marked, ready to download as .docx or .pdf, or saved as v2 with the formatting intact. A PDF, or a layout that cannot be patched, is re-set as a clean single-column .docx in your own font.</li>
+            <li><b>See the resume as the document it is.</b> Your own .docx with the edits written into it and marked, ready to download as .docx or .pdf, or kept as your copy for that job with the formatting intact. A PDF, or a layout that cannot be patched, is re-set as a clean single-column .docx in your own font.</li>
             <li><b>Disagree with the model?</b> Re-level a keyword, ignore it, add the one it missed, or rebuild the list. Your edits survive every re-run.</li>
           </ul>
         </div>
         <figure class="shot">
-          <img src="img/resume-score.webp" srcset="img/resume-score-720.webp 720w, img/resume-score.webp 1168w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1168" height="610" alt="Tailor resume: a match score of 85 with the primary stack 3/3, the one edit to make first, editing can reach 88, Apply all suggestions (5), and what the posting is — sector, product, who reads it first" loading="lazy" decoding="async">
+          <img src="img/resume-score.webp" srcset="img/resume-score-720.webp 720w, img/resume-score.webp 1168w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1168" height="610" alt="Tailor resume: a resume score of 91 with the primary stack 3/3, the one thing to do first, Apply all suggestions (2), and what the posting is — sector, product, who reads it first" loading="lazy" decoding="async">
         </figure>
       </div>
 
@@ -202,7 +202,11 @@
       <div class="more">
         <h3>And the rest</h3>
         <ul class="more-list" role="list">
+          <li><b>Ready for the interview.</b> Write down what happened at work once, in any language. For a posting, one press lists the questions it is likely to bring and what you can answer from that history, in the language the interview is held in. A number that is not in your notes is marked before you say it.</li>
+          <li><b>Application packs.</b> For a strong new match ApplyPack can do the evening's work on its own: check the posting is open, compare, research the company, tailor the resume lightly and keep the file. Off until you switch it on; nothing is ever submitted for you.</li>
           <li><b>Applications board.</b> Columns you name, drag and drop, which resume each application went out with, a nudge when one goes quiet for two weeks.</li>
+          <li><b>Jobs you already have.</b> Import a spreadsheet or a tool's export, or point ApplyPack at a folder where you save postings: they are scored like everything else.</li>
+          <li><b>In your language.</b> The interface in English and Ukrainian, with Spanish and French in beta.</li>
           <li><b>Guided first run.</b> Connect an AI, test the search, turn a resume into a profile, switch on the boards for your countries, read the first matches.</li>
           <li><b>Seven AI engines with failover.</b> Claude Code, Gemini, Antigravity and Codex CLIs on subscriptions you already pay for, the Anthropic API, any OpenAI-compatible endpoint, and a free model on your own machine through Ollama.</li>
           <li><b>Postings cannot hijack the prompt.</b> Every outside text reaches the model inside untrusted-text markers; a test fails the build otherwise.</li>
@@ -270,7 +274,7 @@
     <div class="wrap">
       <h2 id="open-h">Free, open source, yours to bend</h2>
       <p class="lead">ApplyPack is MIT-licensed and has no hosted version: no accounts, no subscription, no telemetry, no ads. You bring the AI: a subscription you already pay for, an API key, or a local model that costs nothing.</p>
-      <p class="note">It is built to be changed. Over 2,600 unit tests on the pure modules, a decision record for every non-obvious choice, and a CLAUDE.md that says where everything lives, so a first change takes an evening, with an AI assistant or without one.</p>
+      <p class="note">It is built to be changed. Over 4,000 unit tests on the pure modules, a decision record for every non-obvious choice, and a CLAUDE.md that says where everything lives, so a first change takes an evening, with an AI assistant or without one.</p>
       <ul class="ways" role="list">
         <li><b>Add a job source</b>Close to a one-file change: a fetcher template for each feed shape in the repo, a unit test for the mapper, a smoke run.</li>
         <li><b>Pick an open issue</b>Comment on it before you start, and ask there when the scope is unclear.</li>

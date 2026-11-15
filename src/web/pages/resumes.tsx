@@ -87,7 +87,7 @@ export const ResumesPage: FC<{
 
     {/* The list is what the page is about: with a resume in it the upload form folds
         behind its button; with none it is the first thing to do, so it stands open. */}
-    <Disclosure variant="button" summary={t('resumes.uploadAResume')} open={resumes.length === 0} class="mb-4">
+    <Disclosure variant="primary" summary={t('resumes.uploadAResume')} open={resumes.length === 0} class="mb-4">
       <Card class="mt-3">
         <ResumeUploadForm />
       </Card>

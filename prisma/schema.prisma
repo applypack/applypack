@@ -281,6 +281,11 @@ model Job {
   // says so and the Posted filter files it under "Date unknown". Rows stored
   // before the column say true: nothing recorded where their date came from.
   postedAtKnown          Boolean   @default(true)
+  // A posting pasted on New screening (ADR 0049 addendum, #567): the position
+  // the user hires for, never one they apply to. It stays out of the job
+  // seeker's lists, counts, pickers and scoring passes, and goes with its
+  // screening. Pasting the same text on Paste a job clears the flag.
+  forScreening           Boolean   @default(false)
   fetchedAt              DateTime  @default(now())
 
   // ADR 0031: the structured reading of `location`, which itself is never
@@ -366,6 +371,8 @@ model Job {
   scores        JobScore[]
   screenings    Screening[]
   pack          ApplicationPack?
+  interviewPrep InterviewPrep?
+  tailored      TailoredResume?
 
   @@unique([companyId, externalId])
   // Postgres does not index the referencing side of a foreign key: without
@@ -922,6 +929,37 @@ model CandidateFact {
   @@map("candidate_fact")
 }
 
+// ADR 0065: what the person did, in their own words and in any language — a
+// project, a hard week, how a decision went. Global like CandidateFact: one
+// history for every job. Read by the interview preparation only, on a press.
+model CareerNote {
+  id        Int      @id @default(autoincrement())
+  title     String
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("career_note")
+}
+
+// ADR 0065: the questions one posting is likely to bring and what the person
+// can answer from their own history, in the language of the interview. One
+// row per job; preparing again replaces it. `sourceKey` hashes what it was
+// written from, so the page can say the history changed since.
+model InterviewPrep {
+  id            Int      @id @default(autoincrement())
+  jobId         Int      @unique
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  language      String
+  questions     Json
+  sourceKey     String
+  model         String
+  promptVersion Int
+  createdAt     DateTime @default(now())
+
+  @@map("interview_prep")
+}
+
 // F8 (ADR 0021): one generated cover letter, gated by fact-check.ts before it
 // is ever stored (only pass|warn rows exist; a blocked letter is never
 // persisted). `kind` is reserved for F16 email drafts. `editedText` holds the
@@ -1239,4 +1277,33 @@ model ScreeningVerdict {
 
   @@index([applicantId, createdAt])
   @@map("screening_verdict")
+}
+
+// The resume as tailored for ONE posting (ADR 0066): what Save on the Tailor
+// page keeps. The person's own resume — its version, its scan, the search
+// that hunts with it — is not touched; this row is the copy that went, or
+// will go, to this employer. One per job, replaced by the next Save.
+model TailoredResume {
+  id          Int      @id @default(autoincrement())
+  jobId       Int      @unique
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  // What it was tailored from. No foreign key on purpose, as on a pack: the
+  // copy keeps saying what it is after the resume is deleted.
+  resumeId    Int
+  resumeName  String
+  baseVersion Int
+  // The draft comparison of this text, which the Tailor page opens to go on.
+  matchId     Int?
+  text        String   @db.Text
+  // The file as saved: the person's own .docx with the edits written in, or
+  // the clean version. Bytes, not a recipe (as ApplicationPack.docx).
+  file        Bytes
+  fileName    String
+  mimeType    String
+  // own | clean | text — how the file was made (src/resume/tailored.ts).
+  document    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tailored_resume")
 }

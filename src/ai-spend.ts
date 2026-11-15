@@ -322,6 +322,7 @@ const FEATURE_LABEL = {
   'resume-rewrite': 'spend.feature.resumeRewrite',
   'resume-review': 'spend.feature.resumeReview',
   'cover-letter': 'spend.feature.coverLetter',
+  'interview-prep': 'spend.feature.interviewPrep',
   'job-verify': 'spend.feature.jobVerify',
   screening: 'spend.feature.screening',
   'screening-compare': 'spend.feature.screeningCompare',

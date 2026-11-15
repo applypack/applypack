@@ -4,23 +4,91 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [2.63.42] — 2026-10-29
+## [2.67.0] — 2026-11-15
 
 ### Changed
-- The fit score is computed from facts instead of picked by the model
-  (ADR 0064). For each search the classifier reports what the posting
-  shows — the required technologies it uses, which of the search's role
-  types it is, the levels and years it asks for, the nice-to-haves, any
-  auto-reject signal — and code turns them into the number, so matches no
-  longer pile up on 92 and the same facts always give the same score. A job
-  category named in the title settles the role type. Location stays the
-  dismissal gate, no longer part of the number.
-- The facts are kept per search (`job_score.fitFacts`), the job page says
-  how each fit was worked out and which ceiling held it down, and after a
-  weight change or a search edit `rescore-fit-once.js --dry-run`, then
-  without the flag, re-scores stored jobs without AI and without changing
-  any status. Rows scored before this release keep their numbers until Save
-  & re-classify brings them onto the new scale.
+- Tailor resume → **Save a copy for this job** (was Save as vN). The
+  tailored resume is kept as that posting's copy, in the same file a save
+  made before, and your own resume is not changed: its version, its scan
+  and the search that hunts with it stay, and the next posting starts from
+  your resume instead of the last posting's wording. The copy is on the
+  job's page with Download, Continue tailoring and **Make this my base
+  resume**, and it is offered as what the application went out with.
+  Versions saved before stay as they are (ADR 0066, #641).
+
+### Fixed
+- Checking a folder whose file was written a moment ago says the file
+  waits until it has stopped changing, not that every file was read
+  before (#743).
+
+## [2.66.0] — 2026-11-15
+
+### Changed
+- Watching specific companies: a batch whose boards hold more than 30
+  postings opens on "Matches only", so one large board is no longer
+  hundreds of AI calls behind one press of Add. Either choice is still
+  yours (#728).
+- The previews of **Import a file** and **A folder on this computer** name
+  the reasons the filter sets rows aside, before anything is imported (#734).
+- Interview preparation: a figure in an answer that the posting states and
+  your history does not gets its own line, "From the posting, not from your
+  history", apart from the figures nobody states (#734).
+- "Is it real?": the verdict and each signal are worded in the interface's
+  language (#730).
+- Spanish and French read in full: 154 corrections; both stay marked beta
+  (#732).
+- Setup no longer speaks of Docker mounts, and Settings → AI & costs warns
+  that no AI can answer yet where it used to say an unavailable engine
+  answers every task (#736).
+- The website names interview preparation, application packs, imports and
+  the interface languages (#725).
+- Dependencies: unpdf 2.1, @anthropic-ai/sdk 1.8, docx 9.15.3, hono 4.13.18,
+  @hono/node-server 2.1.7, dotenv 18.0.10.
+
+### Fixed
+- A technology chip reads "Tailwind CSS", not "Tailwind Css" (#727).
+
+## [2.65.0] — 2026-11-15
+
+### Changed
+- Setup step 1 puts the two ways that need nothing installed first (an
+  Anthropic key, an OpenAI-style key); the ones that work through a program
+  and a model on this computer wait behind one press. A pasted key is
+  checked with one small test call as it is saved: a key the provider
+  refuses is not kept, and the step says so (#718).
+- An install that skipped setup reads what is left on the Overview —
+  connect an AI, add your resume, say what you look for, switch the search
+  on — with a link into each, in place of four zeros (#716).
+- Settings shows fewer fields at once: the schedule's controls fold while
+  the schedule is the default, engines that are neither chosen nor able to
+  run wait under "Other engines", and a search's secondary fields are one
+  press away. Nothing is removed, and a folded field still saves (#720).
+- Plain words on the main path: no PATH, `.env`, "headless" or "resume
+  model" in what a new user reads, in all four languages (#714).
+
+## [2.64.0] — 2026-11-15
+
+### Added
+- Interview preparation on the job page (ADR 0065). The new **Interview**
+  tab keeps your history — notes about projects, situations and decisions,
+  typed or read from a file, in any language — and on a press lists the
+  questions this posting is likely to bring with what you can answer from
+  that history, in the language you choose for the interview. A source an
+  answer names is one of your notes or your resume, and a figure your
+  material does not state is marked. One AI call, no web search.
+
+### Changed
+- Setup step 3 is named **Add your resume**, and on the Resumes page
+  **Upload a resume** is the page's solid button. The hint above the
+  searches says what a search profile is and when a second one is worth it.
+- The Ukrainian interface was read in full against the English: 82
+  corrections. Spanish and French count one resume as one.
+
+### Fixed
+- Setup step 1: an engine whose program is not on the computer says so and
+  shows the command that installs it, and saving a key for an engine that
+  still cannot run answers with a warning that names the reason, instead of
+  "saved, send a test message" with no way to send one (#711).
 
 ## [2.63.41] — 2026-10-29
 
@@ -7134,7 +7202,10 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[2.63.42]: https://github.com/applypack/applypack/compare/v2.63.41...v2.63.42
+[2.67.0]: https://github.com/applypack/applypack/compare/v2.66.0...v2.67.0
+[2.66.0]: https://github.com/applypack/applypack/compare/v2.65.0...v2.66.0
+[2.65.0]: https://github.com/applypack/applypack/compare/v2.64.0...v2.65.0
+[2.64.0]: https://github.com/applypack/applypack/compare/v2.63.41...v2.64.0
 [2.63.41]: https://github.com/applypack/applypack/compare/v2.63.40...v2.63.41
 [2.63.40]: https://github.com/applypack/applypack/compare/v2.63.39...v2.63.40
 [2.63.39]: https://github.com/applypack/applypack/compare/v2.63.38...v2.63.39

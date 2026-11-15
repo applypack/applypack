@@ -557,8 +557,8 @@ call that returns the keywords, alignment grades, hard-requirement gates
 and red flags — everything the score is computed from — and no edit
 suggestions. The full report runs the same rules plus the suggestions.
 Every **Compare** button in the dashboard asks for the full report. The
-quick check still runs in two places: **Save as vN** with a posting
-re-scores the saved text as a quick check (`POST /resumes/:id/draft` passes
+quick check still runs in two places: **Save a copy for this job** on the
+Tailor page re-scores the saved text as a quick check (`POST /resumes/:id/draft` passes
 no mode, and `fast` is the default), and the bench can run either shape. A
 row stored in that mode offers **Get suggestions**, which adds the
 suggestions in a second call that reuses the stored verdicts and leaves the
@@ -588,8 +588,8 @@ same progress page as any other comparison — writing a `ResumeMatch` with
 `draft = true`. **Compare this file** does the same for a freshly uploaded
 file, and neither touches the resume row: `resumeText` snapshots the judged
 text on every match, so an older run still shows the resume it actually
-judged. Older runs stay listed; the one save, **Save as vN**, is offered only
-for a resume of the user's own.
+judged. Older runs stay listed; the one save, **Save a copy for this job**, is
+offered only for a resume of the user's own.
 
 Each suggestion is a card showing **Now** (the resume's own words) and
 **Proposed** (read by `resume/change-sheet.ts:proposalOf`: the action's own
@@ -613,7 +613,7 @@ it changed so the editor can outline it. What a card did is kept in
 a copy of the resume — so Undo is exact and survives a reload. Missing-keyword
 chips carry **+ add** when the term is claimable and the resume has a skills
 line shaped like a list. None of this writes to the database: the edits live in
-the editor until "Save as vN".
+the editor until "Save a copy for this job".
 
 **Apply all** (ADR 0059) does every open card at once — the changes and
 additions the gate let through, the removals while their box is ticked, the
@@ -655,9 +655,14 @@ that rendered each line, rewrites only the changed window of a line's runs,
 removes deleted paragraphs, clones the paragraph above for an inserted line,
 and passes four gates before the bytes leave (the analysed text matches the
 file, the result reads back as the edit, no math / drawing / text-box /
-hidden-run count moved, nothing skipped). **Save as vN** is the only save the
-page offers, and a refused patch saves the clean version, its flash saying why. There
-is no "save as a tailored copy": one comparison per posting used to mint one
+hidden-run count moved, nothing skipped). **Save a copy for this job** is the only save the
+page offers (ADR 0066): it keeps the tailored resume as that posting's copy —
+`tailored_resume`, one per job, downloadable from the job's page and offered as
+what the application went out with — and leaves the resume itself, its version
+and its scan alone; **Make this my base resume** on the copy is the one press
+that turns it into the resume's next version. A refused patch saves the clean
+version, its flash saying why. There
+is no row on `/resumes` per copy: one comparison per posting used to mint one
 more row on Resumes, named after the company, and the page a user opens to
 compare should not quietly fill their library. A refused patch, a PDF or a
 plain-text resume saves the clean `.docx` the Document view showed (ADR 0059),
@@ -1117,6 +1122,31 @@ started on its own are announced in one message — ready ones, then the
 postings not worth the evening — when the schedule lets a held message out;
 the Overview lists the ones ready and not yet sent. Nothing is ever submitted
 for the person.
+
+## Interview preparation (ADR 0065)
+
+The job page's **Interview** tab (`/jobs/:id?tab=interview`), for the posting
+in hand. Nothing runs on a visit.
+
+- **Your history** (`career_note`): notes about past work — a project, a
+  situation, a decision — typed, or read from a .md / .txt / .docx / .pdf
+  file, in any language. Kept once and read for every job. A note holds up
+  to 40 000 characters; one preparation reads the notes changed most
+  recently up to 120 000, and the tab says when some were left out.
+  `POST /career/notes`, `/career/notes/:id`, `/career/notes/:id/delete`.
+- **Prepare questions** (`POST /jobs/:id/interview`): pick the language the
+  interview is held in and a resume (or none, with at least one note). One
+  AI call (`interview-prep`, Resume analysis) reads the posting, the notes,
+  the resume, the confirmed skills and the last verification's company
+  snapshot, and returns 12–16 likely questions, each with why it is likely,
+  2–5 talking points, the notes it rests on, and what to recall when the
+  history lacks an answer. No web search.
+- **Checked in code:** a named source must be a note's title or the resume;
+  a figure in an answer that the person's material does not state is marked
+  "check before you say it".
+- **Stored** as one `interview_prep` row per job; preparing again replaces
+  it. When the posting or the history changes after it was written, the tab
+  says so.
 
 ## Hard out-of-scope (Phase 7+)
 

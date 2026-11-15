@@ -18,7 +18,7 @@ test('the three steps point at the best match, its comparison, then the editor',
       body: 'One AI call: the keywords the posting asks for, its must-have conditions, and the edits to make. Your plan covers it.',
       href: '/jobs/7?tab=match',
     },
-    { title: 'Tailor your resume for it', body: 'Apply the edits in the editor, save a version, download the .docx.', href: null },
+    { title: 'Tailor your resume for it', body: 'Apply the edits in the editor, save a copy, download the .docx.', href: null },
   ]);
 });
 

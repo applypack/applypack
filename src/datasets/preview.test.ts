@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { FilterProfile } from '../filter';
 import type { NormalizedJob } from '../types';
 import { parsePackSettings } from '../pack/settings';
-import { QUIET_ABOVE, defaultImportAlerts, packsUpTo, passingRows, previewCounts } from './preview';
+import { QUIET_ABOVE, defaultImportAlerts, packsUpTo, passingRows, previewCounts, setAsideWhy } from './preview';
 
 const job = (externalId: string, title: string, location = 'Remote'): NormalizedJob => ({
   companyId: 1,
@@ -99,4 +99,21 @@ test('previewCounts: a structured country hint is read like the tick reads it', 
   const hinted: NormalizedJob = { ...job('1', 'PHP Developer', 'Remote'), locationHints: { countries: ['DE'] } };
   assert.equal(previewCounts([hinted], [php], new Set()).passing, 1);
   assert.equal(previewCounts([{ ...hinted, locationHints: { countries: ['US'] } }], [php], new Set()).passing, 0);
+});
+
+test('setAsideWhy names the gates that turn new rows away, and says nothing when none does (#734)', () => {
+  const jobs = [
+    job('1', 'PHP Developer', 'Berlin, Germany'),
+    job('2', 'PHP Developer', 'Berlin, Germany'),
+    job('3', 'Junior PHP Developer', 'Berlin, Germany'),
+    job('4', 'PHP Developer', 'Remote, United States'),
+    job('5', 'Gardener', 'Berlin, Germany'),
+  ];
+  const why = setAsideWhy(jobs, [php], new Set(['2'])) ?? '';
+  assert.match(why, /1 outside your places/);
+  assert.match(why, /1 without a title keyword/);
+  assert.match(why, /1 with an excluded word in the title/);
+  assert.equal(setAsideWhy([job('1', 'PHP Developer', 'Berlin, Germany')], [php], new Set()), null);
+  // A row the source already holds is not the filter's to explain.
+  assert.equal(setAsideWhy([job('5', 'Gardener', 'Berlin, Germany')], [php], new Set(['5'])), null);
 });

@@ -96,4 +96,10 @@ test('the plan in a sentence: tasks split between engines send the reader to the
 
 test('the plan in a sentence: nothing to say when a task has no engine', () => {
   assert.equal(planSummary([]), null);
+  // An engine the list names but that cannot run here is not said to answer anything.
+  const rows = aiPlanRows(resolveAiEngine({ order: ['claude_code'] }, ENV), () => 'plan', false);
+  const idle = planSummary(rows, () => false);
+  assert.equal(idle?.notReady, true);
+  assert.match(idle?.lead ?? '', /No AI can answer yet/);
+  assert.equal(planSummary(rows, () => true)?.notReady, undefined);
 });

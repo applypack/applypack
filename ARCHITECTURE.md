@@ -327,6 +327,7 @@ src/
     page-changes.ts            ← the careers pages that changed this tick, staged for jobs/page-change-alerts.ts
 
   starter-packs/               ← web-only curated company packs (ADR 0017)
+  interview/                   ← interview preparation for one posting (ADR 0065): languages, figures, prompts are pure; prep.ts spends the AI, store.ts owns career_note and interview_prep
   pack/                        ← the application pack (ADR 0063): settings, trigger, gate, policy, tailor, view are pure; prepare.ts spends the AI, store.ts owns the rows
     catalog.json               ← segments + hand-verified (atsType, atsToken) per company
     catalog.ts                 ← zod-validated load + segment lookups (pure)
@@ -787,7 +788,7 @@ user's schedule, read in the schedule's own time zone.
 | `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |
 | `GET /jobs/:id/cover/:letterId/file/:fmt` | web | letter (edited text wins) → .docx or .pdf attachment, built in-process |
 | `POST /letter`                   | web     | job by picker / URL / paste + resume resolve → async run [fetch? → extract? → classify? → match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
-| `POST /resumes/:id/draft`        | web     | async run: `saveEdited` writes the edits into the user's .docx when the template check allows it (else a `.md` text version) → `scanResume`; with a `jobId` (Save as vN on the targeted view), `matchResumeToJob` instead while the scan runs beside it as a scan run of its own (`web/scan-run.ts:beginScan`), which the resume page shows and its Scan button joins. It passes no `mode`, so the saved text is re-scored as a quick check (`fast`) |
+| `POST /resumes/:id/draft`        | web     | async run. Without a `jobId` (the resume's own editor): `saveEdited` writes the edits into the user's .docx when the template check allows it (else the clean .docx, else a `.md` text version) as the resume's next version → `scanResume`. With a `jobId` (Save a copy for this job on the Tailor page, ADR 0066): `saveCopy` keeps the same file as that posting's copy in `tailored_resume` and leaves the resume alone, then `matchResumeToJob` scores the copy's text as a draft; it passes no `mode`, so that is a quick check (`fast`). `GET /jobs/:id/copy/file` downloads the copy; `POST /jobs/:id/copy/promote` makes it the resume's next version |
 | a request under `/static/`       | web     | `src/web/public`, served as-is (`serveStatic` in `src/web/app.ts`) |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
 | `POST /discovery/probe-now`      | web     | spawns `runDiscoveryJob` async (lock)    |

@@ -23,7 +23,7 @@ ads.
 [What it does](#what-it-does) · [What it costs](#what-it-costs) ·
 [Bring your own AI](#bring-your-own-ai) · [Employer mode](#employer-mode-screening-a-folder-of-resumes)
 
-<img src="docs/screenshots/applypack-tour.gif" alt="A 33-second tour: the Overview with matches per day, the job list ranked by fit, one posting's verdict, the resume compared with it, Apply all taking the score from 85 to 88, the resume drawn as the document with the changes marked, the fact-checked cover letter, and one resume against three postings scored 90, 85 and 0" width="900">
+<img src="docs/screenshots/applypack-tour-2.gif" alt="A 37-second tour: the Overview with matches per day, the job list ranked by fit, one posting's verdict, the resume compared with it, Apply all taking the score from 91 to 95, the resume drawn as the document with the changes marked, the fact-checked cover letter, the interview questions answered from the person's own history, and one resume against three postings scored 91, 90 and 0" width="900">
 
 <sub>Thirty-three seconds, no cuts: what matched this month, the jobs it
 ranked, one posting's verdict, your resume against it, every suggestion
@@ -75,7 +75,7 @@ install, unchanged.
   watched for changes.
 
 <div align="center">
-<img src="docs/screenshots/jobs-ranked.png" alt="Jobs: fourteen postings ranked by fit from 92 down, each with its stack, company, place, salary, status and when it was fetched" width="900">
+<img src="docs/screenshots/jobs-ranked-2.png" alt="Jobs: ten active postings ranked by fit from 95 down, each with its stack, company, place, salary, status and when it was fetched" width="900">
 </div>
 
 **Fix the resume for this posting**
@@ -92,7 +92,7 @@ install, unchanged.
   disagree with a keyword and re-level, ignore or add it.
 - **💾 Your own .docx, as the document it is.** The resume is drawn as
   your file with the edits written into it and marked; download it as
-  `.docx` or `.pdf`, or save it as v2 with the formatting intact. A PDF,
+  `.docx` or `.pdf`, or keep it as your copy for that job with the formatting intact. A PDF,
   or a layout that cannot be patched, is re-typeset as a clean
   single-column `.docx` in your own font
   ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md),
@@ -100,7 +100,7 @@ install, unchanged.
   [0059](./docs/adr/0059-the-tailor-page-edits-the-resume-as-a-document.md)).
 
 <div align="center">
-<img src="docs/screenshots/tailor-document.png" alt="Tailor resume after Apply all: the suggestion cards marked Applied on the left, and on the right the resume drawn as its own .docx with the new title, summary and two bullets highlighted, the missing keywords above it" width="900">
+<img src="docs/screenshots/tailor-document-2.png" alt="Tailor resume after Apply all: the applied edits and what a summary should say on the left, and on the right the resume drawn as its own .docx with the new summary and one bullet highlighted, the missing keywords above it" width="900">
 </div>
 
 **Send it and track it**
@@ -112,6 +112,12 @@ install, unchanged.
   months later. It stops, and says why, when the posting is closed or the
   company does not check out. Off by default; nothing is ever submitted for
   you ([ADR 0063](./docs/adr/0063-the-worker-prepares-an-application-pack.md)).
+- **🎤 Ready for the interview.** Keep what happened at work in your own
+  words, in any language: projects, hard situations, decisions. For a
+  posting, one press lists the questions it is likely to bring and what you
+  can answer from that history, in the language the interview is held in. A
+  number that is not in your notes is marked before you say it
+  ([ADR 0065](./docs/adr/0065-interview-preparation-reads-the-persons-own-history.md)).
 - **💌 A cover letter that cannot invent.** Drafted from the posting, your
   resume and the facts you confirmed, nothing else. A fact gate reads every
   claim back against that evidence; a number that is not in your resume
@@ -125,7 +131,7 @@ install, unchanged.
   the numbers come from your own database.
 
 <div align="center">
-<img src="docs/screenshots/overview-dashboard.png" alt="The Overview: four status cards with their last two weeks, a chart of 138 matches over 30 days up 45 percent, the search funnel from 11,813 read to 138 alerted, pipeline health, recent activity and jobs by stack" width="900">
+<img src="docs/screenshots/overview-dashboard-2.png" alt="The Overview: four status cards with their last two weeks, a chart of 136 matches over 30 days up 36 percent, the search funnel from 11,523 read to 136 alerted, pipeline health, recent activity and jobs by stack" width="900">
 </div>
 
 Underneath: a five-step first run that ends with your first matches, seven

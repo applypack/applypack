@@ -149,7 +149,7 @@ bump `v`, so older rows read as no facts instead of wrong ones.
 
 ## Verified (2026-10-29)
 
-Migration `20261029120000_job_score_fit_facts`. Live check on a used install:
+Migration `20261115140000_job_score_fit_facts`. Live check on a used install:
 26 postings re-classified through the job page's Re-classify (26 calls, all
 answered, about 4.3 s each), facts on every row; 20 of them matches with 13
 distinct values, the top one alone. With one weight changed (a level one step

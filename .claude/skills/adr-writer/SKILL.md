@@ -123,6 +123,8 @@ of truth when the two disagree.
 - 0062 Rows the user brings are read from what they hand over, and nothing is fetched
 - 0063 The worker prepares an application pack for a strong new match *(amends 0008)*
 - 0064 The classifier reports facts, and code computes the fit score *(amends 0028)*
+- 0065 Interview preparation reads the person's own history, for one posting
+- 0066 A tailored copy belongs to its posting; the resume changes from its own page
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

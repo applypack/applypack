@@ -263,3 +263,13 @@ their desk was refused by every site that bans GPTBot.
 
 `Content-Signal: ai-input=no` still refuses a local-only install: it speaks
 about the act — an AI reading the page — not about whose crawler does it.
+
+## Addendum (2026-11-15): a large batch opens on "Matches only"
+
+The preview preselected "Every posting" whatever the size of the boards. On
+one Greenhouse board with 251 postings that is 251 AI calls behind one press
+of **Add**, with the warning in a hint beside the button (#728). The preview
+now opens on "Matches only" when the batch has more than 30 postings up
+(`watchlist/verdict.ts:defaultAlertPolicy`, `EVERY_POSTING_CEILING`) and says
+so; a small batch still opens on "Every posting". The select, the stored
+policy and what each policy does are unchanged.

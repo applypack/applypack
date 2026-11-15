@@ -100,3 +100,13 @@ JSON into `dist/`, so the Docker image needs no extra `COPY`.
   job-count check only — Workable 429'd every retry of the title read.
   Both slugs are unambiguous, and a wrong guess is visible in the preview
   before anything is inserted.
+
+## Addendum (2026-11-15): the preview may add a pack switched on
+
+A pack took three presses before anything was read: Preview, Add, Enable all
+(#545). The preview's main button is now **Add and switch on**; **Add,
+switched off** stays beside it. The reason boards landed off — a whole pack
+going live inside one tick would swamp the classifier — is weaker than it
+was when written: the base filter turns most of a board's postings away
+before any AI, and the preview says what switching on costs. Whoever wants
+to pick boards one by one still adds them off.

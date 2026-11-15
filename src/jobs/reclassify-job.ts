@@ -49,9 +49,9 @@ export async function countReclassifyAll(): Promise<number> {
   return prisma.job.count({ where: await passScope() });
 }
 
-/** Every job a pass reads: none applied to, and none at a muted company — a mute promises no AI on them (ADR 0056). */
+/** Every job a pass reads: none applied to, none pasted for a screening (#567), and none at a muted company — a mute promises no AI on them (ADR 0056). */
 async function passScope() {
-  return { status: { not: JobStatus.APPLIED }, ...withoutMuted(await mutedKeys()) };
+  return { status: { not: JobStatus.APPLIED }, forScreening: false, ...withoutMuted(await mutedKeys()) };
 }
 
 /**

@@ -10,6 +10,7 @@ import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { companyForPage, withoutMuted } from '../../employer';
+import { rowsToRead, withoutCopies } from '../copies';
 import { mutedKeys } from '../../jobs/employer-store';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { readStackParam } from '../overview-numbers';
@@ -17,6 +18,7 @@ import { loadOverviewStats } from '../overview-stats';
 import { preferredPlaces } from '../place-line';
 import { DEFAULT_RANGE, isRangeKey } from '../stats-series';
 import { nextThings, type NextThing } from '../next-things';
+import { canStartWatch, setupLeft, type SetupLeftFacts } from '../setup-left';
 import { countReadyPacks, listReadyPacks } from '../../pack/store';
 import { spendHint } from '../cost-hint';
 
@@ -55,7 +57,8 @@ overviewRoute.get('/', async (c) => {
   const rangeParam = c.req.query('range');
   const range = isRangeKey(rangeParam) ? rangeParam : DEFAULT_RANGE;
   // The numbers link to /jobs, which hides a muted company's rows (ADR 0056): they count what it shows.
-  const unmuted = withoutMuted(await mutedKeys()) ?? {};
+  // …and never a posting pasted for a screening (#567).
+  const unmuted: Prisma.JobWhereInput = { ...withoutMuted(await mutedKeys()), forScreening: false };
   const [countsRows, recentMatches, latestRunRows, stats, searches] = await Promise.all([
     prisma.job.groupBy({
       by: ['status'],
@@ -67,7 +70,8 @@ overviewRoute.get('/', async (c) => {
       where: { status: { in: [JobStatus.ALERTED, JobStatus.NEW] }, fitScore: { not: null }, ...unmuted },
       // Postgres sorts NULL first in DESC: an unalerted match goes by when it was found, after the alerts.
       orderBy: [{ alertedAt: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }],
-      take: RECENT_LIMIT,
+      // More than the list shows: a posting several sources carry is folded into one below (#529).
+      take: rowsToRead(RECENT_LIMIT),
       // The columns a row draws and no more: the page refreshes every 30 seconds,
       // and `include` carried eight descriptions with it each time.
       select: {
@@ -84,6 +88,8 @@ overviewRoute.get('/', async (c) => {
         status: true,
         employer: true,
         company: { select: { name: true, atsType: true } },
+        crossListedOfJobId: true,
+        crossListedOf: { select: { title: true } },
       },
     }),
     Promise.all(
@@ -115,7 +121,7 @@ overviewRoute.get('/', async (c) => {
   return c.html(
     <OverviewPage
       counts={counts}
-      recentMatches={recentMatches}
+      recentMatches={withoutCopies(recentMatches, RECENT_LIMIT)}
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
       sleepingUntil={sleepingUntil}
@@ -125,6 +131,7 @@ overviewRoute.get('/', async (c) => {
       places={preferredPlaces(searches)}
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
+      left={await loadSetupLeft({ aiReady: facts.aiReady, searchReady: facts.profileReady, fetchingEnabled: settings.fetchingEnabled })}
       next={await loadNextThings(unmuted)}
       unscored={await loadUnscored()}
       readyPacks={await listReadyPacks(READY_PACKS_SHOWN)}
@@ -143,6 +150,13 @@ overviewRoute.get('/', async (c) => {
  */
 /** The packs the Overview lists; the rest are a click away on the Jobs page. */
 const READY_PACKS_SHOWN = 8;
+
+/** The what-is-left card's rows (#716): one count beside the facts the page already holds. */
+async function loadSetupLeft(known: Omit<SetupLeftFacts, 'hasResume'>): Promise<{ rows: NonNullable<ReturnType<typeof setupLeft>>; canStart: boolean } | null> {
+  const facts = { ...known, hasResume: (await prisma.resume.count({ where: { hidden: false } })) > 0 };
+  const rows = setupLeft(facts);
+  return rows && { rows, canStart: canStartWatch(facts) };
+}
 
 async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[] | null> {
   const comparisons = await prisma.resumeMatch.count();

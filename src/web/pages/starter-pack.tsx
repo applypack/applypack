@@ -224,7 +224,10 @@ export const StarterPackPreviewPage: FC<{
             </Hint>
             <ResolvedTable entries={preview.toAdd} selectable />
             <div class="mt-4">
-              <Button>{t('packs.addN', { n: preview.toAdd.length })}</Button>
+              <div class="flex flex-wrap items-center gap-2">
+                <Button name="enable" value="1">{t('packs.addOn')}</Button>
+                <Button variant="secondary">{t('packs.addOff')}</Button>
+              </div>
             </div>
           </>
         )}

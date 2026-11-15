@@ -43,6 +43,19 @@ export function firstCheckSize(resolutions: Resolution[]): { boards: number; pos
   return { boards, postings };
 }
 
+/** Past this many postings on the first check, "Every posting" is rarely what the person means (#728). */
+export const EVERY_POSTING_CEILING = 30;
+
+/**
+ * The alert policy the preview opens with. "Every posting" is the point of a
+ * watchlist for a small company; on a board of hundreds it is hundreds of AI
+ * calls on one press of Add, so a large batch opens on "Matches only". The
+ * select stays, and so does the sentence that says what the first check costs.
+ */
+export function defaultAlertPolicy(postings: number): 'all' | 'matches' {
+  return postings > EVERY_POSTING_CEILING ? 'matches' : 'all';
+}
+
 /** One line for the progress list: what was found, or why nothing was. */
 export function verdictLine(r: Resolution): string {
   if (r.kind === 'ats' || r.kind === 'feed') return verdictLabel(r);
