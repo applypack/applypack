@@ -225,7 +225,16 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
   const status = (await probeAiProviders(undefined, { fresh: true }))[provider];
   const engine = AI_PROVIDER_LABELS[provider];
   if (!status.ok) return flashRedirect('/welcome?step=ai', 'warn', t('welcome.flash.keySavedNotReady', { engine, detail: status.detail.replace(/\.$/, '') }));
-  return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keySaved', { engine }));
+  // One tiny call proves the key before the step is ticked (#718): a mistyped key used to pass, and fail at the resume.
+  const test = await testAiEngine(provider);
+  if (test.ok) return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keyWorks', { engine }));
+  if (test.refused) {
+    // A key the engine refuses is not kept: the step stays open with its field, and nothing later trips over it.
+    await setAiKey(provider, '');
+    forgetAiProbe();
+    return flashRedirect('/welcome?step=ai', 'err', t('welcome.flash.keyRefused', { engine }));
+  }
+  return flashRedirect('/welcome?step=ai', 'warn', t('welcome.flash.keyUntested', { engine, reason: test.text }));
 });
 
 /**

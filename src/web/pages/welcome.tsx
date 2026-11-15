@@ -5,6 +5,7 @@ import {
   ActionForm,
   Badge,
   Button,
+  Disclosure,
   Card,
   Code,
   Field,
@@ -151,7 +152,13 @@ const STEP_TITLES = {
   matches: 'welcome.step.matches',
 } as const satisfies Record<WelcomeStep, MessageKey>;
 
-/** Plain-language setup cards for the "nothing detected" state, in the order a newcomer reads them. */
+/**
+ * Plain-language setup cards for the "nothing connected" state (#718). The two
+ * that need nothing installed come first and stand open; the ones that work
+ * through a program fold behind one line, as does a model on this computer.
+ */
+const KEY_ONLY: readonly AiProviderId[] = ['anthropic_api', 'openai_api'];
+
 const ENGINE_CARDS: { id: AiProviderId; title: MessageKey; how: MessageKey; install?: string }[] = [
   { id: 'claude_code', title: 'welcome.engine.claude_code.title', how: 'welcome.engine.claude_code.how', install: 'npm install -g @anthropic-ai/claude-code' },
   { id: 'anthropic_api', title: 'welcome.engine.anthropic_api.title', how: 'welcome.engine.anthropic_api.how' },
@@ -333,8 +340,54 @@ const LocalModelCard: FC<{ local: LocalModelView; offerInstall: boolean }> = ({ 
   );
 };
 
+/** One way to connect: what it is, then its install line, its key field, or what it says about itself right now. */
+const EngineCard: FC<{ card: (typeof ENGINE_CARDS)[number]; status: EngineStatusRow | undefined; keyButton: 'primary' | 'secondary' }> = ({ card, status, keyButton }) => (
+  <li class="rounded-md border border-line px-4 py-3">
+    <div class="text-sm font-medium text-ink">{t(card.title)}</div>
+    <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">{t(card.how)}</p>
+    {status?.missing && (
+      <p class="mt-2 text-note leading-5 text-warn">
+        {card.install
+          ? tRich('welcome.ai.installFirst', { command: card.install }, { code: asCode })
+          : t('welcome.ai.installFirstPlain')}
+      </p>
+    )}
+    {status?.keyEnvVar && !status.missing && (
+      <form
+        method="post"
+        action="/welcome/ai/key"
+        class="mt-2.5 flex flex-wrap items-end gap-2"
+      >
+        <input type="hidden" name="provider" value={card.id} />
+        <Input
+          type="password"
+          name="key"
+          required
+          autocomplete="off"
+          spellcheck="false"
+          aria-label={t('welcome.ai.keyLabel', { engine: status.label })}
+          placeholder={t('welcome.ai.keyPlaceholder')}
+          mono
+          class="min-w-[12rem] flex-1"
+        />
+        <Button variant={keyButton}>
+          {t('common.save')}
+        </Button>
+      </form>
+    )}
+    {status && !status.missing && (
+      <p data-ui="hint" class="mt-2 text-meta text-ink-faint">{t('welcome.ai.rightNow', { detail: status.detail })}</p>
+    )}
+  </li>
+);
+
 const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
   const connected = ai.engines.filter((e) => e.ok);
+  const statusOf = (id: AiProviderId) => ai.engines.find((e) => e.id === id);
+  const keyOnly = ENGINE_CARDS.filter((card) => KEY_ONLY.includes(card.id));
+  const programs = ENGINE_CARDS.filter((card) => !KEY_ONLY.includes(card.id));
+  // A program that is already here and only lacks its login is the shortest way for its owner: that group opens.
+  const programInstalled = programs.some((card) => statusOf(card.id)?.missing !== true);
   const done = steps.find((s) => s.key === 'ai')?.done ?? false;
   return (
     <StepCard n={1} step="ai" done={done}>
@@ -381,51 +434,26 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
           <p data-ui="hint" class="text-sm text-ink-muted">
             {t('welcome.ai.none')}
           </p>
-          <LocalModelCard local={ai.local} offerInstall />
-          <ul class="mt-4 grid gap-3 lg:grid-cols-2">
-            {ENGINE_CARDS.map((card) => {
-              const status = ai.engines.find((e) => e.id === card.id);
-              return (
-                <li class="rounded-md border border-line px-4 py-3">
-                  <div class="text-sm font-medium text-ink">{t(card.title)}</div>
-                  <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">{t(card.how)}</p>
-                  {status?.missing && (
-                    <p class="mt-2 text-note leading-5 text-warn">
-                      {card.install
-                        ? tRich('welcome.ai.installFirst', { command: card.install }, { code: asCode })
-                        : t('welcome.ai.installFirstPlain')}
-                    </p>
-                  )}
-                  {status?.keyEnvVar && !status.missing && (
-                    <form
-                      method="post"
-                      action="/welcome/ai/key"
-                      class="mt-2.5 flex flex-wrap items-end gap-2"
-                    >
-                      <input type="hidden" name="provider" value={card.id} />
-                      <Input
-                        type="password"
-                        name="key"
-                        required
-                        autocomplete="off"
-                        spellcheck="false"
-                        aria-label={t('welcome.ai.keyLabel', { engine: status.label })}
-                        placeholder={t('welcome.ai.keyPlaceholder')}
-                        mono
-                        class="min-w-[12rem] flex-1"
-                      />
-                      <Button variant="secondary">
-                        {t('common.save')}
-                      </Button>
-                    </form>
-                  )}
-                  {status && !status.missing && (
-                    <p data-ui="hint" class="mt-2 text-meta text-ink-faint">{t('welcome.ai.rightNow', { detail: status.detail })}</p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div class="mt-4">
+            <div class="text-label text-ink">{t('welcome.ai.simplest')}</div>
+            <p data-ui="hint" class="mt-0.5 text-note leading-5 text-ink-faint">{t('welcome.ai.simplest.hint')}</p>
+            <ul class="mt-2.5 grid gap-3 lg:grid-cols-2">
+              {keyOnly.map((card) => (
+                <EngineCard card={card} status={statusOf(card.id)} keyButton="primary" />
+              ))}
+            </ul>
+          </div>
+          <Disclosure variant="button" summary={t('welcome.ai.programs')} open={programInstalled} class="mt-4">
+            <p data-ui="hint" class="mt-2.5 text-note leading-5 text-ink-faint">{t('welcome.ai.programs.hint')}</p>
+            <ul class="mt-2.5 grid gap-3 lg:grid-cols-2">
+              {programs.map((card) => (
+                <EngineCard card={card} status={statusOf(card.id)} keyButton="secondary" />
+              ))}
+            </ul>
+          </Disclosure>
+          <Disclosure variant="button" summary={t('welcome.ai.localSummary')} open={ai.local.servers.length > 0} class="mt-3">
+            <LocalModelCard local={ai.local} offerInstall />
+          </Disclosure>
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <Button href="/welcome">{t('welcome.ai.checkAgain')}</Button>
             <Hint>
