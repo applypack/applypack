@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.67.0] — 2026-11-15
+
+### Changed
+- Tailor resume → **Save a copy for this job** (was Save as vN). The
+  tailored resume is kept as that posting's copy, in the same file a save
+  made before, and your own resume is not changed: its version, its scan
+  and the search that hunts with it stay, and the next posting starts from
+  your resume instead of the last posting's wording. The copy is on the
+  job's page with Download, Continue tailoring and **Make this my base
+  resume**, and it is offered as what the application went out with.
+  Versions saved before stay as they are (ADR 0066, #641).
+
+### Fixed
+- Checking a folder whose file was written a moment ago says the file
+  waits until it has stopped changing, not that every file was read
+  before (#743).
+
 ## [2.66.0] — 2026-11-15
 
 ### Changed
@@ -7185,6 +7202,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.67.0]: https://github.com/applypack/applypack/compare/v2.66.0...v2.67.0
 [2.66.0]: https://github.com/applypack/applypack/compare/v2.65.0...v2.66.0
 [2.65.0]: https://github.com/applypack/applypack/compare/v2.64.0...v2.65.0
 [2.64.0]: https://github.com/applypack/applypack/compare/v2.63.41...v2.64.0
