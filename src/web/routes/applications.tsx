@@ -5,8 +5,8 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
 import { getPack, markPackSent } from '../../pack/store';
-import { getResume } from '../../resume/store';
-import { appliedResumeColumns, packAsShown, readAppliedResumeChoice } from '../applied-resume';
+import { getResume, getTailoredCopy } from '../../resume/store';
+import { appliedResumeColumns, copyAsShown, packAsShown, readAppliedResumeChoice } from '../applied-resume';
 import type { MessageKey } from '../../i18n/catalog';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField } from '../flash';
 import { jobHref, resolveJobTab } from '../job-tabs';
@@ -274,8 +274,12 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   // The resume already recorded, sent back by a form that changed something else, is not recorded again:
   // the text kept is the one that went out, and the resume may have a newer version by now.
   const unchanged = choice.kind === 'keep' || (choice.kind === 'set' && choice.id === current.appliedResumeId);
-  const picked = sentPack ? await getResume(sentPack.resumeId) : choice.kind === 'set' && !unchanged ? await getResume(choice.id) : null;
-  const appliedResume = unchanged ? null : appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
+  // "The copy tailored for this job" (ADR 0066): its text is what went out, under the resume it was made from.
+  const sentCopy = choice.kind === 'copy' ? copyAsShown(await getTailoredCopy(id), choice.at) : null;
+  if (choice.kind === 'copy' && !sentCopy) return flashRedirect(jobHref(id, 'match'), 'err', t('copy.flash.changed'));
+  const sent = sentPack ?? sentCopy;
+  const picked = sent ? await getResume(sent.resumeId) : choice.kind === 'set' && !unchanged ? await getResume(choice.id) : null;
+  const appliedResume = unchanged ? null : appliedResumeColumns(picked && sent ? { ...picked, text: sent.text } : picked);
 
   const stageValue =
     pipelineStage && pipelineStage.length > 0 ? pipelineStage : null;

@@ -1,12 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  appliedResumeColumns,
-  needsAppliedResume,
-  packAsShown,
-  packChoiceValue,
-  readAppliedResumeChoice,
-} from './applied-resume';
+import { appliedResumeColumns, copyAsShown, copyChoiceValue, needsAppliedResume, packAsShown, packChoiceValue, readAppliedResumeChoice } from './applied-resume';
 
 describe('readAppliedResumeChoice', () => {
   it('an absent field says nothing — a page with no picker must not erase a record', () => {
@@ -103,4 +97,17 @@ describe('needsAppliedResume', () => {
   it('never asks about a job that was never applied to', () => {
     assert.equal(needsAppliedResume(applied), false);
   });
+});
+
+it('the copy tailored for a job is a choice of its own, named by the save the page showed (ADR 0066)', () => {
+  const saved = new Date('2026-11-15T10:00:00Z');
+  const copy = { text: 'tailored text', resumeId: 4, updatedAt: saved };
+  const value = copyChoiceValue(copy);
+  assert.equal(value, `copy-${saved.getTime()}`);
+  assert.deepEqual(readAppliedResumeChoice(value), { kind: 'copy', at: saved.getTime() });
+  assert.equal(copyChoiceValue(null), null);
+  // Still the copy the page showed: recorded. Saved again since: not that text any more.
+  assert.equal(copyAsShown(copy, saved.getTime()), copy);
+  assert.equal(copyAsShown(copy, saved.getTime() - 1), null);
+  assert.equal(copyAsShown(null, saved.getTime()), null);
 });

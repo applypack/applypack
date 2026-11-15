@@ -62,6 +62,8 @@ const MAY_404 = new Set([
   // A pack keeps a file only once the worker has prepared it (ADR 0063); nothing here runs one.
   '/jobs/:id/pack/resume.docx',
   '/jobs/:id/pack/resume.pdf',
+  // The copy Save on the Tailor page keeps (ADR 0066): the fixtures tailor nothing.
+  '/jobs/:id/copy/file',
   // Nor a state to ask for until a pack is queued; the queued one is asked below.
   '/jobs/:id/pack/state',
   // The fixture company is a pasted job's, not a folder; the folder walk below asks a real one.

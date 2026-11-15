@@ -9,7 +9,8 @@ import { reviewResume } from '../../resume/review';
 import { scanResume } from '../../resume/scan';
 import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
-import { postingForPrompt } from '../../employer';
+import { jobHref } from '../job-tabs';
+import { hiringName, postingForPrompt } from '../../employer';
 import {
   createResume,
   findResumeWithText,
@@ -32,8 +33,13 @@ import {
   saveReviewAnswer,
   setDefaultResume,
   replaceResumeBytes,
+  getTailoredCopyFile,
+  saveTailoredCopy,
+  setTailoredCopyMatch,
+  type TailoredCopy,
   versionFileName,
 } from '../../resume/store';
+import { copyFileName, copyName, type CopyDocument } from '../../resume/tailored';
 import { readAnswers, unansweredAsks } from '../../resume/answers';
 import { docxStructure, type DocxStructure } from '../../resume/docx-structure';
 import { patchDocx } from '../../resume/docx-patch';
@@ -287,77 +293,112 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // Scan and match are the slow part after it: two AI calls back to back is
   // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
-    const { resume, note, document } = await saveEdited(id, text, base);
-    // Every sentence below opens the same way: the version it was saved as, and how.
-    const saved = { version: resume.version, note };
-    // TASKS R25: the saved file — the user's own .docx written into, or the clean one — handed back.
-    const downloadUrl = document ? `/resumes/${resume.id}/download` : undefined;
-    updateRun(run.id, {
-      resumeName: resume.name,
-      subtitle: t(job ? 'resume.save.scoring' : 'resume.save.done', saved),
-    });
     let reason = '';
     const noteReason = (r: string) => {
       reason = r;
     };
     if (!job) {
+      const { resume, note, document } = await saveEdited(id, text, base);
+      // Every sentence below opens the same way: the version it was saved as, and how.
+      const saved = { version: resume.version, note };
+      // TASKS R25: the saved file — the user's own .docx written into, or the clean one — handed back.
+      const downloadUrl = document ? `/resumes/${resume.id}/download` : undefined;
+      updateRun(run.id, { resumeName: resume.name, subtitle: t('resume.save.done', saved) });
       const scan = await scanResume(resume, noteReason);
       updateRun(run.id, scan
         ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: t('resume.save.done', saved), downloadUrl }
         : { stage: 'error', error: runFailure(t('resume.save.scanFailed', saved), reason, t('resume.save.scanFailedNext')) });
       return;
     }
-    // The match reads the text, never the scan (target-plan §3.1 item 2), so
-    // the scan runs beside it — it was 63 % of a six-minute wait on a CLI
-    // engine (#168). As a scan run of its own: the resume page says it is
-    // running, and its Scan button joins it instead of paying twice (#608).
-    beginScan(resume, {
-      subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
-      onScanned: (scan) => t('resume.flash.scanned', { skills: scan.skills.length, issues: scan.issues.length }),
-      onFailed: t('resume.flash.scanFailed'),
-    }, scanResume);
-    const match = await matchResumeToJob(resume, postingForPrompt(job), { onError: noteReason });
+    // From Tailor resume: a copy for this posting. The resume is not written to, so there is nothing to scan again.
+    const { resume, copy, note } = await saveCopy(id, text, base, { id: job.id, company: hiringName(job.employer, job.company) });
+    const downloadUrl = `/jobs/${job.id}/copy/file`;
+    updateRun(run.id, { resumeName: copy.resumeName, subtitle: t('copy.save.scoring', { note }) });
+    // The copy's own comparison, as a draft of the resume it came from: the Tailor page opens it to go on.
+    const match = await matchResumeToJob({ ...resume, text: copy.text }, postingForPrompt(job), { draft: true, onError: noteReason });
+    if (match) await setTailoredCopyMatch(job.id, match.id);
     updateRun(run.id, match
       ? {
           stage: 'done',
           resultUrl: `/jobs/${job.id}/target?match=${match.id}`,
-          flash: t('resume.save.checked', { ...saved, score: match.matchScore }),
+          flash: t('copy.save.checked', { note, score: match.matchScore }),
           downloadUrl,
         }
       : {
           stage: 'error',
-          error: runFailure(t('resume.save.compareFailed', saved), reason, t('resume.save.compareFailedNext')),
+          error: runFailure(t('copy.save.compareFailed', { note }), reason, t('copy.save.compareFailedNext')),
         });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
+});
+
+/** The copy kept for a posting, as the file it was saved as (ADR 0066) — here a month later, whatever the resume has become. */
+resumesRoute.get('/jobs/:id/copy/file', async (c) => {
+  const jobId = idParam(c.req.param('id'));
+  if (!Number.isFinite(jobId)) return c.text(t('http.badId'), 400);
+  const copy = await getTailoredCopyFile(jobId);
+  if (!copy) return c.text(t('http.notFound'), 404);
+  return fileResponse(copy.file, copy.fileName, copy.mimeType);
+});
+
+/**
+ * "Make this my base resume": the one way a copy becomes the resume — what
+ * Save as vN used to do on every press. The copy's file becomes the next
+ * version of the resume it was tailored from, and the scan runs again.
+ */
+resumesRoute.post('/jobs/:id/copy/promote', async (c) => {
+  const jobId = idParam(c.req.param('id'));
+  if (!Number.isFinite(jobId)) return c.text(t('http.badId'), 400);
+  const copy = await getTailoredCopyFile(jobId);
+  if (!copy) return c.text(t('http.notFound'), 404);
+  const current = await getResume(copy.resumeId);
+  // The resume it came from was deleted since: the copy stays downloadable, and there is nothing to make it the version of.
+  if (!current || current.hidden) return flashRedirect(jobHref(jobId, 'match'), 'err', t('copy.flash.resumeGone'));
+  const ext = copy.fileName.split('.').pop() ?? 'docx';
+  const resume = await replaceResumeFile(
+    current.id,
+    { sourceFilename: versionFileName(current.name, current.version + 1, ext), mimeType: copy.mimeType, original: Buffer.from(copy.file), text: copy.text },
+    true,
+  );
+  beginScan(resume, {
+    subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
+    onScanned: (scan) => t('resume.flash.scanned', { skills: scan.skills.length, issues: scan.issues.length }),
+    onFailed: t('resume.flash.scanFailed'),
+  }, scanResume);
+  return flashRedirect(`/resumes/${resume.id}`, 'ok', t('copy.flash.promoted', { name: resume.name, version: resume.version }));
 });
 
 function isDocx(filename: string): boolean {
   return /\.docx$/i.test(filename);
 }
 
+/** What the editor's text becomes as a file: the bytes, the text they hold, and how they were made. */
+interface EditedFile {
+  current: ResumeSummary;
+  payload: { sourceFilename: string; mimeType: string; original: Buffer; text: string };
+  note: string;
+  document: CopyDocument;
+}
+
 /**
- * Save the editor's text as the next version of the resume — as a document,
- * never as a Markdown file. When the file is a .docx the template check
- * allows, the user's own file is patched with the edits (ADR 0038); otherwise
- * the version is the clean .docx the Tailor page's document pane drew, in the
- * typeface read off the file it replaces (ADR 0039), and `note` says why. A
- * text version is left only for a clean file that would drop a line.
- *
- * There is no "save as a tailored copy" any more: one comparison per posting
- * used to mint one more row on /resumes, named after the company, and a user
- * with four applications had eight resumes and no idea which was theirs.
+ * The editor's text as a document, never as a Markdown file when one can be
+ * made. When the file is a .docx the template check allows, the user's own
+ * file is patched with the edits (ADR 0038); otherwise it is the clean .docx
+ * the Tailor page's document pane drew, in the typeface read off the file it
+ * comes from (ADR 0039), and `note` says why. Text alone is left only for a
+ * clean file that would drop a line. Nothing is written here: the caller
+ * keeps it as the copy for a posting, or as the resume's next version.
  */
-async function saveEdited(
+async function editedFile(
   id: number,
   text: string,
   base: Pick<DraftInput, 'baseText' | 'draft'>,
-): Promise<{ resume: ResumeSummary; note: string; document: boolean }> {
+  fileName: (current: ResumeSummary, ext: string) => string,
+): Promise<EditedFile> {
   const [current, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!current) throw new Error(`resume ${id} is gone`);
-  const nextVersion = current.version + 1;
-  const name = current.name;
-  let file: { sourceFilename: string; mimeType: string; original: Buffer; text: string } | null = null;
+  let file: EditedFile['payload'] | null = null;
+  let document: CopyDocument = 'text';
   let why = row && /\.pdf$/i.test(row.sourceFilename) ? t('resume.save.why.pdf') : t('resume.save.why.text');
   if (row && isDocx(row.sourceFilename)) {
     const original = Buffer.from(row.original);
@@ -367,7 +408,8 @@ async function saveEdited(
       const patched = await patchDocx(original, patchBase(original, base), text);
       if (patched.ok) {
         const r = patched.report;
-        file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };
+        file = { sourceFilename: fileName(current, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };
+        document = 'own';
         why = t('resume.save.why.patched', { changed: r.changed, added: r.added, removed: r.removed });
         logger.info({ id, ...r, bytes: patched.docx.length }, 'resume: docx patched');
       } else {
@@ -381,21 +423,54 @@ async function saveEdited(
     const style = row ? await resumeStyle(current, row) : undefined;
     const clean = await cleanDocx(text, knobsFrom(style), style?.layout ?? null);
     if (clean.missing.length === 0) {
-      file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: clean.docx, text: clean.text };
+      file = { sourceFilename: fileName(current, 'docx'), mimeType: DOCX_MIME, original: clean.docx, text: clean.text };
+      document = 'clean';
       note = t('resume.save.note.clean', { why });
     } else {
       note = t('resume.save.note.text', { why, n: clean.missing.length });
       logger.info({ id, missing: clean.missing.slice(0, 3) }, 'resume: clean save would drop lines');
     }
   }
-  const payload = file ?? {
-    sourceFilename: versionFileName(name, nextVersion, 'md'),
-    mimeType: 'text/markdown',
-    original: Buffer.from(text, 'utf8'),
-    text,
-  };
+  const payload = file ?? { sourceFilename: fileName(current, 'md'), mimeType: 'text/markdown', original: Buffer.from(text, 'utf8'), text };
+  return { current, payload, note, document };
+}
+
+/** The resume's own page: the editor's text as the next version of the resume. */
+async function saveEdited(
+  id: number,
+  text: string,
+  base: Pick<DraftInput, 'baseText' | 'draft'>,
+): Promise<{ resume: ResumeSummary; note: string; document: boolean }> {
+  const edited = await editedFile(id, text, base, (current, ext) => versionFileName(current.name, current.version + 1, ext));
   // Written here, so the file the person uploaded stays downloadable beside it (#590).
-  return { resume: await replaceResumeFile(id, payload, true), note, document: file !== null };
+  return { resume: await replaceResumeFile(id, edited.payload, true), note: edited.note, document: edited.document !== 'text' };
+}
+
+/**
+ * The Tailor page's Save (ADR 0066): the editor's text kept as the copy for
+ * this posting. The resume — its version, its scan, the search that hunts
+ * with it — is not written to, so the next posting starts from the person's
+ * own resume and not from this one's wording (#641).
+ */
+async function saveCopy(
+  id: number,
+  text: string,
+  base: Pick<DraftInput, 'baseText' | 'draft'>,
+  job: { id: number; company: string | null },
+): Promise<{ resume: ResumeSummary; copy: TailoredCopy; note: string }> {
+  const edited = await editedFile(id, text, base, (current, ext) => copyFileName(current.name, job.company, ext));
+  const copy = await saveTailoredCopy({
+    jobId: job.id,
+    resumeId: id,
+    resumeName: copyName(edited.current.name, job.company),
+    baseVersion: edited.current.version,
+    text: edited.payload.text,
+    file: edited.payload.original,
+    fileName: edited.payload.sourceFilename,
+    mimeType: edited.payload.mimeType,
+    document: edited.document,
+  });
+  return { resume: edited.current, copy, note: edited.note };
 }
 
 /**

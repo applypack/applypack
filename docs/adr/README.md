@@ -78,6 +78,7 @@ gets a dated addendum at the end of the ADR.
 - [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
 - [0063 — The worker prepares an application pack for a strong new match](./0063-the-worker-prepares-an-application-pack.md) *(amends 0008)*
 - [0065 — Interview preparation reads the person's own history, for one posting](./0065-interview-preparation-reads-the-persons-own-history.md)
+- [0066 — A tailored copy belongs to its posting; the resume changes from its own page](./0066-a-tailored-copy-belongs-to-its-posting.md)
 
 ## When to write a new one
 

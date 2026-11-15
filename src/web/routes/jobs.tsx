@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
-import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
+import { appliedResumeColumns, copyAsShown, copyChoiceValue, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
   jobsHref,
   parsePlaces,
@@ -64,6 +64,7 @@ import {
   getLatestCompanySnapshot,
   getMatch,
   getResume,
+  getTailoredCopy,
   listCoverLettersForJob,
   listFacts,
   listMatchesForJob,
@@ -525,6 +526,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
   // ?match=<id> shows another comparison; default is the linked resume's latest (shownMatch). Same for ?letter.
   const requestedMatch = idParam(c.req.query('match'));
   const applicationPack = await loadPackView(id, job.url);
+  // The copy Save on the Tailor page kept for this posting (ADR 0066).
+  const tailoredCopy = await getTailoredCopy(id);
   const selected = shownMatch(matches, requestedMatch, linkedResumeId);
   const requestedLetter = idParam(c.req.query('letter'));
   const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
@@ -574,7 +577,10 @@ jobsRoute.get('/jobs/:id', async (c) => {
         resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
         suggestedId: appliedPick?.id ?? null,
         packValue: packChoiceValue(applicationPack.pack),
+        copyValue: copyChoiceValue(tailoredCopy),
+        copyName: tailoredCopy?.resumeName ?? null,
       }}
+      tailoredCopy={tailoredCopy}
       profileScores={job.scores.map((sc) => ({
         profileId: sc.profileId,
         name: sc.profile.name,
@@ -685,9 +691,13 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
       // Prepared again since the page was drawn, or not ready: its file is not the one the person looked at.
       if (!sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
     }
-    const requested = sentPack?.resumeId ?? parsed.data.appliedResumeId;
+    // "The copy tailored for this job" (ADR 0066): the same rule — what went out is the copy's text.
+    const sentCopy = choice.kind === 'copy' ? copyAsShown(await getTailoredCopy(id), choice.at) : null;
+    if (choice.kind === 'copy' && !sentCopy) return flashRedirect(jobHref(id, 'match'), 'err', t('copy.flash.changed'));
+    const sent = sentPack ?? sentCopy;
+    const requested = sent?.resumeId ?? parsed.data.appliedResumeId;
     const picked = requested ? await getResume(requested) : null;
-    const columns = appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
+    const columns = appliedResumeColumns(picked && sent ? { ...picked, text: sent.text } : picked);
     data.appliedResume = columns.appliedResumeId
       ? { connect: { id: columns.appliedResumeId } }
       : { disconnect: true };
@@ -1221,6 +1231,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       verification={verifications[0] ?? null}
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
+      tailoredCopy={resume.hidden ? null : await getTailoredCopy(id)}
       seed={seed}
       packScore={seed ? (pack?.scoreAfter ?? null) : null}
       rebuildCost={await spendHint('resume-match')}
