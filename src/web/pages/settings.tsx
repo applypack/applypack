@@ -56,6 +56,7 @@ import { retentionChoices } from '../retention-choices';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { placeExtrasSet, searchScheduleIsDefault, splitEngines } from '../settings-fold';
 import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
@@ -443,6 +444,9 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
           {nextFetch ? t('settings.scheduleWithNext', { schedule: describeSchedule(s), next: nextFetch }) : describeSchedule(s)}
         </Hint>
       </div>
+      {/* The line above already says the schedule; its controls wait behind one press while it is the default (#720). */}
+      <Disclosure variant="quiet" summary={t('settings.changeSchedule')} open={!searchScheduleIsDefault(s)}>
+      <div class="mt-3 space-y-3">
       <div class="flex flex-wrap items-end gap-3">
         <Field label={t('settings.howOften')} class="w-44">
           <Select name="fetchEvery">
@@ -460,6 +464,8 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
       <ZoneLine zone={view.zone} />
       <Hint>{t('settings.fetchNowIgnoresTheSchedule')}</Hint>
       <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
+      </div>
+      </Disclosure>
     </form>
   );
 };
@@ -1419,11 +1425,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         </div>
         {/* The engines are rows of the section, a hairline between each — the
             priority badge says where each stands, so none needs a box. */}
-        <div class="divide-y divide-line border-t border-line">
-          {aiEngines.map((e) => (
-            <AiEngine engine={e} />
-          ))}
-        </div>
+        <EngineList engines={aiEngines} />
       </Section>
 
       <Section
@@ -1947,6 +1949,33 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
  * section draws the hairline between engines, so nothing inside one draws
  * another — a rule above the model pickers would read as the next engine.
  */
+/**
+ * The engines as rows of the section, a hairline between each. One nobody chose
+ * and that cannot run here waits behind one press (#720); with none in sight
+ * that can run, those stand open — they are the way out.
+ */
+const EngineList: FC<{ engines: AiEngineRow[] }> = ({ engines }) => {
+  const { shown, folded, open } = splitEngines(engines);
+  return (
+    <>
+      <div class="divide-y divide-line border-t border-line">
+        {shown.map((e) => (
+          <AiEngine engine={e} />
+        ))}
+      </div>
+      {folded.length > 0 && (
+        <Disclosure variant="button" summary={t('settings.otherEngines', { n: folded.length })} open={open} class="border-t border-line pt-4">
+          <div class="mt-2 divide-y divide-line">
+            {folded.map((e) => (
+              <AiEngine engine={e} />
+            ))}
+          </div>
+        </Disclosure>
+      )}
+    </>
+  );
+};
+
 const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <Card variant="flat" class={`py-5 last:pb-0 ${e.enabled || e.lastResort ? '' : 'opacity-75'}`}>
     <div class="flex flex-wrap items-center gap-2">
@@ -2213,6 +2242,8 @@ const ProfileEditor: FC<{
   sent?: ProfileSentText | null;
   reclassifyQuestion: string;
 }> = ({ profile, availableTargets, resumes, draft, sent, reclassifyQuestion }) => {
+  // A draft from a resume, or a save that was refused, is read before it is kept: nothing of it stays folded (ADR 0015).
+  const reviewing = Boolean(draft) || Boolean(sent);
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
   // Open the advanced block only when free-form content lives in it. The alert
   // destination deliberately doesn't count: one picked target is not something
@@ -2291,14 +2322,19 @@ const ProfileEditor: FC<{
         chipLabel={techLabel}
         placeholder={t('settings.phpLaravelMysql')}
       />
-      <TagListInput
-        label={t('settings.stackNiceToHave')}
-        hint={t('settings.raiseTheFitScoreWhen')}
-        name="stackNiceToHave"
-        values={profile.stackNiceToHave}
-        chipLabel={techLabel}
-        placeholder={t('settings.dockerAws')}
-      />
+      {/* Secondary to the three above: one press away, with how many are set on the closed line (#720). */}
+      <Disclosure variant="quiet" summary={t('settings.stackNiceToHave')} count={profile.stackNiceToHave.length} open={reviewing}>
+        <div class="mt-2">
+          <TagListInput
+            label={t('settings.stackNiceToHave')}
+            hint={t('settings.raiseTheFitScoreWhen')}
+            name="stackNiceToHave"
+            values={profile.stackNiceToHave}
+            chipLabel={techLabel}
+            placeholder={t('settings.dockerAws')}
+          />
+        </div>
+      </Disclosure>
     </fieldset>
 
     <fieldset class="space-y-3">
@@ -2325,6 +2361,9 @@ const ProfileEditor: FC<{
         rows={2}
         picker="countries"
       />
+      {/* Regions tick open by themselves when one is set: a place the search hunts in is never out of sight. */}
+      <Disclosure variant="quiet" summary={t('settings.morePlaces')} count={placeExtrasSet(profile)} open={reviewing || profile.regions.length > 0}>
+      <div class="mt-3 space-y-3">
       <div>
         <div class="text-label text-ink">{t('settings.regions')}</div>
         <Hint class="mt-0.5">{t('settings.aGroupCountsAsA')}</Hint>
@@ -2366,6 +2405,8 @@ const ProfileEditor: FC<{
           ))}
         </div>
       </div>
+      </div>
+      </Disclosure>
     </fieldset>
 
     {/* The two numbers that decide what reaches you sit in sight; before 2.54 they hid under Advanced. */}
