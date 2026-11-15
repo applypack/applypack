@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.66.0] — 2026-11-15
+
+### Changed
+- Watching specific companies: a batch whose boards hold more than 30
+  postings opens on "Matches only", so one large board is no longer
+  hundreds of AI calls behind one press of Add. Either choice is still
+  yours (#728).
+- The previews of **Import a file** and **A folder on this computer** name
+  the reasons the filter sets rows aside, before anything is imported (#734).
+- Interview preparation: a figure in an answer that the posting states and
+  your history does not gets its own line, "From the posting, not from your
+  history", apart from the figures nobody states (#734).
+- "Is it real?": the verdict and each signal are worded in the interface's
+  language (#730).
+- Spanish and French read in full: 154 corrections; both stay marked beta
+  (#732).
+- Setup no longer speaks of Docker mounts, and Settings → AI & costs warns
+  that no AI can answer yet where it used to say an unavailable engine
+  answers every task (#736).
+- The website names interview preparation, application packs, imports and
+  the interface languages (#725).
+- Dependencies: unpdf 2.1, @anthropic-ai/sdk 1.8, docx 9.15.3, hono 4.13.18,
+  @hono/node-server 2.1.7, dotenv 18.0.10.
+
+### Fixed
+- A technology chip reads "Tailwind CSS", not "Tailwind Css" (#727).
+
 ## [2.65.0] — 2026-11-15
 
 ### Changed
@@ -7158,6 +7185,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.66.0]: https://github.com/applypack/applypack/compare/v2.65.0...v2.66.0
 [2.65.0]: https://github.com/applypack/applypack/compare/v2.64.0...v2.65.0
 [2.64.0]: https://github.com/applypack/applypack/compare/v2.63.41...v2.64.0
 [2.63.41]: https://github.com/applypack/applypack/compare/v2.63.40...v2.63.41
