@@ -161,7 +161,7 @@ const IDENT = /^(?:[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*|[A-Z][A-Z0-9]*_[A-Z0-9_]+|[A-
 function codeWords(): Set<string> {
   const code = FILES.filter(
     (f) =>
-      (/^(src|prisma|\.github)\//.test(f) || ['package.json', 'tailwind.config.js', '.env.example'].includes(f)) &&
+      (/^(src|prisma|\.github)\//.test(f) || ['package.json', 'tailwind.config.js', '.env.example', 'Dockerfile', 'docker-compose.yml'].includes(f)) &&
       f !== 'src/docs-paths.test.ts' &&
       // An applied migration keeps the names it renamed away from.
       !f.startsWith('prisma/migrations/') &&
