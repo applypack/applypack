@@ -6,6 +6,8 @@ import {
   formatPriorityRulesText,
   parsePriorityRules,
   parsePriorityRulesText,
+  ruleRows,
+  rulesTextFromRows,
   ruleMatches,
   type PriorityRule,
 } from './priority-rules';
@@ -474,5 +476,43 @@ describe('applyPriorityFloor', () => {
     );
     assert.equal(out.applied.length, 0);
     assert.strictEqual(out.classification, c);
+  });
+});
+
+describe('the editor rows (#560)', () => {
+  it('reads rows as the text the save parses', () => {
+    const text = rulesTextFromRows({
+      ruleLabel: ['PHP remote', '', ''],
+      ruleTechs: ['php, laravel', 'go', ''],
+      ruleRegions: ['Remote US', '', ''],
+      ruleFloor: ['90', '85', ''],
+    });
+    assert.equal(text, 'PHP remote | php, laravel | Remote US | 90\ngo | go |  | 85');
+    const { rules, errors } = parsePriorityRulesText(text ?? '');
+    assert.equal(errors.length, 0);
+    assert.deepEqual(rules.map((r) => [r.label, r.techsAny, r.regionsAny, r.minFitFloor]), [
+      ['PHP remote', ['php', 'laravel'], ['Remote US'], 90],
+      ['go', ['go'], [], 85],
+    ]);
+  });
+
+  it('drops a ticked row, keeps a pipe out of a field and says nothing for a form without rows', () => {
+    assert.equal(rulesTextFromRows({ ruleTechs: ['php', 'go'], ruleFloor: ['90', '80'], ruleRemove: '0' }), 'go | go |  | 80');
+    assert.equal(rulesTextFromRows({ ruleLabel: 'a | b', ruleTechs: 'php', ruleFloor: '90' }), 'a   b | php |  | 90');
+    assert.equal(rulesTextFromRows({ name: 'x' }), null);
+    assert.equal(rulesTextFromRows({ ruleTechs: '' }), '');
+  });
+
+  it('refuses a rule with no number instead of reading it as 0', () => {
+    const { rules, errors } = parsePriorityRulesText(rulesTextFromRows({ ruleTechs: 'php', ruleFloor: '' }) ?? '');
+    assert.equal(rules.length, 0);
+    assert.equal(errors.length, 1);
+  });
+
+  it('shows a refused line as it was typed', () => {
+    assert.deepEqual(ruleRows('Elixir | elixir | Worldwide | high\n# note\n\nonly'), [
+      { label: 'Elixir', techs: 'elixir', regions: 'Worldwide', floor: 'high' },
+      { label: 'only', techs: '', regions: '', floor: '' },
+    ]);
   });
 });

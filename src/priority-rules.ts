@@ -11,6 +11,7 @@
  */
 import { z } from 'zod';
 import { t } from './i18n/t';
+import { toStringArray } from './text-utils';
 import type { ClaudeClassification } from './types';
 
 const PriorityRuleSchema = z.object({
@@ -165,6 +166,7 @@ export function parsePriorityRulesText(input: string): {
       continue;
     }
     if (
+      floorRaw === '' ||
       !Number.isFinite(minFitFloor) ||
       minFitFloor < 0 ||
       minFitFloor > 100
@@ -194,6 +196,51 @@ export function formatPriorityRulesText(rules: PriorityRule[]): string {
     )
     .join('\n');
 }
+
+/** One rule as the editor's row holds it: four fields of text (#560). */
+export interface RuleRow {
+  label: string;
+  techs: string;
+  regions: string;
+  floor: string;
+}
+
+/** The text format's lines as rows, read leniently: a line the save would refuse still shows what was typed. */
+export function ruleRows(text: string): RuleRow[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'))
+    .map((line) => {
+      const [label = '', techs = '', regions = '', floor = ''] = line.split('|').map((s) => s.trim());
+      return { label, techs: splitCsv(techs).join(', '), regions: splitCsv(regions).join(', '), floor };
+    });
+}
+
+/**
+ * The editor's rows (`ruleLabel`, `ruleTechs`, `ruleRegions`, `ruleFloor`, one
+ * value per row, and `ruleRemove` with the rows ticked for removal) as the
+ * text `parsePriorityRulesText` reads, so the save and its refusal stay one
+ * path. A row left wholly empty is no rule; a rule with no name is named by
+ * its technologies. Null when the form carries no rows at all.
+ */
+export function rulesTextFromRows(form: Readonly<Record<string, unknown>>): string | null {
+  if (form.ruleTechs === undefined) return null;
+  const column = (name: string): string[] => toStringArray(form[name]).map((v) => v.replace(/[|\r\n]+/g, ' ').trim());
+  const [labels, techs, regions, floors] = [column('ruleLabel'), column('ruleTechs'), column('ruleRegions'), column('ruleFloor')];
+  const removed = new Set(toStringArray(form.ruleRemove));
+  const lines: string[] = [];
+  for (let i = 0; i < techs.length; i++) {
+    const row = { label: labels[i] ?? '', techs: techs[i] ?? '', regions: regions[i] ?? '', floor: floors[i] ?? '' };
+    if (removed.has(String(i))) continue;
+    if (!row.label && !row.techs && !row.regions && !row.floor) continue;
+    lines.push(`${row.label || row.techs.slice(0, MAX_AUTO_LABEL)} | ${row.techs} | ${row.regions} | ${row.floor}`);
+  }
+  return lines.join('\n');
+}
+
+/** A rule named after its technologies keeps this much of them. */
+const MAX_AUTO_LABEL = 60;
 
 function splitCsv(input: string): string[] {
   return input
