@@ -190,10 +190,15 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
           )}
           {pack.status === 'stopped' && (
             <Notice tone="warn">
-              <strong class="font-medium">{stopTitle(pack.stop)}</strong> {pack.why}
+              {/* The reason is a sentence the worker stored when it ran, in the language of that run: data on this page. */}
+              <strong class="font-medium">{stopTitle(pack.stop)}</strong> <span translate="no">{pack.why}</span>
             </Notice>
           )}
-          {pack.status === 'ready' && pack.why && <Notice tone="warn">{pack.why}</Notice>}
+          {pack.status === 'ready' && pack.why && (
+            <Notice tone="warn">
+              <span translate="no">{pack.why}</span>
+            </Notice>
+          )}
           {pack.status === 'ready' && edits.checks.length > 0 && (
             <Notice tone="warn">{t('pack.card.checksFailed', { checks: edits.checks.join(', ') })}</Notice>
           )}
