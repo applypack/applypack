@@ -48,7 +48,7 @@ export function toPickOption(job: PickRow, note: string | null, now = Date.now()
 export async function listPickableJobs(include: number | null = null): Promise<JobPickOption[]> {
   const profile = await getActiveProfile();
   const fitting = await prisma.job.findMany({
-    where: { status: { in: PICKABLE }, ...(profile ? { fitScore: { gte: profile.minFitScore } } : {}) },
+    where: { status: { in: PICKABLE }, forScreening: false, ...(profile ? { fitScore: { gte: profile.minFitScore } } : {}) },
     orderBy: [{ fetchedAt: 'desc' }],
     take: JOB_PICK_LIMIT,
     select: PICK_SELECT,
@@ -59,7 +59,7 @@ export async function listPickableJobs(include: number | null = null): Promise<J
     fitting.length > 0
       ? fitting
       : await prisma.job.findMany({
-          where: { status: { in: PICKABLE } },
+          where: { status: { in: PICKABLE }, forScreening: false },
           orderBy: [{ fetchedAt: 'desc' }],
           take: JOB_PICK_LIMIT,
           select: PICK_SELECT,
