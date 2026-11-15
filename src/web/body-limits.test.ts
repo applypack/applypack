@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { hasOwnBodyLimit } from './body-limits';
 
 test('the upload routes keep their own ceiling; everything else gets the default', () => {
-  for (const p of ['/resumes', '/resumes/3/replace', '/resumes/3/compare-format', '/target', '/letter', '/jobs/7/target/reupload', '/settings/profiles/2/fill-from-resume', '/welcome/resume', '/screen', '/screen/9/applicants']) {
+  for (const p of ['/resumes', '/resumes/3/replace', '/resumes/3/compare-format', '/target', '/letter', '/jobs/7/target/reupload', '/settings/profiles/2/fill-from-resume', '/welcome/resume', '/screen', '/screen/9/applicants', '/career/notes']) {
     assert.equal(hasOwnBodyLimit('POST', p), true, p);
   }
-  for (const p of ['/jobs/new', '/jobs/7/description', '/resumes/3/draft', '/screen/9/posting', '/settings/profiles/2/save', '/resumes/3']) {
+  for (const p of ['/jobs/new', '/jobs/7/description', '/resumes/3/draft', '/screen/9/posting', '/settings/profiles/2/save', '/resumes/3', '/career/notes/4']) {
     assert.equal(hasOwnBodyLimit('POST', p), false, p);
   }
   assert.equal(hasOwnBodyLimit('GET', '/resumes'), false);

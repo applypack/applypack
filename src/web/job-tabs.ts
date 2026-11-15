@@ -6,7 +6,7 @@ import { t } from '../i18n/t';
  * rail (status, details, application tracking) rides on all of them.
  */
 
-export const JOB_TABS = ['posting', 'match', 'letter', 'verify', 'pack'] as const;
+export const JOB_TABS = ['posting', 'match', 'letter', 'verify', 'pack', 'interview'] as const;
 export type JobTab = (typeof JOB_TABS)[number];
 
 const DEFAULT_TAB: JobTab = 'posting';
@@ -81,6 +81,8 @@ export interface JobTabFacts {
   verdict: string | null;
   /** Where the application pack stands (pack/view.ts:packFact); null = none. */
   pack: string | null;
+  /** How many questions the interview preparation holds; 0 = none yet. */
+  questions: number;
 }
 
 /**
@@ -101,5 +103,6 @@ export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string; 
     { tab: 'verify', label: verdict === null ? t('job.tab.verify') : t('job.tab.verifyVerdict', { verdict }) },
     // The pack's fact (pack/view.ts:packFact) is worded in the reader's language too; the tab name is ours.
     { tab: 'pack', label: facts.pack === null ? t('job.tab.pack') : t('job.tab.packFact', { fact: facts.pack }) },
+    { tab: 'interview', label: facts.questions === 0 ? t('job.tab.interview') : t('job.tab.interviewCount', { n: facts.questions }) },
   ];
 }

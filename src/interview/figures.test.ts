@@ -21,3 +21,8 @@ test('the same holds in any language, since only digits are read', () => {
   assert.deepEqual(unbackedFigures('Ich habe die Kosten um 35 % gesenkt.', ['Зменшив витрати на 35%']), []);
   assert.deepEqual(unbackedFigures('Zmniejszyłem koszty o 60%.', ['Зменшив витрати на 35%']), ['60']);
 });
+
+test('thousands written as a word in the note are the same figure written out', () => {
+  assert.deepEqual(unbackedFigures('40,000 SMS were not sent.', ['40 тисяч SMS не відправились']), []);
+  assert.deepEqual(unbackedFigures('50,000 SMS were not sent.', ['40 тисяч SMS не відправились']), ['50,000']);
+});

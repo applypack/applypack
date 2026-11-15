@@ -10,6 +10,7 @@
 const GROUP_SPACE_RE = /(\d)[   ](?=\d{3}(?!\d))/g;
 const FIGURE_RE = /\d+(?:[.,]\d+)*/g;
 const SEPARATOR_RE = /[.,]/g;
+const THOUSANDS_RE = /(?:000)+$/;
 
 /** A lone digit is "two teams", "3 services" — too common to be a claim worth a mark. */
 const MIN_DIGITS = 2;
@@ -24,7 +25,9 @@ export function unbackedFigures(text: string, sources: readonly string[]): strin
   const known = new Set(sources.flatMap((s) => figuresOf(s).map((f) => f.key)));
   const out = new Set<string>();
   for (const f of figuresOf(text)) {
-    if (f.key.length >= MIN_DIGITS && !known.has(f.key)) out.add(f.shown);
+    // "40 тисяч" in a note is "40,000" in an English answer: the thousands may have been a word.
+    const backed = known.has(f.key) || known.has(f.key.replace(THOUSANDS_RE, ''));
+    if (f.key.length >= MIN_DIGITS && !backed) out.add(f.shown);
   }
   return [...out];
 }
