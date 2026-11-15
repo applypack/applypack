@@ -58,6 +58,15 @@ your resume.
 The first start takes a little longer: it creates the database and prints
 the list of migrations it applies. Later starts take a few seconds.
 
+`npm install` makes one request ApplyPack does not: the database library
+(Prisma) asks its vendor whether a newer version is out, from its own
+install step. ApplyPack switches that off for everything it runs itself. To
+switch it off for the install too, set the variable Prisma reads:
+
+```bash
+CHECKPOINT_DISABLE=1 npm install
+```
+
 ## Every day
 
 | To | Do |
