@@ -199,6 +199,8 @@ export function billingFacts(keys: AiKeys, openAiBaseUrl: string | null = null):
 export interface AiProviderStatus {
   ok: boolean;
   detail: string;
+  /** The engine's program is not installed here: a key or a login cannot help until it is. */
+  missing?: true;
 }
 
 const PROBE_TIMEOUT_MS = 5_000;
@@ -323,7 +325,8 @@ async function probeCliBin(bin: string): Promise<AiProviderStatus> {
     // permission bit, a hang, a non-zero exit all sent the user down the
     // wrong path (audit 2026-09-10, AI-4).
     const notFound = (err as { code?: unknown } | null)?.code === 'ENOENT';
-    return { ok: false, detail: notFound ? t('engine.probe.notOnPath', { bin }) : `${bin}: ${cliFailure(err, PROBE_TIMEOUT_MS).reason}` };
+    if (notFound) return { ok: false, detail: t('engine.probe.notOnPath', { bin }), missing: true };
+    return { ok: false, detail: `${bin}: ${cliFailure(err, PROBE_TIMEOUT_MS).reason}` };
   }
 }
 

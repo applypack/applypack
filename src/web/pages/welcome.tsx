@@ -49,6 +49,8 @@ export interface EngineStatusRow {
   label: string;
   ok: boolean;
   detail: string;
+  /** Its program is not installed on this machine (`AiProviderStatus.missing`). */
+  missing?: true;
   /** The .env variable this engine's key mirrors; null = login-only (ADR 0027). */
   keyEnvVar: string | null;
 }
@@ -150,13 +152,13 @@ const STEP_TITLES = {
 } as const satisfies Record<WelcomeStep, MessageKey>;
 
 /** Plain-language setup cards for the "nothing detected" state, in the order a newcomer reads them. */
-const ENGINE_CARDS: { id: AiProviderId; title: MessageKey; how: MessageKey; env: string | null }[] = [
-  { id: 'claude_code', title: 'welcome.engine.claude_code.title', how: 'welcome.engine.claude_code.how', env: 'CLAUDE_CODE_OAUTH_TOKEN' },
+const ENGINE_CARDS: { id: AiProviderId; title: MessageKey; how: MessageKey; env: string | null; install?: string }[] = [
+  { id: 'claude_code', title: 'welcome.engine.claude_code.title', how: 'welcome.engine.claude_code.how', env: 'CLAUDE_CODE_OAUTH_TOKEN', install: 'npm install -g @anthropic-ai/claude-code' },
   { id: 'anthropic_api', title: 'welcome.engine.anthropic_api.title', how: 'welcome.engine.anthropic_api.how', env: 'ANTHROPIC_API_KEY' },
-  { id: 'gemini_cli', title: 'welcome.engine.gemini_cli.title', how: 'welcome.engine.gemini_cli.how', env: 'GEMINI_API_KEY' },
+  { id: 'gemini_cli', title: 'welcome.engine.gemini_cli.title', how: 'welcome.engine.gemini_cli.how', env: 'GEMINI_API_KEY', install: 'npm install -g @google/gemini-cli' },
   { id: 'agy_cli', title: 'welcome.engine.agy_cli.title', how: 'welcome.engine.agy_cli.how', env: null },
   { id: 'openai_api', title: 'welcome.engine.openai_api.title', how: 'welcome.engine.openai_api.how', env: 'OPENAI_API_KEY' },
-  { id: 'codex_cli', title: 'welcome.engine.codex_cli.title', how: 'welcome.engine.codex_cli.how', env: null },
+  { id: 'codex_cli', title: 'welcome.engine.codex_cli.title', how: 'welcome.engine.codex_cli.how', env: null, install: 'npm install -g @openai/codex' },
 ];
 
 /** What a source's badge says for its state here. */
@@ -363,6 +365,15 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
             </ActionForm>
             <Hint>{t('welcome.ai.test.hint')}</Hint>
           </div>
+          <p data-ui="hint" class="mt-3 text-meta text-ink-faint">
+            {tRich('welcome.ai.change', {}, {
+              link: (words) => (
+                <a href="/settings?tab=ai" class={QUIET_LINK}>
+                  {words}
+                </a>
+              ),
+            })}
+          </p>
           <LocalModelCard local={ai.local} offerInstall={false} />
         </>
       ) : (
@@ -378,7 +389,14 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
                 <li class="rounded-md border border-line px-4 py-3">
                   <div class="text-sm font-medium text-ink">{t(card.title)}</div>
                   <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">{t(card.how)}</p>
-                  {status?.keyEnvVar && (
+                  {status?.missing && (
+                    <p class="mt-2 text-note leading-5 text-warn">
+                      {card.install
+                        ? tRich('welcome.ai.installFirst', { command: card.install }, { code: asCode })
+                        : t('welcome.ai.installFirstPlain')}
+                    </p>
+                  )}
+                  {status?.keyEnvVar && !status.missing && (
                     <form
                       method="post"
                       action="/welcome/ai/key"
@@ -401,10 +419,10 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
                       </Button>
                     </form>
                   )}
-                  {status && (
+                  {status && !status.missing && (
                     <p data-ui="hint" class="mt-2 text-meta text-ink-faint">{t('welcome.ai.rightNow', { detail: status.detail })}</p>
                   )}
-                  {card.env && (
+                  {card.env && !status?.missing && (
                     <p data-ui="hint" class="mt-1 text-meta text-ink-faint">
                       {tRich('welcome.ai.envFile', { name: card.env }, { code: asCode })}
                     </p>
