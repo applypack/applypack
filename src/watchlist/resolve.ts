@@ -8,7 +8,7 @@ import { extractAtsToken } from '../text-utils';
 import { checkPostingUrl, fetchPublicUrl } from '../jobs/posting-url';
 import { bindingTokens, crawlDelayMs, OUR_TOKEN, parseRobots, robotsAllows } from '../robots';
 import { looksLikeFeed } from '../fetchers/feed';
-import { boardHints, declaredJobFeeds, looksLikeChallenge, wellKnownFeeds } from './scan';
+import { boardHints, declaredJobFeeds, linkedJobFeeds, looksLikeChallenge, wellKnownFeeds } from './scan';
 import { MIN_WATCHABLE_CHARS, normalisePageText } from './page-hash';
 import { nameFromUrl, type CompanyInput } from './parse-input';
 import { boardMissReason } from './verdict';
@@ -164,9 +164,11 @@ export async function resolveCompanyUrl(
     if (confirmed) return { ...named, resolution: confirmed, requests };
   }
 
-  // Rung 4: a feed. Declared first, then the job-shaped well-known paths, and
+  // Rung 4: a feed. Declared first, then one the page links, then the job-shaped well-known paths, and
   // only ever a feed that carries entries — a valid empty one is not a source.
-  for (const url of [...declaredJobFeeds(page.body, page.url), ...wellKnownFeeds(page.url)]) {
+  // A feed the page links in plain sight comes before the guessed paths: it is the page's own word (#541).
+  const feeds = [...declaredJobFeeds(page.body, page.url), ...linkedJobFeeds(page.body, page.url), ...wellKnownFeeds(page.url)];
+  for (const url of [...new Set(feeds)]) {
     if (requests >= MAX_HOST_REQUESTS) break;
     // A declared href is content from the page we just fetched, so it is
     // untrusted input and goes through the same guard the pasted URL did —

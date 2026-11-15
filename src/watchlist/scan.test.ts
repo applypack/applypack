@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   boardHints,
   declaredJobFeeds,
+  linkedJobFeeds,
   isJobFeedPath,
   looksLikeChallenge,
   urlsIn,
@@ -58,7 +59,7 @@ describe('urlsIn', () => {
 
 describe('isJobFeedPath — the whole defence against blog feeds', () => {
   it('accepts a path that names jobs', () => {
-    for (const p of ['/jobs.rss', '/jobs/feed', '/careers/feed/', '/jobs.atom', '/en/careers/rss', '/vacancies.xml', '/jobs-feed.rss', '/positions/feed.xml']) {
+    for (const p of ['/jobs.rss', '/jobs/feed', '/careers/feed/', '/jobs.atom', '/en/careers/rss', '/vacancies.xml', '/jobs-feed.rss', '/positions/feed.xml', '/jobs/feed/rss/']) {
       assert.equal(isJobFeedPath(p), true, p);
     }
   });
@@ -140,5 +141,19 @@ describe('looksLikeChallenge', () => {
 
   it('does not scan the whole document for the phrase', () => {
     assert.equal(looksLikeChallenge(`<p>${'x '.repeat(3_000)}</p><p>just a moment</p>`), false);
+  });
+});
+
+describe('linkedJobFeeds (#541)', () => {
+  const page = 'https://www.python.org/jobs/';
+
+  it('reads a job feed the page links in a plain anchor', () => {
+    const html = '<a href="/jobs/feed/rss/">RSS</a> <a href="/jobs/feed/rss/#top">again</a>';
+    assert.deepEqual(linkedJobFeeds(html, page), ['https://www.python.org/jobs/feed/rss/']);
+  });
+
+  it('passes over a blog feed, a posting and a feed on another site', () => {
+    const html = '<a href="/feed">Blog</a> <a href="/jobs/1234/">A job</a> <a href="https://other.example/jobs/feed">Elsewhere</a> <a href="mailto:x@y.z">x</a>';
+    assert.deepEqual(linkedJobFeeds(html, page), []);
   });
 });
