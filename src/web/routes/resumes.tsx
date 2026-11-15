@@ -279,8 +279,9 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     jobTitle: job?.title ?? '',
     resumeName: '',
     jobId: job?.id,
-    heading: { running: t('resume.run.draftRunning'), failed: t('resume.run.draftFailed') },
-    subtitle: t('resume.run.saving'),
+    // A copy for a posting is not a re-reading of the resume: the page says what is being saved (ADR 0066).
+    heading: job ? { running: t('copy.run.running'), failed: t('copy.run.failed') } : { running: t('resume.run.draftRunning'), failed: t('resume.run.draftFailed') },
+    subtitle: t(job ? 'copy.run.saving' : 'resume.run.saving'),
     // Saved from Tailor resume, the run goes back there and its result lands there (#580).
     ...(job
       ? { backUrl: `/jobs/${job.id}/target`, backLabel: t('target.run.backToComparison') }

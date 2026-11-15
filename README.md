@@ -92,7 +92,7 @@ install, unchanged.
   disagree with a keyword and re-level, ignore or add it.
 - **💾 Your own .docx, as the document it is.** The resume is drawn as
   your file with the edits written into it and marked; download it as
-  `.docx` or `.pdf`, or save it as v2 with the formatting intact. A PDF,
+  `.docx` or `.pdf`, or keep it as your copy for that job with the formatting intact. A PDF,
   or a layout that cannot be patched, is re-typeset as a clean
   single-column `.docx` in your own font
   ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md),

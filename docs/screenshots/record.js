@@ -247,7 +247,7 @@ async function main() {
     await sleep(2200);
 
     // 6 — the resume as the document it is, the changes marked
-    await caption('Your own .docx with the edits in it, each marked; download it or save it as v2');
+    await caption('Your own .docx with the edits in it, each marked; download it or keep it as your copy for the job');
     await evalJs(`document.getElementById('main').scrollBy({ top: document.getElementById('panes').getBoundingClientRect().top - 12, behavior: 'smooth' }); 'ok'`);
     await sleep(900);
     const doc = await find('#doc-pane');
