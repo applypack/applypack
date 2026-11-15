@@ -17,6 +17,7 @@ import { loadOverviewStats } from '../overview-stats';
 import { preferredPlaces } from '../place-line';
 import { DEFAULT_RANGE, isRangeKey } from '../stats-series';
 import { nextThings, type NextThing } from '../next-things';
+import { canStartWatch, setupLeft, type SetupLeftFacts } from '../setup-left';
 import { countReadyPacks, listReadyPacks } from '../../pack/store';
 import { spendHint } from '../cost-hint';
 
@@ -125,6 +126,7 @@ overviewRoute.get('/', async (c) => {
       places={preferredPlaces(searches)}
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
+      left={await loadSetupLeft({ aiReady: facts.aiReady, searchReady: facts.profileReady, fetchingEnabled: settings.fetchingEnabled })}
       next={await loadNextThings(unmuted)}
       unscored={await loadUnscored()}
       readyPacks={await listReadyPacks(READY_PACKS_SHOWN)}
@@ -143,6 +145,13 @@ overviewRoute.get('/', async (c) => {
  */
 /** The packs the Overview lists; the rest are a click away on the Jobs page. */
 const READY_PACKS_SHOWN = 8;
+
+/** The what-is-left card's rows (#716): one count beside the facts the page already holds. */
+async function loadSetupLeft(known: Omit<SetupLeftFacts, 'hasResume'>): Promise<{ rows: NonNullable<ReturnType<typeof setupLeft>>; canStart: boolean } | null> {
+  const facts = { ...known, hasResume: (await prisma.resume.count({ where: { hidden: false } })) > 0 };
+  const rows = setupLeft(facts);
+  return rows && { rows, canStart: canStartWatch(facts) };
+}
 
 async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[] | null> {
   const comparisons = await prisma.resumeMatch.count();
