@@ -114,6 +114,8 @@ export async function saveRubric(id: number, rubric: Rubric, bump: boolean): Pro
 
 export async function deleteScreening(id: number): Promise<void> {
   await prisma.screening.delete({ where: { id } });
+  // A posting pasted for a screening goes with the last screening that read it (#567).
+  await prisma.job.deleteMany({ where: { forScreening: true, screenings: { none: {} } } });
 }
 
 export async function extendRetention(id: number, retainUntil: Date): Promise<void> {

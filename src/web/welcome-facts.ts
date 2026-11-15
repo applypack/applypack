@@ -32,8 +32,8 @@ export async function loadWelcomeContext(): Promise<WelcomeContext> {
     getSettings(),
     probeAiProviders(),
     getActiveProfile(),
-    prisma.job.count(),
-    prisma.job.count({ where: { fitScore: { not: null } } }),
+    prisma.job.count({ where: { forScreening: false } }),
+    prisma.job.count({ where: { fitScore: { not: null }, forScreening: false } }),
     currentSuggestions(),
   ]);
   // Ollama answering on its default address is an offer — the "A model on

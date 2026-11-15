@@ -281,6 +281,11 @@ model Job {
   // says so and the Posted filter files it under "Date unknown". Rows stored
   // before the column say true: nothing recorded where their date came from.
   postedAtKnown          Boolean   @default(true)
+  // A posting pasted on New screening (ADR 0049 addendum, #567): the position
+  // the user hires for, never one they apply to. It stays out of the job
+  // seeker's lists, counts, pickers and scoring passes, and goes with its
+  // screening. Pasting the same text on Paste a job clears the flag.
+  forScreening           Boolean   @default(false)
   fetchedAt              DateTime  @default(now())
 
   // ADR 0031: the structured reading of `location`, which itself is never

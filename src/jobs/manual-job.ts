@@ -51,7 +51,7 @@ export type ManualJobResult =
  */
 export async function createManualJob(
   f: ManualJobInput,
-  opts: { classify?: boolean } = {},
+  opts: { classify?: boolean; forScreening?: boolean } = {},
 ): Promise<ManualJobResult> {
   // Pastes copied from rendered pages occasionally carry literal entities
   // ("&nbsp;", "&amp;") — decode them so the stored text reads clean.
@@ -77,7 +77,14 @@ export async function createManualJob(
       });
       const where = { companyId_externalId: { companyId: company.id, externalId } };
       const existing = await tx.job.findUnique({ where, include: jobInclude });
-      if (existing) return { kind: 'existing' as const, job: existing, company };
+      if (existing) {
+        // Pasted for a screening first and for the search now: it is the user's job from here on (#567).
+        const job =
+          existing.forScreening && !opts.forScreening
+            ? await tx.job.update({ where: { id: existing.id }, data: { forScreening: false }, include: jobInclude })
+            : existing;
+        return { kind: 'existing' as const, job, company };
+      }
       const job = await tx.job.create({
         data: {
           companyId: company.id,
@@ -98,6 +105,7 @@ export async function createManualJob(
           postedAt: new Date(),
           postedAtKnown: false,
           status: JobStatus.SAVED,
+          forScreening: opts.forScreening === true,
         },
         include: jobInclude,
       });

@@ -104,7 +104,8 @@ screenRoute.get('/screen/new', async (c) => {
   // Pasted postings first — a position someone is hiring for is far likelier
   // to have been pasted than fetched from a board — then the newest.
   const jobs = await prisma.job.findMany({
-    where: { status: { not: 'DISMISSED' } },
+    // Another screening's pasted posting is not one of the user's jobs (#567).
+    where: { status: { not: 'DISMISSED' }, forScreening: false },
     orderBy: [{ fetchedAt: 'desc' }],
     take: JOB_PICK_LIMIT,
     // A picker option, not a posting (DATA-5).
@@ -166,7 +167,7 @@ screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', ()
     }
     const result = await createManualJob(
       { companyName: f.companyName || 'Your company', title: f.title, url: '', location: f.location, description },
-      { classify: false },
+      { classify: false, forScreening: true },
     );
     jobId = result.job.id;
     jobTitle = result.job.title;

@@ -56,7 +56,8 @@ overviewRoute.get('/', async (c) => {
   const rangeParam = c.req.query('range');
   const range = isRangeKey(rangeParam) ? rangeParam : DEFAULT_RANGE;
   // The numbers link to /jobs, which hides a muted company's rows (ADR 0056): they count what it shows.
-  const unmuted = withoutMuted(await mutedKeys()) ?? {};
+  // …and never a posting pasted for a screening (#567).
+  const unmuted: Prisma.JobWhereInput = { ...withoutMuted(await mutedKeys()), forScreening: false };
   const [countsRows, recentMatches, latestRunRows, stats, searches] = await Promise.all([
     prisma.job.groupBy({
       by: ['status'],

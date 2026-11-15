@@ -200,7 +200,8 @@ jobsRoute.get('/jobs', async (c) => {
   const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open, watched, muted, panel } = parsed.data;
   const now = new Date();
 
-  const where: Prisma.JobWhereInput = {};
+  // A posting pasted for a screening is the employer side's, never the search's (#567).
+  const where: Prisma.JobWhereInput = { forScreening: false };
   // The first tab is what is still in play; a dismissed posting waits on its own tab (a fresh install's first
   // look was 461 dismissed rows around 2 matches).
   where.status = status ? (status as JobStatus) : { not: JobStatus.DISMISSED };

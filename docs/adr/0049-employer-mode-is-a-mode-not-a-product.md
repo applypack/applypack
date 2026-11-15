@@ -61,3 +61,23 @@ product, and ADR 0049 was the wrong answer).
   `ScreeningComparison`
   ([0051](./0051-a-shortlist-is-compared-head-to-head-twice.md)). Removing
   the mode drops four.
+
+## Addendum (2026-11-15): a posting pasted for a screening is not a job of the search
+
+Found live (#567): a posting pasted on **New screening** was stored as a
+Saved job, so it showed on the Overview and in Jobs, could be scored against
+the user's own searches, and stayed after **Delete screening**. A screening
+still needs a `jobId` (the rubric draft reads the posting brief by it), so the
+row stays and is marked instead: `Job.forScreening`.
+
+- Set only by `/screen/new`'s paste path (`createManualJob(…, { forScreening: true })`).
+- Left out of `/jobs` and its counts, the Overview, the job pickers of Tailor
+  resume, Cover letter and New screening, "Save & re-classify" and the setup
+  facts. The job's own page still opens from the screening.
+- Deleted with the last screening that reads it, by `store.ts:deleteScreening`
+  and by the retention sweep in `cleanup-job.ts`.
+- Pasting the same text on **Paste a job** clears the flag: it is the user's
+  job from then on. A posting already in the user's jobs that a screening is
+  started from is never flagged.
+- Rows stored before this are not touched: nothing says which of them were
+  pasted for a screening.
