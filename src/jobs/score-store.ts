@@ -35,6 +35,8 @@ export function toScoreData(
     redFlags: withApplyLinkFlags(v.classification.red_flags, link),
     summary: v.classification.summary,
     priorityRulesApplied: v.priorityRulesApplied,
+    // ADR 0064: the facts this fit was computed from, so it can be computed again without a call.
+    ...(v.classification.fit_facts && { fitFacts: v.classification.fit_facts }),
   };
 }
 
@@ -79,6 +81,44 @@ export async function saveJobScores(
         status,
         priorityRulesApplied: merged.winner.priorityRulesApplied,
         scores: { create: verdicts.map((v) => toScoreData(v, link)) },
+      },
+    }),
+  ]);
+}
+
+/**
+ * A re-score from stored facts (rescore-fit-once.ts): each search's row takes
+ * its new number, tags and flags in place, and the Job the winner's, with the
+ * winner's own summary. Nothing else moves — not the status, not the place or
+ * the pay, not `scoredAt`: no model read the posting again.
+ */
+export async function saveRescoredFits(
+  job: Pick<Job, 'id' | 'url'> & { company: { atsType: AtsType } },
+  merged: MergedVerdict,
+  verdicts: ProfileVerdict[],
+): Promise<void> {
+  const c = merged.winner.classification;
+  const link = { url: job.url, pasted: job.company.atsType === AtsType.MANUAL };
+  await prisma.$transaction([
+    ...verdicts.map((v) =>
+      prisma.jobScore.update({
+        where: { jobId_profileId: { jobId: job.id, profileId: v.profileId } },
+        data: {
+          fitScore: v.classification.fit_score,
+          techMatch: v.classification.tech_match,
+          redFlags: withApplyLinkFlags(v.classification.red_flags, link),
+          priorityRulesApplied: v.priorityRulesApplied,
+        },
+      }),
+    ),
+    prisma.job.update({
+      where: { id: job.id },
+      data: {
+        fitScore: c.fit_score,
+        techMatch: c.tech_match,
+        redFlags: withApplyLinkFlags(c.red_flags, link),
+        summary: c.summary,
+        priorityRulesApplied: merged.winner.priorityRulesApplied,
       },
     }),
   ]);

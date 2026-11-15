@@ -3,7 +3,9 @@
 **Status:** Accepted (2026-09-02). **Supersedes [0004](./0004-single-active-profile.md)**,
 whose own "when to revisit" named this table: *"If we ever truly need it, we'd
 introduce a `JobScore { jobId, profileId, fitScore }`"*.
-See the 2026-09-24 addendum.
+See the 2026-09-24 addendum. The reply shape amended by
+[0064](./0064-the-fit-score-is-computed-from-facts.md): facts per search, no
+`fit_score`.
 
 ## Context
 

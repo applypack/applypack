@@ -909,6 +909,7 @@ erDiagram
     String[] redFlags
     String summary
     String[] priorityRulesApplied
+    Json fitFacts "the facts the fit is made from (ADR 0064)"
     DateTime scoredAt
   }
 

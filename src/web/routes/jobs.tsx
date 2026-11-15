@@ -28,6 +28,7 @@ import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob, type Rescored } from '../../jobs/classify-existing';
 import { rescoreFlash } from '../rescore-flash';
 import { locationMismatchReason, openThroughLine } from '../../jobs/location-reason';
+import { fitWhy } from '../fit-why';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
@@ -511,6 +512,13 @@ jobsRoute.get('/jobs/:id', async (c) => {
                 workplace: true,
                 residence: true,
                 relocation: true,
+                // What the stored facts are read against for "How this fit was worked out" (ADR 0064).
+                stackRequired: true,
+                stackNiceToHave: true,
+                stackExclude: true,
+                roleTypes: true,
+                seniority: true,
+                minSalaryUsd: true,
               },
             },
           },
@@ -612,6 +620,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         locationReason: sc.locationMatch ? null : locationMismatchReason(job, sc.profile),
         openThrough: sc.locationMatch ? openThroughLine({ ...job, source: job.locationSource }, sc.profile) : null,
         summary: sc.summary,
+        why: fitWhy(sc, sc.profile, job),
       }))}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       pipelineStages={allStages(parseStageConfig(settings.pipelineStages))}
