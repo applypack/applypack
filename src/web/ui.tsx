@@ -408,13 +408,16 @@ const ChevronDown: FC = () => (
 const DISCLOSURE_SUMMARY = {
   button:
     'inline-flex min-h-[36px] items-center gap-2 whitespace-nowrap rounded-md border border-line-strong bg-surface-raised px-3.5 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-surface-overlay group-open:bg-surface-overlay',
+  primary:
+    'inline-flex min-h-[36px] items-center gap-2 whitespace-nowrap rounded-md bg-accent-strong px-3.5 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-accent-deep',
   quiet: 'inline-flex items-center gap-1 text-note text-ink-muted hover:text-ink',
 } as const;
 
 /**
  * Native <details>: what is not needed at first glance folds away with no
  * JavaScript, and Enter / Space toggle it. `button` reads as a secondary
- * button (a toolbar's "Filters"); `quiet` is the muted line under a control
+ * button (a toolbar's "Filters"), `primary` as the page's one solid button
+ * (Resumes' "Upload a resume"); `quiet` is the muted line under a control
  * ("How this works"). `count` says how much is set inside while it is closed.
  * The children are the body — the caller lays them out, so a `contents`
  * disclosure can hand its body to the row it sits in.
