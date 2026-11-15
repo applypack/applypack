@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.68.0] — 2026-11-15
+
+### Changed
+- **Paste a job** is one box: the company, the title and the place are read
+  from the text (one AI call), and typing them yourself is one press away.
+  A starter pack is added and switched on in one press (#545).
+- Setup's first matches include the country boards it has just switched
+  on: they are read before the best ten are scored (#535).
+- Score adjustments are rows with fields — technologies, places, "fit at
+  least", a name — in place of a rule written with vertical bars (#560).
+- A posting pasted for a screening stays out of your own job search and is
+  removed with the last screening that reads it (#567).
+- A posting several sources carry shows once in Recent matches and in
+  setup's top of the list (#529).
+- A posting whose source gave only a few lines that name no stack is kept
+  with its low score instead of being dismissed as a mismatch; it is not
+  alerted on that verdict (classifier prompt v7, #531).
+- A cover letter for a job that has a tailored copy is written from the
+  copy when it is made with the copy's resume; the copy's save has its own
+  page title (#745 follow-ups).
+- The comparison's second call, when the report owed edits it did not
+  write, shows as its own step with the reason (#586).
+- The strength review says its remarks about order and dates are the AI's
+  reading (#584). On Tailor resume the resume column is the wider one, and
+  a pack made of your own .docx says how to get a PDF (#589).
+- Watching a company: a job feed the careers page links in plain sight is
+  found and read as a feed (#541).
+- "Use it" on a model Ollama serves stores a 32k context window when the
+  model allows it, so a local-only install can run the full comparison
+  (#523).
+
 ## [2.67.0] — 2026-11-15
 
 ### Changed
@@ -7202,6 +7233,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.68.0]: https://github.com/applypack/applypack/compare/v2.67.0...v2.68.0
 [2.67.0]: https://github.com/applypack/applypack/compare/v2.66.0...v2.67.0
 [2.66.0]: https://github.com/applypack/applypack/compare/v2.65.0...v2.66.0
 [2.65.0]: https://github.com/applypack/applypack/compare/v2.64.0...v2.65.0
