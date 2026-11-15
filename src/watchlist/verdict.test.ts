@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AtsType } from '@prisma/client';
-import { boardMissReason, firstCheckSize, verdictLabel, verdictLine } from './verdict';
+import { boardMissReason, defaultAlertPolicy, EVERY_POSTING_CEILING, firstCheckSize, verdictLabel, verdictLine } from './verdict';
 import { t } from '../i18n/t';
 
 describe('verdictLabel', () => {
@@ -69,5 +69,14 @@ describe('firstCheckSize (#681)', () => {
     assert.deepEqual(size, { boards: 3, postings: 301 });
     assert.match(t('watchlist.preview.hint', size), /: 301 postings on 3 companies in this list\./);
     assert.match(t('watchlist.preview.hint', { boards: 1, postings: 1 }), /: 1 posting on 1 company in this list\./);
+  });
+});
+
+describe('defaultAlertPolicy', () => {
+  it('opens a small batch on every posting and a large one on matches only (#728)', () => {
+    assert.equal(defaultAlertPolicy(0), 'all');
+    assert.equal(defaultAlertPolicy(EVERY_POSTING_CEILING), 'all');
+    assert.equal(defaultAlertPolicy(EVERY_POSTING_CEILING + 1), 'matches');
+    assert.equal(defaultAlertPolicy(251), 'matches');
   });
 });
