@@ -189,6 +189,11 @@ const Question: FC<{ q: PrepQuestion; index: number; lang: string | undefined }>
           </span>
         </div>
       )}
+      {q.posted.length > 0 && (
+        <p data-ui="hint" class="mt-2 text-meta text-ink-faint">
+          {t('interview.posted')} <span translate="no">{formatList(q.posted)}</span>
+        </p>
+      )}
       {q.unbacked.length > 0 && (
         <Notice tone="warn" class="mt-2">
           {t('interview.unbacked')} <span translate="no">{formatList(q.unbacked)}</span>

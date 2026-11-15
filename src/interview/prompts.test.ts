@@ -75,7 +75,9 @@ test('a figure in an answer must come from the person, never from the posting or
     [{ ...question(), answer: ['Час обробки впав з 900 мс до 120 мс.', 'Я працював із 200 партнерами в команді з 60 людей і підняв конверсію на 35%.'] } as never],
     INPUT,
   );
-  assert.deepEqual(q!.unbacked, ['200', '60', '35']);
+  // Neither is the person's to claim. The posting's own figure is said to be the posting's (#734); the rest are nobody's.
+  assert.deepEqual(q!.unbacked, ['60', '35']);
+  assert.deepEqual(q!.posted, ['200']);
 });
 
 test('what was stored reads back, and another shape reads as nothing prepared', () => {
