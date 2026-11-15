@@ -61,7 +61,7 @@ export const ENGLISH = {
   "browser.activity.verdict3": "Searching the resume for evidence of every keyword…",
   "browser.activity.verdict4": "Grading alignment — title, summary, most recent role…",
   "browser.activity.verdict5": "Checking hard requirements, red flags and facts to confirm…",
-  "browser.activity.scoreLine": "Composing the deterministic score — almost there…",
+  "browser.activity.scoreLine": "Working out the score — almost there…",
   "browser.activity.matchDraft": "Drafting edit suggestions and removals with exact quotes…",
   "browser.activity.fetch1": "Requesting the posting page…",
   "browser.activity.fetch2": "Reading the description out of the page…",

@@ -229,8 +229,8 @@ test('an estimate is the middle of at least three, and money reads as money', ()
 
 test('the hint under a button, and the line about one posting', () => {
   assert.equal(costHintText(null), null);
-  assert.equal(costHintText({ micro: 40_000, billing: 'billed' }), 'Usually $0.04 a call, billed per token (the middle of your recent calls).');
-  assert.equal(costHintText({ micro: 40_000, billing: 'plan' }), 'Usually ≈ $0.04 at API prices, which your plan covers (the middle of your recent calls).');
+  assert.equal(costHintText({ micro: 40_000, billing: 'billed' }), 'Usually about $0.04 a call, billed to your API key.');
+  assert.equal(costHintText({ micro: 40_000, billing: 'plan' }), 'Your plan covers it (a call is usually worth ≈ $0.04).');
   assert.equal(costHintText({ micro: 0, billing: 'local' }), 'Runs on your local model: free.');
   assert.equal(jobSpendText(null), null);
   assert.equal(jobSpendText({ billed: 120_000, plan: 300_000 }), '$0.12 billed · ≈ $0.30 covered by your plan');
