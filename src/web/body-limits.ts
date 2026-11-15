@@ -19,6 +19,7 @@ const OWN_LIMIT = [
   /^\/welcome\/resume$/,
   /^\/screen$/,
   /^\/screen\/\d+\/applicants$/,
+  /^\/career\/notes$/,
 ];
 
 /** True for a POST whose route carries its own upload ceiling. */

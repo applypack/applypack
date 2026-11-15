@@ -52,6 +52,7 @@ import type { AiBilling } from '../../ai-usage';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { ApplicationPackCard, PACK_LINE_ID, type ApplicationPackProps } from './application-pack-card';
+import { InterviewCard, type InterviewCardProps } from './interview-card';
 import { packBusy } from '../../pack/view';
 import { NOT_A_POSTING_FLAG } from '../../datasets/posting-file';
 
@@ -170,7 +171,8 @@ export interface JobDetailProps {
   resumeMatch: ResumeMatchCardProps;
   coverLetters: CoverLetterCardProps;
   applicationPack: ApplicationPackProps;
-  /** The tab this request means (job-tabs.ts), and the four labels with what exists behind each. */
+  interview: InterviewCardProps;
+  /** The tab this request means (job-tabs.ts), and the labels with what exists behind each. */
   tab: JobTab;
   tabs: { tab: JobTab; label: string; title?: string }[];
   flash?: FlashMessage | null;
@@ -206,6 +208,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   resumeMatch,
   coverLetters,
   applicationPack,
+  interview,
   tab,
   tabs,
   flash,
@@ -276,6 +279,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         {tab === 'letter' && <CoverLetterCard {...coverLetters} />}
 
         {tab === 'pack' && <ApplicationPackCard {...applicationPack} />}
+
+        {tab === 'interview' && <InterviewCard {...interview} />}
 
         {/* #570: on a narrower screen the posting's own words lead and the classifier follows them; from xl the
             classifier heads the column as before. The rules between the parts follow the order they are seen in. */}

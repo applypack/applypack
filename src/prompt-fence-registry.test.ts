@@ -11,6 +11,7 @@ import * as resumeMod from './resume/prompts';
 import * as verifyMod from './verification/prompts';
 import * as screenMod from './screening/prompts';
 import * as rubricMod from './screening/rubric';
+import * as interviewMod from './interview/prompts';
 import { fenceClose, fenceOpen } from './prompt-fence';
 
 /*
@@ -33,6 +34,7 @@ const PROMPT_MODULES: Record<string, Record<string, unknown>> = {
   'resume/prompts.ts': resumeMod,
   'verification/prompts.ts': verifyMod,
   'screening/prompts.ts': screenMod,
+  'interview/prompts.ts': interviewMod,
 };
 
 /**
@@ -58,6 +60,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
   'screening/batch.ts': 'buildScreenPrompt',
+  'interview/prep.ts': 'buildInterviewPrompt',
   'screening/compare.ts': 'buildComparePrompt',
   'scripts/resume-bench-once.ts': 'bench harness, reuses buildMatchPrompt',
   'scripts/screen-bench-once.ts': 'bench harness, reuses buildScreenPrompt',
@@ -298,6 +301,29 @@ const CASES: Record<string, Case> = {
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],
       ['JOB POSTING', 'COMPANY-NEEDLE'],
+    ],
+  },
+  buildInterviewPrompt: {
+    build: () =>
+      interviewMod.buildInterviewPrompt({
+        job: JOB,
+        language: { code: 'uk', name: 'Українська', english: 'Ukrainian' },
+        resumeText: RESUME,
+        notes: [{ title: 'NOTETITLE-NEEDLE', text: 'NOTE-NEEDLE' }],
+        confirmedFacts: [],
+        companySnapshot: 'SNAPSHOT-NEEDLE',
+      }),
+    fenced: [
+      ['JOB POSTING', DESC],
+      ['JOB POSTING', 'TITLE-NEEDLE'],
+      ['JOB POSTING', 'COMPANY-NEEDLE'],
+      ['JOB POSTING', 'LOC-NEEDLE'],
+      ['RESUME', RESUME],
+      // A note may be a file somebody else wrote: data, like the resume.
+      ['CAREER NOTES', 'NOTE-NEEDLE'],
+      ['CAREER NOTES', 'NOTETITLE-NEEDLE'],
+      // The verifier's reading of the company, laundered from the web (ADR 0042).
+      ['COMPANY CONTEXT', 'SNAPSHOT-NEEDLE'],
     ],
   },
 };

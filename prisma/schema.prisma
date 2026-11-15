@@ -366,6 +366,7 @@ model Job {
   scores        JobScore[]
   screenings    Screening[]
   pack          ApplicationPack?
+  interviewPrep InterviewPrep?
 
   @@unique([companyId, externalId])
   // Postgres does not index the referencing side of a foreign key: without
@@ -917,6 +918,37 @@ model CandidateFact {
   updatedAt DateTime @updatedAt
 
   @@map("candidate_fact")
+}
+
+// ADR 0065: what the person did, in their own words and in any language — a
+// project, a hard week, how a decision went. Global like CandidateFact: one
+// history for every job. Read by the interview preparation only, on a press.
+model CareerNote {
+  id        Int      @id @default(autoincrement())
+  title     String
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("career_note")
+}
+
+// ADR 0065: the questions one posting is likely to bring and what the person
+// can answer from their own history, in the language of the interview. One
+// row per job; preparing again replaces it. `sourceKey` hashes what it was
+// written from, so the page can say the history changed since.
+model InterviewPrep {
+  id            Int      @id @default(autoincrement())
+  jobId         Int      @unique
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  language      String
+  questions     Json
+  sourceKey     String
+  model         String
+  promptVersion Int
+  createdAt     DateTime @default(now())
+
+  @@map("interview_prep")
 }
 
 // F8 (ADR 0021): one generated cover letter, gated by fact-check.ts before it

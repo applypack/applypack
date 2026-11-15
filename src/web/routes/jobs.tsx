@@ -45,6 +45,7 @@ import { jobHref, jobTabLabels, resolveJobTab, shownMatch, type JobTab } from '.
 import { getPack, markPackSent, type PackRow } from '../../pack/store';
 import { packFact, tailorSeed } from '../../pack/view';
 import { loadPackView } from './pack';
+import { loadInterviewView } from './interview';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
@@ -546,6 +547,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
       ? { matchId: coverMatch.id, resumeName: coverMatch.resume.name }
       : null;
 
+  const interview = await loadInterviewView(job, resumeOptions, suggested?.id ?? null);
+
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
   const selectedKeywords = await orderedKeywords(selected, job.description);
   const selectedSummaryGuide = selected
@@ -563,6 +566,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         letters: letters.length,
         verdict: verifications[0]?.verdict ?? null,
         pack: packFact(applicationPack.pack),
+        questions: interview.prep?.questions.length ?? 0,
       })}
       job={job}
       appliedResumePicker={{
@@ -608,6 +612,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         rebuildCost: await spendHint('resume-match'),
       }}
       applicationPack={applicationPack}
+      interview={interview}
       coverLetters={{
         jobId: id,
         resumes: resumeOptions,

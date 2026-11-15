@@ -103,6 +103,7 @@ const AI_FEATURES = [
   'resume-rewrite',
   'resume-review',
   'cover-letter',
+  'interview-prep',
   'job-verify',
   'screening',
   'screening-compare',

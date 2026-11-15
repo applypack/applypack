@@ -1110,6 +1110,31 @@ postings not worth the evening — when the schedule lets a held message out;
 the Overview lists the ones ready and not yet sent. Nothing is ever submitted
 for the person.
 
+## Interview preparation (ADR 0065)
+
+The job page's **Interview** tab (`/jobs/:id?tab=interview`), for the posting
+in hand. Nothing runs on a visit.
+
+- **Your history** (`career_note`): notes about past work — a project, a
+  situation, a decision — typed, or read from a .md / .txt / .docx / .pdf
+  file, in any language. Kept once and read for every job. A note holds up
+  to 40 000 characters; one preparation reads the notes changed most
+  recently up to 120 000, and the tab says when some were left out.
+  `POST /career/notes`, `/career/notes/:id`, `/career/notes/:id/delete`.
+- **Prepare questions** (`POST /jobs/:id/interview`): pick the language the
+  interview is held in and a resume (or none, with at least one note). One
+  AI call (`interview-prep`, Resume analysis) reads the posting, the notes,
+  the resume, the confirmed skills and the last verification's company
+  snapshot, and returns 12–16 likely questions, each with why it is likely,
+  2–5 talking points, the notes it rests on, and what to recall when the
+  history lacks an answer. No web search.
+- **Checked in code:** a named source must be a note's title or the resume;
+  a figure in an answer that the person's material does not state is marked
+  "check before you say it".
+- **Stored** as one `interview_prep` row per job; preparing again replaces
+  it. When the posting or the history changes after it was written, the tab
+  says so.
+
 ## Hard out-of-scope (Phase 7+)
 
 - Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer — employer mode included: one HR person or hiring manager per install.

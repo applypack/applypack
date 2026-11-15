@@ -77,6 +77,7 @@ gets a dated addendum at the end of the ADR.
 - [0061 — The interface speaks several languages; what a model writes stays English](./0061-the-interface-speaks-several-languages.md) — *addendum 2026-10-06: the worker and the browser modules follow later*
 - [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
 - [0063 — The worker prepares an application pack for a strong new match](./0063-the-worker-prepares-an-application-pack.md) *(amends 0008)*
+- [0065 — Interview preparation reads the person's own history, for one posting](./0065-interview-preparation-reads-the-persons-own-history.md)
 
 ## When to write a new one
 

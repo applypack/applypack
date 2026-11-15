@@ -327,6 +327,7 @@ src/
     page-changes.ts            ← the careers pages that changed this tick, staged for jobs/page-change-alerts.ts
 
   starter-packs/               ← web-only curated company packs (ADR 0017)
+  interview/                   ← interview preparation for one posting (ADR 0065): languages, figures, prompts are pure; prep.ts spends the AI, store.ts owns career_note and interview_prep
   pack/                        ← the application pack (ADR 0063): settings, trigger, gate, policy, tailor, view are pure; prepare.ts spends the AI, store.ts owns the rows
     catalog.json               ← segments + hand-verified (atsType, atsToken) per company
     catalog.ts                 ← zod-validated load + segment lookups (pure)

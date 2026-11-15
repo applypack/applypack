@@ -26,6 +26,7 @@ export type RunStep =
   | 'suggestions'
   | 'verify'
   | 'letter'
+  | 'interview'
   | 'review'
   | 'score'
   | 'compare'

@@ -122,6 +122,7 @@ of truth when the two disagree.
 - 0061 The interface speaks several languages; what a model writes stays English — *addendum 2026-10-06: the worker and the browser modules follow later*
 - 0062 Rows the user brings are read from what they hand over, and nothing is fetched
 - 0063 The worker prepares an application pack for a strong new match *(amends 0008)*
+- 0065 Interview preparation reads the person's own history, for one posting
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

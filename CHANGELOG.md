@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.64.0] — 2026-11-14
+
+### Added
+- Interview preparation on the job page (ADR 0065). The new **Interview**
+  tab keeps your history — notes about projects, situations and decisions,
+  typed or read from a file, in any language — and on a press lists the
+  questions this posting is likely to bring with what you can answer from
+  that history, in the language you choose for the interview. A source an
+  answer names is one of your notes or your resume, and a figure your
+  material does not state is marked. One AI call, no web search.
+
 ## [2.63.41] — 2026-10-29
 
 ### Fixed

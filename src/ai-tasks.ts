@@ -6,7 +6,7 @@ import { t } from './i18n/t';
 /*
  * The kinds of work an engine can be given (ADR 0060). A task is a group of
  * AI features a person would hand to one model together: the ledger keeps
- * its seventeen features, the AI tab asks about six tasks. Pure.
+ * its features, the AI tab asks about six tasks. Pure.
  */
 
 export const AI_TASKS = ['scoring', 'resume-read', 'analysis', 'letters', 'verify', 'screening'] as const;
@@ -69,6 +69,7 @@ const TASK_OF: Record<AiFeature, AiTask | null> = {
   'resume-rewrite': 'analysis',
   'resume-review': 'analysis',
   'cover-letter': 'letters',
+  'interview-prep': 'analysis',
   'job-verify': 'verify',
   screening: 'screening',
   'screening-compare': 'screening',
