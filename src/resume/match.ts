@@ -19,7 +19,7 @@ import { annotateElsewhere, applyFacts } from './facts';
 import { countableFlags } from './red-flags';
 import { finishEdits, gateActions, gateRemovals, titleOverHeadline } from './replacement-gate';
 import { structureFromText } from './structure-from-text';
-import { floorDemand, floorGaps, unwrittenMusts } from './suggestion-floor';
+import { floorDemand, floorGaps, unwrittenMusts, type FloorSection } from './suggestion-floor';
 import { suggestForMatch } from './suggestions';
 import { rewriteRefusedLeads } from './rewrite';
 import { withTableAliases } from './keyword-aliases';
@@ -84,6 +84,8 @@ export async function matchResumeToJob(
      */
     evidence?: MatchEvidence;
     onError?: (reason: string) => void;
+    /** The report owed edits it did not write, and one more call is about to ask for them (#586). */
+    onFloor?: (gaps: FloorSection[]) => void;
   } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
@@ -237,6 +239,7 @@ export async function matchResumeToJob(
     const gaps = floorGaps({ keywords, alignment: reply.alignment, actions: gate.actions, breakdown });
     if (gaps.length > 0) {
       logger.info({ matchId: row.id, jobId: job.id, gaps }, 'resume: suggestions missed the floor, asking again');
+      opts.onFloor?.(gaps);
       filled = (await suggestForMatch(row, job, undefined, floorDemand(gaps, unwrittenMusts({ keywords, actions: gate.actions })))) ?? row;
     } else {
       // The floor's own call does this at its end; without it, a refused title
