@@ -142,11 +142,11 @@ async function main() {
     if (mode === 'shots' || mode === 'screening') {
       await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
       const shots = [
-        ['overview-dashboard', '/'],
-        ['jobs-ranked', '/jobs?sort=fitScore_desc'],
-        ['tailor-score', `/jobs/${JOB}/target?match=${MATCH}`],
+        ['overview-dashboard-2', '/'],
+        ['jobs-ranked-2', '/jobs?sort=fitScore_desc'],
+        ['tailor-score-2', `/jobs/${JOB}/target?match=${MATCH}`],
         // After Apply all: the suggestion cards marked Applied beside the resume drawn as a document, the changes in green.
-        ['tailor-document', `/jobs/${JOB}/target?match=${MATCH}`, async () => { await applyAll(); await sleep(2500); await scrollTo('#panes', '', 12); await sleep(800); }],
+        ['tailor-document-2', `/jobs/${JOB}/target?match=${MATCH}`, async () => { await applyAll(); await sleep(2500); await scrollTo('#panes', '', 12); await sleep(800); }],
       ];
       if (mode === 'screening') {
         // docs/employer-mode.md and the site's employers/ page: the screening built in the README's §5.
@@ -265,10 +265,21 @@ async function main() {
     } catch { await cursorTo(760, 640, 300); }
     await sleep(2400);
 
-    // 8 — one resume against every posting it met
+    // 8 — the interview: the questions this posting brings, answered from the person's own history
+    await goto(`/jobs/${JOB}?tab=interview`);
+    await caption('Before the interview: the likely questions, answered from your own history');
+    try {
+      const q = await find('ol.space-y-5 > li', '', 0);
+      await evalJs(`document.getElementById('main').scrollBy({ top: ${Math.max(0, q.y - 260)}, behavior: 'instant' }); 'ok'`);
+      await sleep(250);
+    } catch { /* the tab without a preparation still shows the form */ }
+    await cursorTo(760, 430, 300);
+    await sleep(2600);
+
+    // 9 — one resume against every posting it met
     await goto(`/resumes/${RESUME}`);
     await scrollTo('div.text-entity', 'Comparisons', 200);
-    await caption('One resume, every posting: 90 and 85 where it fits, a straight 0 where the stack is PHP');
+    await caption('One resume, every posting: 91 and 90 where it fits, a straight 0 where the stack is PHP');
     await cursorTo(1100, 470, 400);
     await sleep(2800);
     await caption('');

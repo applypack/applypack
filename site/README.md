@@ -8,7 +8,7 @@ Static landing for the project. Zero build step, zero dependencies —
   `demo/demo.mjs`). `employers/` is employer mode's own page; the landing
   keeps a short section that links to it. `sitemap.xml` lists the three.
 - `tour.webm` (VP9) and `tour.mp4` (H.264, for Safari) are the README's
-  tour as a 25-second video, shown in the landing's Tour section with
+  tour as a 28-second video, shown in the landing's Tour section with
   `img/tour-poster.webp` as its poster, and linked from the launch posts
   (the recipe is in `docs/screenshots/README.md`).
 - `demo/score.mjs`, `demo/target.mjs`, `demo/evidence.mjs`, `demo/i18n.mjs`,
@@ -26,8 +26,8 @@ Static landing for the project. Zero build step, zero dependencies —
   so the page does not block on a third-party stylesheet.
 - `img/*.webp` are crops of `docs/screenshots/` (`cwebp -q 82`, plus a
   `-720` copy of each; re-make them when those regenerate): `jobs.webp`
-  is `jobs-ranked.png` whole, `resume-score.webp` is the score card of
-  `tailor-score.png` (`cwebp -q 82 -crop 256 16 1168 610`), and each
+  is `jobs-ranked-2.png` whole, `resume-score.webp` is the score card of
+  `tailor-score-2.png` (`cwebp -q 82 -crop 256 16 1168 610`), and each
   `screening-<name>.webp` is `employer-<name>.png`; `img/og-employers.png` is the
   top of `employer-scorecard.png` (its content column, x 240–1440, y 0–600) at 1280×640 (a PNG, which every preview
   reads). `img/og.png` is a copy of
