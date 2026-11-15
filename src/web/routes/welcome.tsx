@@ -27,7 +27,7 @@ import { beginFetchNow } from '../fetch-now';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
 import { hashShortId, parseTagList, toStringArray } from '../../text-utils';
-import { forgetAiProbe, getAiEngineEnv, localAiBase } from '../../ai-runtime';
+import { forgetAiProbe, getAiEngineEnv, localAiBase, probeAiProviders } from '../../ai-runtime';
 import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_LABELS,
@@ -221,7 +221,11 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
   }
   await setAiKey(provider, key);
   forgetAiProbe();
-  return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keySaved', { engine: AI_PROVIDER_LABELS[provider] }));
+  // A key for an engine that still cannot run (its program is missing, say) is not a step forward: say what is in the way.
+  const status = (await probeAiProviders(undefined, { fresh: true }))[provider];
+  const engine = AI_PROVIDER_LABELS[provider];
+  if (!status.ok) return flashRedirect('/welcome?step=ai', 'warn', t('welcome.flash.keySavedNotReady', { engine, detail: status.detail }));
+  return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keySaved', { engine }));
 });
 
 /**
