@@ -11,6 +11,7 @@ import { LEVELS, OFF_STACK, ROLE_FITS, STACK_ROLES, verdictFromFacts } from './f
 import { isCountryCode, isRegionCode, REGIONS } from './countries';
 import { arrangementOnly } from './location';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
+import { STACK_NOT_STATED_FLAG } from './jobs/verdict-merge';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
 export type ClassifierMode = 'single' | 'two_stage';
@@ -28,8 +29,9 @@ const MAX_DESC_CHARS = 4000;
 // v3: one call scores every active search (ADR 0028).
 // v5: a bare "Remote" is decided in code — unknown, not a mismatch (#386).
 // v6: each search names the groups that hold its countries (#530).
-// v7: facts per search instead of a fit score; code computes it (ADR 0064).
-const CLASSIFIER_PROMPT_VERSION = 7;
+// v7: an unstated stack has its own tag, which the code reads (#531).
+// v8: facts per search instead of a fit score; code computes it (ADR 0064).
+const CLASSIFIER_PROMPT_VERSION = 8;
 // The parsed line's words for a bare "Remote"; the location rules quote them.
 const NO_PLACE_NAMED = 'no country named';
 // #386: left to the rules, one posting scored 92 nine times and 45 once on a
@@ -470,7 +472,7 @@ FACTS (per search). Report what the posting shows, each fact on its own: the rol
 
 location_match = true ONLY when the role is open to that search's candidate per its location preferences above. Default to false when unclear.
 
-red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "work-permit-required", "no-visa-sponsorship", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
+red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "work-permit-required", "no-visa-sponsorship", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none. Add "${STACK_NOT_STATED_FLAG}" when the description is too short to name the role's technologies: unknown, never "stack-mismatch".
 
 summary: ONE sentence (max ~25 words) explaining why the posting fits that search or does not.`;
 }

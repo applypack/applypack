@@ -24,6 +24,11 @@ export interface ProfileVerdict {
   classification: ClaudeClassification;
   /** null when this search wants the posting. */
   dismissReason: DismissReason | null;
+  /**
+   * Kept only because the posting was too short to judge (#531): under the
+   * search's fit floor, and never alerted on the strength of this verdict.
+   */
+  unjudged?: true;
   priorityRulesApplied: string[];
   /** Where this search's alerts go; null = broadcast to all active targets. */
   notificationTargetId: number | null;
@@ -104,11 +109,15 @@ export function buildVerdicts(
       !priority.classification.location_match && openThroughGroup(place, profile)
         ? { ...priority.classification, location_match: true }
         : priority.classification;
+    const reason = decideDismissReason(classification, profile);
+    // A snippet that names no stack is unknown, not a miss (#531): kept, flagged, unalerted.
+    const unjudged = reason === 'low-fit' && tooShortToJudge(classification, job.description);
     verdicts.push({
       profileId: profile.id,
       profileName: profile.name,
       classification,
-      dismissReason: decideDismissReason(classification, profile),
+      dismissReason: unjudged ? null : reason,
+      ...(unjudged ? { unjudged: true as const } : {}),
       priorityRulesApplied: priority.applied.map((r) => r.label),
       notificationTargetId: profile.notificationTargetId,
     });
@@ -162,6 +171,22 @@ export function openingGroup(
     if (places.length > 0) return { group, places };
   }
   return null;
+}
+
+/** The classifier's tag for a description that names no technology (classifier.ts lists it). */
+export const STACK_NOT_STATED_FLAG = 'stack-not-stated';
+
+/** Under this many characters a description is a feed's snippet, not a posting (#531: the nine measured were two lines each). */
+const SNIPPET_CHARS = 600;
+
+/**
+ * A feed that sends two lines of a posting says nothing about its stack, and
+ * that is not evidence against a match (#531). Both halves must hold: the
+ * model said the stack is not stated, and the code measured the text as short
+ * — a long posting the model could not be bothered with is still dismissed.
+ */
+export function tooShortToJudge(c: Pick<ClaudeClassification, 'red_flags'>, description: string): boolean {
+  return description.trim().length < SNIPPET_CHARS && c.red_flags.includes(STACK_NOT_STATED_FLAG);
 }
 
 /** Would THIS search drop the posting? Its own threshold, its own regions. */

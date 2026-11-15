@@ -59,6 +59,7 @@ import { ApplicationPackCard, PACK_LINE_ID, type ApplicationPackProps } from './
 import { InterviewCard, type InterviewCardProps } from './interview-card';
 import { packBusy } from '../../pack/view';
 import { NOT_A_POSTING_FLAG } from '../../datasets/posting-file';
+import { STACK_NOT_STATED_FLAG, tooShortToJudge } from '../../jobs/verdict-merge';
 
 interface JobDetail {
   id: number;
@@ -506,7 +507,9 @@ wireSelectCommits(document);
 const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }> = ({ job, scores, tab }) => {
   // A saved page its reader took for no posting (#451): said in words, not as a tag.
   const notAPosting = job.redFlags.includes(NOT_A_POSTING_FLAG);
-  const flags = job.redFlags.filter((flag) => flag !== NOT_A_POSTING_FLAG);
+  // A feed's snippet that names no stack (#531): said in words too.
+  const snippet = tooShortToJudge({ red_flags: job.redFlags }, job.description);
+  const flags = job.redFlags.filter((flag) => flag !== NOT_A_POSTING_FLAG && !(snippet && flag === STACK_NOT_STATED_FLAG));
   const scored =
     job.techMatch.length > 0 ||
     flags.length > 0 ||
@@ -527,6 +530,11 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
       {notAPosting && (
         <Notice tone="warn" class={scored ? 'mb-3' : undefined}>
           {t('job.notAPosting')}
+        </Notice>
+      )}
+      {snippet && (
+        <Notice tone="warn" class="mb-3">
+          {t('job.snippetOnly')}
         </Notice>
       )}
       {scored ? (

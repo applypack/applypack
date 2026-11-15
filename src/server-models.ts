@@ -59,6 +59,33 @@ export function parseOllamaTags(raw: unknown): string[] | null {
   return parseModelList({ data: parsed.data.models.map((m) => ({ id: m.name })) });
 }
 
+/**
+ * A model's own context length out of Ollama's /api/show: `model_info` holds
+ * it under `<architecture>.context_length`. Null when the answer does not say.
+ */
+export function parseOllamaContextLength(raw: unknown): number | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const info = (raw as { model_info?: unknown }).model_info;
+  if (typeof info !== 'object' || info === null) return null;
+  for (const [key, value] of Object.entries(info)) {
+    if (key.endsWith('.context_length') && typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+  }
+  return null;
+}
+
+/** The window "Use it" picks when the model allows it: the full analysis of a resume needs about 22k tokens (#523). */
+const USE_IT_CONTEXT_TOKENS = 32_768;
+
+/**
+ * The context window "Use it" stores (#523): 32k when the model's own length
+ * allows it and the person has not chosen a window themselves; otherwise
+ * nothing changes — a typed model, or a small one, keeps the 16k default.
+ */
+export function windowForUseIt(contextLength: number | null, stored: number | null): number | null {
+  if (stored !== null) return null;
+  return contextLength !== null && contextLength >= USE_IT_CONTEXT_TOKENS ? USE_IT_CONTEXT_TOKENS : null;
+}
+
 /** Whether the server's list names `model` — Ollama answers "llama3.1" with its ":latest" tag. */
 export function listsModel(models: readonly string[], model: string): boolean {
   return models.includes(model) || models.includes(`${model}:latest`);
@@ -116,6 +143,26 @@ export async function listOllamaModels(root: string, timeoutMs = LIST_TIMEOUT_MS
   return listModels(`${root}/api/tags`, root, {}, parseOllamaTags, timeoutMs, (status) =>
     status === 404 ? 'engine.models.httpNotOllama' : 'engine.models.http',
   );
+}
+
+/** Asks Ollama what context length `model` was built with; null when it does not answer or does not say. */
+export async function ollamaContextLength(root: string, model: string, timeoutMs = LIST_TIMEOUT_MS): Promise<number | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const resp = await fetch(`${root}/api/show`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // `name` is what older Ollama versions read.
+      body: JSON.stringify({ model, name: model }),
+      signal: ctrl.signal,
+    });
+    return resp.ok ? parseOllamaContextLength(await resp.json().catch(() => null)) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function listModels(

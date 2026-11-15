@@ -1283,6 +1283,7 @@
   "job.priorityRules": "Règles de priorité",
   "job.notScoredYetReClassify": "Pas encore notée : Reclasser fait passer cette offre par l'IA.",
   "job.notAPosting": "Cette page n'est peut-être pas une offre d'emploi : l'IA qui a lu le fichier enregistré l'a prise pour autre chose, elle est donc gardée comme Enregistrée et sans note. Si c'en est une, Reclasser la note.",
+  "job.snippetOnly": "La source n'a donné que quelques lignes de cette offre — trop peu pour connaître sa stack —, elle est donc gardée au lieu d'être écartée et aucune alerte n'a été envoyée. Ouvrez l'offre pour lire la suite ; Reclasser la note de nouveau.",
   "job.bySearch": "Par recherche",
   "job.score.best": "meilleure correspondance",
   "job.score.paused": "en pause",

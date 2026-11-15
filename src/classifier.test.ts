@@ -363,7 +363,8 @@ test('eight searches keep the system prompt under the budget', () => {
   );
   // ADR 0064's fact definitions (~1.2 kB, stated once) replaced the scoring guidance.
   const { system } = buildClassifyPrompt(input('x'), eight);
-  assert.ok(system.length < 12_800, `${system.length} chars`);
+  // …and #531's tag for an unstated stack is one sentence (~120 chars).
+  assert.ok(system.length < 12_950, `${system.length} chars`);
 });
 
 test('the parsed place rides in the user prompt outside the fence', () => {

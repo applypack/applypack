@@ -54,7 +54,8 @@ export function isJobFeedPath(pathname: string): boolean {
   const path = pathname.toLowerCase();
   return (
     /(?:^|\/)(?:jobs?|careers?|vacancies|vacatures|stellen|openings|positions)[^/]*\.(?:rss|xml|atom)$/.test(path) ||
-    /(?:^|\/)(?:jobs?|careers?|vacancies|vacatures|stellen|openings|positions)\/(?:feed|rss|atom)(?:\.xml)?\/?$/.test(path)
+    // `/jobs/feed/rss/` too: python.org's job board names the format after the word (#541).
+    /(?:^|\/)(?:jobs?|careers?|vacancies|vacatures|stellen|openings|positions)\/(?:feed|rss|atom)(?:\/(?:rss|atom))?(?:\.xml)?\/?$/.test(path)
   );
 }
 
@@ -76,6 +77,32 @@ export function declaredJobFeeds(html: string, pageUrl: string): string[] {
       continue;
     }
     if (!isJobFeedPath(url.pathname)) continue;
+    if (!out.includes(url.toString())) out.push(url.toString());
+  }
+  return out;
+}
+
+/**
+ * Job feeds the page links in plain sight — `<a href="/jobs/feed/rss/">`
+ * (#541: python.org declares no alternate and links its feed this way). The
+ * same defence as a declared one: the link's own path must name jobs, and it
+ * must stay on the page's site, so a link to somebody else's feed is never
+ * read as this company's. Costs no request to find.
+ */
+export function linkedJobFeeds(html: string, pageUrl: string): string[] {
+  const origin = new URL(pageUrl).origin;
+  const out: string[] = [];
+  for (const tag of html.match(/<a\b[^>]*>/gi) ?? []) {
+    const href = /href=["']([^"']+)["']/i.exec(tag)?.[1];
+    if (href === undefined) continue;
+    let url: URL;
+    try {
+      url = new URL(href, pageUrl);
+    } catch {
+      continue;
+    }
+    if (url.origin !== origin || !isJobFeedPath(url.pathname)) continue;
+    url.hash = '';
     if (!out.includes(url.toString())) out.push(url.toString());
   }
   return out;
