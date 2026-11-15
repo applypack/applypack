@@ -241,18 +241,23 @@ async function probeNow(stored: AiKeys | undefined): Promise<Record<AiProviderId
       from('anthropic_api') === 'none'
         ? { ok: false, detail: t('engine.probe.anthropicNoKey') }
         : { ok: true, detail: t('engine.probe.apiKey', { origin: from('anthropic_api') }) },
-    claude_code: withClaudeAuth(claude, from('claude_code')),
-    gemini_cli: withGeminiAuth(gemini, from('gemini_cli')),
-    agy_cli: agy,
+    claude_code: installed(withClaudeAuth(claude, from('claude_code')), claude),
+    gemini_cli: installed(withGeminiAuth(gemini, from('gemini_cli')), gemini),
+    agy_cli: installed(agy, agy),
     openai_api: isLocalUrl(openAi)
       ? await localServerStatus(openAi, resolveAiKey('openai_api', keys))
       : from('openai_api') === 'none'
         ? { ok: false, detail: t('engine.probe.openaiNoKey', { host: baseUrlHost(openAi) }) }
         : { ok: true, detail: t('engine.probe.apiKeyHost', { origin: from('openai_api'), host: baseUrlHost(openAi) }) },
-    codex_cli: withCodexAuth(codex),
+    codex_cli: installed(withCodexAuth(codex), codex),
     local_api: await ollamaStatus(localAiBase(servers.localAiUrl)),
   };
   return statuses;
+}
+
+/** A CLI's bare `--version` line is the vendor's text: a page shows it inside a sentence of ours. */
+function installed(status: AiProviderStatus, bin: AiProviderStatus): AiProviderStatus {
+  return status === bin && bin.ok ? { ...bin, detail: t('engine.probe.cliInstalled', { version: bin.detail }) } : status;
 }
 
 /** Invalidates the probe cache so a just-saved key shows up immediately. */
