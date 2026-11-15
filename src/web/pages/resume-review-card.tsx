@@ -178,6 +178,8 @@ const ReviewReport: FC<{
       {advice.length > 0 && (
         <div>
           <div class={SUBHEAD}>{t('review.whatToChangeHardestHitting')}</div>
+          {/* Claims about a term are checked against the text (review-gate.ts); ones about order and dates are not (#584). */}
+          <Hint class="mb-2">{t('review.orderIsAReading')}</Hint>
           <ul class="divide-y divide-line rounded-md border border-line">
             {advice.map((a) => (
               <li class="space-y-1.5 p-3">
