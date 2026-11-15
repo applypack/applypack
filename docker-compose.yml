@@ -29,6 +29,9 @@ services:
   app:
     build:
       context: .
+      args:
+        # WITH_CLI_ENGINES=0 in .env builds without the three CLI engines (docs/ai-engines.md).
+        WITH_CLI_ENGINES: ${WITH_CLI_ENGINES:-1}
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +72,9 @@ services:
   web:
     build:
       context: .
+      args:
+        # WITH_CLI_ENGINES=0 in .env builds without the three CLI engines (docs/ai-engines.md).
+        WITH_CLI_ENGINES: ${WITH_CLI_ENGINES:-1}
     command: ["node", "dist/web/server.js"]
     depends_on:
       postgres:

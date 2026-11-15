@@ -307,6 +307,26 @@ works on macOS too.)
 
 ---
 
+## A Docker image without the CLI engines
+
+The image installs the three CLI engines (Claude Code, Gemini CLI, Codex) —
+about 970 MB of its 2.25 GB. A server that runs on an API key, on an
+OpenAI-compatible server or on a model on the host never starts them. To
+build without them, add one line to `.env` and rebuild:
+
+```
+WITH_CLI_ENGINES=0
+```
+
+```bash
+docker compose up -d --build
+```
+
+The cards of the three CLI engines then say the CLI is not installed, as on
+any machine without it; every other engine works as before. Remove the line
+(or set it to `1`) and rebuild to bring them back. The default stays `1`, so
+an install that uses a CLI engine changes nothing by upgrading.
+
 ## When a call fails
 
 Every engine's failure is read the same way (`ai-provider-parse.ts:failureKind`):

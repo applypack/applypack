@@ -35,8 +35,14 @@ ENV CHECKPOINT_DISABLE=1
 ARG CLAUDE_CODE_VERSION=2.1.274
 ARG GEMINI_CLI_VERSION=0.61.0
 ARG CODEX_VERSION=0.157.1
+# 1 (the default) installs them; 0 leaves them out — about 970 MB less for a
+# server that runs on an API key or a model on the host (#525). An engine
+# card then says its CLI is not installed, as it does on any machine without it.
+ARG WITH_CLI_ENGINES=1
 RUN apk add --no-cache tini \
- && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" "@google/gemini-cli@${GEMINI_CLI_VERSION}" "@openai/codex@${CODEX_VERSION}"
+ && if [ "$WITH_CLI_ENGINES" = "1" ]; then \
+      npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" "@google/gemini-cli@${GEMINI_CLI_VERSION}" "@openai/codex@${CODEX_VERSION}"; \
+    fi
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 # Static assets served by the dashboard (keyword matcher for /jobs/:id/target).
