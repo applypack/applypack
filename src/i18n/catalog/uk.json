@@ -2433,6 +2433,7 @@
   "review.staleHint": "Ця оцінка стосується v{version}. Запустіть її ще раз, щоб оцінити поточний текст.",
   "review.howItReadsDimensionBy": "Як резюме читається за кожним виміром",
   "review.whatToChangeHardestHitting": "Що змінити — спершу найвагоміше",
+  "review.orderIsAReading": "Зауваження про порядок чи дати — «три посади тому», «два роки тому» — це прочитання вашого резюме штучним інтелектом. Звірте його з текстом, перш ніж щось міняти.",
   "review.rewrite": "Як переписати:",
   "review.onlyYouCanAnswer": "Відповісти можете лише ви:",
   "review.keepTheseTheyAlreadyWork": "Це залиште — воно вже працює",

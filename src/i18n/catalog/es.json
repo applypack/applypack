@@ -2433,6 +2433,7 @@
   "review.staleHint": "Esta revisión evaluó la v{version}. Vuelve a ejecutarla para evaluar el texto actual.",
   "review.howItReadsDimensionBy": "Cómo se lee, dimensión por dimensión",
   "review.whatToChangeHardestHitting": "Qué cambiar — primero lo de mayor impacto",
+  "review.orderIsAReading": "Una observación sobre el orden o las fechas — “hace tres puestos”, “hace dos años” — es la lectura que la IA hace de tu currículum. Compruébala con el texto antes de actuar.",
   "review.rewrite": "Reescritura:",
   "review.onlyYouCanAnswer": "Solo tú puedes responder:",
   "review.keepTheseTheyAlreadyWork": "Conserva esto — ya funciona",

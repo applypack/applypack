@@ -2433,6 +2433,7 @@
   "review.staleHint": "Cette évaluation a jugé la v{version}. Relancez-la pour noter le texte actuel.",
   "review.howItReadsDimensionBy": "Comment il se lit, dimension par dimension",
   "review.whatToChangeHardestHitting": "Ce qu'il faut changer — le plus important d'abord",
+  "review.orderIsAReading": "Une remarque sur l'ordre ou les dates — « il y a trois postes », « il y a deux ans » — est la lecture que l'IA fait de votre CV. Vérifiez-la dans le texte avant d'agir.",
   "review.rewrite": "Réécriture :",
   "review.onlyYouCanAnswer": "Vous seul pouvez répondre :",
   "review.keepTheseTheyAlreadyWork": "Gardez ces points — ils fonctionnent déjà",

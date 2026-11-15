@@ -2433,6 +2433,7 @@
   "review.staleHint": "This review judged v{version}. Run it again to grade the current text.",
   "review.howItReadsDimensionBy": "How it reads, dimension by dimension",
   "review.whatToChangeHardestHitting": "What to change — hardest-hitting first",
+  "review.orderIsAReading": "A remark about order or dates — “three roles back”, “two years ago” — is the AI's reading of your resume. Check it against the text before you act on it.",
   "review.rewrite": "Rewrite:",
   "review.onlyYouCanAnswer": "Only you can answer:",
   "review.keepTheseTheyAlreadyWork": "Keep these — they already work",
