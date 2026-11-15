@@ -11,6 +11,8 @@ const SECONDS_FORMAT = { minimumFractionDigits: 1, maximumFractionDigits: 1, use
 export interface EngineTestResult {
   ok: boolean;
   text: string;
+  /** The engine refused the credential itself — a wrong or revoked key, not a busy server. */
+  refused?: true;
 }
 
 /** What one press of Test found out, once its call is back. */
@@ -18,7 +20,7 @@ export interface TestFacts {
   /** The engine's name as the page writes it. */
   engine: string;
   model: string;
-  attempt: Pick<AiAttempt, 'text' | 'queuedMs'>;
+  attempt: Pick<AiAttempt, 'text' | 'queuedMs'> & Partial<Pick<AiAttempt, 'outcome'>>;
   /** From just before the call until it came back, a wait for a local server's slot included. */
   elapsedMs: number;
   /** The reason the provider handed over, if it failed and said why. */
@@ -50,7 +52,7 @@ export function testReport(f: TestFacts): { durationMs: number; result: EngineTe
   // A model the server never pulled is the likeliest cause on a local server; the list says so.
   const unlisted = f.offered !== null && f.offered.length > 0 && f.model !== '' && !listsModel(f.offered, f.model) ? t('aiTest.unlisted', { model: f.model }) : '';
   const failed = f.failure === null ? t('aiTest.failedNoReason', { engine: f.engine, seconds }) : t('aiTest.failed', { engine: f.engine, seconds, reason: f.failure });
-  return { durationMs, result: { ok: false, text: sentences(failed, unlisted, offer, f.unlistable) } };
+  return { durationMs, result: { ok: false, text: sentences(failed, unlisted, offer, f.unlistable), ...(f.attempt.outcome === 'unauthorized' && { refused: true as const }) } };
 }
 
 /** Whole sentences side by side; the ones that do not apply are empty. */
