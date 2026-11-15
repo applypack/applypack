@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC, PropsWithChildren } from 'hono/jsx';
+import type { TailoredCopy } from '../../resume/store';
+import { TailoredCopyCard } from './tailored-copy-card';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
 import { companyOnPage } from '../../employer';
@@ -152,7 +154,16 @@ export interface JobDetailProps {
   job: JobDetail;
   /** Resumes offered by "Mark applied", and the one it starts on. */
   /** `packValue`: the picker's value for the application pack's file, while a ready pack no one froze exists (applied-resume.ts:packChoiceValue). */
-  appliedResumePicker: { resumes: { id: number; name: string }[]; suggestedId: number | null; packValue: string | null };
+  appliedResumePicker: {
+    resumes: { id: number; name: string }[];
+    suggestedId: number | null;
+    packValue: string | null;
+    /** The picker's value for the copy tailored for this job, and that copy's name (applied-resume.ts:copyChoiceValue). */
+    copyValue: string | null;
+    copyName: string | null;
+  };
+  /** The copy Save on the Tailor page kept for this posting (ADR 0066). */
+  tailoredCopy: TailoredCopy | null;
   /** Every search that has scored this posting, best first. */
   profileScores: ProfileScore[];
   applicationTrackingEnabled: boolean;
@@ -196,6 +207,7 @@ const STATUS_ACTIONS: { status: JobStatus; label: MessageKey; variant: ButtonVar
 export const JobDetailPage: FC<JobDetailProps> = ({
   job,
   appliedResumePicker,
+  tailoredCopy,
   profileScores,
   applicationTrackingEnabled,
   pipelineStages,
@@ -274,6 +286,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         {(tab === 'match' || tab === 'letter') && notEnglishNotice(job.description) && (
           <Hint class="mb-3">{notEnglishNotice(job.description)}</Hint>
         )}
+        {tab === 'match' && tailoredCopy && <TailoredCopyCard jobId={job.id} copy={tailoredCopy} class="mb-4" />}
         {tab === 'match' && <ResumeMatchCard {...resumeMatch} />}
 
         {tab === 'letter' && <CoverLetterCard {...coverLetters} />}
@@ -789,8 +802,14 @@ const MarkAppliedPicker: FC<{
                 {t('job.applied.packFile')}
               </option>
             )}
+            {/* A copy was tailored for this job: next to a pack's file, the likeliest thing that went out. */}
+            {picker.copyValue && (
+              <option value={picker.copyValue} selected={!picker.packValue}>
+                {t('job.applied.copy', { name: picker.copyName ?? '' })}
+              </option>
+            )}
             {picker.resumes.map((r) => (
-              <option value={r.id} selected={!picker.packValue && r.id === picker.suggestedId} translate="no">
+              <option value={r.id} selected={!picker.packValue && !picker.copyValue && r.id === picker.suggestedId} translate="no">
                 {r.name}
               </option>
             ))}
@@ -834,6 +853,7 @@ const AppliedWithField: FC<{ job: JobDetail; picker: JobDetailProps['appliedResu
           {t('job.notRecorded')}
         </option>
         {picker.packValue && <option value={picker.packValue}>{t('job.applied.packFile')}</option>}
+        {picker.copyValue && <option value={picker.copyValue}>{t('job.applied.copy', { name: picker.copyName ?? '' })}</option>}
         {picker.resumes.map((r) => (
           <option value={r.id} selected={r.id === job.appliedResumeId} translate="no">
             {r.name}
