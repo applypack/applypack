@@ -76,9 +76,15 @@ export function aiPlanRows(engine: ResolvedAiEngine, billingFor: (id: AiProvider
  * answers when one engine answers everything, and who stands behind it.
  * Null when a task has no engine at all — the tab's own warning says that.
  */
-export function planSummary(rows: readonly AiPlanRow[]): { lead: string; fallback: string | null } | null {
+export function planSummary(
+  rows: readonly AiPlanRow[],
+  canRun: (id: AiProviderId) => boolean = () => true,
+): { lead: string; fallback: string | null; notReady?: true } | null {
   if (rows.length === 0 || rows.some((r) => r.engines.length === 0)) return null;
   const firsts = new Set(rows.map((r) => r.engines[0]!.id));
+  // The list names an engine even when none can run (the last resort, #559): saying it "answers every task"
+  // above a card that reads "not available" told a new user the opposite of what is true.
+  if (![...firsts].some(canRun)) return { lead: t('plan.summary.notReady'), fallback: null, notReady: true };
   if (firsts.size > 1) return { lead: t('plan.summary.split', { n: firsts.size }), fallback: null };
   const first = rows[0]!.engines[0]!;
   // The engine behind it, when every task that has one has the same: a task no other engine can take
