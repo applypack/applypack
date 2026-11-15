@@ -1777,7 +1777,7 @@
   "welcome.ai.checkAgain": "Check again",
   "welcome.ai.docs": "Full instructions per engine: <link>docs/ai-engines.md</link>.",
   "welcome.ai.simplest": "Simplest: paste a key",
-  "welcome.ai.simplest.hint": "Nothing to install. You pay the provider for what you use — scoring one posting costs a fraction of a cent. The key is checked when you save it.",
+  "welcome.ai.simplest.hint": "Nothing to install. You pay the provider for what you use — scoring one posting costs a fraction of a cent. The key is kept in your own database and checked with one tiny test message when you save it.",
   "welcome.ai.programs": "I have a Claude or ChatGPT subscription, or a free Gemini key",
   "welcome.ai.programs.hint": "Each of these works through a program you install once in a terminal.",
   "welcome.ai.localSummary": "A model on this computer: free, slower",

@@ -1777,7 +1777,7 @@
   "welcome.ai.checkAgain": "Volver a comprobar",
   "welcome.ai.docs": "Instrucciones completas para cada motor: <link>docs/ai-engines.md</link>.",
   "welcome.ai.simplest": "Lo más sencillo: pega una clave",
-  "welcome.ai.simplest.hint": "No hay nada que instalar. Pagas al proveedor por lo que usas — puntuar una oferta cuesta una fracción de céntimo. La clave se comprueba al guardarla.",
+  "welcome.ai.simplest.hint": "No hay nada que instalar. Pagas al proveedor por lo que usas — puntuar una oferta cuesta una fracción de céntimo. La clave se guarda en tu propia base de datos y se comprueba con un mensaje de prueba mínimo al guardarla.",
   "welcome.ai.programs": "Tengo una suscripción de Claude o ChatGPT, o una clave gratuita de Gemini",
   "welcome.ai.programs.hint": "Cada una de estas opciones funciona con un programa que se instala una vez en una terminal.",
   "welcome.ai.localSummary": "Un modelo en este ordenador: gratis, más lento",
