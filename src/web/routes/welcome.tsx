@@ -13,6 +13,7 @@ import {
   setAiKey,
   setFetchingEnabled,
   setLocalAiUrl,
+  setLocalContextTokens,
   setOpenAiBaseUrl,
   setSchedule,
   setSetupCompleted,
@@ -41,7 +42,7 @@ import {
   withEngineFirst,
 } from '../../ai-engine';
 import { checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl } from '../../ai-usage';
-import { findLocalServers, listOllamaModels, listServerModels, preferredModel } from '../../server-models';
+import { findLocalServers, listOllamaModels, listServerModels, ollamaContextLength, preferredModel, windowForUseIt } from '../../server-models';
 import { AI_KEY_ENV_VARS, MAX_AI_KEY_LENGTH, providerTakesKey } from '../../ai-keys';
 import { createResume, getResume, listResumes, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
@@ -268,6 +269,12 @@ welcomeRoute.post('/welcome/ai/local', async (c) => {
   }
   await (engine === 'local_api' ? setLocalAiUrl(checked.url) : setOpenAiBaseUrl(checked.url));
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
+  // #523: the 16k default cannot hold a resume's full analysis, and with no engine behind this one
+  // Compare failed until the person found the setting. A model built for 32k or more gets 32k here.
+  if (engine === 'local_api') {
+    const window = windowForUseIt(await ollamaContextLength(checked.url, model), settings.localContextTokens);
+    if (window !== null) await setLocalContextTokens(window);
+  }
   const env = getAiEngineEnv(keys, settings.openAiBaseUrl);
   const next = withEngineFirst(parseAiEngineConfig(settings.aiEngine), engine, env, model);
   await setAiEngineConfig(next);
