@@ -23,6 +23,7 @@ import { resolveCountries } from '../../countries';
 import { isProfileWorkplace } from '../../location';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
+import { runFetchJob } from '../../jobs/fetch-job';
 import { beginFetchNow } from '../fetch-now';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
@@ -451,6 +452,9 @@ welcomeRoute.post('/welcome/score', async (c) => {
     return flashRedirect(AI_STEP, 'err', t('welcome.flash.noAi'));
   }
   const { run } = beginScoreUnscored({
+    // The boards step 4 switched on have not been read yet: without them "first matches" leaves out most of what
+    // the person's countries offer (#535). Stored unscored — the pass below scores the best of everything.
+    before: readUnreadSources,
     limit: SCORE_BATCH,
     heading: { running: t('welcome.scoreRun.running'), failed: t('welcome.scoreRun.failed') },
     subtitle: t('welcome.scoreRun.subtitle', { n: SCORE_BATCH }),
@@ -462,6 +466,15 @@ welcomeRoute.post('/welcome/score', async (c) => {
 });
 
 /* ---------- helpers ---------- */
+
+/** The sources that are on and were never read — what step 4 has just enabled — read once, scoring nothing. */
+async function readUnreadSources(say: (subtitle: string) => void): Promise<void> {
+  const unread = await prisma.company.findMany({ where: { active: true, lastFetchedAt: null }, select: { id: true } });
+  if (unread.length === 0) return;
+  const ids = new Set(unread.map((c) => c.id));
+  say(t('welcome.scoreRun.reading', { n: unread.length }));
+  await runFetchJob({ manual: true, unscored: true, only: (c) => ids.has(c.id) });
+}
 
 /** The aggregators switched on — what step 2 asks. */
 async function countAggregators(): Promise<number> {

@@ -1933,6 +1933,7 @@
   "welcome.scoreRun.running": "Scoring the jobs we found",
   "welcome.scoreRun.failed": "Scoring failed",
   "welcome.scoreRun.subtitle": "The {n} stored jobs that match your profile best — a few seconds to half a minute each.",
+  "welcome.scoreRun.reading": "First reading the {n, plural, one {# board} other {# boards}} you have just switched on, so their postings are in the running too…",
   "welcome.scoreRun.skippedBlank": "Scoring skipped — the profile lists no technologies or role words yet.",
   "welcome.scoreRun.skippedNoSearch": "Scoring skipped — no running search. Create one in Settings → Job search.",
   "welcome.scoreRun.scored": "Scored {scored, plural, one {# job} other {# jobs}} — {matches, plural, one {# looks like a match} other {# look like a match}}",

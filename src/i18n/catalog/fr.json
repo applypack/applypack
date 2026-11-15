@@ -1933,6 +1933,7 @@
   "welcome.scoreRun.running": "Notation des offres trouvées",
   "welcome.scoreRun.failed": "La notation a échoué",
   "welcome.scoreRun.subtitle": "Les {n} offres enregistrées qui correspondent le mieux à votre profil — de quelques secondes à une demi-minute chacune.",
+  "welcome.scoreRun.reading": "Lecture préalable {n, plural, one {du # job board que vous venez d'activer, pour que ses} many {des # de job boards que vous venez d'activer, pour que leurs} other {des # job boards que vous venez d'activer, pour que leurs}} offres soient aussi prises en compte…",
   "welcome.scoreRun.skippedBlank": "Notation ignorée — le profil ne contient encore ni technologies ni mots du poste.",
   "welcome.scoreRun.skippedNoSearch": "Notation ignorée — aucune recherche active. Créez-en une dans Paramètres → Recherche d'emploi.",
   "welcome.scoreRun.scored": "{scored, plural, one {# offre notée} many {# d'offres notées} other {# offres notées}} — {matches, plural, one {# semble correspondre} many {# semblent correspondre} other {# semblent correspondre}}",
