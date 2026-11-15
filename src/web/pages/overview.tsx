@@ -17,6 +17,7 @@ import {
   IconTile,
   Notice,
   PageHeader,
+  MarkIcon,
   SectionTitle,
   StatCard,
   StatusBadge,
@@ -29,6 +30,7 @@ import type { FlashMessage } from '../flash';
 import type { FetchRun } from '../fetch-runs';
 import type { HeldLine } from '../held-line';
 import type { NextThing } from '../next-things';
+import type { SetupLeftRow } from '../setup-left';
 import { jobHref } from '../job-tabs';
 import type { ReadyPack } from '../../pack/store';
 import { KPI_STATUSES, overviewHref, type KpiStatus } from '../overview-numbers';
@@ -102,6 +104,8 @@ export interface OverviewProps {
   fetchRun: FetchRun | null;
   /** A wizard step is still undone (skipped or not) — show the way back to /welcome. */
   finishSetup: boolean;
+  /** What still stands before the first match (#716), and whether the card may start the watch; null once nothing does. */
+  left: { rows: SetupLeftRow[]; canStart: boolean } | null;
   /** TASKS N11: open a match → compare → tailor, until the first comparison; null hides the card. */
   next: NextThing[] | null;
   /** Jobs stored unscored, and the one press that scores them (`score-run.ts`). */
@@ -139,6 +143,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   places,
   fetchRun,
   finishSetup,
+  left,
   next,
   unscored,
   readyPacks,
@@ -199,7 +204,8 @@ export const OverviewPage: FC<OverviewProps> = ({
       <Flash flash={flash} />
 
       {/* What stands between the search and its alerts, said before any number. */}
-      {!fetchingEnabled && (
+      {left && <SetupLeftCard {...left} />}
+      {!fetchingEnabled && !left && (
         <Notice tone="warn" class="mb-4">
           {t('overview.pausedNotice')}
         </Notice>
@@ -539,6 +545,49 @@ const ReadyPacksCard: FC<{ packs: ReadyPack[]; total: number }> = ({ packs, tota
         );
       })}
     </ul>
+  </Card>
+);
+
+/** The list a new install reads instead of four zeros: what is done, what is left, one way into each (#716). */
+const SetupLeftCard: FC<{ rows: SetupLeftRow[]; canStart: boolean }> = ({ rows, canStart }) => (
+  <Card class="mb-4">
+    <SectionTitle>{t('overview.left.title')}</SectionTitle>
+    <ol class="mt-3 divide-y divide-line">
+      {rows.map((row) => (
+        <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+          <span
+            class={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${row.done ? 'border-ok/40 bg-ok/10 text-ok' : 'border-line-strong'}`}
+            aria-hidden="true"
+          >
+            {row.done && <MarkIcon kind="check" class="!h-3 !w-3" />}
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class={`text-label ${row.done ? 'text-ink-muted' : 'text-ink'}`}>
+              {row.href && !row.done ? (
+                <a href={row.href} class={QUIET_LINK}>
+                  {t(row.title)}
+                </a>
+              ) : (
+                t(row.title)
+              )}
+              {row.done && <span class="sr-only"> — {t('overview.left.done')}</span>}
+            </div>
+            {!row.done && (
+              <p data-ui="hint" class="text-meta text-ink-faint">
+                {row.key === 'watch' && !canStart ? t('overview.left.watch.later') : t(row.hint)}
+              </p>
+            )}
+          </div>
+          {row.key === 'watch' && canStart && (
+            <form method="post" action="/settings/fetching-toggle" class="flex">
+              <input type="hidden" name="back" value="/" />
+              <input type="hidden" name="on" value="1" />
+              <Button size="sm">{t('overview.left.start')}</Button>
+            </form>
+          )}
+        </li>
+      ))}
+    </ol>
   </Card>
 );
 
