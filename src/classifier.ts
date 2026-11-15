@@ -11,6 +11,7 @@ import { capFitForMissingStack } from './profile-guards';
 import { isCountryCode, isRegionCode, REGIONS } from './countries';
 import { arrangementOnly } from './location';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
+import { STACK_NOT_STATED_FLAG } from './jobs/verdict-merge';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
 export type ClassifierMode = 'single' | 'two_stage';
@@ -26,7 +27,8 @@ const MAX_DESC_CHARS = 4000;
 // v3: one call scores every active search (ADR 0028).
 // v5: a bare "Remote" is decided in code — unknown, not a mismatch (#386).
 // v6: each search names the groups that hold its countries (#530).
-const CLASSIFIER_PROMPT_VERSION = 6;
+// v7: an unstated stack has its own tag, which the code reads (#531).
+const CLASSIFIER_PROMPT_VERSION = 7;
 // The parsed line's words for a bare "Remote"; the location rules quote them.
 const NO_PLACE_NAMED = 'no country named';
 // #386: left to the rules, one posting scored 92 nine times and 45 once on a
@@ -447,7 +449,7 @@ location_match = true ONLY when the role is open to that search's candidate per 
 
 tech_match: lowercase tags that intersect what the role uses with THAT search's stack (required + nice-to-have). Empty array if none match.
 
-red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "work-permit-required", "no-visa-sponsorship", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
+red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "work-permit-required", "no-visa-sponsorship", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none. Add "${STACK_NOT_STATED_FLAG}" when the description is too short to name the role's technologies: unknown, never "stack-mismatch".
 
 summary: ONE sentence (max ~25 words) explaining why the posting fits that search or does not.`;
 }

@@ -438,8 +438,9 @@ export async function processNormalizedJobs(
     // stamp is written WITH the row: a second statement could leave a NEW
     // match with no stamp, which nothing would ever send (audit 2026-09-10,
     // DATA-3).
+    // …and a posting kept only because its snippet was too short to judge is no match to announce (#531).
     const skipsAlert =
-      finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
+      (finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) || winner.unjudged === true) && !alertsEveryPosting(item.watch);
     const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off' || groupAlerts);
     const alertHeldAt = holds ? new Date() : null;
     const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {

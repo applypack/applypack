@@ -1283,6 +1283,7 @@
   "job.priorityRules": "Reglas de prioridad",
   "job.notScoredYetReClassify": "Aún sin puntuar: Reclasificar ejecuta la IA sobre esta oferta.",
   "job.notAPosting": "Puede que esta página no sea una oferta de empleo: la IA que leyó el archivo guardado la tomó por otra cosa, así que se conserva como Guardada y sin puntuar. Si es una oferta, Reclasificar la puntúa.",
+  "job.snippetOnly": "La fuente dio solo unas líneas de esta oferta — demasiado poco para saber su stack —, así que se conserva en lugar de descartarse y no se envió ninguna alerta. Abre la oferta para leer el resto; Reclasificar la puntúa de nuevo.",
   "job.bySearch": "Por búsqueda",
   "job.score.best": "mejor coincidencia",
   "job.score.paused": "en pausa",

@@ -10,6 +10,7 @@ import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { companyForPage, withoutMuted } from '../../employer';
+import { STACK_NOT_STATED_FLAG } from '../../jobs/verdict-merge';
 import { rowsToRead, withoutCopies } from '../copies';
 import { mutedKeys } from '../../jobs/employer-store';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
@@ -67,7 +68,13 @@ overviewRoute.get('/', async (c) => {
     }),
     prisma.job.findMany({
       // The matches: alerted, or kept by a search and not alerted (no chat, held). A row stored unscored is not one.
-      where: { status: { in: [JobStatus.ALERTED, JobStatus.NEW] }, fitScore: { not: null }, ...unmuted },
+      where: {
+        status: { in: [JobStatus.ALERTED, JobStatus.NEW] },
+        fitScore: { not: null },
+        // …and not one kept only because its snippet was too short to judge (#531): it is no match yet.
+        NOT: { redFlags: { has: STACK_NOT_STATED_FLAG }, alertedAt: null },
+        ...unmuted,
+      },
       // Postgres sorts NULL first in DESC: an unalerted match goes by when it was found, after the alerts.
       orderBy: [{ alertedAt: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }],
       // More than the list shows: a posting several sources carry is folded into one below (#529).
