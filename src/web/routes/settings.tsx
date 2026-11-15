@@ -147,6 +147,7 @@ import { isProfileWorkplace } from '../../location';
 import { suggestSources } from '../../starter-packs/suggest';
 import {
   parsePriorityRulesText,
+  rulesTextFromRows,
 } from '../../priority-rules';
 import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
@@ -1477,6 +1478,9 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // `all: true` is required so multi-value checkboxes (seniority,
   // remoteRegions) come back as arrays instead of just the last value.
   const form = await c.req.parseBody({ all: true });
+  // #560: the score adjustments arrive as rows and are read as the text they always were.
+  const rulesText = rulesTextFromRows(form);
+  if (rulesText !== null) form.priorityRules = rulesText;
   // #549: a refused save sends the editor back as it was typed, the field it is about marked — never the stored values.
   const refuse = async (text: string, field?: string): Promise<Response> => {
     const sent = sentProfile(before, form);

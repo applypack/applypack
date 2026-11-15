@@ -73,6 +73,7 @@ import { currentLocale } from '../../i18n/locale';
 import { countryChip } from '../../i18n/places';
 import { t } from '../../i18n/t';
 import { companyForPage } from '../../employer';
+import { rowsToRead, withoutCopies } from '../copies';
 
 const TOP_MATCHES = 5;
 const AI_STEP = '/welcome?step=ai';
@@ -100,8 +101,17 @@ welcomeRoute.get('/welcome', async (c) => {
     prisma.job.findMany({
       where: { fitScore: { not: null }, status: { not: JobStatus.DISMISSED } },
       orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
-      take: TOP_MATCHES,
-      select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true, atsType: true } } },
+      // A posting several sources carry shows once (#529).
+      take: rowsToRead(TOP_MATCHES),
+      select: {
+        id: true,
+        title: true,
+        employer: true,
+        fitScore: true,
+        company: { select: { name: true, atsType: true } },
+        crossListedOfJobId: true,
+        crossListedOf: { select: { title: true } },
+      },
     }),
     profile && facts.profileReady ? countWaitingUnscored(profile) : 0,
     // One local request per default address, on step 1 only — no other step asks.
@@ -158,7 +168,7 @@ welcomeRoute.get('/welcome', async (c) => {
         scoredCount: facts.scoredCount,
         matchCount,
         minFitScore: profile?.minFitScore ?? 0,
-        top: top.map((j) => ({ id: j.id, title: j.title, companyName: companyForPage(j.employer, j.company), fitScore: j.fitScore })),
+        top: withoutCopies(top, TOP_MATCHES).map((j) => ({ id: j.id, title: j.title, companyName: companyForPage(j.employer, j.company), fitScore: j.fitScore })),
         waiting,
         runningRunId: liveScoreRun()?.id ?? null,
         scoreCost: await spendHint('classifier'),

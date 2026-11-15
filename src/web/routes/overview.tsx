@@ -11,6 +11,7 @@ import { OverviewPage } from '../pages/overview';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { companyForPage, withoutMuted } from '../../employer';
 import { STACK_NOT_STATED_FLAG } from '../../jobs/verdict-merge';
+import { rowsToRead, withoutCopies } from '../copies';
 import { mutedKeys } from '../../jobs/employer-store';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { readStackParam } from '../overview-numbers';
@@ -76,7 +77,8 @@ overviewRoute.get('/', async (c) => {
       },
       // Postgres sorts NULL first in DESC: an unalerted match goes by when it was found, after the alerts.
       orderBy: [{ alertedAt: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }],
-      take: RECENT_LIMIT,
+      // More than the list shows: a posting several sources carry is folded into one below (#529).
+      take: rowsToRead(RECENT_LIMIT),
       // The columns a row draws and no more: the page refreshes every 30 seconds,
       // and `include` carried eight descriptions with it each time.
       select: {
@@ -93,6 +95,8 @@ overviewRoute.get('/', async (c) => {
         status: true,
         employer: true,
         company: { select: { name: true, atsType: true } },
+        crossListedOfJobId: true,
+        crossListedOf: { select: { title: true } },
       },
     }),
     Promise.all(
@@ -124,7 +128,7 @@ overviewRoute.get('/', async (c) => {
   return c.html(
     <OverviewPage
       counts={counts}
-      recentMatches={recentMatches}
+      recentMatches={withoutCopies(recentMatches, RECENT_LIMIT)}
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
       sleepingUntil={sleepingUntil}

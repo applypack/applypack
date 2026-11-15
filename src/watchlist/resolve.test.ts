@@ -199,6 +199,21 @@ describe('rung 4 — a feed', () => {
     assert.equal((r.resolution as { url: string }).url, 'https://acme.com/jobs/feed');
   });
 
+  // #541: python.org/jobs declares no alternate and links its feed in a plain anchor.
+  it('reads a job feed the page links before it guesses a path', async () => {
+    const stub = io({
+      pages: {
+        ...robots,
+        'https://acme.com/jobs/': { status: 200, body: '<h1>Jobs</h1><a href="/jobs/feed/rss/">RSS</a>' },
+        'https://acme.com/jobs/feed/rss/': { status: 200, body: RSS(40) },
+      },
+    });
+    const r = await resolveCompanyUrl(paste('https://acme.com/jobs/'), stub);
+    assert.equal(r.resolution.kind, 'feed');
+    assert.equal((r.resolution as { url: string }).url, 'https://acme.com/jobs/feed/rss/');
+    assert.equal(stub.asked.includes('https://acme.com/jobs.rss'), false);
+  });
+
   it('ignores a page that answers HTML at a feed path', async () => {
     const stub = io({
       pages: {
