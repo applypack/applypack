@@ -3780,6 +3780,7 @@
   "folders.rows.includeHint": "Para una carpeta mixta: jobs-*.json. Si lo dejas vacío, se leen todos los archivos de filas.",
   "folders.nextCheck": "Qué hará la próxima comprobación",
   "folders.rows.nothing": "Nada: todos los archivos de aquí ya se leyeron y no han cambiado.",
+  "folders.rows.nothingYet": "Nada todavía: {n, plural, one {# archivo cambió hace un momento y se leerá cuando deje de cambiar} many {# de archivos cambiaron hace un momento y se leerán cuando dejen de cambiar} other {# archivos cambiaron hace un momento y se leerán cuando dejen de cambiar}}. Pulsa Volver a comprobar dentro de un minuto.",
   "folders.rows.usable": "{usable, plural, one {# fila de los archivos que lee es una oferta} many {# de filas de los archivos que lee son ofertas} other {# filas de los archivos que lee son ofertas}}{stored, plural, =0 {} one {; # ya guardada} many {; # de ellas ya guardadas} other {; # ya guardadas}}.",
   "folders.rows.cost": "Cada fila guardada se puntúa: aproximadamente {n, plural, one {# llamada a la IA} many {# de llamadas a la IA} other {# llamadas a la IA}} en esa comprobación, y una por cada fila nueva después.",
   "folders.rows.paused": "La obtención de ofertas está en pausa: la comprobación horaria no se ejecuta. “Comprobar ahora” sigue leyendo la carpeta y guarda las filas sin puntuar, sin gastar IA.",

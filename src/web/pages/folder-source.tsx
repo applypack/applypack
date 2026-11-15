@@ -346,7 +346,10 @@ const RowsPreviewPage: FC<RowsPreviewProps> = (props) => {
 
           <Card class="mt-6">
             <SectionTitle>{t('folders.nextCheck')}</SectionTitle>
-            {rows.length > 0 && plan.read === 0 && <p class="text-sm text-ink">{t('folders.rows.nothing')}</p>}
+            {/* A file written a moment ago waits until it stops changing: that is not "read before" (#743). */}
+            {rows.length > 0 && plan.read === 0 && (
+              <p class="text-sm text-ink">{plan.waiting > 0 ? t('folders.rows.nothingYet', { n: plan.waiting }) : t('folders.rows.nothing')}</p>
+            )}
             {rows.length > 0 && plan.read > 0 && (
               <ul class="space-y-1 text-sm text-ink">
                 <li>{t('folders.rows.usable', { usable: counts.usable, stored: counts.stored })}</li>
