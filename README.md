@@ -112,6 +112,12 @@ install, unchanged.
   months later. It stops, and says why, when the posting is closed or the
   company does not check out. Off by default; nothing is ever submitted for
   you ([ADR 0063](./docs/adr/0063-the-worker-prepares-an-application-pack.md)).
+- **🎤 Ready for the interview.** Keep what happened at work in your own
+  words, in any language: projects, hard situations, decisions. For a
+  posting, one press lists the questions it is likely to bring and what you
+  can answer from that history, in the language the interview is held in. A
+  number that is not in your notes is marked before you say it
+  ([ADR 0065](./docs/adr/0065-interview-preparation-reads-the-persons-own-history.md)).
 - **💌 A cover letter that cannot invent.** Drafted from the posting, your
   resume and the facts you confirmed, nothing else. A fact gate reads every
   claim back against that evidence; a number that is not in your resume
