@@ -46,7 +46,7 @@ import type { TrialView } from '../engine-trial-run';
 import { TRIAL_SIZE } from '../engine-trial';
 import { describeCount, wordedSource, type SourceGroup } from '../source-groups';
 import { dotClassFor, MAX_STAGE_LABEL, MAX_WORK_STAGES } from '../stage-config';
-import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
+import { formatPriorityRulesText, parsePriorityRules, ruleRows, type RuleRow } from '../../priority-rules';
 import { COUNTRIES, REGIONS } from '../../countries';
 import { RELOCATION_CODES, RELOCATION_LABEL } from '../../eligibility';
 import { PROFILE_WORKPLACES } from '../../location';
@@ -2502,6 +2502,8 @@ const ProfileEditor: FC<{
 const PriorityRulesEditor: FC<{ profile: Profile; typed?: string }> = ({ profile, typed }) => {
   const rules = parsePriorityRules(profile.priorityRules);
   const text = typed ?? formatPriorityRulesText(rules);
+  // One row per rule and an empty one to add the next (#560): no rule language to write.
+  const rows: RuleRow[] = [...ruleRows(text), { label: '', techs: '', regions: '', floor: '' }];
   return (
     <details class="rounded-md border border-line" open={text.trim().length > 0}>
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-note font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
@@ -2511,33 +2513,48 @@ const PriorityRulesEditor: FC<{ profile: Profile; typed?: string }> = ({ profile
         </span>
       </summary>
       <div class="border-t border-line px-4 py-4">
-        {/* The rule grammar and its sample values are written in code: the sentence places them, a translator never retypes them. */}
-        <Hint>
-          {tRich('settings.priorityRulesHint', {}, {
-            format: () => <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>,
-            hash: () => <Code>#</Code>,
+        <Hint>{t('settings.rules.intro')}</Hint>
+        <Hint class="mt-1">
+          {tRich('settings.priorityRulesRegions', {}, {
+            phrase: () => <Code>Remote US</Code>,
+            bare: () => <Code>Remote</Code>,
+            list: () => <Code>Remote US, United States, USA, Worldwide</Code>,
           })}
         </Hint>
-        {rules.length > 0 && (
-          <Hint class="mt-1 text-warn">
-            {tRich('settings.priorityRulesRegions', {}, {
-              phrase: () => <Code>Remote US</Code>,
-              bare: () => <Code>Remote</Code>,
-              list: () => <Code>Remote US,United States,USA,Worldwide</Code>,
-            })}
-          </Hint>
-        )}
-        <Textarea
-          name="priorityRules"
-          aria-label={t('settings.priorityRules')}
-          rows={Math.max(3, rules.length + 1)}
-          placeholder="Python remote-US | python | Remote US,United States,USA,Worldwide | 90"
-          class="mt-1.5"
-          mono
-          translate="no"
-        >
-          {text}
-        </Textarea>
+        <div class="mt-3 space-y-3">
+          {rows.map((row, i) => {
+            const fresh = i === rows.length - 1;
+            return (
+              <fieldset class="rounded-md border border-line p-3">
+                <legend class="px-1 text-meta text-ink-faint">
+                  {fresh ? t('settings.rules.new') : t('settings.rules.rule', { n: i + 1 })}
+                </legend>
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_7rem_minmax(0,1.5fr)]">
+                  <Field label={t('settings.rules.techs')}>
+                    <Input name="ruleTechs" value={row.techs} placeholder="php, laravel" translate="no" />
+                  </Field>
+                  <Field label={t('settings.rules.regions')}>
+                    <Input name="ruleRegions" value={row.regions} placeholder="Remote US, United States" translate="no" />
+                  </Field>
+                  <Field label={t('settings.rules.floor')}>
+                    <Input name="ruleFloor" value={row.floor} placeholder="90" inputmode="numeric" translate="no" />
+                  </Field>
+                  <Field label={t('settings.rules.label')}>
+                    <Input name="ruleLabel" value={row.label} maxlength={80} translate="no" />
+                  </Field>
+                </div>
+                {!fresh && (
+                  <div class="mt-2">
+                    <Checkbox name="ruleRemove" value={String(i)}>
+                      {t('settings.rules.remove')}
+                    </Checkbox>
+                  </div>
+                )}
+              </fieldset>
+            );
+          })}
+        </div>
+        <Hint class="mt-2">{t('settings.rules.addHint')}</Hint>
         {rules.length > 0 && (
           <div class="mt-2 flex flex-wrap gap-1.5" translate="no">
             {rules.map((r) => (
