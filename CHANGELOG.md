@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [2.64.0] — 2026-11-14
+## [2.64.0] — 2026-11-15
 
 ### Added
 - Interview preparation on the job page (ADR 0065). The new **Interview**
@@ -14,6 +14,19 @@ All notable changes to this project are documented here. The format follows
   that history, in the language you choose for the interview. A source an
   answer names is one of your notes or your resume, and a figure your
   material does not state is marked. One AI call, no web search.
+
+### Changed
+- Setup step 3 is named **Add your resume**, and on the Resumes page
+  **Upload a resume** is the page's solid button. The hint above the
+  searches says what a search profile is and when a second one is worth it.
+- The Ukrainian interface was read in full against the English: 82
+  corrections. Spanish and French count one resume as one.
+
+### Fixed
+- Setup step 1: an engine whose program is not on the computer says so and
+  shows the command that installs it, and saving a key for an engine that
+  still cannot run answers with a warning that names the reason, instead of
+  "saved, send a test message" with no way to send one (#711).
 
 ## [2.63.41] — 2026-10-29
 
@@ -7127,6 +7140,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.64.0]: https://github.com/applypack/applypack/compare/v2.63.41...v2.64.0
 [2.63.41]: https://github.com/applypack/applypack/compare/v2.63.40...v2.63.41
 [2.63.40]: https://github.com/applypack/applypack/compare/v2.63.39...v2.63.40
 [2.63.39]: https://github.com/applypack/applypack/compare/v2.63.38...v2.63.39
