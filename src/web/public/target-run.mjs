@@ -104,6 +104,11 @@ export function stepTime(stepState, step, state) {
   return '';
 }
 
+/** A run can take on a step after its page was drawn (the report's second call, #586). */
+export function hasUndrawnStep(runSteps, drawn) {
+  return runSteps.some((s) => !drawn.includes(s));
+}
+
 export function init(data, activity = defaultActivity) {
   const steps = [...document.querySelectorAll('[data-step]')];
   const elapsedEl = document.getElementById('run-elapsed');
@@ -143,6 +148,8 @@ export function init(data, activity = defaultActivity) {
       if (!res.ok) return;
       state = await res.json();
       if (state.stage === 'done' || state.stage === 'error') return location.reload();
+      // A step the run took on after this page was drawn: the server draws it.
+      if (hasUndrawnStep(state.steps, steps.map((li) => li.dataset.step))) return location.reload();
       // The extract step can rename the run ("Detecting the role…" → real title).
       const titleEl = document.getElementById('run-job-title');
       if (titleEl && state.jobTitle && titleEl.textContent !== state.jobTitle) {

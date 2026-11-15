@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 // The progress driver ships as a static ES module; node loads it the same way.
 // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
 const page = import('./public/target-run.mjs') as Promise<{
+  hasUndrawnStep: (runSteps: string[], drawn: string[]) => boolean;
   activityFor: (step: string, stageElapsedMs: number) => string;
   formatElapsed: (ms: number) => string;
   progressLine: (step: string, progress: { done: number; total: number }) => string;
@@ -60,4 +61,10 @@ test('stepTime counts the active step live and freezes finished ones', async () 
   assert.equal(stepTime('done', 'extract', state), '', 'no recorded time, no number');
   assert.equal(stepTime('pending', 'match', state), '');
   assert.equal(stepTime('done', 'scan', { stageElapsedMs: 0 }), '', 'a registry without stepMs (fetch page)');
+});
+
+test('a step the run took on after the page was drawn asks for a redraw', async () => {
+  const { hasUndrawnStep } = await page;
+  assert.equal(hasUndrawnStep(['brief', 'full'], ['brief', 'full']), false);
+  assert.equal(hasUndrawnStep(['brief', 'full', 'suggestions'], ['brief', 'full']), true);
 });

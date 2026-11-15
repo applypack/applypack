@@ -8,9 +8,11 @@ import type { MatchJobInput } from '../resume/prompts';
 import { flashRedirect } from './flash';
 import { formatRelative } from './format';
 import { finishSuggestions, startSuggestionsRun, suggestionsKey } from './suggestions-run';
-import { alsoClaims, claimRun, matchStep, startRun, updateRun, type RunStep } from './target-runs';
+import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from './target-runs';
 import { runFailure } from './run-failure';
 import { t } from '../i18n/t';
+import { formatList } from '../i18n/format';
+import type { FloorSection } from '../resume/suggestion-floor';
 
 /**
  * One comparison of one text against one stored posting, run on the progress
@@ -120,6 +122,11 @@ export async function runComparison(runId: string, req: ComparisonRequest, lead:
   await compare(runId, req);
 }
 
+/** Why the report is asked once more: the parts it owed an edit and left without one. */
+function floorLine(gaps: FloorSection[]): string {
+  return t('target.run.floor', { parts: formatList(gaps.map((g) => t(`match.section.${g}`))) });
+}
+
 /** The posting's reading, then one resume-model call, then the run's result. */
 async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   const { jobId, job, resume, text, mode, rebuild } = req;
@@ -144,6 +151,13 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
     brief: briefed,
     onError: (r) => {
       reason = r;
+    },
+    // The second call a full report sometimes needs is a step of its own, with
+    // its reason, instead of twenty silent seconds under the first one (#586).
+    onFloor: (gaps) => {
+      results.suggestions = floorLine(gaps);
+      const steps = getRun(runId)?.steps ?? [];
+      updateRun(runId, { steps: [...steps, 'suggestions'], stage: 'suggestions', results: { ...results } });
     },
   });
   if (!row) {
