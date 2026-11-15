@@ -3125,6 +3125,7 @@
   "pack.card.prepared": "prepared <when/>",
   "pack.card.preparedFrom": "prepared <when/> · from {resume}",
   "pack.card.downloadPdf": "Download .pdf",
+  "pack.card.pdfFromWord": "Need a PDF? Open this .docx in Word, Pages or Google Docs and save it as PDF: that keeps your own layout.",
   "pack.card.openPosting": "Open posting",
   "pack.card.failed": "The pack could not be prepared: {why} Nothing of yours was changed; you can try again.",
   "pack.card.noReason": "no reason was recorded",

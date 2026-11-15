@@ -591,7 +591,7 @@ export const TargetPage: FC<TargetPageProps> = ({
         </label>
       </div>
 
-      <div id="panes" class="show-matched grid gap-4 lg:grid-cols-2" data-view="both" role="tabpanel" aria-labelledby="view-tab-both">
+      <div id="panes" class="show-matched grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" data-view="both" role="tabpanel" aria-labelledby="view-tab-both">
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="text-label text-ink">{t('target.jobDescription')}</div>

@@ -180,6 +180,8 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
                   {t('pack.card.openPosting')}
                 </Button>
               )}
+              {/* Your own .docx is kept as it is, and no PDF is made of it: a renderer of ours would not be your layout (#589). */}
+              {files.docx && !files.pdf && <Hint class="basis-full">{t('pack.card.pdfFromWord')}</Hint>}
             </div>
           )}
         </div>

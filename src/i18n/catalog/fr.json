@@ -3125,6 +3125,7 @@
   "pack.card.prepared": "préparé <when/>",
   "pack.card.preparedFrom": "préparé <when/> · à partir de {resume}",
   "pack.card.downloadPdf": "Télécharger le .pdf",
+  "pack.card.pdfFromWord": "Besoin d'un PDF ? Ouvrez ce .docx dans Word, Pages ou Google Docs et enregistrez-le en PDF : votre mise en page est ainsi conservée.",
   "pack.card.openPosting": "Ouvrir l'offre",
   "pack.card.failed": "Le dossier n'a pas pu être préparé : {why} Aucune de vos données n'a été modifiée ; vous pouvez réessayer.",
   "pack.card.noReason": "aucune raison n'a été enregistrée",

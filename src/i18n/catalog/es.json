@@ -3125,6 +3125,7 @@
   "pack.card.prepared": "preparado <when/>",
   "pack.card.preparedFrom": "preparado <when/> · a partir de {resume}",
   "pack.card.downloadPdf": "Descargar .pdf",
+  "pack.card.pdfFromWord": "¿Necesitas un PDF? Abre este .docx en Word, Pages o Google Docs y guárdalo como PDF: así se conserva tu propio diseño.",
   "pack.card.openPosting": "Abrir oferta",
   "pack.card.failed": "No se pudo preparar el paquete: {why} No se cambió nada tuyo; puedes volver a intentarlo.",
   "pack.card.noReason": "no se registró ningún motivo",
