@@ -336,6 +336,24 @@ export function scoreMatch(
   return computeScore(entriesFromKeywords(keywords), alignment, countedFlags);
 }
 
+/**
+ * The ceiling if the candidate said yes to every term the comparison asks
+ * about (#767). The ceiling counts what the resume can claim today, and a
+ * question is not a claim — but "at most 68" read as final on a comparison
+ * whose three open questions (NPM, TDD, a tsconfig) were worth nine points,
+ * and a pack stopped under its floor on them. `asked` is how many weighted
+ * terms are waiting for an answer.
+ */
+export function ceilingWithAnswers(
+  keywords: ScoredKeyword[],
+  judged: Pick<ScoreBreakdown, 'alignment' | 'flagsCounted' | 'penalty'>,
+): { ceiling: number; asked: number } {
+  const asked = keywords.filter((k) => k.status === 'ask_user' && SCORING.requirementWeight[k.requirement] > 0).length;
+  const answered = keywords.map((k) => (k.status === 'ask_user' ? { ...k, status: 'add' as const } : k));
+  const bd = computeScore(entriesFromKeywords(answered), judged.alignment, judged.flagsCounted ?? 0, judged.penalty);
+  return { ceiling: bd.ceiling ?? bd.score, asked };
+}
+
 /* Reader for the stored Json column — {} on rows written before ADR 0012. */
 
 const BreakdownSchema = z.object({

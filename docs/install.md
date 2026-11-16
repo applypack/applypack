@@ -153,6 +153,7 @@ Windows by a person yet — an API key is the sure one there.
 | `ApplyPack is already running` | it runs in another terminal: use that one, or `npm run stop` |
 | `Postgres does not run as root` | Linux as root: start ApplyPack as your normal user, or use Docker |
 | `The built-in database did not start` | the message quotes the database log; please [open an issue](https://github.com/applypack/applypack/issues/new/choose) with it |
+| Something failed and the page says "the log has the detail" | Settings → General → **Logs** shows the last lines; the file is `logs/applypack.log` in the data folder (rolled over at 5 MB). Attach those lines to an issue |
 | `ExperimentalWarning: localStorage is not available` | harmless: recent Node.js versions print it for a library ApplyPack uses |
 
 ## A folder of job files

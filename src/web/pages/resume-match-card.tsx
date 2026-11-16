@@ -40,9 +40,9 @@ import { verificationCautionMessages, verificationHintMessage, type Verification
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { WrittenTerm } from '../../resume/keyword-anchor';
 import { STALE_MONTHS, usageLine, type TermUsage } from '../../resume/usage';
-import { effectiveRequirement, isIgnored, confirmable, keywordNote } from '../../resume/keyword-overrides';
+import { effectiveKeywords, effectiveRequirement, isIgnored, confirmable, keywordNote } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS } from '../../resume/score';
-import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
+import { ceilingWithAnswers, readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
 import { scoreLines, type Advice, type ScoreLine } from '../score-lines';
 import { diffMatches, RERUN_SPREAD, withinRerunSpread } from '../../resume/diff';
@@ -292,7 +292,7 @@ const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; ha
           bullet" under a 100 asks why the 100 is a 100, and the heading
           answers before they ask. */}
       <LineGroup heading={t('score.heading.notCounted')} lines={lines.diagnostic} />
-      <ScoreCeilingLine bd={bd} class="border-t border-line pt-1.5" />
+      <ScoreCeilingLine bd={bd} keywords={keywords} class="border-t border-line pt-1.5" />
     </div>
   );
 };
@@ -323,8 +323,10 @@ export const MainAdviceLine: FC<{ advice: Advice | null }> = ({ advice }) =>
  * Its own component because the targeted view keeps this sentence and shows
  * none of the lines above it.
  */
-export const ScoreCeilingLine: FC<{ bd: ScoreBreakdown; class?: string }> = ({ bd, class: className = '' }) =>
-  bd.ceiling === undefined ? null : (
+export const ScoreCeilingLine: FC<{ bd: ScoreBreakdown; keywords?: MatchKeyword[]; class?: string }> = ({ bd, keywords, class: className = '' }) => {
+  // What a yes to the open questions is worth: the ceiling leaves them out (#767).
+  const answers = keywords && bd.ceiling !== undefined ? ceilingWithAnswers(effectiveKeywords(keywords), bd) : null;
+  return bd.ceiling === undefined ? null : (
     <p
       class={`text-meta text-ink-muted ${className}`}
       title={t('score.ceiling.title')}
@@ -336,8 +338,12 @@ export const ScoreCeilingLine: FC<{ bd: ScoreBreakdown; class?: string }> = ({ b
       ) : (
         <span class="font-medium text-ok">{t('score.ceiling.reached')}</span>
       )}
+      {answers && answers.asked > 0 && answers.ceiling > bd.ceiling && (
+        <> · {t('score.ceiling.answers', { n: answers.asked, ceiling: answers.ceiling })}</>
+      )}
     </p>
   );
+};
 
 const LINE_TONE: Record<NonNullable<ScoreLine['tone']>, string> = {
   ok: 'text-ok',

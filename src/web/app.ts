@@ -4,6 +4,7 @@
  * app.request() against it in-process, which is how every route gets an
  * automated request without a browser (TASKS §20 route-smoke-ci).
  */
+import { missingKind, missingPage } from './pages/missing';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { basicAuth } from 'hono/basic-auth';
@@ -188,6 +189,21 @@ app.use('*', async (c, next) =>
     ? next()
     : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
 );
+
+// A page that is not there answers as a page (#768): the routes keep their
+// one-line `c.text(…, 404)`, and a browser asking for a page gets the layout,
+// a sentence and a way back. A script, a download or a progress poll gets the
+// line it always got.
+app.use('*', async (c, next) => {
+  await next();
+  const status = c.res.status;
+  if (c.req.method !== 'GET' || (status !== 404 && status !== 400)) return;
+  if (!c.res.headers.get('content-type')?.startsWith('text/plain')) return;
+  if (!(c.req.header('accept') ?? '').includes('text/html') || c.req.path.endsWith('/state')) return;
+  const page = await c.html(missingPage(missingKind(status, c.req.path)), status);
+  c.res = undefined;
+  c.res = page;
+});
 
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);

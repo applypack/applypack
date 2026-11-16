@@ -1,14 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  computeScore,
-  entriesFromKeywords,
-  primaryCap,
-  readBreakdown,
-  scoreMatch,
-  SCORING,
-  type MatchAlignment,
-} from './score';
+import { ceilingWithAnswers, computeScore, entriesFromKeywords, primaryCap, readBreakdown, scoreMatch, SCORING, type MatchAlignment } from './score';
 
 const STRONG: MatchAlignment = { title: 'strong', summary: 'strong', recent_role: 'strong' };
 const OFF: MatchAlignment = { title: 'off', summary: 'off', recent_role: 'off' };
@@ -218,4 +210,15 @@ test('v6: a term shown only on a list of terms earns listedCredit, and moves not
   assert.equal(scoreMatch([kw('present', 'must', true)], STRONG, 0).score, 100);
   // Only a written term is discounted: `add` stays at half credit whatever the grade says.
   assert.equal(scoreMatch([{ ...kw('add'), evidence: 'listed' as const }], OFF, 0).keywordEarned, 1.5);
+});
+
+test('ceilingWithAnswers counts a yes to every open question, and nothing else (#767)', () => {
+  const k = (status: 'present' | 'ask_user' | 'cannot_claim', requirement: 'must' | 'context' = 'must') => ({ requirement, primary: false, status });
+  const keywords = [k('present'), k('present'), k('ask_user'), k('ask_user'), k('cannot_claim'), k('ask_user', 'context')];
+  const base = scoreMatch(keywords, null, 0);
+  const answers = ceilingWithAnswers(keywords, base);
+  assert.equal(answers.asked, 2, 'a context term weighs nothing and is not counted');
+  assert.equal(base.ceiling, 64, '2 of 5 weighted terms and a perfect alignment');
+  assert.equal(answers.ceiling, 88, '4 of 5 with both answered yes');
+  assert.equal(ceilingWithAnswers([k('present'), k('cannot_claim')], base).asked, 0);
 });

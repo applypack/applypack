@@ -40,6 +40,13 @@
  *    serving 1.8M requests/day" took the figure of the dispatch API bullet and
  *    the words of the runbooks one, and the letter written next repeated it.
  *
+ *  - a bullet's figure has to be the resume's own (#766). The posting is a
+ *    source for vocabulary, and "Mentor two mid-level engineers" in a posting
+ *    came back as "Mentored two mid-level engineers" in the resume: in an
+ *    experience action a figure only the posting states is refused, and a
+ *    term the resume only lists, written into a bullet, carries a note — a
+ *    pack leaves a noted edit for the person.
+ *
  *  - keyword stuffing is refused (#633). One comparison wrote JavaScript, SQL
  *    and JSON onto the skills line and then into four bullets ("a PostgreSQL
  *    SQL database", "Node.js, TypeScript, and JavaScript"), and Apply all took
@@ -208,6 +215,8 @@ const impliedOnly = (k: MatchKeyword) => k.status === 'add' && !k.note?.startsWi
 
 const PRIORITY_RANK: Record<MatchAction['priority'], number> = { high: 0, medium: 1, low: 2 };
 /** Where an implied term belongs instead, said on both refusals. */
+/** A line that says what the candidate did: a bullet, rewritten or new. */
+const ownWork = (action: MatchAction) => action.section === 'experience';
 const IMPLIED_HOME = 'a term the resume implies but never names goes on the skills line, or into a bullet whose own words show the work that used it';
 
 /** A name by its shape alone: "PostgreSQL", "Node.js", "AWS", "C#" — a capital inside it, a dot, plus or hash, or capitals throughout. */
@@ -294,6 +303,17 @@ export function gateActions(actions: MatchAction[], sources: GateSources, option
     else if (check.detached.length > 0) blocks.push(check.detached[0]!.reason);
     else if (check.verdict === 'warn') warns.push(...check.reasons);
 
+    // The posting is vocabulary, not history (#766): a figure a bullet states
+    // has to be the resume's own. "Mentor two mid-level engineers" in the
+    // posting once became "Mentored two mid-level engineers" in the resume.
+    if (ownWork(action)) {
+      const own = factCheck({ text, sources: [sources.resumeText, ...factLines(sources.facts)], facts: sources.facts });
+      const borrowed = own.claims.find((c) => c.kind === 'metric' && c.status === 'unsupported');
+      if (borrowed && check.verdict !== 'block') {
+        blocks.push(`figure "${borrowed.text}" is the posting's, not one your resume states — a bullet's numbers have to be your own`);
+      }
+    }
+
     for (const k of sources.keywords) {
       const introduced = !has(quote, k) && has(text, k);
       // The posted job title (priority 2) on the resume's OWN title line or in
@@ -313,6 +333,14 @@ export function gateActions(actions: MatchAction[], sources: GateSources, option
         else if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`drops "${k.term}", a must-have this posting wants`);
         else warns.push(`drops "${k.term}"`);
       }
+    }
+
+    // A term the resume only lists, written into a bullet, turns "listed" into
+    // "did it here" (#766) — and only the person knows whether this work used
+    // it. The note sends an unattended pack past the edit (pack/policy.ts).
+    if (ownWork(action)) {
+      const listed = sources.keywords.find((k) => k.status === 'present' && k.evidence === 'listed' && !has(quote, k) && has(text, k));
+      if (listed) warns.push(`writes "${listed.term}" into this bullet, and the resume only lists it — keep it if this work used it`);
     }
 
     // Stuffing (#633): a bullet rewrite that writes in a term the line implies,

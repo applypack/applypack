@@ -95,7 +95,8 @@ companiesRoute.get('/companies', async (c) => {
 
   const alertedCounts = await prisma.job.groupBy({
     by: ['companyId'],
-    where: { status: { in: [JobStatus.ALERTED, JobStatus.APPLIED] } },
+    // Alerted is a thing that happened, not a status passed through: an Applied job nobody was told about is not one (#770).
+    where: { alertedAt: { not: null } },
     _count: { _all: true },
   });
   const alertedMap = new Map<number, number>();

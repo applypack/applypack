@@ -11,7 +11,8 @@ import { readMatchEvidence, readMatchMode } from '../resume/match-mode';
 import { readPromptVersion } from '../resume/match-reuse';
 import { PROMPT_VERSION, readActions, readHardRequirements, readKeywords, readRemovals, type CoverAngles } from '../resume/prompts';
 import { knobsFrom } from '../resume/render/knobs';
-import { readBreakdown } from '../resume/score';
+import { effectiveKeywords } from '../resume/keyword-overrides';
+import { ceilingWithAnswers, readBreakdown } from '../resume/score';
 import { getPostingRefreshedAt, getResumeOriginal, listMatchesForText } from '../resume/store';
 import { livenessCodeLabel, runLivenessLadder } from '../verification/liveness';
 import { verifyJob } from '../verification/verify';
@@ -178,7 +179,12 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
     out.error = row ? t('pack.why.noBreakdown') : t('pack.why.compareFailed', { reason: because() });
     return out;
   }
-  out.stop = compareStop({ breakdown, hard: readHardRequirements(row.hardRequirements), minCeiling: opts.minCeiling });
+  out.stop = compareStop({
+    breakdown,
+    hard: readHardRequirements(row.hardRequirements),
+    minCeiling: opts.minCeiling,
+    answers: ceilingWithAnswers(effectiveKeywords(readKeywords(row.keywords)), breakdown),
+  });
   if (out.stop) return out;
 
   if (opts.verify) {

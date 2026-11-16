@@ -42,6 +42,7 @@ import { REAPPLY_CHOICES } from '../../employer';
 import { COVER_LETTER_MODES, PACK_LIMITS, POLICY_SECTIONS, type CoverLetterMode, type PackSettings } from '../../pack/settings';
 import type { FlashMessage } from '../flash';
 import type { LoginItemState } from '../login-item-io';
+import type { LogView } from '../log-tail';
 import type { TrialView } from '../engine-trial-run';
 import { TRIAL_SIZE } from '../engine-trial';
 import { describeCount, wordedSource, type SourceGroup } from '../source-groups';
@@ -234,6 +235,7 @@ export interface SettingsProps {
   updates: { enabled: boolean; current: string; latest: string | null; checkedAt: Date | null };
   /** TASKS S5: the system's login entry for `npm start`; unavailable in Docker and dev. */
   loginItem: LoginItemState;
+  logs: LogView;
   sourceHealthAlerts: boolean;
   disabledSources: string[];
   /** Off on /discovery stops the HN thread as surely as unticking its pill here. */
@@ -649,6 +651,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   pack,
   updates,
   loginItem,
+  logs,
   sourceHealthAlerts,
   disabledSources,
   hnParserEnabled,
@@ -1569,6 +1572,32 @@ export const SettingsPage: FC<SettingsProps> = ({
           {t('settings.sayInTheSidebarWhen')}
         </ToggleRow>
         {updates.enabled && updates.checkedAt && <UpdateLine {...updates} checkedAt={updates.checkedAt} />}
+      </Section>
+      )}
+
+      {activeTab === 'general' && (
+      <Section id="logs" title={t('settings.logs')} desc={t('settings.logsDesc')}>
+        {logs.file === null ? (
+          <Hint>{t('settings.logs.elsewhere')}</Hint>
+        ) : (
+          <>
+            <Hint>
+              {t('settings.logs.file')}{' '}
+              <span class="break-all font-mono text-meta" translate="no">
+                {logs.file}
+              </span>
+            </Hint>
+            {logs.lines.length === 0 ? (
+              <Hint>{t('settings.logs.empty')}</Hint>
+            ) : (
+              <Disclosure variant="quiet" summary={t('settings.logs.last', { n: logs.lines.length })}>
+                <pre class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-overlay p-3 font-mono text-meta text-ink" lang="en" translate="no">
+                  {logs.lines.join('\n')}
+                </pre>
+              </Disclosure>
+            )}
+          </>
+        )}
       </Section>
       )}
 

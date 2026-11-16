@@ -82,3 +82,16 @@ test('a run the shutdown cut into goes back in the queue, whatever it returned',
   assert.equal(runVerdict({ ...done, stopping: true, error: 'stopped: ApplyPack is shutting down' }), 'requeue');
   assert.equal(runVerdict({ ...done, stopping: true, stopped: true, made: false }), 'requeue');
 });
+
+test('a low ceiling says what a yes to the open questions is worth (#767)', () => {
+  const stop = compareStop({
+    breakdown: breakdown({ score: 58, ceiling: 68 }),
+    hard: [],
+    minCeiling: DEFAULT_MIN_CEILING,
+    answers: { ceiling: 79, asked: 3 },
+  });
+  assert.equal(stop?.stop, 'low-ceiling', 'a question is not a claim: the pack still stops');
+  assert.match(stop!.why, /to 68 at most, under the floor of 75\. It asks about 3 terms .* could reach 79/);
+  const none = compareStop({ breakdown: breakdown({ score: 58, ceiling: 68 }), hard: [], minCeiling: DEFAULT_MIN_CEILING, answers: { ceiling: 68, asked: 0 } });
+  assert.doesNotMatch(none!.why, /asks about/);
+});

@@ -10,7 +10,16 @@ import { t } from '../../i18n/t';
  * from it, as Tailor resume and Cover letter read a pasted posting; the three
  * fields wait behind one line for whoever would rather type them.
  */
-export const JobNewPage: FC<{ flash?: FlashMessage | null }> = ({ flash }) => (
+/** What a refused form was sent with: it comes back filled, so a pasted posting is never lost (#770). */
+export interface JobNewValues {
+  description?: string;
+  url?: string;
+  companyName?: string;
+  title?: string;
+  location?: string;
+}
+
+export const JobNewPage: FC<{ flash?: FlashMessage | null; values?: JobNewValues }> = ({ flash, values = {} }) => (
   <Layout title={t('job.new.pasteAJob')} active="jobs">
     <div class="w-full">
       <PageHeader title={t('job.new.pasteAJob')} back={{ href: '/jobs', label: t('job.allJobs') }}>
@@ -21,21 +30,23 @@ export const JobNewPage: FC<{ flash?: FlashMessage | null }> = ({ flash }) => (
       <Card>
         <form method="post" action="/jobs/new" class="grid gap-4">
           <Field label={t('job.new.jobDescription')} hint={t('job.new.pasteThePostingVerbatimIt')}>
-            <Textarea name="description" rows={18} required minlength="200" placeholder={t('job.new.descriptionPlaceholder')} />
+            <Textarea name="description" rows={18} required minlength="200" placeholder={t('job.new.descriptionPlaceholder')}>
+              {values.description ?? ''}
+            </Textarea>
           </Field>
           <Field label={t('job.new.postingUrl')} hint={t('job.new.optionalHelpsVerificationFindThe')}>
-            <Input type="url" name="url" placeholder="https://…" translate="no" />
+            <Input type="url" name="url" placeholder="https://…" translate="no" value={values.url ?? ''} />
           </Field>
-          <Disclosure variant="quiet" summary={t('job.new.nameItYourself')}>
+          <Disclosure variant="quiet" summary={t('job.new.nameItYourself')} open={Boolean(values.companyName || values.title || values.location)}>
             <div class="mt-3 grid gap-4 sm:grid-cols-3">
               <Field label={t('common.company')}>
-                <Input type="text" name="companyName" maxlength="200" placeholder={t('job.new.acmeCorp')} />
+                <Input type="text" name="companyName" maxlength="200" value={values.companyName ?? ''} placeholder={t('job.new.acmeCorp')} />
               </Field>
               <Field label={t('job.new.jobTitle')}>
-                <Input type="text" name="title" maxlength="200" placeholder={t('job.new.seniorSoftwareEngineer')} />
+                <Input type="text" name="title" maxlength="200" value={values.title ?? ''} placeholder={t('job.new.seniorSoftwareEngineer')} />
               </Field>
               <Field label={t('common.location')} hint={t('job.new.asWrittenInThePosting')}>
-                <Input type="text" name="location" maxlength="200" placeholder={t('job.new.remoteUs')} />
+                <Input type="text" name="location" maxlength="200" value={values.location ?? ''} placeholder={t('job.new.remoteUs')} />
               </Field>
             </div>
           </Disclosure>
