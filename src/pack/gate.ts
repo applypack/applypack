@@ -59,6 +59,8 @@ export function compareStop(input: {
   breakdown: ScoreBreakdown;
   hard: MatchHardRequirement[];
   minCeiling: number;
+  /** The ceiling with every open question answered yes (score.ts:ceilingWithAnswers). */
+  answers?: { ceiling: number; asked: number };
 }): Stop | null {
   const failed = input.hard.find((h) => h.status === 'fail');
   if (failed) {
@@ -71,7 +73,11 @@ export function compareStop(input: {
     breakdown.primaryPresent < breakdown.primaryTotal
       ? t('pack.why.lowCeilingCore', { ceiling, floor: input.minCeiling, present: breakdown.primaryPresent, total: breakdown.primaryTotal })
       : t('pack.why.lowCeiling', { ceiling, floor: input.minCeiling });
-  return { stop: 'low-ceiling', why };
+  // A question is not a claim, so it never lifts the ceiling — but the person
+  // who can answer it should hear what a yes is worth (#767).
+  const { answers } = input;
+  const open = answers && answers.asked > 0 && answers.ceiling > ceiling;
+  return { stop: 'low-ceiling', why: open ? `${why}. ${t('pack.why.answers', { n: answers.asked, ceiling: answers.ceiling })}` : why };
 }
 
 /** After the web check: a fake, or a posting the check says to skip (dead, re-posted for months). */

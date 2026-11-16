@@ -344,7 +344,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             </p>
             <MainAdviceLine advice={advice} />
             {/* needs-score: hidden by target-page.mjs while the ring has no number — both lines read it. */}
-            {breakdown && <ScoreCeilingLine bd={breakdown} class="needs-score" />}
+            {breakdown && <ScoreCeilingLine bd={breakdown} keywords={keywords} class="needs-score" />}
             {packScore !== null && <Hint class="!mt-1.5">{t('target.packScore', { pack: packScore })}</Hint>}
             {/* The number alone used to decide this, so "stop polishing" sat
                 above three suggested edits, five removals and an unconfirmed
