@@ -81,7 +81,7 @@ const SUBHEAD = 'mb-2 text-note font-medium text-ink-muted';
  * up on Azure DevOps" names the term, and the model lists it as used and as a
  * conceded gap both: a gap is not a keyword worked in (#770).
  */
-export function workedIn(letter: { keywordsUsed: string[]; gapsAcknowledged: string[] }): string[] {
+function workedIn(letter: { keywordsUsed: string[]; gapsAcknowledged: string[] }): string[] {
   const conceded = new Set(letter.gapsAcknowledged.map((g) => g.trim().toLowerCase()));
   return letter.keywordsUsed.filter((k) => !conceded.has(k.trim().toLowerCase()));
 }

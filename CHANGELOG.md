@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.71.0] — 2026-11-15
+
+### Added
+- **A log file on a local install** (#769). Under `npm start` the worker and
+  the dashboard also write to `logs/applypack.log` in the data folder (at
+  `info`, rolled over at 5 MB); the terminal stays at warnings. Settings →
+  General → **Logs** names the file and shows its last lines, and the
+  messages that said "the web log has the detail" point there.
+- A job or a page that is not there answers with the menu, a sentence and a
+  way back — a dismissed job is deleted after 30 days, and an old link used
+  to land on two bare words (#768).
+- "Editing can reach 68" also says what a yes to the open questions is worth
+  ("82 if you have the 3 terms it asks about"), and a pack that stops under
+  its floor says the same and where to answer (#767).
+
+### Fixed
+- **A bullet's numbers have to be your own** (#766). The posting is a source
+  for vocabulary, and "Mentor two mid-level engineers" in a posting came
+  back as "Mentored two mid-level engineers" in the resume: in an experience
+  edit a figure only the posting states is refused. A term the resume only
+  lists, written into a bullet, carries a note to check — and an application
+  pack leaves a noted edit for you.
+- Paste a job: a refused form comes back with what you pasted, and the
+  refusal no longer asks for a company and a title the page reads itself.
+- Companies: "Alerted" counts postings an alert went out for, not Applied
+  ones; a page watched for changes reads "Watching the page", not "No
+  postings".
+- The job page keeps the resume you just compared in the select; the card
+  under the **Resume score** tab carries the tab's name; a cover letter no
+  longer lists a conceded gap among the keywords it worked in; the starter
+  packs' text no longer says boards land switched off beside "Add and
+  switch on" (#770).
+
 ## [2.70.0] — 2026-11-15
 
 ### Changed
@@ -7283,6 +7316,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.71.0]: https://github.com/applypack/applypack/compare/v2.70.0...v2.71.0
 [2.70.0]: https://github.com/applypack/applypack/compare/v2.69.1...v2.70.0
 [2.69.1]: https://github.com/applypack/applypack/compare/v2.69.0...v2.69.1
 [2.69.0]: https://github.com/applypack/applypack/compare/v2.68.0...v2.69.0

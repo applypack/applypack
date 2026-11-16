@@ -9,12 +9,12 @@ import path from 'node:path';
  * path, the size it is rolled over at, and which lines the page shows.
  */
 
-export const LOG_FILE_NAME = 'applypack.log';
+const LOG_FILE_NAME = 'applypack.log';
 /** Past this the file becomes `applypack.log.1` at the next start, and a new one begins. */
 export const MAX_LOG_BYTES = 5 * 1024 * 1024;
 /** How much of the file's end the page reads, and how many lines of it it shows. */
 export const TAIL_BYTES = 256 * 1024;
-export const TAIL_LINES = 80;
+const TAIL_LINES = 80;
 
 export function logFilePath(dataDir: string): string {
   return path.join(dataDir, 'logs', LOG_FILE_NAME);
