@@ -266,6 +266,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     draft: form.draft === '1',
   };
   const jobId = idParam(form.jobId);
+  const editedOn = idParam(form.matchId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true, atsType: true } } } })
     : null;
@@ -321,7 +322,9 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     updateRun(run.id, match
       ? {
           stage: 'done',
-          resultUrl: `/jobs/${job.id}/target?match=${match.id}`,
+          // `saved` names the comparison the edits were typed on: the page drops its
+          // browser draft, which is this copy now — it used to stay as "Unsaved changes" (#770).
+          resultUrl: `/jobs/${job.id}/target?match=${match.id}${Number.isFinite(editedOn) ? `&saved=${editedOn}` : ''}`,
           flash: t('copy.save.checked', { note, score: match.matchScore }),
           downloadUrl,
         }

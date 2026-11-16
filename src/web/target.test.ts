@@ -511,3 +511,11 @@ test('what a skills line takes unasked is decided the same way on the page and i
   // Methodology and process (3) and domain (4) are phrases for a sentence; a required skill and a term the person added are not.
   assert.deepEqual([1, 2, 3, 4].map((priority) => namedSkill({ priority })), [true, true, false, false]);
 });
+
+test('a saved copy names the comparison whose browser draft it replaces (#770)', async () => {
+  // @ts-expect-error — plain JS with no declaration file.
+  const { savedDraftId } = (await import('./public/target-page.mjs')) as { savedDraftId: (search: string) => number | null };
+  assert.equal(savedDraftId('?match=6&saved=4'), 4);
+  assert.equal(savedDraftId('?match=6'), null);
+  assert.equal(savedDraftId('?saved=4;x'), null, 'only a plain number names a draft');
+});

@@ -36,6 +36,7 @@ import { placeName, workplaceName } from '../../i18n/places';
 import { flagOf } from '../../countries';
 import { techLabels } from '../tech-label';
 import type { MessageKey } from '../../i18n/catalog';
+import { formatList } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 
@@ -128,7 +129,7 @@ export interface WelcomeProps {
     scanCost: string;
   };
   /** The boards that fit where the searches hunt, with their state here (#148). */
-  sources: { suggestions: SourceSuggestion[]; packs: PackOffer[] };
+  sources: { suggestions: SourceSuggestion[]; packs: PackOffer[]; /** Company boards switched on, by name. */ boards: string[] };
   matches: {
     scoredCount: number;
     matchCount: number;
@@ -779,6 +780,9 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
 
 /* ---------- step 4 ---------- */
 
+/** How many switched-on boards the step names before it counts the rest. */
+const BOARDS_NAMED = 8;
+
 const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
   const done = steps.find((s) => s.key === 'sources')?.done ?? false;
   const waiting = sources.suggestions.filter((s) => s.state !== 'on').length;
@@ -809,6 +813,14 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
             ))}
           </ul>
         </>
+      )}
+      {sources.boards.length > 0 && (
+        <p class="mt-3 text-sm text-ink-muted">
+          {t(sources.boards.length > BOARDS_NAMED ? 'welcome.sources.boardsOnAmong' : 'welcome.sources.boardsOn', { n: sources.boards.length })}{' '}
+          <span class="text-ink" translate="no">
+            {formatList(sources.boards.slice(0, BOARDS_NAMED))}
+          </span>
+        </p>
       )}
       {sources.packs.length > 0 && (
         <div class="mt-4">

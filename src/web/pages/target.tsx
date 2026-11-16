@@ -39,6 +39,7 @@ import {
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { jobHref } from '../job-tabs';
 import type { MessageKey } from '../../i18n/catalog';
+import { proposalOf } from '../../resume/change-sheet';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 
@@ -161,6 +162,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   const breakdown = readBreakdown(match.breakdown);
   // The one move worth making next, ranked in code from the verdicts this row
   // already carries (score-lines.ts) — the editor is where it gets made.
+  const adviceOnly = actions.filter((a) => proposalOf(a) === null).length;
   const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions, postingTitle: job.title }) : null;
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
@@ -397,6 +399,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                   {/* One span: the button is a flex row, and its gap would stand between the words and the count. */}
                   <span>{tRich('target.applyAll.header', {}, { count: () => <span data-apply-all-count>0</span> })}</span>
                 </Button>
+                {/* "5 suggested edits" beside "Apply all (2)": the rest are advice with nothing to paste (#770). */}
+                {adviceOnly > 0 && <Hint class="!mt-1.5">{t('target.applyAll.adviceOnly', { n: adviceOnly })}</Hint>}
               </div>
             )}
           </div>
@@ -485,6 +489,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                   >
                     <input type="hidden" name="text" id="save-text" value="" />
                     <input type="hidden" name="jobId" value={job.id} />
+                    {/* The comparison the edits were made on: its browser draft goes once they are saved (#770). */}
+                    <input type="hidden" name="matchId" value={match.id} />
                     {/* The text the edits started from: the patcher diffs against it (ADR 0038), or for a draft against the file's own (#608). */}
                     <input type="hidden" name="baseText" value={resumeText} />
                     <input type="hidden" name="draft" value={documentDraft ? '1' : ''} />
