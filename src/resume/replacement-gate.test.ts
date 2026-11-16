@@ -680,3 +680,43 @@ test('a term the resume does not show in a sentence goes into one bullet per rep
   assert.equal(alone.actions[0]!.replacement, null);
   assert.equal(gateActions([later], src).blocked, 0);
 });
+
+test("a bullet's figure has to be the resume's own, not the posting's (#766)", async () => {
+  const resumeText = [
+    'Olena Example — Senior Backend Engineer',
+    'Skills: TypeScript, NestJS, PostgreSQL, SQS, Terraform',
+    '- Led a team of four engineers; cut deploy time from 40 to 9 minutes.',
+    '- Wrote Terraform modules for ECS services used by six teams.',
+  ].join('\n');
+  const posting = 'Senior Backend Engineer\nMentor two mid-level engineers. Scheduling software for 400 clinics.';
+  const src = await sources({ resumeText, posting });
+  const mentor = action({
+    insert_after: '- Led a team of four engineers; cut deploy time from 40 to 9 minutes.',
+    replacement: 'Mentored two mid-level engineers on NestJS and PostgreSQL schema design as part of the four-person ledger team.',
+  });
+  const own = action({ quote: 'Led a team of four engineers', replacement: 'Led and mentored a team of four engineers' });
+  const out = gateActions([mentor, own], src);
+  assert.equal(out.actions[0]!.replacement, null);
+  assert.match(out.actions[0]!.why, /not applied — figure "two mid-level" is the posting's/);
+  assert.equal(out.actions[1]!.replacement, 'Led and mentored a team of four engineers', out.actions[1]!.why);
+
+  // The summary and the title may still speak the posting's words.
+  const summary = action({ section: 'summary', quote: 'Senior Backend Engineer', replacement: 'Senior Backend Engineer ready to mentor two mid-level engineers' });
+  assert.equal(gateActions([summary], src).blocked, 0);
+});
+
+test('a listed term written into a bullet carries a note, so a pack leaves it (#766)', async () => {
+  const resumeText = [
+    'Olena Example — Senior Backend Engineer',
+    'Skills: TypeScript, NestJS, PostgreSQL, SQS, Terraform',
+    '- Wrote Terraform modules for ECS services used by six teams.',
+  ].join('\n');
+  const src = await sources({ resumeText, keywords: [keyword({ term: 'SQS', evidence: 'listed' }), keyword({ term: 'Terraform', evidence: 'described' })] });
+  const out = gateActions(
+    [action({ quote: 'Wrote Terraform modules for ECS services used by six teams.', replacement: 'Wrote Terraform modules provisioning ECS services and SQS queues used by six teams.' })],
+    src,
+  );
+  assert.equal(out.blocked, 0);
+  assert.ok(hasCheckNote(out.actions[0]!), out.actions[0]!.why);
+  assert.match(out.actions[0]!.why, /writes "SQS" into this bullet, and the resume only lists it/);
+});
