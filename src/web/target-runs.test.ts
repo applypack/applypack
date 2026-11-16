@@ -155,7 +155,7 @@ test('a failure line says what failed, why when the engine said, and what to do 
   // No reason from the engine: the log is where the detail lives, and the line says so.
   assert.equal(
     runFailure('Could not rewrite that suggestion', '', next),
-    'Could not rewrite that suggestion. The old wording stays; press Rewrite again. The web log has the detail.',
+    'Could not rewrite that suggestion. The old wording stays; press Rewrite again. The log has the detail (Settings → General → Logs).',
   );
 });
 

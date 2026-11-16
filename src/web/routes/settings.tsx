@@ -90,6 +90,7 @@ import { billingFacts, forgetAiProbe, getAiEngineEnv, localAiBase, openAiBase, p
 import { DEFAULT_LOCAL_CONTEXT_TOKENS, LOCAL_CONTEXT_CHOICES } from '../../ai-provider-parse';
 import { knownModels } from '../../server-models';
 import { loginItemState, setLoginItem } from '../login-item-io';
+import { readLogView } from '../log-tail';
 import { APP_VERSION } from '../../app-version';
 import { checkForUpdate } from '../../update-check';
 import { isNewer } from '../../versions';
@@ -425,6 +426,7 @@ async function loadSettingsProps(here: string, tab: SettingsTab) {
     dashboard: { url: settings.dashboardUrl, here },
     pack: parsePackSettings(settings.pack),
     loginItem: loginItemState(),
+    logs: readLogView(),
     updates: {
       enabled: settings.updateCheck,
       current: APP_VERSION,

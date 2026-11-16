@@ -449,9 +449,10 @@ into ApplyPack.
 - **No Disable button** — the card is the only engine in the list and the
   one `AI_PROVIDER` names, so an empty list would bring it straight back.
   Enable another engine first.
-- **Test fails after N seconds** — the exact error is in the web logs:
-  `docker compose logs web | grep "ai:"` (Docker) or the terminal running
-  the server (local).
+- **Test fails after N seconds** — the exact error is in the log:
+  `docker compose logs web | grep "ai:"` (Docker), or Settings → General →
+  **Logs** on a local install, which shows the last lines of
+  `logs/applypack.log` in the data folder.
 - **Every engine failed** — the log line `ai: every engine in the chain
   failed` lists the chain that was tried. Jobs are retried on the next
   cron tick; nothing is lost.

@@ -15,8 +15,8 @@ test('a re-score no engine answered says what failed, what is safe and the way f
     kind: 'err',
     text: 'This posting was not scored again: Claude Code CLI: the sign-in was refused. Its verdict is as it was. Check the engine under Settings → AI & costs, then press Re-classify again.',
   });
-  // With no reason from the engine, the web log is where the detail is.
-  assert.match(rescoreFlash({ kind: 'failed', reason: '' }, was('ALERTED')).text, /^This posting was not scored again\. Its verdict is as it was\..* The web log has the detail\.$/);
+  // With no reason from the engine, the log is where the detail is.
+  assert.match(rescoreFlash({ kind: 'failed', reason: '' }, was('ALERTED')).text, /^This posting was not scored again\. Its verdict is as it was\..* The log has the detail \(Settings → General → Logs\)\.$/);
 });
 
 test('a posting the prefilter turned away says so, and what became of its status', () => {

@@ -336,7 +336,7 @@ describe('failedRunLine (TASKS U6)', () => {
     );
   });
   it('an unknown job still gets a way forward, and an empty error points at the log', () => {
-    assert.equal(failedRunLine('reclassify', ''), 'reclassify failed. The next scheduled run tries again. The web log has the detail.');
+    assert.equal(failedRunLine('reclassify', ''), 'reclassify failed. The next scheduled run tries again. The log has the detail (Settings → General → Logs).');
   });
   it('a long reason is cut to one sentence', () => {
     assert.ok(failedRunLine('cleanup', 'x'.repeat(400)).includes('…'));
