@@ -34,6 +34,12 @@ import { isTitleKeyword } from './title-keyword.mjs';
 // when an analysis lands on a score the live count already showed.
 const RING_TONE = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', neutral: 'text-ink-faint' };
 
+/** The comparison whose browser draft a save just turned into a copy: `?saved=<id>`, a plain number or null. */
+export function savedDraftId(search) {
+  const id = new URLSearchParams(search).get('saved');
+  return id !== null && /^\d+$/.test(id) ? Number(id) : null;
+}
+
 export function ringTone(score) {
   return score >= 85 ? 'ok' : score >= 70 ? 'info' : score >= 50 ? 'warn' : 'neutral';
 }
@@ -213,6 +219,15 @@ export function init(data) {
   const panes = document.getElementById('panes');
   const storageKey = 'target-draft:' + data.matchId;
   const editsKey = 'target-edits:' + data.matchId;
+  // Back from saving a copy: the comparison the edits were typed on keeps no
+  // draft of them — they are the copy now (#770).
+  const savedFrom = savedDraftId(location.search);
+  if (savedFrom !== null) {
+    try {
+      localStorage.removeItem('target-draft:' + savedFrom);
+      localStorage.removeItem('target-edits:' + savedFrom);
+    } catch {}
+  }
   // The span Locate is pointing at, or null. Cleared on every edit, because an
   // offset into text the user has since changed points at the wrong words.
   let located = null;

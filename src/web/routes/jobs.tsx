@@ -602,6 +602,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       tab={resolveJobTab({ tab: c.req.query('tab'), match: c.req.query('match'), letter: c.req.query('letter') })}
       tabs={jobTabLabels({
         matchScore: selected?.matchScore ?? null,
+        copyScore: matches.find((m) => m.id === tailoredCopy?.matchId)?.matchScore ?? null,
         letters: letters.length,
         verdict: verifications[0]?.verdict ?? null,
         pack: packFact(applicationPack.pack),

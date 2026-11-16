@@ -77,6 +77,8 @@ export function shownMatch<M extends ShownCandidate>(matches: readonly M[], requ
 export interface JobTabFacts {
   /** The score of the comparison the page would show; null = none yet. */
   matchScore: number | null;
+  /** The score of the copy tailored for this job, when it differs from the one shown: "58 → 72" (#770). */
+  copyScore?: number | null;
   letters: number;
   /** The latest verification's verdict; null = never checked. */
   verdict: string | null;
@@ -97,7 +99,12 @@ export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string; 
     { tab: 'posting', label: t('job.tab.posting') },
     {
       tab: 'match',
-      label: facts.matchScore === null || facts.matchScore === 0 ? t('job.tab.match') : t('job.tab.matchScore', { score: facts.matchScore }),
+      label:
+        facts.matchScore === null || facts.matchScore === 0
+          ? t('job.tab.match')
+          : facts.copyScore != null && facts.copyScore !== facts.matchScore
+            ? t('job.tab.matchCopy', { score: facts.matchScore, copy: facts.copyScore })
+            : t('job.tab.matchScore', { score: facts.matchScore }),
       title: t('job.tab.matchTitle'),
     },
     { tab: 'letter', label: facts.letters === 0 ? t('job.tab.letter') : t('job.tab.letterCount', { n: facts.letters }) },

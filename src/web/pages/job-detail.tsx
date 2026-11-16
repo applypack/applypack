@@ -26,6 +26,7 @@ import {
   Tag,
   Textarea,
   type ButtonVariant,
+  TONE_TEXT,
 } from '../ui';
 import type { FitWhy } from '../fit-why';
 import { toCheckInterval } from '../../watchlist/interval';
@@ -49,6 +50,7 @@ import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card'
 import { VerificationCard, type VerificationCardProps } from './verification-card';
 import { livenessCodeLabel } from '../../verification/liveness';
 import type { MessageKey } from '../../i18n/catalog';
+import { oldPostingDays } from '../posting-age';
 import { placeName, workplaceName } from '../../i18n/places';
 import { headerPlace } from '../place-line';
 import { wordedStage, type StageDef } from '../stage-config';
@@ -736,6 +738,7 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
         {job.company.atsType === 'ADZUNA' && <AdzunaLabel market={job.company.atsToken} class="mt-1" />}
         {job.company.atsType === 'FRANCETRAVAIL' && <FranceTravailLine updatedAt={job.sourceUpdatedAt} class="mt-1" />}
         <PlaceChips job={job} />
+        <OldPostingLine job={job} />
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-3">
         <FitBadge score={job.fitScore} worded title={job.fitScore === null ? undefined : t('job.fitTitle', { score: job.fitScore })} />
@@ -766,6 +769,12 @@ const HeaderPlace: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'region
       {place.asPosted ? <span translate="no">{place.text}</span> : place.text}
     </>
   );
+};
+
+/** "Posted 157 days ago — check that it is still open": the fit does not read a posting's age (#770). */
+const OldPostingLine: FC<{ job: Pick<JobDetail, 'postedAt' | 'postedAtKnown' | 'status'> }> = ({ job }) => {
+  const days = job.status === 'APPLIED' || job.status === 'DISMISSED' ? null : oldPostingDays(job);
+  return days === null ? null : <p class={`mt-2 text-note ${TONE_TEXT.warn}`}>{t('job.oldPosting', { n: days })}</p>;
 };
 
 /**

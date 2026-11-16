@@ -4,6 +4,7 @@ import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { isRelocation } from '../../eligibility';
 import { CronRunStatus, JobStatus, type Profile } from '@prisma/client';
+import { sourceFamily } from '../source-groups';
 import { prisma } from '../../db';
 import { config } from '../../config';
 import {
@@ -164,7 +165,7 @@ welcomeRoute.get('/welcome', async (c) => {
         draft,
         scanCost: await spendHint('resume-scan'),
       }}
-      sources={{ suggestions, packs }}
+      sources={{ suggestions, packs, boards: await boardsOn() }}
       matches={{
         scoredCount: facts.scoredCount,
         matchCount,
@@ -575,4 +576,10 @@ function profileInput(p: Profile): ProfileInput {
     resumeId: p.resumeId,
     priorityRules: parsePriorityRules(p.priorityRules),
   };
+}
+
+/** The company boards that are switched on — what a starter pack added, said back on the step that added it (#770). */
+async function boardsOn(): Promise<string[]> {
+  const rows = await prisma.company.findMany({ where: { active: true }, select: { name: true, atsType: true }, orderBy: { name: 'asc' } });
+  return rows.filter((r) => sourceFamily(r.atsType) === 'vendor').map((r) => r.name);
 }

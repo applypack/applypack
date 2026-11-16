@@ -106,3 +106,10 @@ describe('shownMatch — the comparison a job page opens on', () => {
     assert.equal(shownMatch([], NaN, 2), null);
   });
 });
+
+it('the resume score tab shows the tailored copy beside the resume it came from (#770)', () => {
+  const label = (copyScore: number | null) => jobTabLabels({ matchScore: 58, copyScore, letters: 0, verdict: null, pack: null, questions: 0 }).find((t) => t.tab === 'match')!.label;
+  assert.equal(label(72), 'Resume score · 58 → 72');
+  assert.equal(label(58), 'Resume score · 58', 'the copy on show is not said twice');
+  assert.equal(label(null), 'Resume score · 58');
+});

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.71.1] — 2026-11-15
+
+### Fixed
+The rest of #770:
+- The **Resume score** tab shows the copy tailored for the job beside the
+  resume it came from ("58 → 72"), and the editor no longer offers the edits
+  you just saved as "Unsaved changes".
+- A posting published 45 days ago or more says so under its title, with a
+  reminder to check that it is still open: the fit does not read a
+  posting's age.
+- Tailor resume says how many of the suggested edits are advice with no
+  wording to apply, beside "Apply all".
+- Companies: sources that came switched off and were never read wait behind
+  one line, so a fresh install no longer lists reference boards for another
+  stack among your sources.
+- Setup, step 4 names the company boards that are switched on after a
+  starter pack is added.
+- The chart's summary names its days as UTC.
+
 ## [2.71.0] — 2026-11-15
 
 ### Added
@@ -7316,6 +7335,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.71.1]: https://github.com/applypack/applypack/compare/v2.71.0...v2.71.1
 [2.71.0]: https://github.com/applypack/applypack/compare/v2.70.0...v2.71.0
 [2.70.0]: https://github.com/applypack/applypack/compare/v2.69.1...v2.70.0
 [2.69.1]: https://github.com/applypack/applypack/compare/v2.69.0...v2.69.1
