@@ -385,11 +385,17 @@ const PastedJobSchema = ManualJobSchema.extend({
 const UNKNOWN_COMPANY = 'Unknown company';
 
 jobsRoute.post('/jobs/new', async (c) => {
-  const parsed = PastedJobSchema.safeParse(await c.req.parseBody());
+  const body = await c.req.parseBody();
+  const parsed = PastedJobSchema.safeParse(body);
   if (!parsed.success) {
     const { issues } = parsed.error;
     const required = t('jobRoute.new.required', { min: MIN_DESCRIPTION_CHARS });
-    return flashRedirect('/jobs/new', 'err', launcherRefusal(issues, required, ['description']), refusedField(c.req.path, issues));
+    // Answered in place, with what was sent: a redirect brought the form back
+    // empty, and the posting someone had just pasted was gone (#770).
+    const typed = (name: string): string => (typeof body[name] === 'string' ? (body[name] as string) : '');
+    const values = { description: typed('description'), url: typed('url'), companyName: typed('companyName'), title: typed('title'), location: typed('location') };
+    const flash = { kind: 'err' as const, text: launcherRefusal(issues, required, ['description']), ...refusedField(c.req.path, issues) };
+    return c.html(<JobNewPage flash={flash} values={values} />, 422);
   }
   // The posting is the one thing asked for (#545): whatever of the company, the title and the place was left
   // empty is read from it, as Tailor resume reads a pasted posting — one AI call, or the first line with none.
@@ -637,7 +643,9 @@ jobsRoute.get('/jobs/:id', async (c) => {
       resumeMatch={{
         jobId: id,
         resumes: resumeOptions,
-        suggestedResumeId: suggested?.id ?? null,
+        // A comparison asked for by its id leaves the select on its resume: the next
+        // Compare would otherwise run another resume than the one on screen (#770).
+        suggestedResumeId: (requestedMatch !== null ? resumes.find((r) => r.id === selected?.resumeId)?.id : undefined) ?? suggested?.id ?? null,
         matches,
         selected: selected && (await withShownFlags(selected)),
         selectedKeywords,

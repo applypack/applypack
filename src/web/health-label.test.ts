@@ -45,3 +45,9 @@ test('the streak a screen reader hears after the label reads on from it as the t
         assert.equal(t('sources.health.withStreak', { label: 'X', n }), `X ${t('sources.health.streakAfterLabel', { n })}`, `${locale} ${n}`),
       );
 });
+
+test('a page watched for changes is not "No postings" (#770)', () => {
+  assert.equal(healthLabel('empty', 'CAREER_PAGE'), 'Watching the page');
+  assert.equal(healthLabel('empty', 'GREENHOUSE'), 'No postings');
+  assert.equal(healthLabel('network', 'CAREER_PAGE'), 'Unreachable');
+});

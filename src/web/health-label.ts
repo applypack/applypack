@@ -37,6 +37,8 @@ export function healthLabel(status: string | null, atsType?: string): string {
   // Compared as a string, as source-health.ts does: the Prisma enum would pull the client into a pure module.
   const folder = atsType === 'FOLDER' && status !== null && Object.hasOwn(FOLDER_HEALTH_LABEL, status) ? FOLDER_HEALTH_LABEL[status as FetchStatus] : undefined;
   if (folder) return t(folder);
+  // A page watched for changes never has postings: "No postings" read as a fault (#770).
+  if (atsType === 'CAREER_PAGE' && status === 'empty') return t('sources.health.pageWatched');
   return t(status !== null && Object.hasOwn(HEALTH_LABEL, status) ? HEALTH_LABEL[status as FetchStatus] : 'sources.health.none');
 }
 

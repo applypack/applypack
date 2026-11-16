@@ -76,6 +76,16 @@ const FINDING_SHOWN_CHARS = 200;
 
 const SUBHEAD = 'mb-2 text-note font-medium text-ink-muted';
 
+/**
+ * The posting's words the letter worked in. A letter that says "I'd be ramping
+ * up on Azure DevOps" names the term, and the model lists it as used and as a
+ * conceded gap both: a gap is not a keyword worked in (#770).
+ */
+export function workedIn(letter: { keywordsUsed: string[]; gapsAcknowledged: string[] }): string[] {
+  const conceded = new Set(letter.gapsAcknowledged.map((g) => g.trim().toLowerCase()));
+  return letter.keywordsUsed.filter((k) => !conceded.has(k.trim().toLowerCase()));
+}
+
 export const CoverLetterCard: FC<CoverLetterCardProps> = ({
   copyResumeId,
   jobId,
@@ -352,11 +362,11 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
       </form>
 
       <div class="grid gap-4 sm:grid-cols-2">
-        {letter.keywordsUsed.length > 0 && (
+        {workedIn(letter).length > 0 && (
           <div>
             <div class={SUBHEAD}>{t('letter.postingKeywordsWorkedIn')}</div>
             <div class="flex flex-wrap gap-1.5" translate="no">
-              {letter.keywordsUsed.map((k) => (
+              {workedIn(letter).map((k) => (
                 <Tag tone="ok">{k}</Tag>
               ))}
             </div>
