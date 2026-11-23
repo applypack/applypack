@@ -74,22 +74,22 @@
     "prisma": true
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.8.0",
-    "@hono/node-server": "^2.1.8",
+    "@anthropic-ai/sdk": "^1.12.0",
+    "@hono/node-server": "^2.1.11",
     "@prisma/client": "^6.1.0",
     "@xmldom/xmldom": "0.9.12",
-    "docx": "9.15.3",
+    "docx": "9.16.0",
     "dotenv": "^18.0.10",
     "embedded-postgres": "16.14.0-beta.17",
-    "hono": "^4.13.18",
+    "hono": "^4.13.19",
     "jszip": "3.10.2",
     "node-cron": "^4.6.0",
-    "pdfkit": "0.20.2",
+    "pdfkit": "0.21.0",
     "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",
     "prisma": "^6.1.0",
     "rss-parser": "^3.13.0",
-    "unpdf": "^2.1.0",
+    "unpdf": "^2.2.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
